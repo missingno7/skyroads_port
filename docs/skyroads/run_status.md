@@ -29,9 +29,10 @@ gaps fixed to get there (all in `dos_re/`, not game-specific):
 `tests/test_skyroads_boot.py` (skips without `assets/`). No hooks recovered
 yet — everything currently runs as pure ASM oracle.
 
-**Interactive runner.** `scripts/play.py` (grown from `tools/view.py`) — live
-play, F11 demo record/stop, F12 snapshot save, F10 screenshot, `--snapshot`
-resume, `--play-demo` replay (headless or `--view`). Verified end-to-end:
+**Interactive runner.** `scripts/play.py` — a thin `GameFrontend` over the
+unified `dos_re.player` runner (standard CLI: viewer by default, `--headless`
+to disable; F11 demo record/stop, F12 snapshot save, F10 screenshot;
+`--snapshot` resume, `--play-demo` replay). Verified end-to-end:
 record → replay reaches byte-identical CS:IP/registers/instruction-count;
 snapshot-save → resume continues correctly (matches a fresh continuous run).
 Deterministic by construction: both live play and replay use the same fixed
