@@ -50,6 +50,16 @@ Installed hooks:
   static disassembly up front, informed by the register/flags mistakes the
   palette_upload verifier had just caught the same session.
 
+- occluded_column_blit (1010:3283): verified 2026-07-09 — 358 hook calls
+  with zero divergence (full-memory diff, strict auto-continuation) across
+  the ENTIRE recorded gameplay demo. A column-major stencil-limited
+  compositor (29x24), the largest un-hooked interpreted loop remaining after
+  the three hooks above. One bug caught by the verifier on the first run: I
+  read the stencil test backwards — the ASM `cmp mask,0; jz skip` draws only
+  where the stencil is NON-zero (a permit-mask that later passes stamp to 2),
+  not where it's zero; the full-memory diff flagged it instantly (stencil/
+  framebuffer bytes 02-vs-01 in the wrong slots). Fixed and re-verified clean.
+
 - fade_loop_tick_gate (1010:4344 + 1010:434A): added 2026-07-09 — NOT a thin
   representational hook like the ones above; see its own docstring for why
   this one is a genuine BEHAVIORAL change (skips provably-redundant work)
@@ -688,6 +698,119 @@ def _sprite_blit_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x3A22, "sprite_blit")
 def sprite_blit_hook(cpu: CPU8086) -> None:
     _sprite_blit_hook(cpu)
+
+
+# CS:IP 1010:3283 -- column-major stencil-limited compositor. Entry into the
+# routine is 1010:325B, which:
+# saves bx/di/ds/es, sets DS=SS and ES=ss:[0E36] (the dest segment), calls
+# 32C1 to CLEAR the 29x24 occlusion mask at ss:[0E86] to 0, computes a dest
+# start offset into DI (from a Y position at ss:[0E2C], `imul 0x140`, plus
+# ss:[0E28], minus 0x6E), and stores it at ss:[0E6C]. This hook takes over at
+# 1010:3283 -- the `lds si,ss:[0E2E]` that loads the far SOURCE pointer, right
+# before the double loop -- and runs the whole 3283-32B7 double loop in one
+# call, landing at 1010:32B9 (the `call 33FD` post-step) with exact register/
+# flag/memory state. 32C1 (mask clear) and 33FD run as real ASM around the
+# hook, so neither needs to be understood here.
+#
+# Geometry: DX counts 0x1D (29) columns (outer), CX counts 0x18 (24) rows
+# (inner). Per pixel: `al = source[si++]` (lodsb); if al==0 skip (transparent);
+# else if `ss:[bx+0E86] == 0` skip (stencil forbids this slot); else stamp
+# `ss:[bx+0E86]=2` and write `es:[di]=al`. So a pixel is drawn only where the
+# source is opaque AND the stencil byte is non-zero -- a permit-mask, NOT an
+# occlusion/z-buffer reject (the ASM is `cmp mask,0; jz skip`, i.e. skip on
+# ZERO). Then di += 0x140 (down one screen row), bx += 0x1D (down one mask
+# row). After each column: di -= 0x1DFF (== -(24*0x140 - 1): back to the top,
+# one screen column right), bx -= 0x2B7 (== -(24*0x1D - 1): same for the
+# mask). Net effect maps pixel (col c, row r) to dest offset di0 + r*0x140 + c
+# (a normal row-major 29-wide x 24-tall screen rectangle) and mask index
+# r*0x1D + c, while READING the source column-major (source index c*24 + r).
+#
+# The stencil shares sprite_blit's table (same ss:[0E86] base, same 0x1D
+# width) -- a region set up by an earlier pass that this draw is clipped to,
+# with each drawn slot converted to 2. Correctness does NOT depend on the
+# routine's own setup (32C1) having any particular prior contents: the hook
+# READS the live stencil byte-for-byte like the ASM, so whatever is there
+# produces identical (matching) behavior.
+#
+# Register/flags at the 32B9 exit (mirrors the ASM's final instructions):
+#   - CX = 0 (the inner `loop` always decrements to exactly 0 on exit).
+#   - DX = 0 (the outer `dec dx; jnz` falls through only at dx==0).
+#   - AX: AL = the LAST source byte read (lodsb runs every iteration incl.
+#     transparent/occluded ones, so it's source[last] regardless); AH is
+#     untouched by lodsb, so it keeps its entry value (high byte of the
+#     `imul 0x140` product the setup left in AX).
+#   - DI / BX: tracked iteratively (not closed-form) so 16-bit wrap matches.
+#   - SI = source offset + 0x2B8 (696 lodsb increments); DS = the source
+#     segment the `lds` loaded (33FD then runs with that DS, exactly as the
+#     unhooked routine would; the caller's DS is only restored later at 32BD).
+#   - FLAGS: last two flag-setting ops are `sub bx,0x2B7` (32B2, sets CF) then
+#     `dec dx` (32B6, sets SF/ZF/AF/PF/OF for the 0 result, PRESERVES CF --
+#     same INC/DEC semantics as CPU8086's own 0x40-0x4F opcode handlers and
+#     the sprite_blit hook). So final flags = dec-dx result with CF from the
+#     sub bx.
+_OCC_BLIT_MASK_BASE = 0x0E86     # ss-relative 29x24 occlusion mask (also sprite_blit's table)
+_OCC_BLIT_SRC_FAR_PTR = 0x0E2E   # ss-relative dword: source offset then segment
+_OCC_BLIT_COLS = 0x1D            # 29 columns (outer dx)
+_OCC_BLIT_ROWS = 0x18            # 24 rows (inner cx)
+_OCC_BLIT_DI_ROW = 0x140         # dest row stride (screen width)
+_OCC_BLIT_DI_COL_RESET = 0x1DFF  # subtracted from di after each column (24*0x140 - 1)
+_OCC_BLIT_BX_ROW = 0x1D          # mask row stride
+_OCC_BLIT_BX_COL_RESET = 0x2B7   # subtracted from bx after each column (24*0x1D - 1)
+_OCC_BLIT_EXIT_IP = 0x32B9
+
+
+def _occluded_column_blit_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss = s.ss
+    dest_seg = s.es  # es = ss:[0E36], loaded by the setup at 3263, unchanged here
+
+    src_off = mem.rw(ss, _OCC_BLIT_SRC_FAR_PTR)
+    src_seg = mem.rw(ss, (_OCC_BLIT_SRC_FAR_PTR + 2) & 0xFFFF)
+
+    di = s.di  # the dest start offset computed at 327F, still live in DI
+    bx = 0
+    si = src_off
+    last_al = s.ax & 0xFF
+
+    for _col in range(_OCC_BLIT_COLS):
+        for _row in range(_OCC_BLIT_ROWS):
+            last_al = mem.rb(src_seg, si)
+            si = (si + 1) & 0xFFFF
+            if last_al != 0:
+                mask_off = (bx + _OCC_BLIT_MASK_BASE) & 0xFFFF
+                # ASM: `cmp mask,0; jz skip` -> draw only where the stencil is
+                # NON-zero (a permit-mask), stamping each drawn slot to 2.
+                if mem.rb(ss, mask_off) != 0:
+                    mem.wb(ss, mask_off, 0x02)
+                    mem.wb(dest_seg, di, last_al)
+            di = (di + _OCC_BLIT_DI_ROW) & 0xFFFF
+            bx = (bx + _OCC_BLIT_BX_ROW) & 0xFFFF
+        bx_before_sub = bx
+        di = (di - _OCC_BLIT_DI_COL_RESET) & 0xFFFF
+        bx = (bx - _OCC_BLIT_BX_COL_RESET) & 0xFFFF
+
+    s.cx = 0
+    s.dx = 0
+    s.si = si
+    s.di = di
+    s.bx = bx
+    s.ds = src_seg
+    s.ax = (s.ax & 0xFF00) | last_al
+
+    # Final flags: sub bx (CF) then dec dx (everything else, CF preserved).
+    cpu.set_sub_flags(bx_before_sub, _OCC_BLIT_BX_COL_RESET,
+                      bx_before_sub - _OCC_BLIT_BX_COL_RESET, 16)
+    sub_cf = cpu.get_flag(CF)
+    cpu.set_sub_flags(1, 1, 0, 16)  # dec dx: 1 -> 0
+    cpu.set_flag(CF, sub_cf)
+
+    s.ip = _OCC_BLIT_EXIT_IP
+
+
+@registry.replace(CODE_SEG, 0x3283, "occluded_column_blit")
+def occluded_column_blit_hook(cpu: CPU8086) -> None:
+    _occluded_column_blit_hook(cpu)
 
 
 # CS:IP 1010:4344 (one-time reset) + 1010:434A (loop top) -- the palette
