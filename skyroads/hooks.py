@@ -24,11 +24,46 @@ Installed hooks:
   (AX/BX/CX/DX/SI/FLAGS) precise enough to satisfy a full-memory diff, not
   just matching decoded output. See skyroads/codecs/lzs.py for the recovered
   algorithm and evidence trail.
+
+- palette_upload (1010:6168): verified 2026-07-09 — 6,305 hook calls with
+  zero divergence (full-memory diff, strict auto-continuation) replaying the
+  ENTIRE recorded gameplay demo (artifacts/demos/demo_skyroads_20260709_184949,
+  988 frames, level-select through driving), not just a slice. The single
+  hottest un-hooked routine in that demo's profile (tools/profile_demo.py):
+  20.9% of all interpreted instructions. Getting a clean full-memory diff
+  required discovering the routine's own register/flags footprint is NOT the
+  no-op its pusha/popa wrapper first suggested — its prologue's `mov bx,sp`
+  runs BEFORE that pusha, so popa restores the entry stack-pointer value into
+  BX, not the caller's real BX; and the final popf restores whatever the
+  LAST pushf captured (paired with the last vsync-wait's own `TEST AL,8`),
+  not the caller's original flags. Both found via a real ASM oracle
+  divergence, not guessed in advance.
+
+- sprite_blit (1010:3A22): verified 2026-07-09 — 1,806 hook calls with zero
+  divergence (full-memory diff, strict auto-continuation) replaying the
+  ENTIRE recorded gameplay demo (artifacts/demos/demo_skyroads_20260709_184949,
+  988 frames). The second-hottest un-hooked routine in that demo's profile:
+  12.8% of all interpreted instructions. First attempt matched the oracle
+  immediately (no divergence) — the register/flags derivation (DEC preserves
+  CF, matching CPU8086's own INC/DEC opcode handlers; the do-while loop
+  shape; AL only updated on an actual mask==2 copy) was worked out from
+  static disassembly up front, informed by the register/flags mistakes the
+  palette_upload verifier had just caught the same session.
+
+- fade_loop_tick_gate (1010:4344 + 1010:434A): added 2026-07-09 — NOT a thin
+  representational hook like the ones above; see its own docstring for why
+  this one is a genuine BEHAVIORAL change (skips provably-redundant work)
+  verified by a different methodology (full-demo bit-exact final-state
+  comparison, not per-call oracle diff — the whole point is to diverge from
+  what the oracle would do). Cuts the fade-transition busy-wait's redundant
+  iterations, which palette_upload's own speedup had made worse (see
+  docs/skyroads/symbol_ledger.md's palette_upload caveat) by freeing enough
+  step budget for it to spin far more before its wait condition changes.
 """
 from __future__ import annotations
 
-from dos_re.cpu import CPU8086
-from dos_re.hooks import registry
+from dos_re.cpu import CPU8086, CF
+from dos_re.hooks import interpret_current_instruction_without_hook, registry
 
 from skyroads.codecs.lzs import LzsWidths
 from skyroads.recovered.palette_fade import blend_byte
@@ -415,3 +450,362 @@ def _lzs_decode_loop_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x6712, "lzs_decode_loop")
 def lzs_decode_loop_hook(cpu: CPU8086) -> None:
     _lzs_decode_loop_hook(cpu)
+
+
+# CS:IP 1010:6168 - VGA DAC palette-block upload (raw port I/O, VGA path) with a
+# BIOS INT 10h AH=10h/AL=12h fallback for non-VGA-direct systems. Near proc,
+# caller-cleanup convention (args read via `mov bx,sp` before any push, so the
+# final `ret` alone -- no immediate -- pops just the 2-byte return address;
+# the caller does `add sp,8` afterward to drop its 3 pushed args). Stack at
+# entry: [sp]=return IP, [sp+2]=start index (word), [sp+4]=count (word),
+# [sp+6]=far ptr offset, [sp+8]=far ptr segment (the LDS at 1010:6170 loads
+# offset then segment, the standard far-pointer layout).
+#
+# The whole body is wrapped in `push ds; push es; pusha ... popa; pop es; pop
+# ds; ret` (1010:616A-616C / 61E0-61E3), so from the CALLER's point of view
+# EVERY general/segment register and FLAGS comes back exactly as it went in --
+# confirmed by walking the full disassembly (1010:6168-61E3): the only
+# CLI/pushf/popf pair (1010:61C6-61C9 paired with 61B9's popf, one per
+# "blank the screen for a retrace-synced burst" cycle) is fully balanced
+# across the routine's own lifetime, and dos_re's interrupt delivery model
+# (dos_re.interrupts.deliver_interrupt) only ever runs between whole
+# cpu.step() calls, never mid-hook, so CLI/STI has no observable effect here
+# to replicate. Hooking this whole procedure -- not just its inner loop, like
+# palette_fade_inner/lzs_decode_loop -- is what lets register/flags
+# preservation collapse to "just don't touch them".
+#
+# The VGA-direct path (1010:618D-61CD) burns 20.9% of all interpreted
+# instructions in a recorded gameplay demo (see tools/profile_demo.py):
+# ~18 interpreted instructions per DAC-entry write (mov/lodsb/2x delay-jmp/
+# inc/dec/test/jnz), called with count~256-320 roughly once per frame. Every
+# 64th entry (1010:61A5 "test cx,3Fh") it also polls the input-status
+# register (03DAh, "wait for vertical retrace") and toggles VGA sequencer
+# register 1 bit 5 (Screen Off/On, ports 03C4h/03C5h) around the burst to
+# avoid DAC-write snow -- both are pure hardware-port side effects with no
+# CPU-register footprint, so they're replicated via the SAME cpu.port_reader/
+# cpu.port_writer calls the interpreter would make (reusing dos_re.dos
+# .DOSMachine's real state machine for vga_status_reads/vga_palette/
+# _seq_regs) rather than hand-duplicated formulas.
+#
+# The color-write loop is a do-while (1010:618B jumps straight into the loop
+# BODY, 618D, before any count check) not a while: a real count=0 call would
+# still write one entry and then run cx=0 wrapped to 0xFFFF, matched here by
+# structuring the Python loop the same "body first, decrement-and-check
+# after" way rather than a pre-checked `while remaining:` (which would
+# silently skip a count=0 call instead of replicating the wraparound).
+_PALETTE_UPLOAD_BIOS_FLAG_ADDR = 0x0489  # BDA byte tested at 1010:617B ("test es:[0489],6h", es=0000)
+
+
+def _palette_upload_blank_toggle(cpu: CPU8086, ah: int) -> None:
+    """1010:6151-6167: AND/OR VGA sequencer reg 1 (Clocking Mode) bit 5.
+
+    ah=0x00 clears it (screen on); ah=0x20 sets it (screen off/blanked)."""
+    cpu.port_writer(cpu, 0x03C4, 0x01, 8)
+    current = cpu.port_reader(cpu, 0x03C5, 8)
+    cpu.port_writer(cpu, 0x03C5, (current & 0xDF) | (ah & 0xFF), 8)
+
+
+def _palette_upload_wait_retrace_start(cpu: CPU8086, status_port: int) -> int:
+    """1010:61BA-61C5: `loope` polling status_port bit 3, capped at 0xFFFF tries.
+
+    Returns the LAST byte read from status_port -- the operand of the ASM's
+    own final `TEST AL,8h` in this loop, which matters because that TEST is
+    the last flag-setting instruction before this routine's next `pushf`
+    (1010:61C6): the whole call's FINAL flags always come from whichever
+    TEST/loop iteration was the most recent one across every dance this call
+    performs (see the writeback comment in _palette_upload_hook)."""
+    tries = 0xFFFF
+    al = cpu.port_reader(cpu, status_port, 8)
+    while not (al & 0x08):
+        tries = (tries - 1) & 0xFFFF
+        if tries == 0:
+            break
+        al = cpu.port_reader(cpu, status_port, 8)
+    return al
+
+
+def _palette_upload_retrace_dance(cpu: CPU8086, status_port: int, last_al: int) -> int:
+    """1010:61AD-61CA: pause the burst for one vertical retrace, screen blanked.
+
+    If already mid-retrace (61B0-61B2), skip straight back to writing (no port
+    I/O beyond the one probe read, and no pushf) -- matches the ASM's own fast
+    path, and ``last_al`` (the pending flags source) carries over unchanged."""
+    if cpu.port_reader(cpu, status_port, 8) & 0x08:
+        return last_al
+    _palette_upload_blank_toggle(cpu, 0x00)
+    last_al = _palette_upload_wait_retrace_start(cpu, status_port)
+    _palette_upload_blank_toggle(cpu, 0x20)
+    return last_al
+
+
+def _palette_upload_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, sp = s.ss, s.sp
+
+    ret_ip = mem.rw(ss, sp)
+    start = mem.rw(ss, (sp + 2) & 0xFFFF)
+    count = mem.rw(ss, (sp + 4) & 0xFFFF)
+    far_off = mem.rw(ss, (sp + 6) & 0xFFFF)
+    far_seg = mem.rw(ss, (sp + 8) & 0xFFFF)
+
+    bios_flag = mem.rb(0, _PALETTE_UPLOAD_BIOS_FLAG_ADDR)
+    if bios_flag & 0x06:
+        # 1010:61D7-61DF: BIOS AH=10h AL=12h fallback (ES:DX -> table, BX/CX
+        # unchanged). Registers are restored below regardless of this branch,
+        # so it's fine to let the real BIOS handler touch cpu.s here.
+        saved_ax, saved_bx, saved_cx, saved_dx, saved_es = s.ax, s.bx, s.cx, s.dx, s.es
+        s.ax, s.bx, s.cx, s.dx, s.es = 0x1012, start, count, far_off, far_seg
+        cpu.interrupt_handler(cpu, 0x10)
+        s.ax, s.bx, s.cx, s.dx, s.es = saved_ax, saved_bx, saved_cx, saved_dx, saved_es
+    else:
+        crtc_base = mem.rw(0, 0x0463)
+        status_port = (crtc_base + 6) & 0xFFFF
+        last_al = _palette_upload_wait_retrace_start(cpu, status_port)
+        _palette_upload_blank_toggle(cpu, 0x20)
+
+        bx = start & 0xFFFF
+        off = far_off & 0xFFFF
+        remaining = count & 0xFFFF
+        while True:
+            cpu.port_writer(cpu, 0x03C8, bx & 0xFF, 8)
+            r = mem.rb(far_seg, off); off = (off + 1) & 0xFFFF
+            cpu.port_writer(cpu, 0x03C9, r, 8)
+            g = mem.rb(far_seg, off); off = (off + 1) & 0xFFFF
+            cpu.port_writer(cpu, 0x03C9, g, 8)
+            b = mem.rb(far_seg, off); off = (off + 1) & 0xFFFF
+            cpu.port_writer(cpu, 0x03C9, b, 8)
+            bx = (bx + 1) & 0xFFFF
+            remaining = (remaining - 1) & 0xFFFF
+            if remaining & 0x3F:
+                continue
+            if remaining == 0:
+                break
+            last_al = _palette_upload_retrace_dance(cpu, status_port, last_al)
+
+        _palette_upload_blank_toggle(cpu, 0x00)
+
+        # BX: 1010:6168's OWN "mov bx,sp" (before ANY push) makes bx equal the
+        # entry SP, and the very next instruction (616C `pusha`) then pushes
+        # THAT clobbered bx -- so `popa` at 61E0 does NOT restore the caller's
+        # real bx, it restores this routine's own entry-sp snapshot. Found via
+        # a real ASM oracle trace (OK_TRACE_HOOK) after a first attempt
+        # (assuming pusha/popa made the whole routine a no-op on registers)
+        # diverged with bx off by a small, call-depth-sized constant.
+        # FLAGS: popf at 61D4 (the "done" exit) always restores whatever was
+        # pushed by the LAST pushf (61C6), which sits right after that dance's
+        # own wait-loop's LAST `TEST AL,8h` -- so final flags are exactly that
+        # TEST's result, not "unchanged" (the routine's own blank-toggle calls
+        # after the last pushf all get discarded by this popf).
+        s.bx = sp
+        cpu.set_logic_flags(last_al & 0x08, 8)
+
+    s.sp = (sp + 2) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x6168, "palette_upload")
+def palette_upload_hook(cpu: CPU8086) -> None:
+    _palette_upload_hook(cpu)
+
+
+# CS:IP 1010:3A22 - masked sprite/overlay blit. Bare register-clobbering
+# routine (no push/pop anywhere in it -- its caller, 1010:39D4, reloads
+# SI/BX/DX fresh before each of its up-to-4 calls into this one routine and
+# never expects anything preserved). Inputs: DS:SI = source pixel data (a
+# 320-byte/row linear layout -- see below), SS:BX = a TIGHTLY PACKED
+# (29-byte rows, no padding) transparency-mask table parallel to the source,
+# ES = dest segment (DI is reset to the CURRENT SI at the top of every row,
+# so dest and source share the exact same row*320+col offset, just different
+# segments -- a masked flip from an off-screen buffer onto the visible one),
+# DX = row count (24 or 9 in the two observed calls from 1010:39D4). Width is
+# a FIXED 0x1D (29) columns, baked into the routine itself (`mov cx,1Dh`),
+# not passed in. Per pixel: copy DS:[si]->ES:[di] only where SS:[bx]==2
+# (opaque); the 29-column inner loop always runs to completion (no early
+# exit -- it's a do-while, like palette_upload's color loop: 3A22 is entered
+# directly with no upfront DX check), and each row afterward does `add
+# si,0123h` (0x1D + 0x123 == 0x140 == 320, confirming the 320-byte/row
+# source+dest stride) before `dec dx` decides whether to loop for another
+# row -- the LAST row's `add si,0123h` (sets CF/OF/SF/ZF/AF/PF) followed by
+# `dec dx` (sets SF/ZF/AF/PF, leaves CF alone -- same DEC-preserves-CF
+# semantics as CPU8086's own 0x48-0x4F opcode handler) are the routine's
+# final flags-setting instructions; nothing after them (the plain `ret`)
+# touches flags.
+#
+# This is the SOLE entry point (3A22) AND the loop's own re-entry target
+# (3A3C's `jnz 3A22`) -- hooking it here means the interpreter never actually
+# re-executes 3A3C's jump (this hook always runs every row to completion
+# before returning), so like lzs_decode_loop this address is only ever
+# reached fresh, from a real CALL, never mid-function.
+_SPRITE_BLIT_WIDTH = 0x1D
+_SPRITE_BLIT_ROW_SKIP = 0x0123
+
+
+def _sprite_blit_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ds, es, ss = s.ds, s.es, s.ss
+
+    si = s.si
+    bx = s.bx
+    dx = s.dx & 0xFFFF
+    di = si
+    last_al = None  # AL is only ever written by an actual mask==2 copy
+
+    while True:
+        di = si
+        for _ in range(_SPRITE_BLIT_WIDTH):
+            if mem.rb(ss, bx) == 0x02:
+                last_al = mem.rb(ds, si)
+                mem.wb(es, di, last_al)
+            si = (si + 1) & 0xFFFF
+            di = (di + 1) & 0xFFFF
+            bx = (bx + 1) & 0xFFFF
+        si_before_add = si
+        si = (si + _SPRITE_BLIT_ROW_SKIP) & 0xFFFF
+        dx_before_dec = dx
+        dx = (dx - 1) & 0xFFFF
+        if dx == 0:
+            break
+
+    s.si = si
+    s.di = di
+    s.bx = bx
+    s.dx = dx
+    s.cx = 0
+    if last_al is not None:
+        s.ax = (s.ax & 0xFF00) | last_al
+
+    cpu.set_add_flags(si_before_add, _SPRITE_BLIT_ROW_SKIP, si_before_add + _SPRITE_BLIT_ROW_SKIP, 16)
+    dec_cf = cpu.get_flag(CF)
+    cpu.set_sub_flags(dx_before_dec, 1, dx_before_dec - 1, 16)
+    cpu.set_flag(CF, dec_cf)
+
+    s.ip = mem.rw(ss, s.sp)
+    s.sp = (s.sp + 2) & 0xFFFF
+
+
+@registry.replace(CODE_SEG, 0x3A22, "sprite_blit")
+def sprite_blit_hook(cpu: CPU8086) -> None:
+    _sprite_blit_hook(cpu)
+
+
+# CS:IP 1010:4344 (one-time reset) + 1010:434A (loop top) -- the palette
+# cross-fade driver (1010:4331, see "Palette-fade interpolation" in
+# docs/skyroads/symbol_ledger.md). UNLIKE every other hook in this file, this
+# pair is a BEHAVIORAL optimization, not a thin representational one: it
+# skips real work the original ASM would have done, betting that the skipped
+# work is provably a no-op. Read the reasoning below before touching either
+# function; getting this wrong would be a silent visual-correctness bug, not
+# a verifier-caught divergence.
+#
+# THE PROBLEM: 4331's loop (`434A` down to `4452 jmp 434A`) recomputes a
+# blend percentage from an elapsed-tick counter (`ds:[1600]`), re-runs a full
+# 256-entry palette_fade_inner pass, and re-uploads the whole thing via
+# palette_upload -- every single iteration, with NO check for whether
+# `ds:[1600]` actually changed since the last iteration. Both
+# tools/profile_demo.py and dos_re.player run a FIXED instruction budget per
+# frame (`rt.cpu.run(steps_per_frame)`), and ALL of a frame's timer IRQs are
+# delivered up front, before any of that frame's instructions execute -- so
+# `ds:[1600]` is architecturally CONSTANT for an entire frame's step budget.
+# Once palette_upload/sprite_blit made everything else in a frame cheaper,
+# this loop got to spin far more times within that frozen-tick window before
+# running out of budget: a live trace over 300 frames found 97.1% of all
+# visits to 434A see the EXACT SAME tick value as the immediately preceding
+# visit -- i.e. 19 out of 20 full recompute+reupload passes are pure waste,
+# and it's each pass's ~256 Python hook calls (not any interpreted ASM) that
+# dominates the cost.
+#
+# THE FIX: since `ds:[1600]`, `bp+8` (duration, fixed for the whole call) and
+# srcA/srcB (also fixed for the call) are the ONLY inputs the recompute
+# depends on, an unchanged tick means an IDENTICAL percent, an IDENTICAL
+# blend (same source bytes, same percent -> same output bytes overwriting
+# the SAME destination range), and an IDENTICAL palette_upload call (the DAC
+# ends up holding the same values it already held) -- a full no-op on all
+# memory/DAC state. So: cache the last tick value for which REAL work ran,
+# keyed by (ss, bp) (bp is 4331's own ENTER-allocated frame pointer, constant
+# for the lifetime of one call); on a cache hit (tick unchanged), skip
+# straight to `4449` (the keyboard-poll call at the bottom of the loop),
+# bypassing the doomed-to-be-redundant setup+blend+upload entirely.
+#
+# WHY SKIPPING TO 4449 IS SAFE: traced every register the skipped code
+# (434A-4448) would otherwise have touched --
+#   - DS: never reassigned anywhere in 4331 (only ES gets LES'd, inside
+#     palette_fade_inner) -- 4153/4167's own memory reads use the SAME DS
+#     the caller already has, unaffected by skipping.
+#   - ES/AX/BX/CX/DX: 4153 (disassembled in full -- it's just
+#     `mov ah,0Bh; int 21h` to poll for a keypress, consuming one via
+#     `int 21h ah=07h` if found) and 4167's `cmp ds:[AF32h],0` never read
+#     any of these; the NEXT real iteration (if any) reloads all of them
+#     fresh from bp-relative/immediate sources before touching palette_upload
+#     again, so nothing downstream ever observes a "stale" value.
+#   - SI/DI: whatever the skipped code would have left in them is irrelevant
+#     regardless -- the ONLY path that returns to 4331's caller (4455) pops
+#     them from the STACK (the values 4331's own prologue pushed at entry),
+#     never from live registers.
+#   - FLAGS: nothing between 4449 and the next 434A/4455 branches on a flag
+#     that 434A-4448 would have set (the loop's own `jz`/`jnz`s all test
+#     freshly-loaded values, e.g. `cmp [bp-4],0x64`, not carried-over flags).
+#
+# THE CACHE-STALENESS TRAP (why 4344 needs its own hook, not just 434A):
+# `bp` is only unique WHILE one 4331 call is active -- two SEPARATE calls
+# from the same call site reuse the identical stack depth, hence the
+# identical bp, and `4344` (`mov ds:[1600],0`) unconditionally resets the
+# tick to 0 at the start of EVERY real call. Without clearing the cache at
+# that reset, call #2 starting at tick=0 with the SAME bp as call #1's own
+# tick=0 entry would look like a cache HIT (redundant revisit) and
+# incorrectly skip call #2's genuinely-necessary first iteration, leaving a
+# stale palette from call #1's fade on screen. Hooking 4344 to invalidate the
+# (ss, bp) cache entry at the one point that's guaranteed to run exactly once
+# per real call closes that gap. A cache MISS always means "let it run for
+# real" (never "skip") -- the failure mode of losing the cache entirely
+# (e.g. across a snapshot restore, since it lives on the live `cpu` object,
+# not in cloned CPUState) is at worst one extra non-redundant iteration,
+# never an incorrect skip.
+#
+# VALIDATION: this pair cannot be checked with the strict per-call oracle
+# diff every other hook in this file uses -- diverging from the oracle on
+# skipped iterations is the entire point. Instead it's validated by running
+# the full recorded demo twice (tick-gate on vs off) and diffing final
+# memory/VGA-palette/CPU state end to end; see docs/skyroads/symbol_ledger.md
+# for the result.
+def _fade_loop_cache(cpu: CPU8086) -> dict[tuple[int, int], int]:
+    cache = getattr(cpu, "_fade_loop_tick_cache", None)
+    if cache is None:
+        cache = {}
+        cpu._fade_loop_tick_cache = cache
+    return cache
+
+
+_FADE_LOOP_TICK_ADDR = 0x1600
+_FADE_LOOP_POLL_IP = 0x4449
+
+
+def _fade_loop_reset_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    _fade_loop_cache(cpu).pop((s.ss, s.bp), None)
+    interpret_current_instruction_without_hook(cpu)
+
+
+@registry.replace(CODE_SEG, 0x4344, "fade_loop_tick_reset")
+def fade_loop_tick_reset_hook(cpu: CPU8086) -> None:
+    _fade_loop_reset_hook(cpu)
+
+
+def _fade_loop_gate_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    key = (s.ss, s.bp)
+    cache = _fade_loop_cache(cpu)
+    tick = cpu.mem.rw(s.ds, _FADE_LOOP_TICK_ADDR)
+
+    if cache.get(key) == tick:
+        s.ip = _FADE_LOOP_POLL_IP
+        return
+
+    cache[key] = tick
+    interpret_current_instruction_without_hook(cpu)
+
+
+@registry.replace(CODE_SEG, 0x434A, "fade_loop_tick_gate")
+def fade_loop_tick_gate_hook(cpu: CPU8086) -> None:
+    _fade_loop_gate_hook(cpu)
