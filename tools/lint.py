@@ -33,6 +33,14 @@ CORE_ALLOWED_PREFIXES = ("dos_re",)
 # Optional third-party backends the *non-core* layers may use.
 KNOWN_OPTIONAL = ("pynuked_opl3", "numpy", "pygame", "pytest", "cffi")
 
+# The FRONTEND RING: the viewer-facing modules inside the package that may use
+# the optional viewer dependencies (numpy + pygame + the OPL backend).
+# ``import dos_re`` itself must never pull them in — player.py keeps its
+# imports lazy; display.py and audio_sink.py are only imported by player.py
+# when a window actually opens.
+FRONTEND_RING = {"player.py", "display.py", "audio_sink.py"}
+FRONTEND_ALLOWED = ("numpy", "pygame", "pynuked_opl3")
+
 
 def _stdlib_names() -> set[str]:
     return set(sys.stdlib_module_names)
@@ -70,6 +78,8 @@ def main() -> int:
             for name in names:
                 top = name.split(".")[0]
                 if top in stdlib or any(name == p or name.startswith(p + ".") for p in CORE_ALLOWED_PREFIXES):
+                    continue
+                if path.name in FRONTEND_RING and top in FRONTEND_ALLOWED:
                     continue
                 errors.append(
                     f"{path.relative_to(ROOT)}:{node.lineno}: dos_re core must stay "
