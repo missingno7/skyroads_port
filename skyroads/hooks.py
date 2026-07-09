@@ -50,6 +50,16 @@ Installed hooks:
   static disassembly up front, informed by the register/flags mistakes the
   palette_upload verifier had just caught the same session.
 
+- ulong_mul (1010:5D4C): verified 2026-07-09 — the C-runtime 32-bit unsigned
+  long-MULTIPLY helper, companion to ulong_div and equally hot in real
+  gameplay (~37K calls in the in-game driving demo, the fixed-point 3D
+  transform math). Same hook-the-common-case pattern: the 16x16 simple path
+  (both operand high words == 0, 99.7% of calls) reproduced exactly
+  (DX:AX=product, BX=B_low, flags from the `or bx,ax`+`mul bx` pair), the
+  true 32x32 path (0.3%) delegated to the original ASM. Verified with a
+  3,024-call in-game differential sample (zero divergence) plus a unit test
+  in tests/test_ulong_div_hook.py.
+
 - ulong_div (1010:5D8C): verified 2026-07-09 — the C-runtime 32-bit unsigned
   long-division helper (~68K calls in the demo, almost certainly the 3D road
   renderer's perspective divide). Hooks the hot common case only (divisor's
@@ -85,7 +95,7 @@ Installed hooks:
 """
 from __future__ import annotations
 
-from dos_re.cpu import CPU8086, CF
+from dos_re.cpu import CPU8086, CF, OF
 from dos_re.hooks import interpret_current_instruction_without_hook, registry
 
 from skyroads.codecs.lzs import LzsWidths
@@ -889,6 +899,66 @@ def _ulong_div_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x5D8C, "ulong_div")
 def ulong_div_hook(cpu: CPU8086) -> None:
     _ulong_div_hook(cpu)
+
+
+# CS:IP 1010:5D4C -- the C-runtime 32-bit unsigned long-MULTIPLY helper
+# (`__aFulmul`-style), the companion to ulong_div sitting right beside it and,
+# like it, dominating the in-game profile (~37K calls in the driving demo,
+# the fixed-point 3D-transform math at 1010:04xx). Same near proc, callee-
+# cleanup (`ret 8`) ABI and same arg layout: [sp+2..3]=A low, [sp+4..5]=A high,
+# [sp+6..7]=B low, [sp+8..9]=B high; 32-bit product returned in DX:AX.
+#
+# Simple path (5D4F-5D64), taken when BOTH high words are 0 (a 16x16 multiply,
+# 99.7% of demo calls): `or bx,ax` tests (A_high|B_high), then on zero does a
+# single `mul bx` of A_low*B_low into DX:AX and returns. This hook reproduces
+# that exactly:
+#   - DX:AX = A_low * B_low (the full 32-bit product; 16x16 always fits).
+#   - BX = B_low (left there by the `mov bx,[bp+8]` at 5D57; the routine does
+#     NOT preserve BX). CX/SI/DI/ES are never touched -> preserved; BP is
+#     push/pop-restored.
+#   - FLAGS: the `or bx,ax` (result 0) sets ZF=1/PF=1/SF=0/CF=0/OF=0 and
+#     leaves AF; then `mul bx` overwrites only CF and OF with carry =
+#     (product high word != 0). dos_re MUL touches nothing else (cpu.py
+#     reg==4 sets CF/OF only), so those are the exact final flags.
+# The rare true-32/32 path (both-high-nonzero cross-term multiply, 0.3%) is
+# DELEGATED to the original ASM via interpret_current_instruction_without_hook,
+# same as ulong_div's complex path -- correct by construction.
+_ULONG_MUL_EXIT_RET_BYTES = 10  # `ret 8`: pop 2-byte return IP + drop 8 arg bytes
+
+
+def _ulong_mul_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, sp = s.ss, s.sp
+
+    a_high = mem.rw(ss, (sp + 4) & 0xFFFF)
+    b_high = mem.rw(ss, (sp + 8) & 0xFFFF)
+    if (a_high | b_high) != 0:
+        # true 32x32 cross-term multiply -> run the original routine.
+        interpret_current_instruction_without_hook(cpu)
+        return
+
+    ret_ip = mem.rw(ss, sp)
+    a_low = mem.rw(ss, (sp + 2) & 0xFFFF)
+    b_low = mem.rw(ss, (sp + 6) & 0xFFFF)
+    product = a_low * b_low  # 16x16 -> fits in 32 bits
+
+    s.ax = product & 0xFFFF
+    s.dx = (product >> 16) & 0xFFFF
+    s.bx = b_low  # left in BX by the `mov bx,[bp+8]` at 5D57
+
+    cpu.set_logic_flags(0, 16)  # the `or bx,ax` at 5D55, result (A_high|B_high)==0
+    carry = (product >> 16) != 0
+    cpu.set_flag(CF, carry)     # `mul bx` at 5D5F sets CF=OF=(product high != 0)
+    cpu.set_flag(OF, carry)
+
+    s.sp = (sp + _ULONG_MUL_EXIT_RET_BYTES) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x5D4C, "ulong_mul")
+def ulong_mul_hook(cpu: CPU8086) -> None:
+    _ulong_mul_hook(cpu)
 
 
 # CS:IP 1010:4344 (one-time reset) + 1010:434A (loop top) -- the palette
