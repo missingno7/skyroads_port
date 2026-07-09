@@ -50,6 +50,19 @@ Installed hooks:
   static disassembly up front, informed by the register/flags mistakes the
   palette_upload verifier had just caught the same session.
 
+- ulong_div (1010:5D8C): verified 2026-07-09 — the C-runtime 32-bit unsigned
+  long-division helper (~68K calls in the demo, almost certainly the 3D road
+  renderer's perspective divide). Hooks the hot common case only (divisor's
+  high word == 0, a 32/16 divide: 99.8% of calls) exactly — quotient in DX:AX,
+  CX=divisor_lo, flags from the routine's own `xor dx,dx` — and DELEGATES the
+  rare true 32/32 path (0.2%) and the never-observed divide-by-zero to the
+  original ASM via interpret_current_instruction_without_hook, correct by
+  construction. Because it's called so often, verification used a proportionate
+  3,076-call sample (both paths, zero divergence) rather than all ~135K calls
+  (a full strict verify would clone/diff the 1MB image 135K times — hours), plus
+  a self-contained unit test (tests/test_ulong_div_hook.py) pinning the
+  simple-path arithmetic/flags/stack contract.
+
 - occluded_column_blit (1010:3283): verified 2026-07-09 — 358 hook calls
   with zero divergence (full-memory diff, strict auto-continuation) across
   the ENTIRE recorded gameplay demo. A column-major stencil-limited
@@ -811,6 +824,71 @@ def _occluded_column_blit_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x3283, "occluded_column_blit")
 def occluded_column_blit_hook(cpu: CPU8086) -> None:
     _occluded_column_blit_hook(cpu)
+
+
+# CS:IP 1010:5D8C -- the C-runtime 32-bit unsigned long-division helper
+# (`__aFuldiv`-style). Near proc, callee-cleanup (`ret 8`): entry stack is
+# [sp]=return IP, [sp+2..+3]=dividend low, [sp+4..+5]=dividend high,
+# [sp+6..+7]=divisor low, [sp+8..+9]=divisor high (two 32-bit longs pushed
+# high-word-last, the usual C small-model layout). Returns the 32-bit
+# quotient in DX:AX. Called ~68K times in the recorded demo (almost certainly
+# the perspective divide in the 3D road renderer) -- pure arithmetic, no
+# memory writes beyond its own saved-register stack scratch.
+#
+# Two code paths (confirmed by disassembly of 5D8C-5DEA):
+#   - divisor high word == 0 (a 32/16 divide): 99.8% of demo calls. Does two
+#     `div cx` steps (dividend_hi/divisor_lo, then the combined low divide),
+#     leaving CX = divisor_lo and (crucially) FLAGS from its `xor dx,dx` at
+#     5D9E -- the LAST flag-setting instruction on this path, since dos_re's
+#     DIV leaves flags untouched (cpu.py reg==6: sets ax/dx only) and every
+#     instruction after the xor is mov/div/jmp/pop/ret. So final flags == the
+#     logic-flags of a 0 result (ZF=PF=1, CF=SF=OF=0), with AF preserved from
+#     entry (nothing on this path ever SETS AF -- `or ax,ax`/`xor dx,dx` both
+#     go through set_logic_flags, which leaves AF alone).
+#   - divisor high word != 0 (a true 32/32 divide, quotient < 2^16): 0.2% of
+#     demo calls. Its shift-normalize-and-correct algorithm leaves CX and the
+#     final AF in path-dependent scratch states that would need the full
+#     estimate reproduced to match a strict diff. Rather than carry that
+#     complexity for 1-in-500 calls, this hook DELEGATES that case (and the
+#     never-observed divisor==0 fault) to the real ASM via
+#     interpret_current_instruction_without_hook -- correct by construction,
+#     no speed lost where it doesn't matter.
+#
+# BX/SI/BP are saved and restored by the routine (push/pop), so this hook
+# leaves them untouched. The routine's own pushed saved-registers land in the
+# dead-stack zone below the post-`ret 8` SP, which the differential verifier
+# already excludes, so not replaying those stack writes is invisible to it.
+_ULONG_DIV_EXIT_RET_BYTES = 10  # `ret 8`: pop 2-byte return IP + drop 8 arg bytes
+
+
+def _ulong_div_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, sp = s.ss, s.sp
+
+    divisor_hi = mem.rw(ss, (sp + 8) & 0xFFFF)
+    divisor_lo = mem.rw(ss, (sp + 6) & 0xFFFF)
+    if divisor_hi != 0 or divisor_lo == 0:
+        # 32/32 path or a divide-by-zero fault -> run the original routine.
+        interpret_current_instruction_without_hook(cpu)
+        return
+
+    ret_ip = mem.rw(ss, sp)
+    dividend = (mem.rw(ss, (sp + 4) & 0xFFFF) << 16) | mem.rw(ss, (sp + 2) & 0xFFFF)
+    quotient = dividend // divisor_lo  # divisor_hi==0, so == dividend // full divisor
+
+    s.ax = quotient & 0xFFFF
+    s.dx = (quotient >> 16) & 0xFFFF
+    s.cx = divisor_lo  # left in CX by the `mov cx,[bp+8]` at 5D98, never reloaded
+    cpu.set_logic_flags(0, 16)  # the `xor dx,dx` at 5D9E is this path's last flag op
+
+    s.sp = (sp + _ULONG_DIV_EXIT_RET_BYTES) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x5D8C, "ulong_div")
+def ulong_div_hook(cpu: CPU8086) -> None:
+    _ulong_div_hook(cpu)
 
 
 # CS:IP 1010:4344 (one-time reset) + 1010:434A (loop top) -- the palette
