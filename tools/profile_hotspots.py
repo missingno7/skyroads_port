@@ -36,6 +36,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "dos_re"))  # submodule repo root (no editable install under PyPy)
 
 from dos_re.runtime import create_runtime  # noqa: E402
 from dos_re.snapshot import load_snapshot  # noqa: E402

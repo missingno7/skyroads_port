@@ -25,6 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "dos_re"))  # submodule repo root (no editable install under PyPy)
 
 from dos_re.memory import EGA_APERTURE, EGA_PLANE_STRIDE  # noqa: E402
 
