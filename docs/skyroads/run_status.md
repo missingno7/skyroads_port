@@ -4,6 +4,54 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-09 (cont'd) — in-game profiling + the renderer-island plan
+
+**Why gameplay is ~2-3 FPS (measured, not guessed).** On this machine the
+interpreter sustains ~626K 8086-steps/second. Frame decode (VGA→RGB, 0.4ms),
+pygame present (0.5ms) and AdLib OPL3 pump (0.3ms) are all negligible — 98% of
+a frame is interpreting instructions. The catch: a *viewer frame* (30,000
+steps) is not a *visual frame*. Measuring steps between actual screen updates
+gives ~57,000 steps/visual-frame average (heavy frames >130,000). 626K ÷ 57K ≈
+low-single-digit FPS. So the bottleneck is purely "8086 instructions executed
+per rendered frame", and the only lever is removing them (hooks) — presentation
+is already free. A 10× speedup to smooth play cannot come from per-loop hooks
+shaving percentages; it needs the whole render path lifted out of the
+interpreter.
+
+**Hooks installed this session (all differential-verified against the ASM
+oracle, zero divergence):** `palette_upload` (6168), `sprite_blit` (3A22),
+`occluded_column_blit` (3283), `ulong_div` (5D8C), `ulong_mul` (5D4C),
+`rle_sprite_forward` (3153), `rle_sprite_backward` (3190), plus the behavioral
+`fade_loop_tick_gate` (4344/434A). See `symbol_ledger.md`.
+
+**Render call tree (mapped via caller-chain tracing on the in-game demo
+`demo_skyroads_20260709_225824`).** Shallow → deep:
+
+```
+main loop (~22xx)
+  render dispatch (~0C26/0C32/0C98/0CA2)
+    per-object / road-segment render (~1732/1747/175C/17CD/1821/1846)   [NOT YET RECOVERED]
+      fixed-point perspective transform  04C0                          [NOT YET RECOVERED - keystone]
+        ulong_mul 5D4C / ulong_div 5D8C                                 [HOOKED]
+      leaf rasterizers 3153 / 3190 / 3283 / 3A22                        [HOOKED]
+```
+
+**The renderer-island plan.** Goal: a clean, VM-agnostic recovered renderer
+(a `skyroads/recovered/renderer.py` module) that, given game state, produces
+the exact framebuffer the ASM does — wired in behind ONE thin hook at the
+render root, verified whole against the oracle. Bottom-up, the leaf + math
+layers are DONE. Remaining, in dependency order:
+1. **`04C0` fixed-point perspective transform** — the keystone; every render
+   path calls it, and it now depends only on the already-hooked long-arithmetic.
+   Recover it as clean code first (pure math + a clamp + two long-divides).
+2. **`17xx` per-object/road-segment render** — the layer that projects a
+   road segment / object via `04C0` and dispatches to the rasterizers.
+3. **`0Cxx` render dispatch** — the per-frame "draw the whole scene" entry;
+   this becomes the island's single hook boundary once 1–2 are recovered.
+Each layer is recovered + verified before the next, so the island grows upward
+with the differential verifier guarding every step — the same methodology used
+for LZS and the leaves.
+
 ## 2026-07-09 (cont'd) — the menu "halt" was a VM bug (phantom Esc); + AdLib audio
 
 **Root cause of the spurious main-menu exit: a framework input bug, not a game
