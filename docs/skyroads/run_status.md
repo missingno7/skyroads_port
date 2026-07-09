@@ -43,7 +43,11 @@ render root, verified whole against the oracle. Bottom-up, the leaf + math
 layers are DONE. Remaining, in dependency order:
 1. **`04C0` fixed-point perspective transform** — the keystone; every render
    path calls it, and it now depends only on the already-hooked long-arithmetic.
-   Recover it as clean code first (pure math + a clamp + two long-divides).
+   DONE (2026-07-09): recovered as `skyroads/recovered/renderer.py::
+   perspective_row_offset`, wired via a thin `perspective_transform` hook,
+   VERIFIED byte-exact over all 34,786 in-game calls. First recovered-code
+   layer of the island. (The recovery corrected a decode error — the third
+   stage is a ×14 multiply via ulong_mul, not a divide.)
 2. **`17xx` per-object/road-segment render** — the layer that projects a
    road segment / object via `04C0` and dispatches to the rasterizers.
 3. **`0Cxx` render dispatch** — the per-frame "draw the whole scene" entry;

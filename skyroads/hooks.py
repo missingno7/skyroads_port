@@ -50,6 +50,16 @@ Installed hooks:
   static disassembly up front, informed by the register/flags mistakes the
   palette_upload verifier had just caught the same session.
 
+- perspective_transform (1010:04C0): verified 2026-07-09 — the KEYSTONE of the
+  renderer island and the first layer wired to a clean recovered-code module
+  (skyroads/recovered/renderer.py::perspective_row_offset). Every road/object
+  render path funnels through it. All 34,786 calls verified across the in-game
+  demo, zero divergence. The recovery caught a real decode error: the third
+  arithmetic stage calls ulong_MUL (5D4C, ×14), not ulong_div — I initially
+  read the call target as 5D8C; the differential verifier flagged the wrong
+  table offset on call #1, and capturing the ASM's intermediate divide results
+  pinned it to a multiply (d2=3 -> 42 = 3*14, not 3/14).
+
 - rle_sprite_forward (1010:3153) + rle_sprite_backward (1010:3190): verified
   2026-07-09 — the mirror pair of run-length sprite rasterizers, the dominant
   render cost in the in-game demo (~9K calls each, ~13% of all interpreted
@@ -110,6 +120,7 @@ from dos_re.hooks import interpret_current_instruction_without_hook, registry
 
 from skyroads.codecs.lzs import LzsWidths
 from skyroads.recovered.palette_fade import blend_byte
+from skyroads.recovered.renderer import perspective_row_offset
 
 CODE_SEG = 0x1010  # SKYROADS.EXE's single code segment (from program.entry_cs)
 
@@ -1125,6 +1136,61 @@ def _rle_sprite_backward_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x3190, "rle_sprite_backward")
 def rle_sprite_backward_hook(cpu: CPU8086) -> None:
     _rle_sprite_backward_hook(cpu)
+
+
+# CS:IP 1010:04C0 -- the fixed-point perspective transform, the KEYSTONE of the
+# renderer island: every road/object render path funnels through it, and it now
+# sits entirely on already-recovered primitives (its three 32-bit divides are
+# the ulong_div helper). This is the first island layer wired to a clean
+# skyroads/recovered/renderer.py function; the hook only adapts registers and
+# reproduces the ASM's exact exit state. cdecl-style near proc (`enter 0,0` /
+# `leave` / bare `ret`, caller pops the 3 word args), args at [sp+2]=x_lo,
+# [sp+4]=x_hi, [sp+6]=depth; returns the perspective-table word in AX. SI/DI/BP
+# are saved+restored, so only AX/BX/CX/DX and flags are caller-visible scratch.
+#
+# Two exit paths (see perspective_row_offset):
+#  - out of range (row idx>=322): the ASM's `cmp si,0x142; jmp 0529; mov ax,0`
+#    leaves AX=0, BX=entry BX (never written on this path), CX=128 (the divisor
+#    still in CX from 04D0), DX=depth%128, and FLAGS from `cmp si,0x142`.
+#  - in range: AX=ds:[offset] (the looked-up word), BX=CX=offset, DX=idx%46,
+#    and FLAGS from the final `add cx,ax` (04C0's 051D) whose operands are the
+#    table base+quotient and 2*(idx/46).
+_PERSPECTIVE_EXIT_RET_BYTES = 2  # bare `ret`; the caller drops the 3 word args
+
+
+def _perspective_transform_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, sp = s.ss, s.sp
+    ret_ip = mem.rw(ss, sp)
+
+    x_lo = mem.rw(ss, (sp + 2) & 0xFFFF)
+    x_hi = mem.rw(ss, (sp + 4) & 0xFFFF)
+    depth = mem.rw(ss, (sp + 6) & 0xFFFF)
+    r = perspective_row_offset(x_lo, x_hi, depth)
+
+    if not r.in_range:
+        s.ax = 0
+        # BX untouched on this path; CX still holds the 04C9 divisor (128); DX
+        # holds depth%128 from the 04D0 divide.
+        s.cx = 0x80
+        s.dx = r.rem128
+        cpu.set_sub_flags(r.idx, 0x142, r.idx - 0x142, 16)  # `cmp si,0x142`
+    else:
+        s.ax = mem.rw(s.ds, r.offset)
+        s.bx = r.offset
+        s.cx = r.offset
+        s.dx = r.rem46
+        cpu.set_add_flags(r.add_lhs, r.add_rhs,
+                          r.add_lhs + r.add_rhs, 16)  # `add cx,ax` at 051D
+
+    s.sp = (sp + _PERSPECTIVE_EXIT_RET_BYTES) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x04C0, "perspective_transform")
+def perspective_transform_hook(cpu: CPU8086) -> None:
+    _perspective_transform_hook(cpu)
 
 
 # CS:IP 1010:4344 (one-time reset) + 1010:434A (loop top) -- the palette
