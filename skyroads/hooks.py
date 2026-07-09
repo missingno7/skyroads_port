@@ -50,6 +50,16 @@ Installed hooks:
   static disassembly up front, informed by the register/flags mistakes the
   palette_upload verifier had just caught the same session.
 
+- rle_sprite_forward (1010:3153) + rle_sprite_backward (1010:3190): verified
+  2026-07-09 — the mirror pair of run-length sprite rasterizers, the dominant
+  render cost in the in-game demo (~9K calls each, ~13% of all interpreted
+  steps together). Each decodes an RLE control stream into horizontal runs of
+  one fill colour, one run per successive scanline (the forward twin painting
+  rightward from sub-offset anchors, the backward twin painting leftward with
+  `std`). Both matched the oracle on the first attempt (full-demo, zero
+  divergence). The one subtlety was the backward twin's reverse `rep stosw`
+  fill and its `cld`-restored DF; see the hook comments.
+
 - ulong_mul (1010:5D4C): verified 2026-07-09 — the C-runtime 32-bit unsigned
   long-MULTIPLY helper, companion to ulong_div and equally hot in real
   gameplay (~37K calls in the in-game driving demo, the fixed-point 3D
@@ -95,7 +105,7 @@ Installed hooks:
 """
 from __future__ import annotations
 
-from dos_re.cpu import CPU8086, CF, OF
+from dos_re.cpu import CPU8086, CF, OF, DF
 from dos_re.hooks import interpret_current_instruction_without_hook, registry
 
 from skyroads.codecs.lzs import LzsWidths
@@ -959,6 +969,162 @@ def _ulong_mul_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x5D4C, "ulong_mul")
 def ulong_mul_hook(cpu: CPU8086) -> None:
     _ulong_mul_hook(cpu)
+
+
+# CS:IP 1010:3153 -- the FORWARD run-length sprite rasterizer (one of a mirror
+# pair; the backward twin is at 1010:3190, hooked below). The dominant render
+# cost in the in-game demo: 5,884 calls driving 41,162 inner-loop iterations
+# (~13% of all interpreted steps together with its twin). Near proc; saves DI
+# and BP only (push at 3153/3154, pop at 318D/318E) -- everything else is
+# scratch.
+#
+# Inputs at entry (all live registers / segments):
+#   DS:SI -> the RLE control stream; ES = destination segment; SS = the
+#   fill-colour table segment. Setup (3153-3169): read a sprite/row index byte
+#   (`lodsb`), look its fill colour up in ss:[index*4 + 0x352] into DL, then
+#   read a 16-bit destination offset (`lodsw`) into DI.
+# Per control byte (loop 316B-318B):
+#   al = *si++; if al == 0xFF -> done. Else BP=DI (row anchor), DI -= al (this
+#   row's left skip), read run length (`lodsb`) then SKIP one stream byte
+#   (`inc si`), and fill `runlen` bytes of colour DL forward from ES:DI as an
+#   optional leading `stosb` (when runlen is odd) followed by `rep stosw`
+#   (runlen>>1 words of DL:DL). Then DI = BP + 0x140 (down one 320-wide row)
+#   and loop. So each control byte paints one horizontal run on a successive
+#   scanline -- a vertical strip of spans.
+#
+# Exit state at the `ret` (mirrors the ASM exactly):
+#   AX=0x00FF (ah zeroed at 3169/3183, al=the 0xFF terminator); BX=index*4
+#   (set once at 315C, never touched in the loop); DX=(entry DH):(fill colour);
+#   CX=0 after any run (the last `rep stosw` drains it) else entry CX with its
+#   high byte zeroed (the `xor ch,ch` at 3155); SI just past the terminator;
+#   DI and BP restored to their entry values by the pops; ES/DS/SS untouched.
+#   FLAGS come from the `cmp al,0xFF` (8-bit, al==0xFF -> result 0): ZF=PF=1,
+#   CF=SF=OF=AF=0. Forward `stos` assumes DF=0 (the routine never sets it),
+#   matching the default direction.
+_RLE_FILL_TABLE = 0x0352   # ss-relative fill-colour table (indexed by first byte * 4)
+_RLE_ROW_STRIDE = 0x0140   # 320 bytes -> one scanline down
+_RLE_TERMINATOR = 0xFF
+
+
+def _rle_sprite_forward_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, ds, es = s.ss, s.ds, s.es
+    sp = s.sp
+    ret_ip = mem.rw(ss, sp)
+
+    si = s.si
+    index = mem.rb(ds, si); si = (si + 1) & 0xFFFF
+    bx = (index << 2) & 0xFFFF
+    fill = mem.rb(ss, (bx + _RLE_FILL_TABLE) & 0xFFFF)
+    di = mem.rw(ds, si); si = (si + 2) & 0xFFFF
+    word = ((fill << 8) | fill) & 0xFFFF
+
+    ran = False
+    cx = s.cx & 0x00FF  # xor ch,ch; cl untouched until a run sets it
+    while True:
+        ctrl = mem.rb(ds, si); si = (si + 1) & 0xFFFF
+        if ctrl == _RLE_TERMINATOR:
+            break
+        anchor = di
+        di = (di - ctrl) & 0xFFFF
+        runlen = mem.rb(ds, si); si = (si + 1) & 0xFFFF
+        si = (si + 1) & 0xFFFF  # the `inc si` at 3175 skips one stream byte
+        if runlen & 1:
+            mem.wb(es, di, fill); di = (di + 1) & 0xFFFF
+        for _ in range(runlen >> 1):
+            mem.ww(es, di, word); di = (di + 2) & 0xFFFF
+        di = (anchor + _RLE_ROW_STRIDE) & 0xFFFF
+        ran = True
+        cx = 0  # the final rep stosw leaves CX == 0
+
+    s.ax = 0x00FF
+    s.bx = bx
+    s.cx = cx
+    s.dx = (s.dx & 0xFF00) | fill
+    s.si = si
+    # DI and BP are push/pop-restored -> unchanged; ES/DS/SS untouched.
+    cpu.set_sub_flags(_RLE_TERMINATOR, _RLE_TERMINATOR, 0, 8)  # cmp al,0xFF -> 0
+    s.sp = (sp + 2) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x3153, "rle_sprite_forward")
+def rle_sprite_forward_hook(cpu: CPU8086) -> None:
+    _rle_sprite_forward_hook(cpu)
+
+
+# CS:IP 1010:3190 -- the BACKWARD (mirror) twin of the RLE sprite rasterizer
+# above; called once per call alongside the forward one (5,884 calls / ~41K
+# iterations). Same structure with three differences: the fill-colour table is
+# ss:[index*4 + 0x353] (the odd-parity companion of 0x352); DI starts one lower
+# (`dec di` at 31A6); each row's anchor is offset by `add di,ax` (RIGHT, vs the
+# forward variant's `sub`); and the run is filled DOWNWARD with `std` (a
+# leading conditional `stosb`, an unconditional `dec di`, then a reverse
+# `rep stosw`), the routine restoring `cld` each iteration.
+#
+# The reverse fill writes `runlen` bytes contiguously downward from the
+# post-`add` DI -- i.e. it paints exactly the span [DI-runlen+1 .. DI], all
+# colour DL. Since every byte is the same colour, the resulting memory is
+# identical regardless of write order, so this hook fills that span directly
+# (matching the ASM's exact addresses, with 16-bit wrap). DI is discarded each
+# row (reset to BP+0x140), so the fill's own final DI never reaches the caller.
+#
+# Exit state matches the forward twin (AX=0x00FF, BX=index*4, CX=0 after any
+# run, DX=(entry DH):fill, SI past the terminator, DI/BP restored, flags from
+# `cmp al,0xFF`) with ONE addition: the per-iteration `cld` (31C4) leaves DF=0
+# after any run, so this hook clears DF when at least one run was drawn (a zero-
+# run sprite leaves DF at its entry value, exactly as the untouched ASM would).
+_RLE_FILL_TABLE_BACK = 0x0353
+
+
+def _rle_sprite_backward_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, ds, es = s.ss, s.ds, s.es
+    sp = s.sp
+    ret_ip = mem.rw(ss, sp)
+
+    si = s.si
+    index = mem.rb(ds, si); si = (si + 1) & 0xFFFF
+    bx = (index << 2) & 0xFFFF
+    fill = mem.rb(ss, (bx + _RLE_FILL_TABLE_BACK) & 0xFFFF)
+    di = (mem.rw(ds, si) - 1) & 0xFFFF  # lodsw then `dec di` at 31A6
+    si = (si + 2) & 0xFFFF
+
+    ran = False
+    cx = s.cx & 0x00FF
+    while True:
+        ctrl = mem.rb(ds, si); si = (si + 1) & 0xFFFF
+        if ctrl == _RLE_TERMINATOR:
+            break
+        anchor = di
+        di = (di + ctrl) & 0xFFFF  # `add di,ax` (RIGHT), vs forward's `sub`
+        runlen = mem.rb(ds, si); si = (si + 1) & 0xFFFF
+        si = (si + 1) & 0xFFFF  # `inc si` at 31B3 skips one stream byte
+        # std fill: runlen bytes of `fill` written downward from di.
+        p = di
+        for _ in range(runlen):
+            mem.wb(es, p, fill); p = (p - 1) & 0xFFFF
+        di = (anchor + _RLE_ROW_STRIDE) & 0xFFFF
+        ran = True
+        cx = 0
+
+    s.ax = 0x00FF
+    s.bx = bx
+    s.cx = cx
+    s.dx = (s.dx & 0xFF00) | fill
+    s.si = si
+    cpu.set_sub_flags(_RLE_TERMINATOR, _RLE_TERMINATOR, 0, 8)
+    if ran:
+        cpu.set_flag(DF, False)  # the per-iteration `cld` at 31C4
+    s.sp = (sp + 2) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x3190, "rle_sprite_backward")
+def rle_sprite_backward_hook(cpu: CPU8086) -> None:
+    _rle_sprite_backward_hook(cpu)
 
 
 # CS:IP 1010:4344 (one-time reset) + 1010:434A (loop top) -- the palette

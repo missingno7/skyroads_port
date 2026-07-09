@@ -67,6 +67,15 @@ layout — not yet independently confirmed record-by-record on our side).
 
 **Hooked as `occluded_column_blit`** (`skyroads/hooks.py`) — takes over at `3283` (the `lds si` right before the loop) and runs `3283`-`32B7` in one call, landing at `32B9` (`call 33FD`) with exact register/flag/memory state; `32C1` and `33FD` run as real ASM around it, so neither needs recovering. Verified 2026-07-09: 358 hook calls, zero divergence (full-memory diff) across the entire recorded demo. Exit state mirrors the ASM's final instructions: `CX=0`, `DX=0`, `AL`=last source byte (`lodsb` runs every iteration), `AH` unchanged, `DS`=the loaded source segment (`33FD` runs with it, exactly like the unhooked path), `SI`=`src+0x2B8`, and FLAGS from `sub bx,0x2B7` (CF) then `dec dx` (rest, CF preserved — same INC/DEC semantics as the `sprite_blit` hook). **One bug, caught immediately by the full-memory diff:** the stencil test was implemented inverted (drawing where `mask==0` instead of `mask!=0`); the verifier flagged 02-vs-01 stencil/framebuffer bytes on hook call #1. This is exactly the class of subtle logic error the strict differential verifier exists to catch — a "looks-plausible" reading of a `jz` that a functional smoke test might well have missed.
 
+## Run-length sprite rasterizers (dominant in-game render cost)
+
+| Address | Role | Evidence | Status |
+|---|---|---|---|
+| `3153`-`318F` | FORWARD RLE sprite rasterizer. Near proc, saves DI/BP only. Setup: `lodsb` sprite index -> fill colour `ss:[index*4 + 0x352]` into DL, `lodsw` -> DI (dest offset). Per control byte: `al=*si++`; `0xFF` ends; else `BP=DI`, `DI-=al` (row skip LEFT), read runlen (`lodsb`) + skip a stream byte (`inc si`), fill `runlen` bytes of DL forward from ES:DI (optional `stosb` when odd, then `rep stosw`), `DI=BP+0x140` (next scanline). One horizontal run per row. Exit: AX=0x00FF, BX=index*4, CX=0 after any run, DX=(entry DH):fill, SI past terminator, DI/BP restored, flags from `cmp al,0xFF`. | full disasm + strict differential verifier (full-demo, 0 divergence) | VERIFIED |
+| `3190`-`31D0` | BACKWARD (mirror) twin. Same shape; differs by: table `ss:[index*4 + 0x353]`, `dec di` init, `add di,ax` (skip RIGHT), and a `std` reverse fill (leading conditional `stosb`, unconditional `dec di`, reverse `rep stosw`) with per-row `cld`. Net per row: `runlen` bytes of DL written downward from the post-`add` DI == span [DI-runlen+1 .. DI]. Adds DF=0 to the exit flags after any run. | full disasm + strict differential verifier (full-demo, 0 divergence) | VERIFIED |
+
+**Hooked as `rle_sprite_forward` / `rle_sprite_backward`** — the two together are ~13% of all interpreted steps in the in-game driving demo (each called ~9K times, ~41K inner iterations). Both matched the ASM oracle on the first verification attempt. These are the leaf rasterizers of the road/object renderer — the natural bottom layer of a future whole-renderer island (see run_status.md).
+
 ## C-runtime 32-bit unsigned long multiply/divide (performance hot spots)
 
 | Address | Role | Evidence | Status |
