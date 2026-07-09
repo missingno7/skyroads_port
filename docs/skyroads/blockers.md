@@ -1,73 +1,95 @@
 # SkyRoads blockers
 
-## LZS decoder: residual bit-stream divergence after ~2938 output bytes (open)
+## LZS decoder: RESOLVED — short-distance formula, verified across 3 files (2026-07-09)
 
-**Evidence.** Round-trip verifying `skyroads/codecs/lzs.py` against the oracle's
-own decompressed `TREKDAT.LZS` record 0 (segment `2B12`, dumped via a targeted
-probe) found and fixed a real bug: the match-length formula was
-`get_bits(WIDTH_LEN) + 1`; the ASM copy loop at `673C`-`6742` actually does
-`CX = get_bits(WIDTH_LEN) + 1` matches inside the `LOOP` body **plus one more
-unconditional `movsb` at `6740`** — total copies = `get_bits(WIDTH_LEN) + 2`.
-Fixing this took the exact-byte match from 933/18072 to 8964/18072 (~50%).
+**Root cause found and fixed**, through several rounds — each round's fix was
+correct as far as it was tested, but testing only ever covered files whose
+`WIDTH_DIST_LONG` happened to be 10 until `INTRO.LZS` (width 9) exposed the
+next layer:
 
-A precise symbol-by-symbol trace (oracle: single-stepped register trace
-classifying each loop iteration as literal/long-match/short-match by which of
-`671E`/`6744`+`6755`/`6744`+`674B` executes, with `di` before/after; Python:
-an instrumented copy of `decompress_block` yielding the same tuple) confirms
-the two decoders agree bit-for-bit through many literals and matches, then
-diverge at output-relative position 2938: a **short-distance match**. Oracle's
-raw `get_bits(WIDTH_DIST_SHORT)` value (read from `cpu.s.ax` at `6723`, minus
-the `+1` from `6750`) = 1115; the Python decoder's raw value at the identical
-stream position = 92. Everything before this symbol (literals need
-bit-exact sync to match at all) is confirmed correct, so the bit reader itself
-is right up to this point — something about this ONE symbol (or state
-carried into it) is wrong.
+1. Match length was `get_bits(WIDTH_LEN) + 1`; the ASM copy loop at
+   `673C`-`6742` actually does `+2` (one more unconditional `movsb` at
+   `6740` after the `LOOP` body).
+2. Short-distance was assumed `get_bits(WIDTH_DIST_SHORT) + 3` by analogy
+   with the long-distance branch. The real formula found by disassembling
+   `1010:6750` directly (`05 00 04` = `ADD AX,imm16`) is `get_bits(
+   WIDTH_DIST_SHORT) + <base> + 2`, where `<base>` is read from the patched
+   immediate at `1010:6751/6752`.
+3. `<base>` was first assumed a fixed `0x400` (1024) — a write-watch on
+   `1010:6751/6752` across `TREKDAT.LZS`'s own header-parse window found zero
+   writes, wrongly generalized to "never patched, for any file." It's
+   actually `1 << WIDTH_DIST_LONG`, computed per file/record — `TREKDAT.LZS`
+   and `MUZAX.LZS` both use `WIDTH_DIST_LONG=10` (giving 0x400 either way,
+   which is why two files' worth of testing never caught this), but
+   `INTRO.LZS` uses `WIDTH_DIST_LONG=9` and its patched operand reads
+   `0x0200 = 1<<9` live from oracle memory — direct proof.
 
-**Ruled out** (empirically, not guessed): a brute-force sweep of the three
-formula constants (long-distance +0..+4, short-distance +0..+4, length +0..+4)
-found no combination that improves on the current fix — so this is not a
-second simple off-by-N constant.
+**Verification:** full oracle-memory dumps of `TREKDAT.LZS` records 0/1 and
+all 9 records via the differential hook verifier, plus `MUZAX.LZS` and
+`INTRO.LZS` (15 calls total, 3 files, 2 different `WIDTH_DIST_LONG` values) —
+100% exact, zero divergence. Status raised to VERIFIED. Regression tests:
+`tests/test_lzs_codec.py` (fixtures in `tests/fixtures/lzs/`).
 
-**Suspected but unconfirmed:** the refill path has an asymmetry I noticed but
-haven't pinned to this exact position — `get_bit()`'s inline refill (at
-`64B9`-`64D6`) increments `ds:[41B6]` once itself before calling `6350`, and
-`6350`'s own tail (`638F`-`639C`) increments `ds:[41B6]` AGAIN and reloads
-`ds:[41B0]` independently — a real 4KB-window refill could plausibly
-skip/duplicate one byte relative to a flat single-buffer model like
-`skyroads/codecs/lzs.py`'s `_BitReader` (which never models chunk refills at
-all, since it's handed the whole payload up front). But the divergence is at
-payload byte ~2173, nowhere near the first window's actual exhaustion point
-(first read is 4096 bytes covering the record's own 7-byte header + payload,
-so first refill is expected around payload byte ~4089) — so this specific
-theory doesn't cleanly explain THIS divergence either. Also not yet checked:
-the unexplained `ds:[41AA]`/`ds:[41BB]`/`ds:[41BC]` flags in `6350`'s helpers.
+**Still open, lower priority:** the fourth header byte's purpose remains
+unidentified (confirmed NOT the short-distance base, since that's computed);
+not yet cross-checked against a file with a different `WIDTH_LEN` distinctly
+proving that field's role either (though it's directly consumed as the
+match-length width and has never been ambiguous).
 
-## Palette-fade hook: can't yet catch a clean verifier boundary (open)
+## LZS decode-loop hook: RESOLVED — verified and installed (2026-07-09)
 
-`skyroads/hooks.py::_palette_fade_hook` + `skyroads/recovered/palette_fade.py`
-implement CS:IP `1010:4331` per the traced algorithm in `symbol_ledger.md`, but
-are **not verified and not installed** (no `@registry.replace` decorator
-active). Two attempts to catch a live re-entry to `0x4331` for
-`dos_re.verification.install_hook_verifier` to check against — one scanning
-200M instructions from a fresh boot, one scanning 400M instructions forward
-from the owner's intro-fade snapshot (which is already mid-call to this exact
-function) — both found zero further entries. Combined with never leaving a
-~43-address working set across 800M+ cumulative instructions in earlier
-probing, this contradicts the "called once per outer game frame" mental model
-implied by the `4B90`/`4BDD`/`4BF1` call sites traced earlier — either this
-specific screen calls it far less often than assumed, or something about the
-exit path (`4455`/`4457`/`4458` region, not yet traced) loops back without
-going through a `call 4331` at all for a very long stretch. Do not trust the
-hook until an actual verifier run against the real ASM succeeds — next
-attempt should either construct a synthetic call frame at a known-good state
-(risk: guessing the stack layout wrong defeats the point of verifying) or
-resume from a snapshot captured well past this specific screen.
+`skyroads/hooks.py::lzs_decode_loop_hook` (CS:IP `1010:6712`) decodes an
+entire block in one Python call instead of one interpreted iteration per
+symbol — the performance island for asset-loading startup speed. Installed
+(`@registry.replace` active) after 15 hook calls verified with zero
+divergence (full-memory diff, `dos_re.verification.HookVerifierConfig
+.strict`, auto-continuation) across `TREKDAT.LZS` (all 9 records),
+`MUZAX.LZS`, and `INTRO.LZS`.
 
-**Rule per docs/pitfalls.md #20:** this has resisted more than two focused
-trace attempts — logged here rather than continuing to guess. Next attempt
-should single-step the OWN oracle bit-by-bit (not just symbol-by-symbol)
-starting a few symbols before position 2938, printing every raw bit value
-`get_bit()` returns, and diff that bit sequence directly against
-`_BitReader`'s bit sequence for the same payload range — narrower than
-comparing decoded symbols, and would immediately show whether the desync is a
-bit-reader issue (refill-related) or a branch-selection issue.
+Getting to a clean verify took six real, distinct bugs beyond the codec
+formula itself (all in the hook's own state bookkeeping, not the decode
+algorithm):
+- **BX byte-blend on refetch**: `1010:64BF/651C "mov bx,[41B6]"` then (no
+  -refill-needed case) `"mov bl,[bx]"` — only BX's LOW byte gets the fetched
+  byte's *value*; the high byte keeps the cursor position.
+- **BX is per-call, not global**: `get_bits(n)` does `"mov bx,sp"` at its own
+  entry (1010:64FF), unconditionally clobbering BX — so BX's final value
+  depends only on the LAST width-consuming `get_bits(n)` call of the LAST
+  symbol, not "the whole decode's last refetch."
+- **Staging-buffer memory writeback**: this hook reads compressed bytes
+  straight from `FileHandle.data`, bypassing the staging buffer entirely —
+  but a refill in the real ASM also physically copies fresh bytes into
+  `ds:[31A8..41A8)`, which a full-memory diff checks.
+- **EOF short-read chunk-tail bleed-through**: when the final chunk of a
+  block is a short (EOF) read, the real ASM's buffer only gets overwritten
+  as far as the actual read went — the tail still shows the *previous*
+  chunk's own trailing bytes, not "stale" pre-hook-call memory.
+- **`ds:[41B8]`** holds the *requested* chunk size (constant, matches
+  `loaded_this_refill`), not the actual (possibly short) bytes returned.
+- **Bogus large-remaining bail-out**: an early defensive guard rejected
+  `remaining >= 0x8000` as "probably a wraparound bug," which silently
+  skipped decoding entirely for `INTRO.LZS`'s legitimately-large (~64000
+  -byte) block. Removed; the only real "already done" case is exact equality.
+
+**Measured impact:** pure-ASM (hooks disabled) needs 144,515 to 1,176,774
+interpreted instructions *per LZS block* (11+ blocks during boot: `MUZAX
+.LZS`, all 9 `TREKDAT.LZS` records, `INTRO.LZS`, ...) — millions of
+instructions total. With the hook, the same 3,000,000-instruction budget that
+leaves pure-ASM still stuck decoding the very first file (`CS:IP 1010:6508`,
+mid-`get_bits` loop) gets completely through *all* boot-time LZS
+decompression and into subsequent loading logic (`CS:IP 1010:6197`) with the
+hook installed.
+
+## Palette-fade hook: RESOLVED, verified and installed (2026-07-09)
+
+`skyroads/hooks.py::palette_fade_inner_hook` + `skyroads/recovered/palette_fade.py`
+(`blend_byte`, `status="VERIFIED"`) implement the inner blend loop at CS:IP
+`1010:43A9` (narrower than the originally-suspected `4331` outer routine — the
+outer function calls this inner loop per-byte, which is where the real
+per-pixel cost lives). `install_hook_verifier` confirmed 34,439 hook calls
+(~45 full passes) with zero divergence after fixing three real bugs: a
+register-writeback miss, an `IDIV` remainder bug, and `LES` only being modeled
+for its offset side-effect and not its `ES` side-effect. Installed via
+`@registry.replace`; measured 6.7x speedup on the intro fade. See
+`symbol_ledger.md` for the full bug list and `run_status.md` for the
+measurement. No further action needed here.

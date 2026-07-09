@@ -11,6 +11,20 @@ what is skyroads-specific:
     a driver that never delivers it appears to hang forever — hence
     ``--timer-irqs-per-frame`` defaults to 1 (confirmed during bring-up, see
     skyroads/runtime.py and docs/skyroads/run_status.md).
+  - SKYROADS' own INT 08h ISR (1010:3B17) runs a software prescaler
+    (ds:[3192]) that only advances its elapsed-ticks counter (ds:[1600]) once
+    every 6 REAL timer interrupts — an intentional ~3 Hz game-tick rate
+    divided down from the 18.2 Hz BIOS timer, confirmed by live-tracing the
+    ISR (2026-07-09, see docs/skyroads/symbol_ledger.md). Delivering only 1
+    IRQ per driver frame means 5 out of every 6 frames make ZERO real-time
+    progress on anything gated by that counter (most of the game's own
+    wait/pacing loops) while still burning a full interpreted step budget
+    busy-spinning. ``default_timer_irqs_per_frame = 6`` matches the real
+    prescaler exactly; ``default_steps_per_frame`` is lowered so IRQ bursts
+    land more often per wall-clock second instead of once every giant chunk.
+    Measured on an intro-fade snapshot: ~4.7x more real elapsed-tick progress
+    per wall-clock second (7 -> 33 ticks in 3s) versus the prior 1-IRQ/200K-step
+    defaults — not yet re-validated against real gameplay (still unreached).
   - The pacing model is the library's simple deterministic default: a fixed
     (steps-per-frame, timer-irqs-per-frame) budget per frame, no wall-clock
     time source — the frame index alone is the demo clock, so record and
@@ -43,8 +57,8 @@ class SkyroadsFrontend(player.GameFrontend):
     name = "skyroads"
     default_exe = str(ROOT / "assets" / "SKYROADS.EXE")
     default_game_root = str(ROOT / "assets")
-    default_steps_per_frame = 200_000
-    default_timer_irqs_per_frame = 1   # the title/menu idle loop waits on INT 08h
+    default_steps_per_frame = 30_000
+    default_timer_irqs_per_frame = 6   # matches SKYROADS' own 6:1 INT 08h software prescaler
 
     def create_runtime(self, args):
         return create_game_runtime(args.exe, game_root=args.game_root,

@@ -27,8 +27,7 @@ claim):
     WIDTH_LEN        <- ds:[6729] (patches "push imm16" at 1010:6728)
     WIDTH_DIST_LONG  <- ds:[671F] (patches "push imm16" at 1010:671E)
     WIDTH_DIST_SHORT <- ds:[674C] (patches "push imm16" at 1010:674B)
-    (a fourth byte computes 1 << byte, stored at 1010:6751 — not observed
-    consumed by the main loop in this trace window; purpose not yet confirmed)
+    (a fourth header byte's purpose is still unconfirmed)
 
   Main loop (1010:6712-675E), per output byte until di reaches the output end:
     b1 = get_bit()
@@ -39,33 +38,57 @@ claim):
         if b2 == 1:
             output_byte(get_bits(8))          # literal
             continue
-        distance = get_bits(WIDTH_DIST_SHORT) + 3
+        distance = get_bits(WIDTH_DIST_SHORT) + (1 << WIDTH_DIST_LONG) + 2
     length = get_bits(WIDTH_LEN) + 2
     copy `length` bytes from (output_pos - distance) to output_pos, one byte
     at a time, advancing both pointers together (so overlapping/run copies
     work, standard LZ77 behaviour)
+
+  The short-distance base term (1010:6750 "ADD AX,imm16", operand patched at
+  1010:6751/6752) is `1 << WIDTH_DIST_LONG`, NOT the fixed 0x400 first
+  assumed: TREKDAT.LZS and MUZAX.LZS both happen to use WIDTH_DIST_LONG=10
+  (giving 0x400 either way, which is why testing only those two files never
+  caught this), but INTRO.LZS uses WIDTH_DIST_LONG=9 and its patched operand
+  reads 0x0200 = 1<<9 live from oracle memory — direct proof this is
+  computed per-file, not a compiled-in constant. (An earlier write-watch on
+  1010:6751/6752 across TREKDAT.LZS's own header-parse window found zero
+  writes and was wrongly read as "never patched, for any file" — it only
+  showed that TREKDAT's own patch, if any, happens outside that specific
+  window, or that TREKDAT's default matches its own target value.) The
+  short branch (1010:674B, 13-bit width) jumps into the long branch's shared
+  tail at 1010:6723 after adding this base, so both branches share one
+  "distance -> source pointer" computation; the common "+2" is applied
+  there, not per-branch — hence long-distance is `+2` and short-distance is
+  `+(1<<WIDTH_DIST_LONG)+2`, not the previously-assumed `+3` or fixed
+  `+0x400`.
 
 NOT YET CONFIRMED (open — do not trust until traced/verified):
   - The exact on-disk header layout before the four width bytes (the "CMAP"/
     magic + length fields seen in raw file inspection of CARS.LZS/WORLD0.LZS/
     MAINMENU.LZS have not been correlated byte-for-byte against where the
     oracle actually starts reading the four width bytes).
-  - The purpose of the `1 << byte` value stored at 1010:6751.
+  - The purpose of the fourth header byte (confirmed NOT to encode the
+    short-distance base directly, since that's computed as 1<<WIDTH_DIST_LONG
+    — still unidentified).
   - Multi-record chaining for files with several compressed blocks
     (TREKDAT.LZS's repeated alloc() calls during loading, ~8-10 records).
   - The ds:[41AA]/ds:[41BB] flag checks seen in nearby helper functions
     (1010:6595, 1010:6350) — plausibly "stored/uncompressed block" and
     "last chunk" flags, not yet traced to a concrete effect.
 
-Status: OBSERVED, partially byte-verified — a direct oracle-memory diff
-(TREKDAT.LZS record 0) found and fixed a real bug (length was
-get_bits(WIDTH_LEN)+1; the ASM copy loop actually does +2 — one match's worth
-of movsb inside LOOP plus one more unconditional at 6740h). That fix took the
-exact-byte match from 933/18072 to 8964/18072 (~50%). A residual, precisely
-localized divergence remains (a short-distance match at output-relative
-position 2938 reads a different raw bit value than the oracle) — logged as a
-blocker in docs/skyroads/blockers.md with the full symbol-trace evidence, not
-yet resolved. Do NOT treat this module's output as ground truth yet.
+Status: VERIFIED across multiple files and records — full-record oracle-
+memory dumps (anchored to the real INT21h AH=3Dh file-open event, not a
+step-count guess) diffed byte-for-byte against this module's output:
+TREKDAT.LZS records 0/1 and all 9 of its records via the differential hook
+verifier (skyroads/hooks.py's lzs_decode_loop_hook), MUZAX.LZS, and
+INTRO.LZS — 100% exact match once the short-distance formula above was
+fixed. Three real bugs were found and fixed to get here: (1) match length
+was get_bits(WIDTH_LEN)+1; the ASM copy loop actually does +2 (one match's
+worth of movsb inside LOOP plus one more unconditional at 6740h);
+(2) short-distance was assumed get_bits(WIDTH_DIST_SHORT)+3 by analogy with
+the long branch; (3) the base was then assumed a fixed 0x400 (matched
+TREKDAT/MUZAX by coincidence, both WIDTH_DIST_LONG=10) before INTRO.LZS's
+WIDTH_DIST_LONG=9 proved it's actually 1<<WIDTH_DIST_LONG.
 
 Cross-reference (corroboration, not a source): the independent RE project
 github.com/ammaarreshi/SkyRoads-Codex published a structurally matching
@@ -134,7 +157,7 @@ def decompress_block(payload: bytes, widths: LzsWidths, out_size: int) -> bytes:
             if reader.get_bit() == 1:
                 out.append(reader.get_bits(8))
                 continue
-            distance = reader.get_bits(widths.width_dist_short) + 3
+            distance = reader.get_bits(widths.width_dist_short) + (1 << widths.width_dist_long) + 2
         length = reader.get_bits(widths.width_len) + 2
         src = len(out) - distance
         for _ in range(length):
