@@ -52,13 +52,19 @@ main loop (22xx) --per frame--> 0C98 render frame
    matrices — a 2D DDA/bisection in road-space, projected per candidate by table
    lookup.
 
-3. **Curves and hills are per-slice offsets, not geometry.** The road-walk
-   computes each slice's screen placement as **base projection + an additive
-   accumulator**: `screen_y = [9336] + [AF2C]`, where `[9336]` is a bounded,
-   wrapping offset updated as the walk proceeds. Each horizontal slice of road is
-   *shifted*, rather than the road bending in 3D — the textbook Outrun road-curve
-   trick. (Observed static/flat in the available demo, which holds `[9336]≈1`;
-   the mechanism is in the code structure and the additive `screen_y`.)
+3. **The camera is static and straight; depth comes from block height + a
+   forward scroll, not road curvature.** (Per the game's author: there are no
+   hills or road curves — the camera looks straight down a straight road; blocks
+   simply have different heights.) This *strengthens* the verdict: a static
+   camera means the projection is a single fixed table (consistent with
+   `ds:0x162C` never changing). Each slice's screen-Y is `[9336] + [AF2C]`, where
+   `[9336]` is a small bounded, wrapping accumulator (0..0x47) — most consistent
+   with a **forward-scroll phase** (the sub-block offset that scrolls the road
+   smoothly toward the viewer between discrete block-row steps), NOT a road-curve
+   accumulator. Block "height" is drawn as taller/shorter pre-shaded tile stacks
+   (§4), not as extruded geometry. (The available demo is a flat, near-static
+   section with `[9336]≈1`; a busier level demo is needed to watch `[9336]`
+   scroll and confirm its exact role — pending.)
 
 4. **Rasterization is blitting, not triangles.** `38BF` copies vertical pixel
    runs from a source bitmap to the screen (scanline strips). `325B` draws road
@@ -70,13 +76,14 @@ main loop (22xx) --per frame--> 0C98 render frame
 
 ## What the "3D" actually is
 
-A **heightfield of blocks addressed in a 2D grid** (lateral × distance). Each
-frame the engine walks the grid by distance; for each cell it looks up the
-screen row/scale from the static projection tables, adds the per-slice curve/
-height offset, and blits the appropriate pre-shaded tile (or scanline strip) at
-that scale. Foreshortening, the vanishing point, block "height" and road
-curvature all fall out of **tables + artist art + integer interpolation**. That
-is why it ran smoothly on a 286 with no FPU.
+A **grid of blocks addressed in 2D** (lateral × distance), with a static,
+straight camera. Each frame the engine walks the grid by distance; for each cell
+it looks up the screen row/scale from the fixed projection table, applies the
+forward-scroll offset, and blits the appropriate pre-shaded tile (or scanline
+strip) at that scale — taller blocks drawn as taller tile stacks. Foreshortening,
+the vanishing point, and block "height" all fall out of **one fixed table +
+artist art + integer interpolation**. No road curvature or hills exist. That is
+why it ran smoothly on a 286 with no FPU.
 
 ## Confidence and the remaining sliver
 
@@ -88,7 +95,9 @@ is why it ran smoothly on a 286 with no FPU.
   iterative solver that mutates the position accumulators); a byte-exact hook is
   the largest single remaining recovery and is the natural next collapse of the
   road-segment path (`186B` would subsume `1732`+`04C0`+the interpolation math).
-- The one behaviour not *demonstrated* dynamically: the curve/height offset
-  sweeping over a hilly/curvy stretch — the available demo is a flat, near-static
-  section. A few seconds recorded over hills/curves would show `[9336]`/`[AF2C]`
-  driving the vertical directly.
+- The one behaviour not *demonstrated* dynamically: the forward-scroll offset
+  `[9336]`/`[AF2C]` sweeping as the ship moves, and blocks of differing height
+  rendering at different vertical extents — the available demo is a flat,
+  near-static section (`[9336]≈1`). A busier level demo (varied block heights,
+  active forward motion) is being produced to confirm the scroll mechanism and
+  the block-height→tile-stack mapping directly.
