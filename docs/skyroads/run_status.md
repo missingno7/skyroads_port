@@ -4,6 +4,58 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — diagnosed the reported perf drops + "sound delay": three distinct un-hooked causes
+
+User report: visible performance drops during some transitions, and sound
+feels delayed, "probably poor performance." Profiled the full E2E demo
+(`demo_e2e_20260710_132930`) frame-by-frame with the real frontend (frame-park
+on, current defaults) and found the slow frames are **not** one root cause —
+three distinct un-hooked things, all during menu/transition screens (gameplay
+is already fast):
+
+1. **Un-hooked menu text/string rendering** (`1010:0F75`, `1010:41E7` and
+   siblings) — classic `lodsb/cmp/stosb/loop` character-blit loops, real
+   CPU-bound work (not idle spin, so frame-park can't help). These are menu
+   text drawing, not asset loading.
+2. **An un-hooked buffer scan/patch loop** (`1010:4062-406C`, called from a
+   utility at `1010:4052`: `lds bx,farptr; cx,ax=count,delta; loop{ if
+   [bx]!=0: [bx]+=al; inc bx (segment-wraps +0x1000 on overflow) }`) — seen
+   heavily at level-transition frames (997, 1517). Likely a palette/index
+   rebase over a large buffer; not yet characterized enough to know if it's
+   asset-related.
+3. **The recovered OPL music engine is verified but never wired as a VM
+   hook** — the timer ISR (`master_timer_isr`) still calls through
+   `emulate_call` to run the *original* ASM at `1010:5A55` every tick (pages
+   `5800`/`5900` show up prominently in some slow frames, e.g. frame 14's
+   201ms). This one is very plausibly the direct cause of "sound feels
+   delayed": a live player pumps audio on the wall clock, so a 150-230ms
+   interpreted-frame hitch (any of the causes above) blocks the audio pump for
+   that same span, causing an audible stutter/lag regardless of how fast the
+   sound engine itself is.
+
+Slowest E2E frames measured (wall time under CPython, headless): 231ms (frame
+770, page `1D00`, unidentified), 201ms (frame 14, sound driver init/patch
+load), 196-170ms (several `4000xx`-dominated transition frames), down to a
+~150ms tail of similar transition frames. Gameplay frames are consistently
+fast by comparison (frame-park + the recovered render/physics hot path).
+
+**While investigating whether cause #3 could be fixed immediately** (wire the
+already-recovered `music.py::Engine` as a real hook), found and fixed a real
+correctness bug first (see the commit right above this entry): the engine
+never persisted its song cursor or decremented the delay counter back to
+memory, which is invisible in pure per-tick verification (the real ASM keeps
+memory in sync regardless) but would silently break a live hook (replay the
+same song forever). Fixed and regression-tested. **The hook itself is not yet
+installed** — doing so safely needs full register-state differential-verifier
+proof (the project's standing rule), which is a separate, sizeable follow-up
+from a diagnostic session.
+
+**Not done this session** (flagging for prioritization): recovering #1 and #2
+as clean, hooked Python (the same methodology as the render islands); wiring
++ differentially verifying the music-engine hook (#3). All three are
+well-scoped, tractable next steps, comparable in size to earlier renderer-
+island work — not something to rush without proper verification.
+
 ## 2026-07-10 — game logic: respawn/reset + resume-gate recovered; death-flow architecture corrected
 
 Continued the game-logic thread with the death/respawn side. Corrected a
