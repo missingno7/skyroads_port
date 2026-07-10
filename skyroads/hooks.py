@@ -50,6 +50,18 @@ Installed hooks:
   static disassembly up front, informed by the register/flags mistakes the
   palette_upload verifier had just caught the same session.
 
+- road_object_visible (1010:1732): verified 2026-07-10 — the renderer-island
+  LAYER-2 ROOT: the per-segment cull that ties 04C0 (perspective) and 1631
+  (clip) together. All 12,152 in-game calls verified byte-exact, zero
+  divergence. Hooking it collapses its FOUR nested 04C0 calls plus the cull
+  glue (~28% of real render work) into one Python call (renderer.py::
+  road_object_visible for the decision; the hook re-walks the flow only to
+  reproduce exit BX/CX/DX — inherited from whichever nested 04C0/1631 call was
+  last on the taken path — and each path's final-compare flags). Verified
+  first try, including the deep two-sided-clip paths, because the exit-state
+  model reused the already-known 04C0 exit regs and a reconstruction of 1631's
+  (bx=seg*2 on table cases else caller bx; cx=128; dx=(coord-0x2200)%128).
+
 - perspective_transform (1010:04C0): verified 2026-07-09 — the KEYSTONE of the
   renderer island and the first layer wired to a clean recovered-code module
   (skyroads/recovered/renderer.py::perspective_row_offset). Every road/object
@@ -135,7 +147,7 @@ from dos_re.hooks import interpret_current_instruction_without_hook, registry
 
 from skyroads.codecs.lzs import LzsWidths
 from skyroads.recovered.palette_fade import blend_byte
-from skyroads.recovered.renderer import perspective_row_offset
+from skyroads.recovered.renderer import perspective_row_offset, road_segment_clip
 
 CODE_SEG = 0x1010  # SKYROADS.EXE's single code segment (from program.entry_cs)
 
@@ -1206,6 +1218,94 @@ def _perspective_transform_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x04C0, "perspective_transform")
 def perspective_transform_hook(cpu: CPU8086) -> None:
     _perspective_transform_hook(cpu)
+
+
+# CS:IP 1010:1732 -- the layer-2 per-segment cull, the renderer-island root that
+# ties 04C0 (perspective) and 1631 (clip) together. Hooking it collapses its
+# FOUR nested 04C0 calls plus the cull glue (~28% of real render work) into one
+# Python call. cdecl near proc (`enter 0xA` / `leave` / bare `ret`, caller pops
+# the 4 word args); args [sp+2]=x_lo, [sp+4]=x_hi, [sp+6]=depth(si), [sp+8]=
+# screen_y(di). Returns 0/1 in AX; SI/DI/BP are saved+restored (net-preserved),
+# so only AX/BX/CX/DX + flags are caller-visible scratch. The pure decision is
+# renderer.py::road_object_visible (ASM_MATCHED over 12,152 in-game calls); this
+# hook re-walks the same control flow only to reproduce the exact exit BX/CX/DX
+# (inherited from whichever nested 04C0/1631 call was last on the taken path)
+# and the flags from that path's final compare.
+def _persp_exit(cpu, ds, x_lo, x_hi, depth, bx):
+    """One 04C0 call: returns (table_word, bx, cx, dx) with 04C0's exit regs."""
+    r = perspective_row_offset(x_lo, x_hi, depth)
+    if r.in_range:
+        return cpu.mem.rw(ds, r.offset), r.offset, r.offset, r.rem46
+    return 0, bx, 0x80, r.rem128  # out-of-range leaves BX untouched, CX=128
+
+
+def _clip_exit(cpu, ds, dir_sel, seg, coord, bx, cx, dx):
+    """One 1631 call: returns (ret, bx, cx, dx) with 1631's exit regs. seg>37
+    returns 0 without touching bx/cx/dx; otherwise cx=128, dx=(coord-0x2200)%128,
+    and bx=seg*2 only on the table cases (sel 0x100/0x300/0x500)."""
+    seg &= 0xFFFF
+    if seg > 0x25:
+        return 0, bx, cx, dx
+    new_dx = ((coord - 0x2200) & 0xFFFF) % 128
+    t4 = t9 = 0
+    if seg <= 0x25:
+        t4 = cpu.mem.rw(ds, (0x4C + 2 * seg) & 0xFFFF)
+        t9 = cpu.mem.rw(ds, (0x98 + 2 * seg) & 0xFFFF)
+    ret = road_segment_clip(dir_sel, seg, coord, t4, t9)
+    sel = dir_sel & 0x0F00
+    new_bx = (seg * 2) & 0xFFFF if sel in (0x0100, 0x0300, 0x0500) else bx
+    return ret, new_bx, 0x80, new_dx
+
+
+def _road_object_visible_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, ds, sp = s.ss, s.ds, s.sp
+    ret_ip = mem.rw(ss, sp)
+    x_lo = mem.rw(ss, (sp + 2) & 0xFFFF)
+    x_hi = mem.rw(ss, (sp + 4) & 0xFFFF)
+    si = mem.rw(ss, (sp + 6) & 0xFFFF)   # depth base
+    di = mem.rw(ss, (sp + 8) & 0xFFFF)   # screen_y
+    bx, cx, dx = s.bx, s.cx, s.dx
+
+    def done(ax, a, b):
+        # a,b are the operands of the path's final 16-bit `cmp a,b`.
+        s.ax = ax & 0xFFFF
+        s.bx, s.cx, s.dx = bx & 0xFFFF, cx & 0xFFFF, dx & 0xFFFF
+        cpu.set_sub_flags(a & 0xFFFF, b & 0xFFFF, (a & 0xFFFF) - (b & 0xFFFF), 16)
+        s.sp = (sp + 2) & 0xFFFF
+        s.ip = ret_ip
+
+    r1, bx, cx, dx = _persp_exit(cpu, ds, x_lo, x_hi, (si + 0x700) & 0xFFFF, bx)
+    r2, bx, cx, dx = _persp_exit(cpu, ds, x_lo, x_hi, (si - 0x700) & 0xFFFF, bx)
+
+    near = (di + 0x600) & 0xFFFF
+    if ((r1 & 0xF) or (r2 & 0xF)) and di < 0x2800 and near > 0x2480:
+        return done(1, near, 0x2480)                         # 179A (1792 cmp)
+    far = (di + 0x680) & 0xFFFF
+    if far <= 0x2800:
+        return done(0, far, 0x2800)                          # 1861 via 17A8 (17A5 cmp)
+    if not ((r2 & 0xF00) or (r1 & 0xF00)):
+        return done(0, r1 & 0xF00, 0)                        # 1861 via 17C6 (17C1 cmp)
+
+    r3, bx, cx, dx = _persp_exit(cpu, ds, x_lo, x_hi, si, bx)
+    rem = ((((si & 0xFFFF) >> 7) + 0xFFCF) & 0xFFFF) % 46
+    seg = (0x17 - rem) & 0xFFFF
+    delta = 0xE900
+    if seg == 0 or seg > 0x7FFF:
+        seg = (1 - seg) & 0xFFFF
+        delta = 0x1700
+    c1, bx, cx, dx = _clip_exit(cpu, ds, r3, seg, di, bx, cx, dx)
+    if c1 != 0:
+        return done(1, c1, 0)                                # 185B via 182F (182A cmp)
+    r4, bx, cx, dx = _persp_exit(cpu, ds, x_lo, x_hi, (si + delta) & 0xFFFF, bx)
+    c2, bx, cx, dx = _clip_exit(cpu, ds, r4, (0x2F - seg) & 0xFFFF, di, bx, cx, dx)
+    return done(1 if c2 != 0 else 0, c2, 0)                  # 185B/1861 (1853 cmp)
+
+
+@registry.replace(CODE_SEG, 0x1732, "road_object_visible")
+def road_object_visible_hook(cpu: CPU8086) -> None:
+    _road_object_visible_hook(cpu)
 
 
 # CS:IP 1010:38BF -- the road-column strip compositor, the single most-called

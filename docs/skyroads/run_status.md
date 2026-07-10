@@ -64,9 +64,14 @@ layers are DONE. Remaining, in dependency order:
    return values exercised). It projects the segment's near/far edges via
    `04C0`, runs the nibble + screen-band cull, and on survivors does a
    mirrored two-sided `1631` clip — pure, no memory writes, returns 0/1.
-   Remaining for this layer: wire ONE hook at `1732` (collapsing its four
-   nested `04C0` calls too) with exact exit-state reconstruction, then verify
-   byte-exact — the perf step, deferred from the pure-logic recovery.
+   DONE (2026-07-10): the `1732` hook is wired + VERIFIED byte-exact over all
+   12,152 in-game calls (collapsing its four nested `04C0` calls plus the cull
+   glue into one Python call). Exit BX/CX/DX are reproduced by threading the
+   nested `04C0`/`1631` calls' exit registers through the taken path. With
+   this, layers 1+2 of the island are fully hooked; `04C0` dropped out of the
+   top hooks (most of its 34K calls came from `1732`). Layer 3 (the `0Cxx`
+   render dispatch that would become the island's single top-level boundary)
+   is the remaining upward step.
    Separately, the biggest single in-game render cost, the `38BF` road-column
    strip compositor, is now hooked + VERIFIED (14,896 calls, ~1.4x demo
    wall-clock); the RLE leaf rasterizers (`3153`/`3190`) were already hooked.
