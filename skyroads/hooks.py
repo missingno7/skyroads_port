@@ -1009,6 +1009,63 @@ def ulong_mul_hook(cpu: CPU8086) -> None:
     _ulong_mul_hook(cpu)
 
 
+# CS:IP 1010:5E5A -- the C-runtime SIGNED 32-bit long-DIVIDE helper (`_ldiv`/
+# `__aNldiv`-style), the signed companion to the unsigned ulong_div/ulong_mul.
+# Called from 9 render routines (the layer-3 object passes). Standard MSC ABI:
+# `push bp; mov bp,sp`, callee-cleanup `ret 8`; args [bp+4..5]=dividend low,
+# [bp+6..7]=dividend high, [bp+8..9]=divisor low, [bp+A..B]=divisor high; the
+# 32-bit signed quotient is returned in DX:AX. The routine first takes the
+# magnitude of each operand (negating in place, counting negatives in DI), then
+# runs an unsigned divide, then negates the result iff exactly one operand was
+# negative (`dec di; jnz skip`).
+#
+# The unsigned core has two paths, mirroring ulong_div: a 32/16 fast path
+# (|divisor| fits in 16 bits -- the common case) and a shift-normalize 32/32
+# path. This hook lifts ONLY the all-non-negative 32/16 case -- by far the most
+# common (every call in the recorded demo) -- and DELEGATES everything else
+# (either operand negative, or a 32/32 divisor) to the original ASM via
+# interpret_current_instruction_without_hook, correct by construction. On the
+# lifted path: CX is left holding |divisor_low| (the `mov cx,[bp+8]` at 5E96,
+# never reloaded); the two-negatives count is 0, so `dec di` (0 -> 0xFFFF) is
+# the final flag op (CF untouched by the preceding divides == 0). BX/SI/DI/BP
+# are push/pop-restored.
+_SIGNED_LDIV_EXIT_RET_BYTES = 10  # `ret 8`: pop 2-byte return IP + drop 8 arg bytes
+
+
+def _signed_long_div_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, sp = s.ss, s.sp
+
+    div_hi = mem.rw(ss, (sp + 8) & 0xFFFF)
+    num_hi = mem.rw(ss, (sp + 4) & 0xFFFF)
+    if (num_hi & 0x8000) or (div_hi & 0x8000) or div_hi != 0:
+        # negative operand, or a 32/32 divisor -> run the original routine.
+        interpret_current_instruction_without_hook(cpu)
+        return
+
+    ret_ip = mem.rw(ss, sp)
+    num = (num_hi << 16) | mem.rw(ss, (sp + 2) & 0xFFFF)   # >= 0 here
+    div_lo = mem.rw(ss, (sp + 6) & 0xFFFF)                  # divisor, 16-bit, > 0
+    quotient = num // div_lo
+
+    s.ax = quotient & 0xFFFF
+    s.dx = (quotient >> 16) & 0xFFFF
+    s.cx = div_lo  # left in CX by `mov cx,[bp+8]` at 5E96
+    # sign count DI = 0 here; the sign fixup's `dec di` (0 -> 0xFFFF) is the last
+    # flag op, and the divides leave CF=0.
+    cpu.set_sub_flags(0, 1, -1, 16)
+    cpu.set_flag(CF, False)
+
+    s.sp = (sp + _SIGNED_LDIV_EXIT_RET_BYTES) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x5E5A, "signed_long_div")
+def signed_long_div_hook(cpu: CPU8086) -> None:
+    _signed_long_div_hook(cpu)
+
+
 # CS:IP 1010:3153 -- the FORWARD run-length sprite rasterizer (one of a mirror
 # pair; the backward twin is at 1010:3190, hooked below). The dominant render
 # cost in the in-game demo: 5,884 calls driving 41,162 inner-loop iterations
