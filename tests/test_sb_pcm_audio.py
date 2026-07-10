@@ -17,8 +17,12 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-import numpy as np
 import pytest
+
+# numpy is a frontend ("viewer") dependency; the core CI env does not install it.
+# Skip this whole module (the SB audio-sink maths need numpy) when it is absent,
+# rather than breaking collection — same policy as the other frontend-ring tests.
+np = pytest.importorskip("numpy")
 
 ROOT = Path(__file__).resolve().parents[1]
 
