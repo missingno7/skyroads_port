@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.music import Engine
+from skyroads.recovered.music import CURSOR, DELAY, Engine
 
 _TICKS = json.loads((Path(__file__).parent / "fixtures" / "music_ticks.json").read_text())["ticks"]
 _RESET = json.loads((Path(__file__).parent / "fixtures" / "opl_reset.json").read_text())
@@ -52,3 +52,69 @@ def test_reset_opl_matches_asm() -> None:
     # sanity: silences all 22 operator registers, then programs rhythm mode
     assert all(v == 0x3F for r, v in writes[:22] if 0x40 <= r <= 0x55)
     assert (0xBD, 0xE0) in writes
+
+
+def test_engine_persists_cursor_and_delay_across_ticks() -> None:
+    """Regression test for a real bug: an earlier version tracked ``cursor``/
+    ``loop`` purely as Python locals and never decremented ``[0C83]`` when
+    waiting, so calling ``run_tick()`` repeatedly off ITS OWN committed state
+    (as a live replacement hook must, with no original ASM running alongside
+    to keep memory in sync) either replayed the same song words forever or
+    never advanced past a wait. Simulates exactly that: a tiny synthetic song
+    in a plain dict, driven tick-by-tick through nothing but ``Engine``."""
+    # word layout: op=word&7 (3 bits), al=(word&0xFF)>>4 (4 bits), ah=(word>>8)&0xFF.
+    # op0 (delay:=3), op7 (flag:=0x11), op0 (delay:=0 -- immediate), op7 (flag:=0x22), loop via op5
+    WORDS = [0x0300, 0x1107, 0x0000, 0x2207, 0x0005]
+    LOOP_TARGET_INDEX = 0  # op5 sends the cursor back to the first word
+    base = 0x4000
+    mem = {}
+    for i, w in enumerate(WORDS):
+        off = base + i * 2
+        mem[off] = w & 0xFF
+        mem[off + 1] = (w >> 8) & 0xFF
+    mem[CURSOR] = base & 0xFF
+    mem[CURSOR + 1] = (base >> 8) & 0xFF
+    mem[0x3198] = base & 0xFF          # loop point == start
+    mem[0x3198 + 1] = (base >> 8) & 0xFF
+    mem[DELAY] = 0
+    mem[0x3194] = 0  # instr_base unused by op0/op5/op7
+
+    def rb(off):
+        return mem.get(off & 0xFFFF, 0)
+
+    def rw(off):
+        return rb(off) | (rb(off + 1) << 8)
+
+    eng = Engine(rb, rw)
+
+    def tick():
+        writes = eng.run_tick()
+        mem.update(eng.ovl)          # exactly what a live hook must do: commit back
+        return writes
+
+    def cursor():
+        return mem[CURSOR] | (mem[CURSOR + 1] << 8)
+
+    # tick 1: processes word0 op0(delay:=3), no OPL writes (op0/op5/op7 never touch the OPL)
+    assert tick() == []
+    assert mem[DELAY] == 3 and cursor() == base + 2
+    # ticks 2-4: waiting -- delay counts down 3,2,1 and nothing else happens (a bug
+    # that forgot to decrement would spin here forever without ever progressing)
+    for expected in (2, 1, 0):
+        assert tick() == []
+        assert mem[DELAY] == expected
+    # tick 5: delay hit 0 -- resumes the stream and runs to completion WITHOUT
+    # stopping (nothing in words 1-4 arms a nonzero delay): op7(0x11), op0(delay:=0,
+    # i.e. keep going), op7(0x22), op5(cursor:=loop==base) sends it back to word0,
+    # which the SAME tick then re-processes (op0, delay:=3) -- that's what finally
+    # ends the tick.  The bug this guards against: cursor stuck / drifting forever.
+    assert tick() == []
+    assert mem[DELAY] == 3 and cursor() == base + 2
+    # the exact tick-1 outcome, one full loop cycle later -- proves the state stays
+    # in a stable, self-consistent cycle across many hook-only-driven ticks, not
+    # just one (a persistence bug could easily survive a single-cycle check).
+    for _ in range(3):
+        for expected in (2, 1, 0):
+            assert tick() == [] and mem[DELAY] == expected
+        assert tick() == []
+        assert mem[DELAY] == 3 and cursor() == base + 2

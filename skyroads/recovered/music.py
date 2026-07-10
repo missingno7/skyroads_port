@@ -90,6 +90,10 @@ class Engine:
     def _wb(self, off: int, v: int) -> None:
         self.ovl[off & 0xFFFF] = v & 0xFF
 
+    def _ww(self, off: int, v: int) -> None:
+        self._wb(off, v & 0xFF)
+        self._wb((off + 1) & 0xFFFF, (v >> 8) & 0xFF)
+
     def _opl(self, reg: int, val: int) -> None:
         self.writes.append((reg & 0xFF, val & 0xFF))
 
@@ -100,11 +104,12 @@ class Engine:
     def _op7(self, al: int, ah: int) -> None:
         self._wb(FLAG, ah)
 
-    def _op5(self, al: int, ah: int) -> None:
+    def _op5(self, al: int, ah: int) -> None:               # loop: cursor := [3198] (5A42)
         self.cursor = self.loop
 
-    def _op6(self, al: int, ah: int) -> None:
+    def _op6(self, al: int, ah: int) -> None:               # set loop point: [3198] := cursor (5A49)
         self.loop = self.cursor
+        self._ww(LOOP, self.loop)
 
     def _op3(self, al: int, ah: int) -> None:            # key-off (5919->59CF)
         if al < 6:
@@ -184,17 +189,27 @@ class Engine:
         merge_target="skyroads.native.music (future)",
     )
     def run_tick(self) -> list[tuple[int, int]]:
-        """Run one tick against the current memory; return its OPL ``(reg, val)`` writes."""
+        """Run one tick against the current memory; return its OPL ``(reg, val)`` writes.
+
+        ``self.ovl`` (readable after the call) holds every DGROUP byte this
+        tick wrote — including the advanced song cursor (``ds:[3196]``, which
+        the ASM stores unconditionally each word via `mov ds:[3196],si`
+        (1010:5A69), and which must be committed for the *next* tick to resume
+        from the right position rather than replaying this one forever).
+        """
         self.ovl = {}
         self.writes = []
         self.cursor = self.rw(CURSOR)
         self.loop = self.rw(LOOP)
         self.instr_base = self.rw(INSTR_BASE)
-        if self.rb(DELAY) != 0:
+        delay = self.rb(DELAY)
+        if delay != 0:
+            self._wb(DELAY, delay - 1)                 # 5A5F `dec ds:[0C83]`
             return self.writes
         while True:
             word = self.rw(self.cursor)
             self.cursor = (self.cursor + 2) & 0xFFFF
+            self._ww(CURSOR, self.cursor)
             op = word & 7
             self._DISPATCH[op](self, (word & 0xFF) >> 4, (word >> 8) & 0xFF)
             if self._rb(DELAY) != 0:
