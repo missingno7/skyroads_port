@@ -14,6 +14,7 @@ from pathlib import Path
 from skyroads.recovered.music import Engine
 
 _TICKS = json.loads((Path(__file__).parent / "fixtures" / "music_ticks.json").read_text())["ticks"]
+_RESET = json.loads((Path(__file__).parent / "fixtures" / "opl_reset.json").read_text())
 
 
 def _readers(mem_hex: dict[str, int]):
@@ -38,3 +39,16 @@ def test_music_engine_exercises_real_note_events() -> None:
     all_regs = {r for tick in _TICKS for r, _ in tick["writes"]}
     assert any(0xA0 <= r <= 0xA8 for r in all_regs), "no A0 (frequency) writes captured"
     assert any(0xB0 <= r <= 0xB8 for r in all_regs), "no B0 (key-on) writes captured"
+
+
+def test_reset_opl_matches_asm() -> None:
+    # the one-time OPL reset + percussion-patch init (1010:58A5-5913), verified
+    # against the single occurrence in the cold-sound demo (63 writes, byte-exact
+    # over the full 2157-frame replay).
+    rb, rw = _readers(_RESET["mem"])
+    writes = Engine(rb, rw).reset_opl()
+    expected = [(r, v) for r, v in _RESET["writes"]]
+    assert writes == expected
+    # sanity: silences all 22 operator registers, then programs rhythm mode
+    assert all(v == 0x3F for r, v in writes[:22] if 0x40 <= r <= 0x55)
+    assert (0xBD, 0xE0) in writes

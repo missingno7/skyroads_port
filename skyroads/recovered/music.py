@@ -199,3 +199,48 @@ class Engine:
             self._DISPATCH[op](self, (word & 0xFF) >> 4, (word >> 8) & 0xFF)
             if self._rb(DELAY) != 0:
                 return self.writes
+
+    #: Fixed instrument-table base the reset routine loads percussion patches
+    #: from (1010:58E2 `mov ds:[3194],0x0C84`) -- distinct from the live song's
+    #: own `[3194]`, which run_tick reads fresh each tick.
+    RESET_INSTR_BASE = 0x0C84
+
+    @oracle_link(
+        boundary="1010:58A5",
+        contract="reset_opl(): the one-time OPL reset + percussion-patch init "
+                 "(1010:58A5-5913), run at driver start / song load. Silences all "
+                 "operators (0x40-0x55 := 0x3F), key-offs channels 7..0 (melodic "
+                 "B0+ch:=0, channels 6/7 via the rhythm mask), enables waveform "
+                 "select (reg 0x01) and rhythm mode (0xBD:=0xE0), loads 4 fixed "
+                 "percussion instrument patches (channel slots 7..10 from a fixed "
+                 "table at 0x0C84, +0x0B/slot) via the same op1 patch-load path as "
+                 "run_tick, then fixes the two percussion channels' pitch (A7/B7, "
+                 "A8/B8). Returns the ordered (reg,val) OPL writes.",
+        status="VERIFIED",  # byte-exact vs ASM: every occurrence in the cold-sound demo
+        merge_target="skyroads.native.music (future)",
+    )
+    def reset_opl(self) -> list[tuple[int, int]]:
+        """Run the one-time OPL reset/init; return its ordered OPL writes."""
+        self.ovl = {}
+        self.writes = []
+        for reg in range(0x40, 0x56):                  # 58B0-58BF: silence all operators
+            self._opl(reg, 0x3F)
+        self._wb(RHYTHM, 0xE0)                          # 58AB: [319A] = 0xE0
+        al = 7
+        while al >= 0:                                  # 58C1-58CA: key-off channels 7..0
+            self._op3(al, 0)
+            al -= 1
+        self._opl(0x01, 0x20)                           # 58D0: waveform-select enable
+        self._opl(0x08, 0x00)                           # 58D6: CSM/keysplit off
+        self._opl(0xBD, 0xE0)                           # 58DC: rhythm mode enable
+        self.instr_base = self.RESET_INSTR_BASE         # 58E2
+        al = 7
+        while al < 0x0B:                                # 58E8-58F9: load percussion patches 7..10
+            self._op1(al, 0)
+            self.instr_base = (self.instr_base + 0x0B) & 0xFFFF
+            al += 1
+        self._opl(0xA8, 0xAC)                           # 58FB-5913: percussion fixed pitch
+        self._opl(0xB8, 0x0C)
+        self._opl(0xA7, 0x02)
+        self._opl(0xB7, 0x0D)
+        return self.writes

@@ -23,6 +23,25 @@ and channels whose `B0` reg reaches `0xB6` fall through into the rhythm path;
 op4 scales operator total-level with a per-level bias and `0x3F` clamp. The
 song data + tables are *data the port loads*, not code (see below).
 
+Also recovered the one-time **OPL reset / percussion init** (`1010:58A5-5913`,
+run once at driver start before any song plays): silence all 22 operator
+registers, key-off channels 7..0, enable waveform-select + rhythm mode, load 4
+fixed percussion patches via the same `op1` path, fix the 2 percussion
+channels' pitch. `Engine.reset_opl()`, **VERIFIED** — byte-exact against its
+one occurrence in the cold-sound demo, confirmed the *only* occurrence over the
+full 2157-frame replay. Gotcha found while isolating it: `58A5` (the
+silence+keyoff subroutine) is also called **standalone** elsewhere just to
+silence the chip, not only as step 1 of the full init — trace the call site
+`58CD` to isolate the complete sequence.
+
+Also settled: **SFX needs no recovery island.** It's digital PCM over Sound
+Blaster DMA; `skyroads/audio.py` already plays it correctly as a *pure
+observer* of the raw DMA bytes (same pattern as render hooks watching OPL
+writes) — there's no trigger-condition logic to reimplement.
+
+**The sound/music subsystem is now fully retired for the VM-less port** —
+sequencer, one-time init, and SFX all covered. 172 tests pass.
+
 The reverse-engineering that made this possible (unchanged, kept for reference):
 
 Reverse-engineered the whole AdLib/OPL music driver — see

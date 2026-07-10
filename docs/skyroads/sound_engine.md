@@ -83,16 +83,50 @@ op1 and op2 both call op3 (`59CF`) first to key the channel off.
 | `0C6B` | op2 | note → F-number low table |
 | `0C77` | op2 | note → F-number high / octave table |
 
+## The one-time OPL reset / percussion init — `1010:58A5-5913`
+
+Run once at driver start (called via `1010:58CD`), before any song plays:
+
+1. `58A5-58BF` — **silence**: write all 22 operator registers `0x40-0x55` to
+   `0x3F` (max attenuation).
+2. `58C1-58CA` — **key-off** channels 7..0 (melodic channels 0-5 via `B0+ch:=0`;
+   channels 6/7 via the rhythm mask in `op3`).
+3. `58D0-58DC` — enable waveform select (`0x01:=0x20`), disable CSM/keysplit
+   (`0x08:=0x00`), enable rhythm mode (`0xBD:=0xE0`).
+4. `58E2-58F9` — load 4 fixed **percussion instrument patches** (channel slots
+   7..10) from a fixed table at `DG:0x0C84` (+`0x0B`/slot), via the *same*
+   `op1` patch-load path `run_tick` uses for ordinary notes.
+5. `58FB-5913` — fix the two percussion channels' pitch directly (`A7`/`B7`,
+   `A8`/`B8`) — rhythm-mode voices use fixed frequencies, not per-note ones.
+
+Note: `1010:58A5` (the silence+key-off subroutine, ending in its own `ret` at
+`58CC`) is also called **standalone** elsewhere (just "silence the chip"), not
+only as step 1 of this sequence — when tracing occurrences of `58A5`, gate on
+the call site `58CD` (or the eventual `5913` return) to isolate the full
+init, not just any entry to `58A5`.
+
 ## Status: COMPLETE ✅
 
-Recovered as `skyroads/recovered/music.py::Engine.run_tick` — clean VM-free
-Python operating on (song stream, tables, state) via two DGROUP readers.
-**Verified byte-exact**: the OPL register-write stream matches the ASM over all
-**12,882 cold-sound-demo ticks, zero divergences** (lockstep per tick, like the
-SB-PCM determinism proof). Guarded by `tests/test_music.py`.
+Both pieces recovered as `skyroads/recovered/music.py::Engine` — clean VM-free
+Python operating on (song stream, tables, state) via two DGROUP readers:
+
+- **`run_tick()`** — verified byte-exact over all **12,882 cold-sound-demo
+  ticks, zero divergences**.
+- **`reset_opl()`** — verified byte-exact against its one occurrence in the
+  cold-sound demo (63 writes), confirmed the *only* occurrence over the full
+  2157-frame replay.
+
+Both guarded by `tests/test_music.py`.
 
 The song data and the tables above are *data the port loads*, not code to
 rewrite — a native port supplies `rb`/`rw` over its own copy and gets the exact
-OPL programming for free. This retires the music sequencer for the VM-less port
-(remaining sound work: the SFX trigger path and the OPL init/instrument-load at
-driver start, both smaller).
+OPL programming for free. This retires the whole music subsystem — sequencer
+and init — for the VM-less port.
+
+**SFX needs no recovery island.** Sound effects are digital PCM streamed to the
+Sound Blaster over DMA; `skyroads/audio.py`'s `SkyroadsAudioSink` already plays
+them correctly as a *pure observer* that captures the raw DMA bytes the game
+writes (same pattern as the render hooks watching OPL writes) — there is no
+"trigger condition" logic to reimplement, since the port never needs to decide
+*when* to play an effect, only to relay the bytes the original driver already
+produced.
