@@ -29,6 +29,8 @@ Constant `LEVEL_END = 0x2AAA` is the road length; reaching it completes the leve
 """
 from __future__ import annotations
 
+from typing import NamedTuple
+
 from skyroads.islands import oracle_link
 
 #: Road length in forward-position units; ship_pos is clamped to [0, LEVEL_END],
@@ -122,10 +124,20 @@ def update_vertical_velocity(vvel: int, jumped: bool, af2c: int,
     """Per-frame vertical-velocity (`ds:[9336]`) jump+gravity update (1010:2582-2635).
 
     ``vvel`` is the velocity after :func:`decay_bounce` has run this frame;
-    ``jumped`` is whether the jump gate fired an impulse (the gate itself, at
-    2582/258C, is separate — it also depends on frame-local state not yet
-    recovered); ``af2c`` is `ds:[AF2C]`, ``gravity`` is `ds:[54AA]` (signed,
-    per-level), ``grounded`` is `ds:[456A] != 0`.
+    ``jumped`` is whether the jump gate fired an impulse. The gate itself is
+    NOT fully recovered: it is `ds:[547A]!=0 and ds:[4562]<0x14` (2582/258C —
+    ``[4562]`` is a per-level constant, not a per-frame counter; the deaths
+    demo has it pinned at 8), **guarded further** by two frame-local flags
+    `ss:[bp-8]` and `ss:[bp-18]` (2570/2579 — skip the whole jump block if
+    either is nonzero) that this module doesn't yet compute: they are set
+    earlier in the same per-frame handler, likely from the collision/height
+    classification around 1010:2340-2385, and are why in the deaths demo the
+    impulse fires only on the *first* frame of each held jump-key press
+    (3 times, not the 29 frames the key was actually held) — almost certainly
+    an "already airborne, ignore jump" latch. Recovering it requires tracing
+    where bp-8/bp-18 get set, which the current demo corpus hasn't forced yet.
+    ``af2c`` is `ds:[AF2C]`, ``gravity`` is `ds:[54AA]` (signed, per-level),
+    ``grounded`` is `ds:[456A] != 0`.
     """
     v = _s16(JUMP_IMPULSE if jumped else vvel)
     if not grounded:                                   # airborne
@@ -138,3 +150,73 @@ def update_vertical_velocity(vvel: int, jumped: bool, af2c: int,
             v = 0
         v = _s16(v + 0x27) if v < 0x47 else 0x47
     return v & 0xFFFF
+
+
+#: Height threshold at which the reset ship is treated as "landed" and gameplay
+#: resumes (`ds:[456E] := 3`, 1010:2AB1). Same value the reset writes ``AF2C``
+#: to, so a freshly-respawned ship is immediately resume-eligible.
+RESUME_HEIGHT_GATE = 0x2800
+
+
+@oracle_link(
+    boundary="1010:2AB1",
+    contract="is_landed_for_resume(af2c): gates resuming gameplay (ds:[456E]:=3) "
+             "after a respawn/reset. True iff af2c >= 0x2800 (the height the "
+             "reset block itself writes AF2C to -- so a fresh respawn resumes on "
+             "the very next check unless something has since dropped AF2C below "
+             "the gate).",
+    status="ASM_MATCHED",  # matches the ASM branch direction; the gate condition
+    # itself was sampled indirectly (all 3 deaths-demo respawns wrote exactly
+    # 0x2800, immediately satisfying it) -- not yet exercised with af2c < gate.
+    merge_target="skyroads.native.player (future)",
+)
+def is_landed_for_resume(af2c: int) -> bool:
+    """Whether the ship is high enough (`ds:[AF2C]`) to resume gameplay (1010:2AB1)."""
+    return af2c >= RESUME_HEIGHT_GATE
+
+
+class RespawnState(NamedTuple):
+    """The fixed field values the respawn/reset block (1010:201F-20A7) writes.
+
+    Every field here is a **constant** -- the block does not read any prior
+    state to compute them (the one branch it has, `ds:[95F6]==2` for a
+    joystick-recenter call, is a side call this doesn't model and is untested:
+    the deaths demo only plays with the keyboard). Call sites: after a death
+    (`ds:[456E]` was 1 or 3), to reset the ship to the start of its (fixed)
+    spawn position and clear the level's transition timers.
+    """
+    lateral_lo: int = 0x0000        # ds:[9618]
+    lateral_hi: int = 0x0003        # ds:[961A]
+    vert_af1c: int = 0x8000         # ds:[AF1C]
+    vert_af2c: int = 0x2800         # ds:[AF2C]  == RESUME_HEIGHT_GATE
+    unknown_5496: int = 0x0000      # ds:[5496]
+    lateral_accel: int = 0x0000     # ds:[4568]  (steer*29 accumulator, see the physics block)
+    vvel: int = 0x0000              # ds:[9336]
+    ship_pos_lo: int = 0x0000       # ds:[54AC]
+    ship_pos_hi: int = 0x0000       # ds:[54AE]
+    level_timer_a: int = 0x7530     # ds:[5494]  counts down toward a post-level state
+    level_timer_b: int = 0x7530     # ds:[B13C]  counts down toward a post-level state
+    game_state: int = 0x0000        # ds:[456E]
+    frame_ctr: int = 0x0000         # ds:[4558]
+    unknown_456a: int = 0x0000      # ds:[456A]
+    unknown_455a: int = 0x0000      # ds:[455A]
+    unknown_af2e: int = 0x0000      # ds:[AF2E]
+    unknown_af30: int = 0x0000      # ds:[AF30]
+    elapsed_ticks: int = 0x0000     # ds:[1600]  the frame-pacing tick counter
+    unknown_af38: int = 0x0000      # ds:[AF38]
+
+
+@oracle_link(
+    boundary="1010:201F",
+    contract="respawn(): the reset block that runs after a death, before "
+             "gameplay resumes (1010:201F-20A7, inside the larger 1FD9 "
+             "monolithic-handler block). Writes a fixed set of DGROUP fields to "
+             "constants -- ship position, vertical/lateral state, game_state, "
+             "and the level's post-completion timers -- unconditionally "
+             "resetting to the (single, fixed) spawn point.",
+    status="ASM_MATCHED",  # 3/3 real deaths-demo respawns byte-exact (all 19 fields)
+    merge_target="skyroads.native.player (future)",
+)
+def respawn() -> RespawnState:
+    """The fixed post-death reset state (1010:201F-20A7)."""
+    return RespawnState()

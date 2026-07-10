@@ -4,6 +4,51 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — game logic: respawn/reset + resume-gate recovered; death-flow architecture corrected
+
+Continued the game-logic thread with the death/respawn side. Corrected a
+misread from the physics-mapping session: the jump-impulse gate at `258C` is
+`jb` (jump-if-below), so it fires when `[4562] < 0x14`, not `>=` as previously
+written — `[4562]` turned out to be a **per-level constant** (pinned at 8 for
+the whole deaths demo, not a per-frame counter), read once via `1FFA-200A` to
+compute the level's gravity constant `[54AA]` (`= -([4562]*0x1680/0x190)`),
+confirming `[4562]` is a per-level physics parameter, not gameplay state.
+
+Traced the actual respawn machinery empirically (writer/caller tracing, not
+static guessing — a naive static disasm of "the block starting near 2020" was
+misaligned and gave garbage). Findings:
+
+- **The gameplay update genuinely is one monolithic per-frame handler**, as
+  `player.py`'s module docstring already said — `1010:1FD9` is not a separately
+  called "reset function" but a label inside that same handler; its apparent
+  `call ... ret=2C61` is just the handler's own single call-from-the-main-loop
+  return address, constant across every internal label.
+- **Respawn/reset** (`1010:201F-20A7`): recovered as
+  `player.py::respawn() -> RespawnState`, a **pure constant** — 19 DGROUP
+  fields (ship position, lateral, vertical, game_state, level timers, tick
+  counter) all reset to fixed values, no branching on prior state in the
+  sampled span. **ASM_MATCHED — 3/3 real deaths-demo respawns, all 19 fields
+  byte-exact.**
+- **Resume gate** (`1010:2AB1`): `player.py::is_landed_for_resume(af2c)` =
+  `af2c >= 0x2800` gates `[456E]:=3` (resume gameplay) after a respawn. Since
+  `respawn()` writes `AF2C := 0x2800` exactly, a fresh respawn is immediately
+  resume-eligible.
+- **The jump gate is only partially recovered.** Beyond
+  `[547A]!=0 and [4562]<0x14`, there are **two more guards**, `ss:[bp-8]` and
+  `ss:[bp-18]` (`2570`/`2579`) — frame-local flags that skip the whole jump
+  block if either is nonzero, set earlier in the same handler (likely from the
+  collision/height classification around `2340-2385`). This is *why* the
+  impulse fired only 3 times despite the jump key being held for 29 frames in
+  the deaths demo — it fires once per press, not once per held frame,
+  almost certainly an "already airborne" latch. `update_vertical_velocity`'s
+  `jumped` parameter stays an external input until bp-8/bp-18 are traced.
+- **The `[456E]` state machine is wider than previously documented** — the
+  outer pacing block (`2A90-2B08`) cycles it through 0/1/3/4/5 via countdown
+  timers `[5494]`/`[B13C]` (post-level-complete sequencing, not death-related);
+  not further mapped this session.
+
+Guarded by `tests/test_player.py` (respawn + resume-gate cases). 174 tests pass.
+
 ## 2026-07-10 — sound/music island COMPLETE (OPL music engine recovered + verified)
 
 Recovered the whole AdLib/OPL music engine into

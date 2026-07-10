@@ -15,13 +15,14 @@ import json
 from pathlib import Path
 
 from skyroads.recovered.player import (
-    JUMP_IMPULSE, TERMINAL_VVEL, advance_ship, decay_bounce,
-    update_vertical_velocity,
+    JUMP_IMPULSE, RESUME_HEIGHT_GATE, TERMINAL_VVEL, RespawnState, advance_ship,
+    decay_bounce, is_landed_for_resume, respawn, update_vertical_velocity,
 )
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "physics_trace.json"
 _CASES = json.loads(_FIXTURE.read_text())
 _VPHYS = json.loads((Path(__file__).parent / "fixtures" / "vphysics_trace.json").read_text())
+_RESPAWNS = json.loads((Path(__file__).parent / "fixtures" / "respawn_trace.json").read_text())
 
 
 def test_advance_ship_matches_asm_including_negative_speed() -> None:
@@ -67,3 +68,22 @@ def test_update_vertical_velocity_branches() -> None:
     assert update_vertical_velocity(10, False, 0x3000, -115, grounded=False) == (10 - 115) & 0xFFFF
     # airborne below the gate clamps down to terminal (ASM-derived branch)
     assert update_vertical_velocity(0, False, 0x0000, -115, grounded=False) == (TERMINAL_VVEL & 0xFFFF)
+
+
+def test_respawn_matches_asm() -> None:
+    # 3/3 real deaths-demo respawns byte-exact, all 19 fields (1010:201F-20A7)
+    assert _RESPAWNS, "fixture empty"
+    expected = respawn()._asdict()
+    for event in _RESPAWNS:
+        if event["ctrl"] != 0:
+            continue  # only the keyboard control-mode path is modeled
+        assert event["post"] == expected, event
+
+
+def test_respawn_is_landed_for_resume() -> None:
+    # respawn() sets AF2C to exactly the resume gate, so a fresh respawn is
+    # immediately resume-eligible (1010:2AB1)
+    assert respawn().vert_af2c == RESUME_HEIGHT_GATE
+    assert is_landed_for_resume(respawn().vert_af2c) is True
+    assert is_landed_for_resume(RESUME_HEIGHT_GATE - 1) is False
+    assert is_landed_for_resume(RESUME_HEIGHT_GATE) is True
