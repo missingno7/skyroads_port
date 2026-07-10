@@ -158,6 +158,7 @@ from dos_re.hooks import interpret_current_instruction_without_hook, registry
 from dos_re.lift.runtime import emulate_call
 
 from skyroads.codecs.lzs import LzsWidths
+from skyroads.recovered.blit import stencil_blit
 from skyroads.recovered.palette_fade import blend_byte
 from skyroads.recovered.renderer import perspective_row_offset, road_segment_clip
 from skyroads.recovered.timer_isr import advance_music_timer
@@ -1996,6 +1997,79 @@ def master_timer_isr(cpu: CPU8086) -> None:
     s.ds = cpu.pop(); _popa(cpu)             # pop ds; popa; iret
     s.ip, s.cs = cpu.pop(), cpu.pop()
     s.flags = cpu.pop() | 0x0002
+
+
+# --- stencil blit (1010:0F62) --------------------------------------------------
+#
+# The menu text/glyph rendering primitive: `push si,di; es:=[AF2A]; es:di=0;
+# ds:si=far arg (bp+4); cx=count (bp+8); loop { al=lodsb; al = al==0 ? al :
+# (al==1 ? word[bp+10] : word[bp+12]); stosb }; pop ds,di,si`. Small per-call
+# count (1-20+ observed live) but called MANY times per menu frame -- profiling
+# found it among the hottest un-hooked interpreted work during menu/transition
+# screens (run_status.md, 2026-07-11 perf diagnosis). No port I/O, so (unlike
+# the music-engine hook attempt logged the same day) full register-exact
+# parity is tractable -- got it wrong twice on the first attempt (both caught
+# by the strict differential verifier, not by reasoning ahead of time):
+#
+#   SI/DI: the function opens with `push si; push di` and closes with
+#       `pop di; pop si` -- they are the CALLER's original values, UNCHANGED,
+#       not "final cursor position" (an initially-plausible guess that's wrong).
+#   AX: AL = the last byte's write value (see stencil_blit); AH is untouched by
+#       a zero byte (0F76-0F78 `or al,al` only reads AL) and RUNNING through
+#       the whole loop -- it is whatever the most recent `mov ax,[bp+10 or
+#       +12]` full-word load set it to, which can be several bytes before the
+#       end if the source has trailing zeros (checking only the LAST byte, as
+#       an earlier version of this hook did, is wrong whenever the source ends
+#       in zeros after a substitution -- the very first live call hit exactly
+#       this case).
+#   CX: 0 (the `loop` instruction's own postcondition for a normal exit).
+#   ES: ds:[AF2A] (loaded once, unconditionally, at entry).
+#   DS: net unchanged -- `push ds; lds si,[bp+4]` then `pop ds` restores it.
+#   BX/DX: untouched.
+#   FLAGS: from the LAST byte's own comparison -- `or al,al` (b==0) or
+#       `cmp al,1` (b==1 or b>1; identical instruction either way).
+_STENCIL_ES_PTR = 0xAF2A
+
+
+@registry.replace(CODE_SEG, 0x0F62, "stencil_blit")
+def stencil_blit_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, sp = s.ss, s.sp
+    ret_ip = mem.rw(ss, sp)
+    src_off = mem.rw(ss, (sp + 2) & 0xFFFF)
+    src_seg = mem.rw(ss, (sp + 4) & 0xFFFF)
+    count = mem.rw(ss, (sp + 6) & 0xFFFF)
+    template_color = mem.rw(ss, (sp + 8) & 0xFFFF)
+    other_color = mem.rw(ss, (sp + 10) & 0xFFFF)
+    es = mem.rw(s.ds, _STENCIL_ES_PTR)
+
+    source = bytes(mem.rb(src_seg, (src_off + i) & 0xFFFF) for i in range(count))
+    out = stencil_blit(source, template_color, other_color)
+    for i, val in enumerate(out):
+        mem.wb(es, i & 0xFFFF, val)
+
+    # AH and AF both "thread through" the loop rather than being determined by
+    # just the last byte: AH only changes on a template/other substitution
+    # (0F76-0F78 `or al,al` touches only AL), and AF is left UNCHANGED by `or`
+    # (undefined-preserved on real 8086; cpu.set_logic_flags mirrors that) --
+    # only a `cmp al,1` (b==1 or b>1) iteration redefines it. So both must be
+    # updated per-byte, in ASM order, not shortcut from the final byte alone
+    # (caught by the strict verifier on a source ending in zeros after a hit).
+    ah = (s.ax >> 8) & 0xFF
+    al = s.ax & 0xFF
+    for b, val in zip(source, out):
+        al = val
+        if b == 0:
+            cpu.set_logic_flags(0, 8)                        # 0F76 `or al,al`
+        else:
+            ah = ((template_color if b == 1 else other_color) >> 8) & 0xFF
+            cpu.set_sub_flags(b, 1, (b - 1) & 0xFF, 8)        # 0F7A `cmp al,1`
+    s.ax = ((ah << 8) | al) & 0xFFFF
+    s.cx = 0
+    s.es = es
+    s.sp = (sp + 2) & 0xFFFF
+    s.ip = ret_ip
 
 
 # --- Lifted (mechanically-recovered) hooks ------------------------------------

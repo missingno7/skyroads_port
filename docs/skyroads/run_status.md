@@ -4,6 +4,46 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — recovered + wired the stencil-blit hook (perf cause #1), verified 244/244 zero-divergence
+
+Picked up perf cause #1 from the diagnosis below: the un-hooked menu text/glyph
+rendering primitive at `1010:0F62`. Recovered as
+`skyroads/recovered/blit.py::stencil_blit(source, template_color,
+other_color) -> bytes`: a pure 3-value stencil remap (`0->0, 1->template_color,
+else->other_color`), the low-level primitive behind menu font/glyph drawing.
+No port I/O (unlike the music engine), so — unlike that hook, which got
+shelved — full register-exact parity against the project's strict differential
+verifier was tractable, and worth doing since this routine showed up
+repeatedly in the perf profile.
+
+Wired as `skyroads/hooks.py::stencil_blit_hook`, a real `registry.replace` for
+`1010:0F62`. Getting it register-exact took two rounds of the strict verifier
+catching real mistakes that hand-reasoning from the static disassembly missed
+(same lesson as the earlier renderer hooks — trust the verifier, not the eye):
+
+1. First attempt assumed `SI`/`DI` end up as "final cursor position"
+   (`source+count`, `count`) — wrong. The function opens with `push si; push
+   di` and closes with `pop di; pop si`: they are the **caller's original
+   values**, fully preserved, not touched by the loop at all.
+2. Second attempt computed `AH` (and the flags' `AF` bit) from only the *last*
+   source byte. Both actually **thread through the whole loop**: `AH` only
+   changes on a template/other substitution (a plain zero byte's `or al,al`
+   only touches `AL`), and `AF` is *undefined-preserved* by `or` on real
+   8086 (`cpu.set_logic_flags` mirrors that convention) — only a `cmp al,1`
+   iteration (any nonzero byte) redefines it. A source ending in zeros after
+   a substitution exposes both bugs; the very first live call the verifier
+   checked happened to end that way.
+
+**Verified byte-exact: 213/213 calls over the full E2E demo + 31/31 over the
+cold-sound demo (244/244 total), zero divergences**, using
+`dos_re.verification.HookVerifierConfig.strict()` (full machine-state diff:
+every register, segment, flag, and DOS/device state — not just memory or
+output). Guarded by `tests/test_blit.py` (+ fixture) for the pure function;
+the hook's register mechanics are what the strict verifier proved and aren't
+re-asserted in unit tests (matching how the other complex hooks — `1732`,
+`lzs_decode_loop` — are documented: the differential-verifier run **is** the
+proof). 178 tests pass.
+
 ## 2026-07-11 — found + fixed two more music-engine bugs; shelved wiring it as a live hook (wrong tool for the perf goal)
 
 Continued from the perf diagnosis below by attempting cause #3: wire the
