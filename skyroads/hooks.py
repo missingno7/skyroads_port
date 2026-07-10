@@ -160,6 +160,7 @@ from dos_re.lift.runtime import emulate_call
 from skyroads.codecs.lzs import LzsWidths
 from skyroads.recovered.blit import stencil_blit
 from skyroads.recovered.palette_fade import blend_byte
+from skyroads.recovered.relocate import patch_nonzero_bytes
 from skyroads.recovered.renderer import perspective_row_offset, road_segment_clip
 from skyroads.recovered.timer_isr import advance_music_timer
 
@@ -2068,6 +2069,95 @@ def stencil_blit_hook(cpu: CPU8086) -> None:
     s.ax = ((ah << 8) | al) & 0xFFFF
     s.cx = 0
     s.es = es
+    s.sp = (sp + 2) & 0xFFFF
+    s.ip = ret_ip
+
+
+# --- buffer relocation / patch (1010:4052) --------------------------------------
+#
+# A multi-segment relocation-fixup scan, found while profiling level-transition
+# frames as un-hooked interpreted work (run_status.md, 2026-07-11 perf diagnosis).
+# Recovered via lift-then-refactor (dos_re.tools.liftverify), NOT hand-derived
+# from reading the disassembly -- ORACLE_PASSING first (56 verified calls, 8/9
+# blocks, a bounded-count sample), then this hook written from the PROVEN block
+# structure. That mattered: reading the static disassembly by eye missed that
+# `ss:[bp+0xA]` is a second, decremented-in-place counter controlling additional
+# full-64K passes (it looked like a dead/unused argument slot -- the same class
+# of mistake the 0F62 hook made twice, this time avoided by starting from a
+# proven scaffold instead of guessing).
+#
+# Args (stack, at hook entry i.e. one word above where `enter` would put bp+4):
+#   far ptr (bp+4/+6): scan start.  bp+8: first-pass length (0 => a full 65536-
+#   byte pass, the 8086 `loop` CX=0 underflow idiom).  bp+0xA: EXTRA full-64K
+#   passes to run after the first (decremented in place; the scan stops the
+#   moment this goes negative -- 0 means "no extra passes", i.e. run once).
+#   bp+0xC: the fixup delta (only its low byte is used as the patch addend, but
+#   the ASM loads/leaves the FULL word in AX).
+#
+# Per byte: leave 0 alone (the "no relocation needed" sentinel); otherwise add
+# the delta (mod 256). The segment-wrap check (`inc bx; jz`) runs on EVERY byte,
+# unconditionally, independent of the count check that follows it -- including
+# the very last byte of a pass, if that's exactly where bx wraps.
+#
+# Exit register state (traced from the lift, not reasoned by eye): SI/DI are
+# push/pop-preserved (caller's originals, like 0F62). BX = the final scan
+# offset (linear mod-0x10000 arithmetic, since bx only ever advances by 1).
+# CX = 0 (the loop's own postcondition). AX = the full bp+0xC word, unchanged
+# after its one-time load (the ASM never touches AL again -- ADD's destination
+# is memory, not AL). DS/DX only change if at least one segment wrap actually
+# happened (block 4076-407E never ran otherwise) -- both end up at the SAME
+# final segment when it does. Flags come from the LAST `dec ss:[bp+0xA]`
+# (always executed at least once, since the exit condition IS that decrement
+# going negative).
+_RELOC_SEG_STEP = 0x1000
+
+
+@registry.replace(CODE_SEG, 0x4052, "buffer_relocate")
+def buffer_relocate_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, sp = s.ss, s.sp
+    ret_ip = mem.rw(ss, sp)
+    far_off = mem.rw(ss, (sp + 2) & 0xFFFF)
+    far_seg = mem.rw(ss, (sp + 4) & 0xFFFF)
+    count = mem.rw(ss, (sp + 6) & 0xFFFF)
+    extra_addr = (sp + 8) & 0xFFFF
+    remaining_extra = mem.rw(ss, extra_addr)
+    delta_word = mem.rw(ss, (sp + 10) & 0xFFFF)
+    delta = delta_word & 0xFF
+
+    pos, seg = far_off, far_seg
+    wrapped_any = False
+    pass_len = count if count != 0 else 0x10000
+    old_extra = new_extra = remaining_extra
+
+    while True:
+        left = pass_len
+        while left > 0:
+            span = min(left, 0x10000 - pos)
+            source = bytes(mem.rb(seg, (pos + i) & 0xFFFF) for i in range(span))
+            for i, val in enumerate(patch_nonzero_bytes(source, delta)):
+                mem.wb(seg, (pos + i) & 0xFFFF, val)
+            pos = (pos + span) & 0xFFFF
+            left -= span
+            if pos == 0:                                     # 0F6A `inc bx; jz` (unconditional check)
+                seg = (seg + _RELOC_SEG_STEP) & 0xFFFF
+                wrapped_any = True
+        old_extra = remaining_extra
+        new_extra = (remaining_extra - 1) & 0xFFFF           # 406E `dec ss:[bp+0xA]`
+        remaining_extra = new_extra
+        if new_extra & 0x8000:                                # 4071 `jns` (exit once negative)
+            break
+        pass_len = 0x10000                                    # every extra pass is a full sweep
+
+    mem.ww(ss, extra_addr, new_extra)
+    s.bx = pos
+    s.cx = 0
+    s.ax = delta_word
+    if wrapped_any:
+        s.ds = seg
+        s.dx = seg
+    cpu.set_incdec_flags(old_extra, new_extra, 16, dec=True)
     s.sp = (sp + 2) & 0xFFFF
     s.ip = ret_ip
 

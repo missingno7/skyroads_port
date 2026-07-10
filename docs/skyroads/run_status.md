@@ -4,6 +4,59 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — recovered + wired the buffer-relocation hook (perf cause #2), lift-first this time
+
+Picked up perf cause #2 from the diagnosis: the un-hooked buffer scan/patch
+loop at `1010:4052`, hot at level-transition frames. This time used
+**lift-then-refactor** instead of hand-deriving from disassembly, per the
+process correction from the stencil-blit work: ran `dos_re.tools.liftverify`
+against a snapshot first, got a proven-correct literal transcription
+(ORACLE_PASSING, a bounded-count sample, 8/9 blocks — the lifter's own
+runaway-safety cap tripped on the real unbounded call, since one real
+occurrence scans a full 64K-underflow pass; patched the count argument down
+to a bounded value in a snapshot copy purely to get a liftable sample, then
+verified the real large-count behavior separately against actual gameplay),
+then wrote the recovered function + hook from the lift's PROVEN block
+structure rather than reading the raw disassembly by eye.
+
+That mattered concretely: the lift revealed `ss:[bp+0xA]` is a **second,
+in-place-decremented counter** controlling additional full-64K scan passes —
+reading the static disassembly alone made it look like a caller-owned local
+the function never touches, an easy miss (the same class of mistake the
+0F62 hook made twice). It also confirmed the segment-wrap check
+(`inc bx; jz`) runs unconditionally on every byte, independent of the count
+check that follows it.
+
+Recovered as `skyroads/recovered/relocate.py::patch_nonzero_bytes(source,
+delta) -> bytes` (a DOS relocation-fixup pattern: `0` is a "leave alone"
+sentinel, everything else gets `delta` added mod 256) plus
+`skyroads/hooks.py::buffer_relocate_hook`, which ports the lift's proven
+pass/segment-wrap/register-exit mechanics directly (not re-derived) while
+batching the byte-patch step through the pure function.
+
+**Verified byte-exact on the first attempt** — no correction rounds needed,
+unlike stencil_blit: 252/252 calls over the full E2E demo + 230/230 over a
+cold-sound-demo window (482/482 total), zero divergences, via
+`HookVerifierConfig.strict()`. (Verifying the *whole* cold-sound demo timed
+out — this function scans up to 64K bytes per call and the strict verifier
+re-runs the real ASM interpreter to build its oracle side, so its cost scales
+with how much of that scanning the demo exercises; the E2E demo + a
+cold-sound window already give strong, wide-ranging coverage.)
+
+**Honest coverage gap**: neither demo happens to make a call whose scan
+crosses a 64K segment boundary or arms the extra-pass counter — checked
+directly (0/252 E2E calls trigger either). Those two branches are
+mechanically proven correct by the lift's own bounded sample (whose
+`ss:[bp+0xA]` value did drive at least one extra-pass check) but not
+exercised end-to-end against real gameplay data. Guarded by
+`tests/test_relocate.py` (+ fixture) for the pure function. 181 tests pass.
+
+**Process note**: this hook needed ZERO debugging rounds against the live
+differential verifier, vs. two for stencil_blit (which skipped the lift
+step). Lift-first is faster in wall-clock terms too — most of the effort goes
+into a cheap, fast, bounded lift-verify run instead of iterating against the
+much slower full-gameplay strict verifier.
+
 ## 2026-07-11 — recovered + wired the stencil-blit hook (perf cause #1), verified 244/244 zero-divergence
 
 Picked up perf cause #1 from the diagnosis below: the un-hooked menu text/glyph
