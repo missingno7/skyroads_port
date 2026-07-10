@@ -46,9 +46,11 @@ frees per-frame step budget, so the game's idle elapsed-tick spins (`22F8`,
 `4153`) iterate a different number of times and the arbitrary frame-boundary
 state drifts. Registers-identical + the 1760-call per-call proof confirm game
 *logic* is unchanged; the e2e memhash is not a valid invariant for any
-step-count-changing hook (every installed lift/hook fails it identically). The
-per-call differential verifier is authoritative. All 159 port tests pass with
-`186B` installed.
+step-count-changing hook (every installed lift/hook fails it identically —
+*confirmed*: toggling the already-accepted `34AE` lift in the same e2e diverges
+even harder, −6M steps, memory differs, registers identical). The per-call
+differential verifier is authoritative. All 159 port tests pass with `186B`
+installed.
 
 Honesty note: like `34AE`, this is an installed **lift = scaffolding**, not yet
 refactored into a clean VM-free `skyroads/recovered/` island + `@oracle_link`
