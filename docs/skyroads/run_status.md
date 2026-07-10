@@ -34,6 +34,33 @@ Lifting `074C` from it exercises the autopilot track decoder, not the keyboard
 case — a trap for future game-logic recovery. Capture snapshots from a demo
 replay at a `95F6==0` frame instead (helper pattern in this session's scratch).
 
+### Vertical/lateral physics — mapped, recovery gated on a jumps+death demo
+
+Mapped the per-frame movement physics block (`1010:2560-26E9`, inline in the
+gameplay handler) that computes the targets fed to `186B`/`resolve_move`. Field
+semantics (some correcting earlier labels):
+
+- **`ds:[9336]` is the vertical VELOCITY**, not merely a "landing bounce".
+  `decay_bounce` (`24A1`) damps it; gravity accelerates it; jump impulses it.
+- **`ds:[547A]` (jump) IS read** at `2582` (a word `cmp`, which is why an
+  `rb`-only reader trace missed it) — the demo just never sets it.
+- `ds:[4568] = steer[95F4] * 29`, **guarded** (`2550-256D`: only when
+  `[9336] > 0` and `[AF2C]-heightref < 0x0F00`) and it feeds the **vertical**
+  target term (`2676`: `[4568] * … / 0x200`), not the lateral axis.
+- Gravity (`25DB-2635`, when `[456A]==0`): airborne (`[AF2C] < 0x2800`)
+  `[9336] += [54AA]`; past `0x2800` it snaps to terminal `0xFF96` (−106); the
+  `[456A]!=0` path ramps `[9336]` up to `+0x47` (grounded/rising).
+- Jump (`2582-25A6`): when `jump && [4562]>=0x14 && …`, set `[9336]=0x480`
+  (up impulse) and latch a "jumping" flag.
+- Death test at `2357` (`[AF2C]` vs `0x2800`) and level-complete at `2514`
+  (`[54AC]` vs `0x2AAA` = `LEVEL_END`).
+
+The jump impulse, terminal-velocity clamp, grounded ramp, and the death path are
+all **dark in the current demo** (no jumps, no death — the run is a clean
+start→finish). Recovering this block byte-exact needs a demo that exercises
+them; **the user is recording a jumps+death demo** to unlock it. Until then the
+map above is the tee-up, not recovered source.
+
 ## 2026-07-10 — gameplay perf: it was a pacing/steps issue, not hook coverage (frame-park)
 
 "Gameplay performance is still not good" turned out **not** to be a
