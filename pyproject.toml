@@ -28,6 +28,14 @@ Repository = "https://github.com/missingno7/skyroads_port"
 # "." for skyroads/, "dos_re" for the framework submodule (dos_re/ here is the
 # submodule's own repo root, not the package itself -- that's dos_re/dos_re/).
 pythonpath = [".", "dos_re"]
+# Collect only the skyroads suite and use importlib import mode: putting the
+# dos_re submodule root on pythonpath also exposes its own dos_re/tests/
+# package, whose top-level name "tests" collides with this repo's tests/. The
+# default prepend import mode let one shadow the other and broke collection
+# outright ("No module named 'tests.test_*'"); importlib imports each test file
+# without that same-name package aliasing.
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
 
 [project.optional-dependencies]
 viewer = [
