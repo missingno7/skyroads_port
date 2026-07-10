@@ -84,6 +84,14 @@ layout — not yet independently confirmed record-by-record on our side).
 
 **Hooked as `road_column_strip`** — the single most-called rasterizer in gameplay (34 callsites, ~13% of real render work; installing it cut the in-game demo's full-run wall-clock ~23.6s -> ~16.6s, ~1.4x). The verifier drove out four decode errors (see the hook's docstring): exit AX = source seg `[0E66]`; the bit15 path still composites (only skips the pre-skip loop); the `mov al,0xFF` marker leaves AX=`(mul_hi<<8)|0xFF` and DX=bx-after-first-scan on the early-exit path; and the down variant's `rep movsw` decrements si/di (std), which an increment-only loop matched only by luck for 1-word runs.
 
+## Tile-renderer visible-column mask builder
+
+| Address | Role | Evidence | Status |
+|---|---|---|---|
+| `32C1`-`336A` | Bare near proc (`push es`…`pop es; ret` — ES restored, ds/bp/sp preserved, only AX/BX/CX/DX/SI/DI + flags clobbered). Builds a 33-row × 29-column (`0x1D`) coverage mask at `ss:[0E86]` (es←ss): `rep stosw`-zeroes the `0x1DE`-word buffer, then per row computes the object's visible column span — the per-row half-extent `ds:[si+0x47A]` combined with the object centre `ds:[0E28]`, clipped to the 29-column row — and `rep stosb`-writes `0x01` for covered columns. The row's screen X `bx` starts `ds:[0E2C]`, decremented each row, with a horizon jump at row 10 by `ds:[0E34]-8`; rows whose X leaves `[0x14,0x9D]` stay zero. | full fixed-length disasm (2026-07-10) + strict differential verifier (full-demo, 264 calls, 0 divergence) | VERIFIED |
+
+**Hooked as `tile_clip_mask`** — a faithful instruction-level replication (leaf, no calls) so memory + exit registers are exact by construction; the only subtlety the verifier surfaced was the exit CF, which the loop-terminating `dec dx` preserves from that iteration's `cmp dx,0x0A` (so CF = `dx_before < 0x0A`), not from before the loop. This is the coverage-mask precursor the tile rasterizers (`31DB`/`325B`, dispatched from `2DCC`/`2E6C`) consume.
+
 ## Renderer island — layer map (2026-07-10)
 
 The road/object renderer is now recovered bottom-up as a verified island; only

@@ -1066,6 +1066,111 @@ def signed_long_div_hook(cpu: CPU8086) -> None:
     _signed_long_div_hook(cpu)
 
 
+# CS:IP 1010:32C1 -- the tile-renderer visible-column MASK builder. Bare near
+# proc (`push es` ... `pop es; ret` -- ES restored, ds/bp/sp preserved, only
+# AX/BX/CX/DX/SI/DI + flags clobbered). Builds a 33-row x 29-column (0x1D)
+# coverage mask at ss:[0E86] (es is set to ss): first `rep stosw`-zeroes the
+# 0x1DE-word buffer, then for each of 33 rows computes the object's visible
+# column span and writes 0x01 bytes (`rep stosb`) marking covered columns.
+# Per-row inputs: bx = the row's screen X (starts ds:[0E2C], decremented each
+# row, with a horizon jump at row 10 by ds:[0E34]-8); si indexes a per-row
+# half-extent table at ds:[si+0x47A]; ds:[0E28] is the object's centre X. Rows
+# whose X leaves [0x14,0x9D] are skipped (left zero). The span is the extent
+# clipped to the 29-column row. Faithful replication -> exact memory + exit
+# registers by construction (a leaf, no calls).
+_TILE_MASK_ROWS = 0x21          # 33 rows
+_TILE_MASK_ROW_STRIDE = 0x1D    # 29 columns/row
+_TILE_MASK_BUF = 0x0E86
+
+
+def _sgn16(v):
+    v &= 0xFFFF
+    return v - 0x10000 if v >= 0x8000 else v
+
+
+def _tile_clip_mask_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ds, ss = s.ds, s.ss
+    ret_ip = mem.rw(ss, s.sp)
+    rw, ww, wb = mem.rw, mem.ww, mem.wb
+
+    # 32C6-32CE: zero 0x1DE words at es(=ss):[0E86].
+    for i in range(0x01DE):
+        ww(ss, (_TILE_MASK_BUF + 2 * i) & 0xFFFF, 0)
+
+    di = _TILE_MASK_BUF                         # 32D0
+    bx = rw(ds, 0x0E2C)                          # 32D3
+    si = ((0x009D - rw(ds, 0x0E2C)) << 1) & 0xFFFF  # 32D7-32DE
+    dx = _TILE_MASK_ROWS                         # 32E0
+    ax = s.ax
+    cx = s.cx
+
+    while True:                                  # row loop @32E3
+        if not (bx > 0x009D or bx < 0x0014):     # 32E3 ja / 32E9 jb (unsigned) -> skip
+            saved_bx, saved_di = bx, di          # 32EE push bx / 32EF push di
+            bx = 0x006E                          # 32F0
+            cx = 0x01AE                          # 32F3
+            ext = rw(ds, (si + 0x047A) & 0xFFFF)  # 32F6
+            if ext != 0:                         # 32FC jz 331C
+                ax = (0x010E - ext) & 0xFFFF     # 32FE-3301
+                center = rw(ds, 0x0E28)
+                if not (_sgn16(center) < _sgn16(ax)):   # 330A jl -> 3313 (skip 330C)
+                    bx = (0x010E + ext) & 0xFFFF # 330C-330F
+                if _sgn16(center) < _sgn16(ax):  # 3318 jge -> 331C (skip 331A)
+                    cx = ax                      # 331A
+            ax = cx                              # 331C
+            cx = _TILE_MASK_ROW_STRIDE           # 331E
+            bx = (bx - rw(ds, 0x0E28)) & 0xFFFF  # 3321
+            if _sgn16(bx) < 0:                   # 3326 jge (skip xor)
+                bx = 0                           # 3328
+            if bx < 0x001D:                      # 332A cmp / 332D jnb (unsigned) -> 3349
+                di = (di + bx) & 0xFFFF          # 332F
+                cx = (cx - bx) & 0xFFFF          # 3331
+                bx = (rw(ds, 0x0E28) + 0x1D - ax) & 0xFFFF  # 3333-333B
+                if _sgn16(bx) < 0:               # 333D jge (skip xor)
+                    bx = 0                        # 333F
+                old_cx = cx
+                cx = (cx - bx) & 0xFFFF          # 3341
+                if not (old_cx <= bx):           # 3343 jbe (unsigned) -> 3349
+                    # 3345-3348: mov al,1; rep stosb cx bytes at es:[di]
+                    for _ in range(cx):
+                        wb(ss, di, 0x01)
+                        di = (di + 1) & 0xFFFF
+                    ax = (ax & 0xFF00) | 0x01    # al = 1
+                    cx = 0                        # rep drains cx
+            bx, di = saved_bx, saved_di          # 3349 pop di / 334A pop bx
+
+        di = (di + _TILE_MASK_ROW_STRIDE) & 0xFFFF   # 334B
+        bx = (bx - 1) & 0xFFFF                        # 334E
+        si = (si + 2) & 0xFFFF                        # 334F
+        if dx == 0x0A:                               # 3352 / 3355
+            ax = (rw(ds, 0x0E34) - 0x0008) & 0xFFFF  # 3357-335A
+            bx = (bx - ax) & 0xFFFF                   # 335D
+            ax = (ax << 1) & 0xFFFF                   # 335F
+            si = (si + ax) & 0xFFFF                   # 3361
+        dx_before = dx
+        dx = (dx - 1) & 0xFFFF                        # 3363
+        if dx == 0:                                  # 3364 jz 3369
+            break
+
+    s.ax, s.bx, s.cx, s.dx, s.si, s.di = (ax & 0xFFFF, bx & 0xFFFF, cx & 0xFFFF,
+                                          dx & 0xFFFF, si & 0xFFFF, di & 0xFFFF)
+    # exit flags: the loop-terminating `dec dx` (1 -> 0) sets SF/ZF/PF/AF/OF but
+    # PRESERVES CF, which was last set by that iteration's `cmp dx,0x0A` (3352):
+    # CF = borrow = (dx_before < 0x0A) unsigned.
+    cpu.set_sub_flags(dx_before, 1, dx_before - 1, 16)
+    cpu.set_flag(CF, (dx_before & 0xFFFF) < 0x000A)
+
+    s.sp = (s.sp + 2) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x32C1, "tile_clip_mask")
+def tile_clip_mask_hook(cpu: CPU8086) -> None:
+    _tile_clip_mask_hook(cpu)
+
+
 # CS:IP 1010:3153 -- the FORWARD run-length sprite rasterizer (one of a mirror
 # pair; the backward twin is at 1010:3190, hooked below). The dominant render
 # cost in the in-game demo: 5,884 calls driving 41,162 inner-loop iterations
