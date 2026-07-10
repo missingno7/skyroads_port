@@ -107,3 +107,44 @@ def road_segment_clip(dir_sel: int, seg: int, coord: int,
     if sel == 0x0500:
         return 1 if (coord < 0x3C00 and di >= low_bound) else 0
     return sel  # default path: the ASM falls through returning AX = the selector
+
+
+@oracle_link(
+    boundary="1010:1732",
+    contract="road_object_visible(persp_word, clip, x_lo, x_hi, depth, screen_y): "
+             "the layer-2 per-segment cull. Projects the segment's near/far edges "
+             "(depth +/- 0x700) via persp_word; a segment with a nonzero low nibble "
+             "on either edge that also straddles the near screen band "
+             "(screen_y<0x2800 and screen_y+0x600>0x2480) is visible (1). Otherwise "
+             "cull if screen_y+0x680<=0x2800, or if both edges' 0xF00 nibble is 0. "
+             "Surviving segments run a mirrored two-sided clip (1631): compute "
+             "seg=23-((depth>>7 - 49) mod 46), mirror it (and the x-delta) when <=0, "
+             "clip the center edge, else clip the far edge at depth+delta. All "
+             "compares unsigned. persp_word(depth) = the 04C0 table word (0 if out "
+             "of range); clip = road_segment_clip bound to this frame's tables.",
+    status="ASM_MATCHED",  # validated vs ASM return over all in-game 1732 calls
+    merge_target="skyroads.native.renderer (future)",
+)
+def road_object_visible(persp_word, clip, x_lo: int, x_hi: int,
+                        depth: int, screen_y: int) -> int:
+    r1 = persp_word((depth + 0x700) & 0xFFFF)   # near edge (1740 add ax,0x700)
+    r2 = persp_word((depth - 0x700) & 0xFFFF)   # far edge  (1755 add ax,0xF900)
+    if ((r1 & 0xF) or (r2 & 0xF)) and screen_y < 0x2800 \
+            and ((screen_y + 0x600) & 0xFFFF) > 0x2480:
+        return 1                                 # 179A: straddles the near band
+    if ((screen_y + 0x680) & 0xFFFF) <= 0x2800:  # 17A5 ja not taken
+        return 0
+    if not ((r2 & 0xF00) or (r1 & 0xF00)):       # 17AD/17BB both 0xF00 nibbles 0
+        return 0
+    r3 = persp_word(depth & 0xFFFF)              # 17D0 center edge
+    rem = (((depth & 0xFFFF) >> 7) + 0xFFCF) & 0xFFFF
+    rem %= 46                                     # 17DC-17EA: (depth/128 - 49) mod 46
+    seg = (0x17 - rem) & 0xFFFF                    # 17EC 23 - rem
+    delta = 0xE900                                 # 17F4 [bp-10]
+    if seg == 0 or seg > 0x7FFF:                   # 17F9 <=0 (signed) -> mirror
+        seg = (1 - seg) & 0xFFFF                    # 180C 1 - seg
+        delta = 0x1700                             # 1815 neg (0xE900 -> 0x1700)
+    if clip(r3, seg, screen_y):                    # 1824 near/center clip
+        return 1
+    r4 = persp_word((depth + delta) & 0xFFFF)      # 1846 far edge at depth+delta
+    return 1 if clip(r4, (0x2F - seg) & 0xFFFF, screen_y) else 0  # 184D

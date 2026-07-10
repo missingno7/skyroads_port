@@ -58,7 +58,18 @@ layers are DONE. Remaining, in dependency order:
    this demo). Per the island strategy, leaves are recovered as clean
    functions WITHOUT their own hook; the single hook goes at the island root
    (`1732`), where the whole subtree — `04C0` + `1631` + the clamp/dispatch
-   glue — collapses into one verified Python call. `1732` itself is next.
+   glue — collapses into one verified Python call. The `1732` ROOT itself is
+   now DONE as a clean function (2026-07-10): `renderer.py::
+   road_object_visible`, ASM_MATCHED over all 12,152 in-game calls (both
+   return values exercised). It projects the segment's near/far edges via
+   `04C0`, runs the nibble + screen-band cull, and on survivors does a
+   mirrored two-sided `1631` clip — pure, no memory writes, returns 0/1.
+   Remaining for this layer: wire ONE hook at `1732` (collapsing its four
+   nested `04C0` calls too) with exact exit-state reconstruction, then verify
+   byte-exact — the perf step, deferred from the pure-logic recovery.
+   Separately, the biggest single in-game render cost, the `38BF` road-column
+   strip compositor, is now hooked + VERIFIED (14,896 calls, ~1.4x demo
+   wall-clock); the RLE leaf rasterizers (`3153`/`3190`) were already hooked.
    Profiling note: excluding the `22F8` pacing spin (28% of interpreted
    steps, an idle timer-tick wait — the game finishes a tick's work then
    spins for the rest of the fixed step budget), the real render work is
