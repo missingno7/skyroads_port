@@ -4,6 +4,57 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — gameplay perf: it was a pacing/steps issue, not hook coverage (frame-park)
+
+"Gameplay performance is still not good" turned out **not** to be a
+hook-coverage problem — the render/math hot path is already hooked. Profiling
+the gameplay window (running the `game_state==3` snapshot forward) showed where
+the interpreted budget actually goes, per frame:
+
+| bucket | share of steps |
+|---|---|
+| **idle tick-wait spin** (side-effect-free) | **~88%** |
+| real un-hooked work (render + update) | ~8% |
+| recovered hooks | ~4% |
+
+The game paces itself off `ds:[1600]`, the elapsed-tick counter its INT 08h ISR
+bumps. But the viewer delivers **all** of a frame's timer IRQs at frame start
+(`advance_frame`), so `ds:[1600]` is **architecturally constant for the whole
+step budget** — it can't change again until the next frame. Any loop waiting on
+it therefore spins out the entire remaining budget doing nothing. Two loops do:
+`1010:22F8` (main gameplay pacing spin) and `1010:434A`/`4449` (the fade/pacing
+wait). So the VM was grinding 30000 steps/frame of which ~26000 were pure spin
+→ ~5 fps under CPython.
+
+**This is exactly what pre2_port already solves** (the endgame reference). Its
+`scripts/play.py` classifies known busy-wait loops (`pre2.recovered.vga_timing`,
+the PIT `1C6F` wait) and fast-forwards them: *"touches no game logic … the
+trajectory stays byte-equivalent — only the wall clock improves."* SkyRoads'
+port had the empty equivalent — `skyroads/input_waits.py` was never populated.
+
+**Fix: `skyroads/pacing.py` frame-park** (on by default; `--no-frame-park` to
+force the full spin). Two hooks at `22F8`/`434A` raise `FrameIdle` the instant
+the game parks in its tick-wait; `SkyroadsFrontend.advance_frame` catches it and
+ends the frame. The `434A` park defers to the existing verified fade-loop gate
+whenever there are keys to drain, so input timing is unchanged.
+
+**Byte-equivalence proof** (the bar for a pacing shim): replaying the full E2E
+demo (the whole **1906-frame** level, start to finish) park-ON vs the full-spin
+baseline through the real replay path — **every rendered frame identical and all
+named game-state fields identical**, at **3.4× fewer steps** (17.8M vs 61.2M)
+and **3.0× faster wall**. The E2E ratio is diluted by menus/fades/input; the
+gameplay window alone is **~6–8× fewer steps** since it is nearly all spin. A
+full-memory diff over the run shows the *only* bytes that differ are **11 bytes
+of fade-loop scratch at DGROUP+0xB87C** (a blend/poll counter written by
+`43A9`/`415x`, never read into game state or any rendered frame). Locked in by
+`tests/test_frame_park.py`.
+
+Also fixed a **pre-existing CI break** surfaced along the way: the updated
+dos_re submodule now ships `dos_re/tests/`, whose top-level package name
+`tests` collided with this repo's `tests/` on `pythonpath`, breaking collection
+outright (`No module named 'tests.test_*'`). Pinned `testpaths=["tests"]` +
+`--import-mode=importlib` in `pyproject.toml`; `pytest -q` is green again.
+
 ## 2026-07-10 — physics recovery verified full-demo + a negative-speed bug fixed
 
 Brought the recovered ship physics (`skyroads/recovered/player.py`) up to the

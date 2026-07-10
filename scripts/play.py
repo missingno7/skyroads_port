@@ -21,13 +21,19 @@ what is skyroads-specific:
     prescaler exactly (6 IRQs = 1 game tick = 1 presented frame), and
     ``default_present_hz = 30`` reproduces 180 Hz IRQ0 / 30 Hz logic in the
     viewer (IRQ0 Hz = 6*present_hz). The base 60 ran music and physics at 2x.
-  - The pacing model is the library's simple deterministic default: a fixed
-    (steps-per-frame, timer-irqs-per-frame) budget per frame, no wall-clock
-    time source — the frame index alone is the demo clock, so record and
-    replay are trivially deterministic.
-  - No recovered hooks exist yet (see skyroads/hooks.py): the game runs as the
-    pure ASM oracle, and the ``--safe-hooks``/``--verify-hooks``/
-    ``--trace-hooks`` tiers fail loud until the port grows them.
+  - The pacing model is the library's fixed (steps-per-frame, timer-irqs-per-
+    frame) budget per frame — no wall-clock time source, so the frame index
+    alone is the demo clock and record/replay stay deterministic. On top of it,
+    ``--frame-park`` (default on) ends a frame the moment the game parks in its
+    INT 08h tick-wait (1010:22F8 / 434A): ds:[1600] can't advance again until
+    the next frame, so the rest of the budget would only be spun away. This is
+    byte-equivalent for the game trajectory (every rendered frame + all game
+    state identical across the E2E demo; only fade-loop scratch differs) and
+    makes gameplay ~4-6x faster — SKYROADS' analogue of pre2_port's classified
+    ``--fast-retrace-waits``. See skyroads/pacing.py.
+  - Recovered hooks (skyroads/hooks.py) replace the render/math hot path and the
+    timer ISR; ``--no-replacements`` runs the pure ASM oracle instead, and
+    ``--safe-hooks``/``--verify-hooks``/``--trace-hooks`` select the hook tier.
 
 Usage:
     python scripts/play.py                                      # live play
@@ -46,7 +52,9 @@ sys.path.insert(0, str(ROOT))              # the skyroads adapter package
 sys.path.insert(0, str(ROOT / "dos_re"))   # the dos_re submodule's repo root
 
 from dos_re import player  # noqa: E402
+from dos_re.interrupts import deliver_interrupt  # noqa: E402
 from skyroads.runtime import create_game_runtime, load_game_snapshot  # noqa: E402
+from skyroads.pacing import install_frame_park, FrameIdle  # noqa: E402
 
 
 class SkyroadsFrontend(player.GameFrontend):
@@ -66,6 +74,33 @@ class SkyroadsFrontend(player.GameFrontend):
     # so determinism is unaffected.)
     default_present_hz = 30
 
+    def add_arguments(self, parser) -> None:
+        import argparse
+        pace = parser.add_argument_group("skyroads pacing")
+        pace.add_argument(
+            "--frame-park", action=argparse.BooleanOptionalAction, default=True,
+            help="end each frame when the game parks in its INT 08h tick-wait "
+                 "(22F8 / 434A) instead of spinning out the step budget. "
+                 "Byte-equivalent game trajectory, ~4-6x faster gameplay "
+                 "(see skyroads/pacing.py). --no-frame-park forces the full spin.")
+
+    def _install_frame_park(self, args, rt):
+        """Install the tick-wait frame-park unless disabled or running the pure
+        ASM oracle (--no-replacements has no fade-loop gate to compose with)."""
+        if getattr(args, "frame_park", True) and not getattr(args, "no_replacements", False):
+            install_frame_park(rt)
+        return rt
+
+    def advance_frame(self, rt, args, frame: int) -> None:
+        """Deliver the frame's timer IRQs, then run the step budget — but stop
+        early when the game parks in a tick-wait it can't leave this frame."""
+        for _ in range(max(0, args.timer_irqs_per_frame)):
+            deliver_interrupt(rt, 0x08)
+        try:
+            rt.cpu.run(args.steps_per_frame)
+        except FrameIdle:
+            pass
+
     def _capture_sb(self, args) -> bool:
         """Capture the game's Sound Blaster DMA PCM (digital SFX) only when the
         viewer audio is on.  It is a determinism-safe observer (byte-identical
@@ -74,13 +109,15 @@ class SkyroadsFrontend(player.GameFrontend):
         return getattr(args, "audio", "off") == "adlib" and not args.headless
 
     def create_runtime(self, args):
-        return create_game_runtime(args.exe, game_root=args.game_root,
-                                   command_tail=args.dos_args,
-                                   capture_sb_pcm=self._capture_sb(args))
+        rt = create_game_runtime(args.exe, game_root=args.game_root,
+                                 command_tail=args.dos_args,
+                                 capture_sb_pcm=self._capture_sb(args))
+        return self._install_frame_park(args, rt)
 
     def load_snapshot_runtime(self, args, snapshot_dir):
-        return load_game_snapshot(args.exe, snapshot_dir, game_root=args.game_root,
-                                  capture_sb_pcm=self._capture_sb(args))
+        rt = load_game_snapshot(args.exe, snapshot_dir, game_root=args.game_root,
+                                capture_sb_pcm=self._capture_sb(args))
+        return self._install_frame_park(args, rt)
 
     def create_audio_sink(self, pygame, rt, args):
         """SkyRoads viewer audio: OPL music + PC speaker + Sound Blaster PCM SFX.
