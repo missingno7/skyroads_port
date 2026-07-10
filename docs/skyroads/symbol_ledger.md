@@ -121,7 +121,11 @@ frame render root (0C98, called from the main loop at 22EC)      [interpreted]
        5D4C ulong_mul / 5D8C ulong_div / 5E5A signed_long_div   VERIFIED (all 3)
 ```
 
-**`186B` — road/object edge render pass (layer 3, understood, not yet hooked).**
+**`186B` — road-segment movement + swept-collision stepper (layer 3, LIFTED + VERIFIED 2026-07-10).**
+Lifted (dos_re.lift) and installed as `lifted_road_stepper_186B`; verified
+byte-exact over **1760/1760 full-demo calls (71/80 blocks)** with the
+compositional differential verifier (children `1732`/`5D4C`/`5E5A`/`5D8C`
+passthrough — see run_status for the dead-stack-below-SP nuance). Description:
 Near proc (`enter 0xA`), ~734 bytes, 4 phases / 8 internal loops, calls
 `seg_cull` (1732) four times plus `ulong_mul`/`signed_long_div`. Structure: a
 "same as last frame" cache check at the top — if all four args

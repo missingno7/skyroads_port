@@ -4,6 +4,58 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — lifted the 186B road-segment stepper (movement + swept collision)
+
+`1010:186B` — the "largest single remaining recovery" per rendering_architecture
+— is now a verified island. It is the game's **swept movement + collision
+resolver**: a 274-instruction, 80-block, 5-phase iterative solver that steps the
+ship's accumulators (`ds:[9618:961A]` lateral, `ds:[AF1C]`, `ds:[AF2C]`) from
+their current values toward a requested target in sub-steps, using `1732`
+(`road_object_visible`) as the collision predicate and refining each axis to the
+exact contact boundary. Phases: (1) early-out if already at target; (2) 5-step
+forward sweep, find the first sub-step `1732` blocks; (3) commit the furthest
+safe sub-step; (4) binary-search the lateral axis (step ÷16); (5) refine `AF1C`
+then `AF2C` (step ±125, ÷5). Calls only already-recovered helpers
+(`1732`/`5D4C`/`5E5A`/`5D8C`). Core **movement/collision game logic**, and it
+drives the repeated `1732`+`04C0` road-segment work.
+
+Recovered with the **automatic lifter**: `liftgen` census → 100% liftable (274
+insts, 4 calls, 0 INTs); `liftverify` emitted the byte-exact lift. Its
+`enter 0x000a,0` prologue exercises dos_re's just-landed entry-fallback
+recursion fix (submodule bump `11917f2`). Installed as
+`skyroads/lifted/lifted_1010_186b.py` + `registry.replace(0x186B)`.
+
+**Verification — 1760/1760 full-demo calls byte-exact (71/80 blocks),
+ORACLE_PASSING.** This needed the *compositional* differential mode: `186B`
+calls four already-verified child hooks, and the lift's `emulate_call` runs
+their Python hooks while the ASM oracle (auto-continuation, hooks dropped) runs
+real ASM — so the two leave different **dead stack below SP** (the nested-call
+arg-push scratch), which a naive full-memory strict diff flags as a
+"divergence". Marking the children passthrough (`asm_keeps_passthrough_hooks` +
+`hook_verifier_passthrough`) makes both sides run identical child code, leaving
+only `186B`'s own instructions to diff — and then all 1760 calls match exactly.
+(Caution: `liftverify`'s default 40-sample PASS was *misleading* here — the
+divergent deep-stack path first appears around call 41; always verify past the
+sample cap for functions that call other hooks.)
+
+An **end-to-end memhash test diverged** (+132K steps, memory differs, but
+**registers identical**) — this is NOT a correctness failure. It is the known
+fixed-step-budget / busy-wait interaction (see the `palette_fade_inner` note
+below): replacing `186B`'s ~274 interpreted instructions/call with a Python hook
+frees per-frame step budget, so the game's idle elapsed-tick spins (`22F8`,
+`4153`) iterate a different number of times and the arbitrary frame-boundary
+state drifts. Registers-identical + the 1760-call per-call proof confirm game
+*logic* is unchanged; the e2e memhash is not a valid invariant for any
+step-count-changing hook (every installed lift/hook fails it identically). The
+per-call differential verifier is authoritative. All 159 port tests pass with
+`186B` installed.
+
+Honesty note: like `34AE`, this is an installed **lift = scaffolding**, not yet
+refactored into a clean VM-free `skyroads/recovered/` island + `@oracle_link`
+(metrics-honesty). It is also not a CPython perf win (a literal lift runs at
+~interpreter speed; cf. the `34AE` profile at 5744 µs/call) — the payoff is
+correctness/coverage now, speed later via PyPy JIT or a hot-loop refactor.
+
 ## 2026-07-10 — audio: digital SB PCM effects + AdLib-on-PyPy + correct 30 Hz frame rate
 
 Three sound/timing fixes.

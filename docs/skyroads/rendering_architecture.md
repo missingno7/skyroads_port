@@ -131,11 +131,12 @@ confirmed the model directly:
 - Verdict confidence: **high**, grounded at the transform (`04C0`), cull
   (`1732`/`1631`), stepper (`186B`, decoded), and rasterizer (`38BF`/`325B`)
   levels — all VERIFIED or fully disassembled — plus the static-table proof.
-- Not yet byte-exact-hooked: `186B` (the stepper) and the road-walk (`26xx`) /
-  frame root (`0C98`). `186B` is fully decoded (a ~150-instruction, 5-phase
-  iterative solver that mutates the position accumulators); a byte-exact hook is
-  the largest single remaining recovery and is the natural next collapse of the
-  road-segment path (`186B` would subsume `1732`+`04C0`+the interpolation math).
+- `186B` (the stepper) is now **byte-exact-hooked** (lifted, verified 1760/1760
+  full-demo calls; see run_status 2026-07-10). It is the swept movement+collision
+  resolver that sub-steps the position accumulators toward the requested target
+  using `1732` as the collision predicate — it drives the repeated `1732`+`04C0`
+  road-segment work. Still not hooked: the road-walk (`26xx`, the caller that
+  invokes `186B` per segment) and the frame root (`0C98`).
 - Verdict confidence after the two level demos: **very high** — the static
   projection is now proven over 956 active-gameplay frames and shown to be built
   at level load, and blocks are confirmed to be a 2D grid of height/type cells

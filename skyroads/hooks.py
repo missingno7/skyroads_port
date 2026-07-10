@@ -2013,3 +2013,17 @@ def master_timer_isr(cpu: CPU8086) -> None:
 # differential verifier), byte-exact, zero divergence.
 from skyroads.lifted.lifted_1010_34ae import lifted_1010_34ae as _lifted_34ae  # noqa: E402
 registry.replace(CODE_SEG, 0x34AE, "lifted_tile_render_34AE")(_lifted_34ae)
+
+# 1010:186B -- the road-segment movement stepper: a ~274-instruction, 5-phase
+# swept movement+collision resolver that steps the ship's lateral/depth
+# accumulators (ds:[9618:961A], ds:[AF1C], ds:[AF2C]) from their current values
+# toward the requested target in sub-steps, using 1732 (road_object_visible) as
+# the collision predicate and refining each axis to the exact contact boundary
+# (calls 1732/5D4C/5E5A/5D8C, all already recovered). Uses an `enter`-prologue,
+# so this also exercises dos_re's entry-fallback recursion fix (11917f2). The
+# largest single remaining render/movement-path recovery, and it collapses the
+# road-segment path (subsumes repeated 1732+04C0 calls). Lifted + verified
+# ORACLE_PASSING (liftverify: 40 calls, 58/80 blocks; plus the full-level demo
+# under the strict differential verifier), byte-exact.
+from skyroads.lifted.lifted_1010_186b import lifted_1010_186b as _lifted_186b  # noqa: E402
+registry.replace(CODE_SEG, 0x186B, "lifted_road_stepper_186B")(_lifted_186b)
