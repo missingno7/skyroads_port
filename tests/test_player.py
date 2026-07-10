@@ -14,10 +14,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.player import advance_ship, decay_bounce
+from skyroads.recovered.player import (
+    JUMP_IMPULSE, TERMINAL_VVEL, advance_ship, decay_bounce,
+    update_vertical_velocity,
+)
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "physics_trace.json"
 _CASES = json.loads(_FIXTURE.read_text())
+_VPHYS = json.loads((Path(__file__).parent / "fixtures" / "vphysics_trace.json").read_text())
 
 
 def test_advance_ship_matches_asm_including_negative_speed() -> None:
@@ -41,3 +45,25 @@ def test_advance_ship_clamps_to_road_ends() -> None:
 def test_decay_bounce_matches_asm() -> None:
     for bounce_in, bounce_out in _CASES["decay_bounce"]:
         assert decay_bounce(bounce_in) == bounce_out, (bounce_in, bounce_out)
+
+
+def test_update_vertical_velocity_matches_asm() -> None:
+    # gravity + jump-impulse path: byte-exact vs the deaths demo (all airborne,
+    # af2c>=0x2800; the fixture includes a jump-impulse frame)
+    cases = _VPHYS["update_vertical_velocity"]
+    assert cases, "fixture empty"
+    for c in cases:
+        got = update_vertical_velocity(c["pre"], bool(c["jumped"]), c["af2c"],
+                                       c["gravity"], bool(c["grounded"]))
+        assert got == (c["post"] & 0xFFFF), c
+    assert any(c["jumped"] for c in cases), "fixture should include a jump frame"
+
+
+def test_update_vertical_velocity_branches() -> None:
+    # jump impulse overrides the incoming velocity (on the airborne gravity path,
+    # af2c>=0x2800, where jumps actually occur; gravity=0 leaves the impulse intact)
+    assert update_vertical_velocity(0, True, 0x3000, 0, grounded=False) == JUMP_IMPULSE
+    # airborne gravity accumulates (signed)
+    assert update_vertical_velocity(10, False, 0x3000, -115, grounded=False) == (10 - 115) & 0xFFFF
+    # airborne below the gate clamps down to terminal (ASM-derived branch)
+    assert update_vertical_velocity(0, False, 0x0000, -115, grounded=False) == (TERMINAL_VVEL & 0xFFFF)

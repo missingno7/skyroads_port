@@ -4,6 +4,28 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — game logic: vertical-velocity physics (jump impulse + gravity)
+
+With the user's **deaths demo** (`demo_skyroads_20260710_213019` — 29 jump-frames,
+3 jump impulses, states 0/1/3), recovered the jump+gravity stage of the vertical
+velocity `ds:[9336]` update (`2582-2635`) as
+`skyroads/recovered/player.py::update_vertical_velocity`, **ASM_MATCHED 238/238
+deaths-demo frames byte-exact** (incl. the 3 jump frames). Per frame, after
+`decay_bounce`: jump fires `[9336]:=0x480` (`2596`), then airborne
+(`[456A]==0`) `[AF2C]>=0x2800` adds gravity `[54AA]` (`25F0`). Guarded by
+`tests/test_player.py`.
+
+Corrected a branch-direction misread along the way: gravity is the
+`[AF2C] >= 0x2800` side (`jnb`), not `<`.
+
+**Still dark, even in the deaths demo:** the terminal-velocity clamp
+(`[AF2C]<0x2800` → −106) and the grounded ramp (`[456A]!=0` → +0x47). The demo's
+deaths are all *collisions* (`[AF2C]` stays `>=0x2800`, `[456A]` stays 0), so
+those branches are transcribed from the ASM but unverified. Also still open: the
+**jump gate** itself (`2582/258C`: what latches "can jump" — frame-local state
+not yet resolved) and the **death / level-complete state transitions**
+(`456E` writes at `2060/27FD/2AC2`; `[AF2C]` vs `0x2800` fall-test at `2357`).
+
 ## 2026-07-10 — game logic: keyboard control decode recovered (input → speed/steer/jump)
 
 Started the input side of the gameplay handler. Mapped it empirically first —

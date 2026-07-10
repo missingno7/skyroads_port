@@ -40,6 +40,18 @@ SPEED_TO_POS = 75
 
 STATE_GAMEPLAY = 3  # ds:[456E] value while in the gameplay update loop
 
+#: Jump up-impulse written to the vertical velocity when a jump fires (1010:2596).
+JUMP_IMPULSE = 0x0480
+#: Height threshold that gates gravity vs the terminal-velocity clamp (1010:25E5).
+GRAVITY_HEIGHT_GATE = 0x2800
+#: Terminal vertical velocity, -106 (1010:25FA `cmp [9336],0xFF96`).
+TERMINAL_VVEL = -106
+
+
+def _s16(v: int) -> int:
+    v &= 0xFFFF
+    return v - 0x10000 if v & 0x8000 else v
+
 
 @oracle_link(
     boundary="1010:24C4",
@@ -88,3 +100,41 @@ def decay_bounce(bounce: int) -> int:
     prod = -(b * 5)
     q = -((-prod) // 10) if prod < 0 else prod // 10       # trunc toward zero
     return q & 0xFFFF
+
+
+@oracle_link(
+    boundary="1010:2582",
+    contract="update_vertical_velocity(vvel, jumped, af2c, gravity, grounded): the "
+             "jump-impulse + gravity stage of the per-frame vertical-velocity "
+             "([9336]) update, applied AFTER decay_bounce. If jumped, vvel:=0x480 "
+             "(2596). Then if airborne (grounded==0): af2c>=0x2800 -> vvel+=gravity "
+             "([54AA], 25F0); else clamp vvel down to -106 (25FA). If grounded: "
+             "ramp vvel toward +0x47 (>=0, +0x27/step). Returns the 16-bit vvel.",
+    # ASM_MATCHED on the gravity + jump-impulse path: 238/238 deaths-demo frames
+    # byte-exact (all airborne, af2c>=0x2800, incl. 3 jump frames). The terminal
+    # clamp (af2c<0x2800) and grounded ramp (456A!=0) branches are transcribed
+    # from the ASM but NOT yet exercised by any demo -- see run_status.md.
+    status="ASM_MATCHED",
+    merge_target="skyroads.native.player (future)",
+)
+def update_vertical_velocity(vvel: int, jumped: bool, af2c: int,
+                             gravity: int, grounded: bool) -> int:
+    """Per-frame vertical-velocity (`ds:[9336]`) jump+gravity update (1010:2582-2635).
+
+    ``vvel`` is the velocity after :func:`decay_bounce` has run this frame;
+    ``jumped`` is whether the jump gate fired an impulse (the gate itself, at
+    2582/258C, is separate — it also depends on frame-local state not yet
+    recovered); ``af2c`` is `ds:[AF2C]`, ``gravity`` is `ds:[54AA]` (signed,
+    per-level), ``grounded`` is `ds:[456A] != 0`.
+    """
+    v = _s16(JUMP_IMPULSE if jumped else vvel)
+    if not grounded:                                   # airborne
+        if af2c >= GRAVITY_HEIGHT_GATE:
+            v = _s16(v + _s16(gravity))                # gravity accel  [VERIFIED]
+        elif v > TERMINAL_VVEL:
+            v = TERMINAL_VVEL                          # terminal clamp [ASM-derived, dark]
+    else:                                              # grounded ramp  [ASM-derived, dark]
+        if v < 0:
+            v = 0
+        v = _s16(v + 0x27) if v < 0x47 else 0x47
+    return v & 0xFFFF
