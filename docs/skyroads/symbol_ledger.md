@@ -84,6 +84,46 @@ layout — not yet independently confirmed record-by-record on our side).
 
 **Hooked as `road_column_strip`** — the single most-called rasterizer in gameplay (34 callsites, ~13% of real render work; installing it cut the in-game demo's full-run wall-clock ~23.6s -> ~16.6s, ~1.4x). The verifier drove out four decode errors (see the hook's docstring): exit AX = source seg `[0E66]`; the bit15 path still composites (only skips the pre-skip loop); the `mov al,0xFF` marker leaves AX=`(mul_hi<<8)|0xFF` and DX=bx-after-first-scan on the early-exit path; and the down variant's `rep movsw` decrements si/di (std), which an increment-only loop matched only by luck for 1-word runs.
 
+## Renderer island — layer map (2026-07-10)
+
+The road/object renderer is now recovered bottom-up as a verified island; only
+the top orchestration routines remain interpreted. The tree, with per-node
+status:
+
+```
+frame render root (0C98, called from the main loop at 22EC)      [interpreted]
+  └─ per-object-type render passes (186B, and the 27xx/29xx cluster)   [interpreted, layer 3]
+       └─ 1732  road_object_visible  per-segment cull   VERIFIED (12,152 calls)
+            ├─ 04C0  perspective_transform              VERIFIED (34,786)
+            └─ 1631  road_segment_clip                  ASM_MATCHED (9,238)
+  leaf rasterizers (called from the geometry side):
+       38BF  road_column_strip                          VERIFIED (14,896)
+       3153/3190  rle_sprite_forward/backward           VERIFIED
+       3283  occluded_column_blit                       VERIFIED
+       3A22  sprite_blit                                 VERIFIED
+  long-arithmetic primitives (the whole thing sits on these):
+       5D4C ulong_mul / 5D8C ulong_div / 5E5A signed_long_div   VERIFIED (all 3)
+```
+
+**`186B` — road/object edge render pass (layer 3, understood, not yet hooked).**
+Near proc (`enter 0xA`), ~734 bytes, 4 phases / 8 internal loops, calls
+`seg_cull` (1732) four times plus `ulong_mul`/`signed_long_div`. Structure: a
+"same as last frame" cache check at the top — if all four args
+(`[bp+4]`/`[bp+6]` a 32-bit X, `[bp+8]`, `[bp+10]`) equal the current-position
+globals (`ds:[9618]`/`[961A]` the 32-bit X, `ds:[AF1C]`, `ds:[AF2C]`), it
+early-exits at `1B45`. Otherwise it linearly interpolates from the cached
+position toward the arg endpoint in 5 steps (`si=1..5`): each coordinate is
+`start + (end-start)*si/5` — the 16-bit ones via signed `imul si; idiv 5`, the
+32-bit X via `ulong_mul(delta, si)` then `signed_long_div(·, 5)` — and calls
+`seg_cull` at each interpolated point, searching for the visibility boundary
+(loop continues while `seg_cull==0`, breaks on the first visible step), then
+refines with a second interpolation using `si-1`. Repeats for the other three
+edges. NOT hooked: only ~4% of interpreted steps now that its callees are all
+fast hooks (~1,220 interpreted steps/call, 72 calls over 60 frames), so a
+byte-exact whole-routine hook (8 loop paths, complex exit state) is low-ROI;
+documented here as the recovered layer-3 structure. | full fixed-length disasm
+(2026-07-10) | OBSERVED (structure); callees all VERIFIED |
+
 ## C-runtime 32-bit signed/unsigned long multiply/divide (performance hot spots)
 
 | Address | Role | Evidence | Status |
