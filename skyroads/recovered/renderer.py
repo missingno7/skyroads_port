@@ -66,3 +66,44 @@ def perspective_row_offset(x_lo: int, x_hi: int, depth: int) -> PerspectiveResul
     add_rhs = (2 * (idx // 46)) & 0xFFFF  # `div bx(46)` then `shl ax,1` at 0519/051B
     offset = (add_lhs + add_rhs) & 0xFFFF
     return PerspectiveResult(True, idx, rem128, offset, idx % 46, add_lhs, add_rhs)
+
+
+#: ds-relative bases of the two per-segment screen-bound tables road_segment_clip
+#: reads (word entries, indexed by segment*2). t4C is a per-segment near/low
+#: bound; t98 is a per-segment far/high bound (a flat 0x20 in the captured level).
+SEG_BOUND_LOW_TABLE = 0x4C
+SEG_BOUND_HIGH_TABLE = 0x98
+
+
+@oracle_link(
+    boundary="1010:1631",
+    contract="road_segment_clip(dir_sel, seg, coord, low_bound, high_bound): "
+             "segment visibility/clip test. seg>37 -> 0. row di=((coord-0x2200)&0xFFFF)>>7 "
+             "(unsigned). Switch on dir_sel&0xF00: 0x100 -> low<=di<high; "
+             "0x200 -> coord<0x3200; 0x300 -> coord<0x3200 and di>=low; "
+             "0x400 -> coord<0x3C00; 0x500 -> coord<0x3C00 and di>=low; "
+             "else -> the selector value itself. All compares unsigned. "
+             "low_bound/high_bound are ds:[0x4C+2*seg]/ds:[0x98+2*seg].",
+    status="ASM_MATCHED",  # 9,238/9,238 in-game calls matched (selectors 0x100/0x200/
+                           # default exercised; 0x300/0x400/0x500 decoded, not yet hit)
+    merge_target="skyroads.native.renderer (future)",
+)
+def road_segment_clip(dir_sel: int, seg: int, coord: int,
+                      low_bound: int, high_bound: int) -> int:
+    seg &= 0xFFFF
+    if seg > 0x25:  # `cmp si,0x25; ja` at 163A — >37 culled
+        return 0
+    di = ((coord - 0x2200) & 0xFFFF) >> 7  # (coord-0x2200)/128, unsigned
+    coord &= 0xFFFF
+    sel = dir_sel & 0x0F00
+    if sel == 0x0100:
+        return 1 if (low_bound <= di < high_bound) else 0
+    if sel == 0x0200:
+        return 1 if coord < 0x3200 else 0
+    if sel == 0x0300:
+        return 1 if (coord < 0x3200 and di >= low_bound) else 0
+    if sel == 0x0400:
+        return 1 if coord < 0x3C00 else 0
+    if sel == 0x0500:
+        return 1 if (coord < 0x3C00 and di >= low_bound) else 0
+    return sel  # default path: the ASM falls through returning AX = the selector

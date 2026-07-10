@@ -49,7 +49,21 @@ layers are DONE. Remaining, in dependency order:
    layer of the island. (The recovery corrected a decode error — the third
    stage is a ×14 multiply via ulong_mul, not a divide.)
 2. **`17xx` per-object/road-segment render** — the layer that projects a
-   road segment / object via `04C0` and dispatches to the rasterizers.
+   road segment / object via `04C0` and dispatches to the rasterizers. The
+   root is `1732` (`enter 0xA`), which calls `04C0` four times AND the leaf
+   `1631` twice. `1631` (a self-contained per-segment visibility/clip test,
+   NO calls) is DONE (2026-07-10): recovered as `renderer.py::
+   road_segment_clip`, ASM_MATCHED over all 9,238 in-game calls (selectors
+   0x100/0x200/default exercised; 0x300/0x400/0x500 decoded but not hit in
+   this demo). Per the island strategy, leaves are recovered as clean
+   functions WITHOUT their own hook; the single hook goes at the island root
+   (`1732`), where the whole subtree — `04C0` + `1631` + the clamp/dispatch
+   glue — collapses into one verified Python call. `1732` itself is next.
+   Profiling note: excluding the `22F8` pacing spin (28% of interpreted
+   steps, an idle timer-tick wait — the game finishes a tick's work then
+   spins for the rest of the fixed step budget), the real render work is
+   ~24% in the `17xx`/`18xx` glue and ~26% in the `35xx`/`39xx` stride-3
+   display-list rasterizer scans (the biggest single un-hooked leaves).
 3. **`0Cxx` render dispatch** — the per-frame "draw the whole scene" entry;
    this becomes the island's single hook boundary once 1–2 are recovered.
 Each layer is recovered + verified before the next, so the island grows upward
