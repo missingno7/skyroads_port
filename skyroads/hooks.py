@@ -139,15 +139,28 @@ Installed hooks:
   iterations, which palette_upload's own speedup had made worse (see
   docs/skyroads/symbol_ledger.md's palette_upload caveat) by freeing enough
   step budget for it to spin far more before its wait condition changes.
+
+- master_timer_isr (1010:3B17): added 2026-07-10 — the port's FIRST
+  lifter-produced island. The game's INT 08h timer ISR (master clock + music
+  tempo) was recovered with the automatic lifter (dos_re.lift): liftverify
+  emitted a literal byte-exact hook (199 in-situ verified calls) which was
+  then refactored into the pure rule skyroads.recovered.timer_isr
+  .advance_music_timer + this thin VM frame (pusha/popa/iret, sound-engine
+  call, PIT/PIC ports). Verified byte-exact across every prescaler branch
+  (prescaler 0..9 x song-continue/end) in tests/test_master_timer_isr.py —
+  full basic-block coverage, incl. the chain-to-BIOS wrap path whose DEC
+  flags survive to the exit (the IRET path discards them).
 """
 from __future__ import annotations
 
 from dos_re.cpu import CPU8086, CF, OF, DF
 from dos_re.hooks import interpret_current_instruction_without_hook, registry
+from dos_re.lift.runtime import emulate_call
 
 from skyroads.codecs.lzs import LzsWidths
 from skyroads.recovered.palette_fade import blend_byte
 from skyroads.recovered.renderer import perspective_row_offset, road_segment_clip
+from skyroads.recovered.timer_isr import advance_music_timer
 
 CODE_SEG = 0x1010  # SKYROADS.EXE's single code segment (from program.entry_cs)
 
@@ -1901,3 +1914,85 @@ def _fade_loop_gate_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x434A, "fade_loop_tick_gate")
 def fade_loop_tick_gate_hook(cpu: CPU8086) -> None:
     _fade_loop_gate_hook(cpu)
+
+
+# --- master timer ISR (1010:3B17) ------------------------------------------
+#
+# The game's INT 08h handler: master clock + music tempo. Recovered via the
+# automatic lifter (dos_re.lift) then refactored into the pure rule
+# skyroads.recovered.timer_isr.advance_music_timer plus this thin VM frame.
+# Verified byte-exact across every prescaler branch (tests/test_master_timer_isr.py).
+
+_ISR_DATA_SEG_PTR = 0x3ACA   # cs:[3ACA] holds the data segment the ISR runs against
+_ISR_PRESCALER = 0x3192      # ds:[3192]  music prescaler (9..0, then wraps)
+_ISR_ELAPSED_TICKS = 0x1600  # ds:[1600]  the game-wide elapsed-tick counter
+_ISR_SONG_CURSOR = 0x0BD0    # ds:[0BD0]  pointer into the current song note stream
+_ISR_SOUND_ENGINE = 0x5A55   # per-tick sound/music service, called through the VM
+_ISR_BIOS_TIMER = (0xF000, 0xFF53)
+_PIT_MODE_PORT, _PIT_CH2_PORT = 0x43, 0x42
+_PIT_CH2_SQUARE = 0xB6       # channel 2, lo/hi, mode 3 (square wave)
+_PIC_EOI_PORT, _PIC_EOI = 0x20, 0x20
+
+
+def _pusha(cpu: CPU8086) -> None:
+    s = cpu.s
+    for value in (s.ax, s.cx, s.dx, s.bx, s.sp, s.bp, s.si, s.di):
+        cpu.push(value)
+
+
+def _popa(cpu: CPU8086) -> None:
+    s = cpu.s
+    s.di, s.si, s.bp = cpu.pop(), cpu.pop(), cpu.pop()
+    cpu.pop()                                # POPA discards the pushed SP
+    s.bx, s.dx, s.cx, s.ax = cpu.pop(), cpu.pop(), cpu.pop(), cpu.pop()
+
+
+def _out8(cpu: CPU8086, port: int) -> None:
+    if cpu.port_writer is not None:
+        cpu.port_writer(cpu, port & 0xFFFF, cpu.get_reg8(0), 8)
+
+
+@registry.replace(CODE_SEG, 0x3B17, "master_timer_isr")
+def master_timer_isr(cpu: CPU8086) -> None:
+    s, mem = cpu.s, cpu.mem
+
+    # prologue: cld; pusha; push ds; ds = cs:[3ACA]
+    s.flags &= ~DF
+    _pusha(cpu)
+    cpu.push(s.ds)
+    ds = mem.rw(CODE_SEG, _ISR_DATA_SEG_PTR)
+    s.ds = ds
+
+    # service the sound/music engine every tick (1010:5A55, run through the VM)
+    emulate_call(cpu, CODE_SEG, _ISR_SOUND_ENGINE, 0x3B22)
+
+    prescaler = mem.rb(ds, _ISR_PRESCALER)
+    cursor = mem.rw(ds, _ISR_SONG_CURSOR)
+    note_word = mem.rw(ds, cursor)
+    tick = advance_music_timer(prescaler, note_word)
+
+    if tick.emit_note:
+        mem.ww(ds, _ISR_ELAPSED_TICKS, (mem.rw(ds, _ISR_ELAPSED_TICKS) + 1) & 0xFFFF)
+        if tick.advance_cursor:
+            mem.ww(ds, _ISR_SONG_CURSOR, (cursor + 2) & 0xFFFF)
+        cpu.set_reg8(0, _PIT_CH2_SQUARE); _out8(cpu, _PIT_MODE_PORT)
+        cpu.set_reg8(0, tick.pit_divisor & 0xFF); _out8(cpu, _PIT_CH2_PORT)
+        cpu.set_reg8(0, (tick.pit_divisor >> 8) & 0xFF); _out8(cpu, _PIT_CH2_PORT)
+        s.bx, s.cx = cursor, tick.pit_divisor   # regs the ASM leaves live at the tail
+
+    # prescaler countdown: DEC sets SF/ZF/OF/AF/PF (the chain-to-BIOS exit keeps
+    # them; the IRET exit pops FLAGS and discards them).
+    decremented = (prescaler - 1) & 0xFF
+    mem.wb(ds, _ISR_PRESCALER, decremented)
+    cpu.set_incdec_flags(prescaler, decremented, 8, dec=True)
+
+    if tick.chain_to_bios:
+        mem.wb(ds, _ISR_PRESCALER, tick.next_prescaler)
+        s.ds = cpu.pop(); _popa(cpu)         # pop ds; popa; jmp far F000:FF53
+        s.cs, s.ip = _ISR_BIOS_TIMER
+        return
+
+    cpu.set_reg8(0, _PIC_EOI); _out8(cpu, _PIC_EOI_PORT)
+    s.ds = cpu.pop(); _popa(cpu)             # pop ds; popa; iret
+    s.ip, s.cs = cpu.pop(), cpu.pop()
+    s.flags = cpu.pop() | 0x0002

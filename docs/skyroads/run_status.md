@@ -4,6 +4,32 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — first AUTO-LIFTED island: the master timer ISR (1010:3B17)
+
+The game's INT 08h handler (master clock + music tempo) is the port's first
+island recovered with the **automatic lifter** (`dos_re.lift`) rather than by
+hand. Workflow, end to end:
+
+1. `dos_re/tools/liftverify.py --entry 1010:3B17 --timer-irqs 6` emitted a
+   literal, per-instruction Python hook and verified it in situ — **199 calls,
+   byte-exact** against the interpreted original (this also drove the new
+   `--timer-irqs` option: a plain forward run never fires the ISR).
+2. The mechanical lift was refactored into the port's pure-rule + thin-adapter
+   shape: `skyroads/recovered/timer_isr.py::advance_music_timer` (VM-free, the
+   prescaler/song/PIT-divisor decision, `@oracle_link ASM_MATCHED`) plus
+   `skyroads/hooks.py::master_timer_isr` (the pusha/popa/iret frame, the
+   sound-engine call, the PIT/PIC port writes).
+3. A unit oracle (`tests/test_master_timer_isr.py`) drives **every prescaler
+   value 0..9 x song-continue/end** and diffs full machine state against the
+   interpreted `1010:3B17` — full basic-block coverage, incl. the wrap →
+   reset-to-9 → chain-to-BIOS path whose `dec [3192]` flags survive to the far
+   exit (the IRET path pops them away). 22/22 byte-exact.
+
+Notable: the lift was correct on the flag detail above out of the box — the
+kind of thing hand translation gets wrong. Suite green (154). This is the M3
+proof of the lifter thesis on a real game: ASM → auto-lift → verify → refactor
+to clean recovered source, same oracle throughout.
+
 ## 2026-07-10 — whole-game E2E validation of the recovered island
 
 Replayed a full cold-start end-to-end demo (`artifacts/demos/
