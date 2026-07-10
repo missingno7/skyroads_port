@@ -4,6 +4,30 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — whole-game E2E validation of the recovered island
+
+Replayed a full cold-start end-to-end demo (`artifacts/demos/
+demo_e2e_20260710_132930`: intro-skip → main menu → level select → play a level
+→ die → exit → play another level → exit to menu → quit) through the
+fully-hooked runtime. **All 1,719 frames ran to the game's own `exit(0)`**
+(HaltExecution at `1010:630F`, the `mov ah,4Ch; int 21h` terminate — the demo's
+intended final action), with every recovered hook firing across the whole
+lifecycle: `palette_fade` 408K, `fade_gate` 858K, `road_column_strip` 26.9K,
+`road_object_visible` 17.3K, RLE sprites 32.5K, `tile_rasterizer` 615, the
+three long-arith helpers, `lzs` 266 (multiple level/asset loads), etc. No hook
+raised, no divergence, no hang — a strong whole-game integration pass across
+menu, two gameplay levels, death, and exit.
+
+Byte-exact spot-check on the E2E's (different) level data: `road_object_visible`
+(`1732`) re-verified against the ASM oracle for 439 calls, zero divergence —
+the recovery holds on levels beyond the ones it was developed against.
+
+Also confirmed via the busier `world7` gameplay + level-load demos: the
+projection LUT (`ds:0x162C`) is static across 956 active-gameplay frames and is
+**loaded as data from the level file** (not computed); the "3D" is table-driven
+throughout. See [`rendering_architecture.md`](rendering_architecture.md) and
+[`level_format.md`](level_format.md).
+
 ## 2026-07-09 (cont'd) — in-game profiling + the renderer-island plan
 
 **Why gameplay is ~2-3 FPS (measured, not guessed).** On this machine the
