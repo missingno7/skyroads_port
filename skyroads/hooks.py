@@ -1171,6 +1171,93 @@ def tile_clip_mask_hook(cpu: CPU8086) -> None:
     _tile_clip_mask_hook(cpu)
 
 
+# CS:IP 1010:33FD -- the road-tile SHADER (linear/mode-13h, the exercised twin;
+# the EGA-planar variant at 336B is used by 31DB, not on this demo's path).
+# Bare near proc (`mov ds,ss` up front -> DS=SS on exit; no register saves, so
+# AX/BX/CX/DX/SI/DI + flags clobbered; es/bp/sp preserved). Selects a 9x29 tile
+# pattern at ds:[0x68E + (ds:[0E34]/5)*0x105] (skips, returning early, if that
+# index >= 5), computes a screen offset di into es from the tile's road
+# position (ds:[0E2C]/[0E28]/[0E34]), stores it at ds:[0E70], then walks the
+# tile column-major (9 rows down x 29 cols): where BOTH the pattern byte and the
+# coverage byte ds:[bx+0x113E] are non-zero, it marks the coverage byte 2 and
+# recolours the screen pixel es:[di] -- 0x3D -> 0x40, and any index in 1..0x0F
+# gets +0x2D (a shade ramp); 0 and >=0x10 pass through. di steps +0x140 per row
+# (down), the pattern/mask index +0x1D; per column di rewinds to +1 and the
+# index to +1. Faithful replication -> exact memory + exit registers.
+_TILE_SHADE_PATTERN_BASE = 0x068E
+_TILE_SHADE_MASK_BASE = 0x113E
+
+
+def _tile_shade_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, es = s.ss, s.es
+    ds = ss                                         # 33FD mov ds,ss
+    ret_ip = mem.rw(ss, s.sp)
+    rb, wb, rw = mem.rb, mem.wb, mem.rw
+
+    v34 = rw(ss, 0x0E34)
+    ax = v34 // 5                                    # 3403-3409 div 5
+    rem = v34 % 5
+    if ax >= 5:                                       # 340B cmp ax,5; 340E jnb 347D
+        s.ax, s.dx, s.cx, s.ds = ax & 0xFFFF, rem & 0xFFFF, 5, ss
+        cpu.set_sub_flags(ax, 5, ax - 5, 16)          # cmp ax,5
+        s.sp = (s.sp + 2) & 0xFFFF
+        s.ip = ret_ip
+        return
+
+    si = (_TILE_SHADE_PATTERN_BASE + ax * 0x0105) & 0xFFFF   # 3410-3418
+    row = (0x009D - rw(ss, 0x0E2C) + 0x0010 + v34) & 0xFFFF  # 341A-3424
+    prod = _sgn16(row) * 0x0140                              # 3428-342B imul cx
+    ax = prod & 0xFFFF                                        # ax = low word (survives; AH kept)
+    di = ax
+    di = (di + rw(ss, 0x0E28) - 0x006E) & 0xFFFF            # 342F-3433
+    mem.ww(ss, 0x0E70, di)                                   # 3436
+
+    bx = 0                                            # 343A
+    dx = 0x001D                                       # 343C (outer: 29 columns)
+    while True:
+        cx = 9                                         # 343F (inner: 9 rows)
+        while True:
+            if rb(ds, (bx + si) & 0xFFFF) != 0 and \
+                    rb(ds, (bx + _TILE_SHADE_MASK_BASE) & 0xFFFF) != 0:
+                wb(ds, (bx + _TILE_SHADE_MASK_BASE) & 0xFFFF, 0x02)   # 344E
+                al = rb(es, di)                        # 3453
+                if al == 0x3D:                          # 3456-345A
+                    al = 0x40
+                if al != 0 and al < 0x10:               # 345C jz / 3460 jnb -> else +0x2D
+                    al = (al + 0x2D) & 0xFF             # 3464
+                wb(es, di, al)                          # 3466
+                ax = (ax & 0xFF00) | al                 # AL updated; AH from the imul
+            di = (di + 0x0140) & 0xFFFF                # 3469
+            bx = (bx + 0x001D) & 0xFFFF                # 346D
+            cx -= 1
+            if cx == 0:                                 # loop 3442
+                break
+        di = (di - 0x0B3F) & 0xFFFF                    # 3472
+        bx = (bx - 0x0104) & 0xFFFF                    # 3476
+        dx_before = dx
+        dx = (dx - 1) & 0xFFFF                          # 347A
+        if dx == 0:                                     # 347B jnz 343F
+            break
+
+    s.ax, s.bx, s.cx, s.dx, s.si, s.di, s.ds = (
+        ax & 0xFFFF, bx & 0xFFFF, 0, 0, si & 0xFFFF, di & 0xFFFF, ss)
+    # exit flags: `dec dx` (1 -> 0) sets SF/ZF/PF/AF/OF, preserves CF from the
+    # preceding `sub bx,0x0104` (3476). bx here is the post-sub value.
+    sub_borrow = ((bx + 0x0104) & 0xFFFF) < 0x0104
+    cpu.set_sub_flags(dx_before, 1, dx_before - 1, 16)
+    cpu.set_flag(CF, sub_borrow)
+
+    s.sp = (s.sp + 2) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x33FD, "tile_shade")
+def tile_shade_hook(cpu: CPU8086) -> None:
+    _tile_shade_hook(cpu)
+
+
 # CS:IP 1010:3153 -- the FORWARD run-length sprite rasterizer (one of a mirror
 # pair; the backward twin is at 1010:3190, hooked below). The dominant render
 # cost in the in-game demo: 5,884 calls driving 41,162 inner-loop iterations

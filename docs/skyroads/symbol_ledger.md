@@ -92,6 +92,10 @@ layout — not yet independently confirmed record-by-record on our side).
 
 **Hooked as `tile_clip_mask`** — a faithful instruction-level replication (leaf, no calls) so memory + exit registers are exact by construction; the only subtlety the verifier surfaced was the exit CF, which the loop-terminating `dec dx` preserves from that iteration's `cmp dx,0x0A` (so CF = `dx_before < 0x0A`), not from before the loop. This is the coverage-mask precursor the tile rasterizers (`31DB`/`325B`, dispatched from `2DCC`/`2E6C`) consume.
 
+| `33FD`-`347D` | The road-tile SHADER (linear/mode-13h; the exercised twin of the EGA-planar `336B`, which `31DB` uses off this demo's path). Bare near proc (`mov ds,ss` up front → DS=SS on exit; no register saves). Selects a 9×29 tile pattern at `ds:[0x68E + (ds:[0E34]/5)*0x105]` (early-returns if that index ≥5), computes a screen offset into `es` from the tile road position (`ds:[0E2C]/[0E28]/[0E34]`), stores it at `ds:[0E70]`, then walks the tile column-major (9 rows × 29 cols): where BOTH the pattern byte and the coverage byte `ds:[bx+0x113E]` are non-zero, marks that coverage byte 2 and recolours the screen pixel `es:[di]` — `0x3D→0x40`, indices `1..0x0F` get `+0x2D` (a shade ramp), `0` and `≥0x10` pass through. | full fixed-length disasm (2026-07-10) + strict differential verifier (full-demo, 264 calls, 0 divergence) | VERIFIED |
+
+**Hooked as `tile_shade`** — faithful replication (leaf, no calls); verified byte-exact first try. Same exit-CF nuance as `tile_clip_mask` (the terminating `dec dx` preserves CF from the preceding `sub bx,0x0104`). Called from `325B` (which also builds the mask via `32C1`); it is the tile pathway's pixel-write leaf on this demo, the counterpart to the road-segment path's `38BF`.
+
 ## Renderer island — layer map (2026-07-10)
 
 The road/object renderer is now recovered bottom-up as a verified island; only
