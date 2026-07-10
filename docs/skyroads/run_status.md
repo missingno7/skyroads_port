@@ -4,6 +4,27 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — sound/music engine fully reverse-engineered (island tee-up)
+
+Reverse-engineered the whole AdLib/OPL music driver — see
+[`sound_engine.md`](sound_engine.md). It is a compact **music-bytecode
+interpreter** at `1010:5A55` (per timer tick): walk a song event stream, decode
+`op = word & 7` / args, dispatch through an 8-entry table at `DG:0x0C5B`, program
+the OPL2 via the `opl_write(reg=AL,val=AH)` primitive at `5892`. Eight opcodes:
+delay, note+instrument (11-register FM patch), note-on pitch (F-number/octave),
+key-off, volume, loop, set-loop-point, flag. State + data tables documented.
+
+Key discovery that unblocked this: the driver is **runtime-loaded** (zero in the
+static EXE), so it must be disassembled from a *post-intro* snapshot, and
+`lindis`'s text column mis-renders some `[disp]` values (read the byte column).
+
+The register-group capture confirmed the full OPL2 map is written (0x20–0xF0
+operators, 0xA0/0xB0 freq+key-on, 0xBD rhythm). Remaining to *complete* the
+island: transcribe the engine + 8 handlers + the note-frequency math into clean
+VM-free Python and verify it emits the **byte-identical OPL register-write
+stream** as the ASM over the cold-sound demo (lockstep per tick). Architecture
+is done; the byte-exact build is the well-defined next step.
+
 ## 2026-07-10 — game logic: vertical-velocity physics (jump impulse + gravity)
 
 With the user's **deaths demo** (`demo_skyroads_20260710_213019` — 29 jump-frames,
