@@ -85,6 +85,34 @@ the vanishing point, and block "height" all fall out of **one fixed table +
 artist art + integer interpolation**. No road curvature or hills exist. That is
 why it ran smoothly on a 286 with no FPU.
 
+## Confirmed by the level demos (2026-07-10)
+
+Two additional demos (a busier `world7` gameplay run, and a level-load capture)
+confirmed the model directly:
+
+- **The projection table `ds:0x162C` stays byte-identical across all 956 frames
+  of active `world7` gameplay** (ship moving, blocks of many heights), and is
+  **(re)built at level-load time** (it changes ~frame 39 of the load demo, right
+  as `world7.lzs` is decompressed by the recovered LZS decoder). So: computed
+  once per level load, static for the entire level. Exactly the static-camera /
+  fixed-projection model.
+- **Blocks are a 2D grid of height/type cells.** Each tile is drawn by a generic
+  `2D1F draw_tile(centreX, …, bitmap_far_ptr, height/type, dest)` that stores its
+  args to `0E28…0E36` and dispatches to a rasterizer via `call [0E38]`
+  (→ `34A7`, the tile path) or the per-tile handler `[0E40]` (→ `3190`/`3153`,
+  the RLE sprite rasterizers). The height/type field `[0E34]` takes **40+
+  distinct values in one level** (0–15, 20s–60s, 133–147 — the last group looks
+  like a `+128` type flag), each selecting a pre-drawn tile/sprite appearance.
+  Nothing is extruded; "height" is art.
+- **`[9336]`/`[AF2C]`/`[0E34]` now sweep dynamically** with forward motion
+  (they were frozen in the earlier flat demo), consistent with a forward-scroll
+  phase + per-cell block heights — not curvature.
+- **Regression:** the `tile_rasterizer` (`325B`) hook re-verified **byte-exact
+  over 895 calls on the `world7` level** — the recovery generalises across level
+  data, it was not overfit to the first demo.
+- The **EGA-planar tile variant (`31DB`/`336B`) is never hit** even in busy
+  gameplay — it is not used by the normal in-game renderer.
+
 ## Confidence and the remaining sliver
 
 - Verdict confidence: **high**, grounded at the transform (`04C0`), cull
@@ -95,9 +123,11 @@ why it ran smoothly on a 286 with no FPU.
   iterative solver that mutates the position accumulators); a byte-exact hook is
   the largest single remaining recovery and is the natural next collapse of the
   road-segment path (`186B` would subsume `1732`+`04C0`+the interpolation math).
-- The one behaviour not *demonstrated* dynamically: the forward-scroll offset
-  `[9336]`/`[AF2C]` sweeping as the ship moves, and blocks of differing height
-  rendering at different vertical extents — the available demo is a flat,
-  near-static section (`[9336]≈1`). A busier level demo (varied block heights,
-  active forward motion) is being produced to confirm the scroll mechanism and
-  the block-height→tile-stack mapping directly.
+- Verdict confidence after the two level demos: **very high** — the static
+  projection is now proven over 956 active-gameplay frames and shown to be built
+  at level load, and blocks are confirmed to be a 2D grid of height/type cells
+  drawn as pre-authored tile/sprite art via `2D1F`'s dispatch.
+- Remaining detail-level unknowns (not verdict-affecting): the exact `[9336]`
+  forward-scroll update rule, the precise `world7.lzs` level-grid byte format,
+  and byte-exact hooks for `186B`/`2D1F`/the road-walk (`26xx`). These are
+  recovery breadth, not open questions about whether it is 3D.
