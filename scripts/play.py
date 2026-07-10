@@ -11,20 +11,16 @@ what is skyroads-specific:
     a driver that never delivers it appears to hang forever — hence
     ``--timer-irqs-per-frame`` defaults to 1 (confirmed during bring-up, see
     skyroads/runtime.py and docs/skyroads/run_status.md).
-  - SKYROADS' own INT 08h ISR (1010:3B17) runs a software prescaler
-    (ds:[3192]) that only advances its elapsed-ticks counter (ds:[1600]) once
-    every 6 REAL timer interrupts — an intentional ~3 Hz game-tick rate
-    divided down from the 18.2 Hz BIOS timer, confirmed by live-tracing the
-    ISR (2026-07-09, see docs/skyroads/symbol_ledger.md). Delivering only 1
-    IRQ per driver frame means 5 out of every 6 frames make ZERO real-time
-    progress on anything gated by that counter (most of the game's own
-    wait/pacing loops) while still burning a full interpreted step budget
-    busy-spinning. ``default_timer_irqs_per_frame = 6`` matches the real
-    prescaler exactly; ``default_steps_per_frame`` is lowered so IRQ bursts
-    land more often per wall-clock second instead of once every giant chunk.
-    Measured on an intro-fade snapshot: ~4.7x more real elapsed-tick progress
-    per wall-clock second (7 -> 33 ticks in 3s) versus the prior 1-IRQ/200K-step
-    defaults — not yet re-validated against real gameplay (still unreached).
+  - SKYROADS reprograms PIT channel-0 to divisor 6628 (OUT 40h at boot), i.e.
+    1193182/6628 = 180.0 Hz IRQ0 — NOT the 18.2 Hz BIOS default. Its INT 08h ISR
+    (1010:3B17) runs a software prescaler (ds:[3192]) that advances the
+    elapsed-ticks counter (ds:[1600]) once every 6 real IRQs, so game logic ticks
+    at 180/6 = 30 Hz — the native frame rate. (An earlier note here read the
+    prescaler against the 18.2 Hz default and wrongly concluded ~3 Hz; the PIT
+    reprogramming was missed.) ``default_timer_irqs_per_frame = 6`` matches the
+    prescaler exactly (6 IRQs = 1 game tick = 1 presented frame), and
+    ``default_present_hz = 30`` reproduces 180 Hz IRQ0 / 30 Hz logic in the
+    viewer (IRQ0 Hz = 6*present_hz). The base 60 ran music and physics at 2x.
   - The pacing model is the library's simple deterministic default: a fixed
     (steps-per-frame, timer-irqs-per-frame) budget per frame, no wall-clock
     time source — the frame index alone is the demo clock, so record and
@@ -59,13 +55,43 @@ class SkyroadsFrontend(player.GameFrontend):
     default_game_root = str(ROOT / "assets")
     default_steps_per_frame = 30_000
     default_timer_irqs_per_frame = 6   # matches SKYROADS' own 6:1 INT 08h software prescaler
+    # SKYROADS reprograms PIT channel-0 to divisor 6628 => 1193182/6628 = 180.0 Hz
+    # IRQ0 (NOT the 18.2 Hz BIOS default; confirmed by tracing OUT 40h at boot).
+    # Its INT 08h ISR prescales /6, so game logic ticks at 180/6 = 30 Hz -- the
+    # native frame rate.  The viewer delivers timer_irqs_per_frame (6) INT 08h per
+    # presented frame and paces frames at present_hz, so IRQ0 Hz = 6*present_hz and
+    # logic Hz = present_hz.  present_hz=30 reproduces the real 180 Hz IRQ0 / 30 Hz
+    # logic (1 game tick per frame); the base 60 ran everything -- music, physics --
+    # at 2x speed.  (Wall-clock pacing only; headless demo replay ignores present_hz,
+    # so determinism is unaffected.)
+    default_present_hz = 30
+
+    def _capture_sb(self, args) -> bool:
+        """Capture the game's Sound Blaster DMA PCM (digital SFX) only when the
+        viewer audio is on.  It is a determinism-safe observer (byte-identical
+        CPU timeline), but off by default so headless/demo/test runs keep the
+        exact detection-only path and accumulate no captured PCM."""
+        return getattr(args, "audio", "off") == "adlib" and not args.headless
 
     def create_runtime(self, args):
         return create_game_runtime(args.exe, game_root=args.game_root,
-                                   command_tail=args.dos_args)
+                                   command_tail=args.dos_args,
+                                   capture_sb_pcm=self._capture_sb(args))
 
     def load_snapshot_runtime(self, args, snapshot_dir):
-        return load_game_snapshot(args.exe, snapshot_dir, game_root=args.game_root)
+        return load_game_snapshot(args.exe, snapshot_dir, game_root=args.game_root,
+                                  capture_sb_pcm=self._capture_sb(args))
+
+    def create_audio_sink(self, pygame, rt, args):
+        """SkyRoads viewer audio: OPL music + PC speaker + Sound Blaster PCM SFX.
+        Extends the stock AdLib/speaker sink with the game's digital ``*.SND``
+        effects (see skyroads/audio.py)."""
+        if args.audio != "adlib":
+            return None
+        from skyroads.audio import SkyroadsAudioSink
+
+        sink = SkyroadsAudioSink(pygame, rt, args.present_hz)
+        return sink if sink.available else None
 
 
 def main(argv: list[str] | None = None) -> int:

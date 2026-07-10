@@ -41,16 +41,27 @@ def create_game_runtime(
     command_tail: bytes | str = b"",
     install_replacements: bool = True,
     enable_sound: bool = True,
+    capture_sb_pcm: bool = False,
 ) -> Runtime:
     """Boot a fresh runtime. ``install_replacements=False`` is the pure-ASM
     oracle: no recovered hooks, the CPU runs the original code verbatim.
     ``enable_sound=False`` reproduces the original "Not enough sound
-    hardware" exit path for study; leave it on for normal play/bring-up."""
+    hardware" exit path for study; leave it on for normal play/bring-up.
+
+    ``capture_sb_pcm`` attaches the Sound Blaster in *capture* mode instead of
+    the detection-only stub: single-cycle DMA-out blocks (the game's digital
+    ``*.SND`` sound effects) are copied into ``sb.pcm_out`` and their sample
+    rate logged, so a viewer audio sink can play them (see skyroads/audio.py).
+    No block-complete IRQ is delivered, so the CPU timeline stays byte-identical
+    to the detection-only stub (verified differentially over the full E2E demo)
+    -- demos still replay deterministically.  Off by default so the headless/
+    test path keeps the exact detection-only behaviour and does not accumulate
+    captured PCM."""
     if install_replacements:
         from . import hooks  # noqa: F401
     rt = create_runtime(exe_path, game_root=game_root, command_tail=command_tail)
     if enable_sound:
-        enable_sound_blaster(rt, detection_only=True)
+        enable_sound_blaster(rt, detection_only=not capture_sb_pcm)
     return rt
 
 
@@ -61,6 +72,7 @@ def load_game_snapshot(
     game_root: str | Path | None = None,
     install_replacements: bool = True,
     enable_sound: bool = True,
+    capture_sb_pcm: bool = False,
 ) -> Runtime:
     """Resume a snapshot. Unlike dos_re.runtime.create_runtime,
     dos_re.snapshot.load_snapshot does NOT install the hook registry on the
@@ -77,5 +89,5 @@ def load_game_snapshot(
         from . import hooks  # noqa: F401
         registry.install(rt.cpu)
     if enable_sound:
-        enable_sound_blaster(rt, detection_only=True)
+        enable_sound_blaster(rt, detection_only=not capture_sb_pcm)
     return rt

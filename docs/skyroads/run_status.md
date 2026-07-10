@@ -4,6 +4,76 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — audio: digital SB PCM effects + AdLib-on-PyPy + correct 30 Hz frame rate
+
+Three sound/timing fixes.
+
+### 1. Native frame rate is 30 Hz (PIT reprogrammed to 180 Hz) — `present_hz` was 2× too fast
+
+SKYROADS reprograms **PIT channel-0 to divisor 6628** at boot (`OUT 40h`), i.e.
+`1193182 / 6628 = 180.0 Hz` IRQ0 — *not* the 18.2 Hz BIOS default (confirmed by
+tracing port-40h writes; the frequent `43h=B6h`/`42h` writes are channel-2, the
+PC speaker). Its INT 08h ISR software-prescales `/6` (`ds:[3192]`), so game
+logic ticks at `180/6 = 30 Hz` — the native frame rate. (This **corrects** the
+earlier note that read the `/6` prescaler against 18.2 Hz and wrongly concluded
+"~3 Hz"; the PIT reprogramming had been missed.)
+
+The viewer delivers `timer_irqs_per_frame` (6) INT 08h per presented frame and
+paces frames at `present_hz`, so IRQ0 Hz = `6 × present_hz` and logic Hz =
+`present_hz`. The base default `present_hz=60` therefore ran IRQ0 at 360 Hz and
+logic at 60 Hz — **everything (music tempo, physics) at 2× speed**. Fixed:
+`SkyroadsFrontend.default_present_hz = 30` → 180 Hz IRQ0 / 30 Hz logic, one game
+tick per presented frame. Wall-clock pacing only; headless demo replay ignores
+`present_hz`, so determinism is unchanged. (User-reported: music was too fast;
+~30 Hz matches DosBox.)
+
+### 2. Sound Blaster digital PCM sound effects (were silent)
+
+SkyRoads plays music through the AdLib/OPL FM chip but its **sound effects are
+digitized 8-bit-unsigned PCM** streamed to the SB via **single-cycle DMA (DSP
+`0x14`)**, fire-and-forget (it never waits on the block-complete IRQ — which is
+why the detection-only stub worked). Sample banks on disk:
+- `SFX.SND` (25807 B): 12-byte header = 6× `u16` offsets `[12, 3996, 9150,
+  17235, 18036, 25807=EOF]` → 5 effects, then raw unsigned-8 PCM.
+- `INTRO.SND` (32100 B): headerless raw unsigned-8 PCM (the intro sample).
+
+Per effect the driver issues `D0` (pause) → `40` (time constant = rate) → `14`
+(single-cycle DMA-out, length). Rates seen: intro `tc=90` → 6024 Hz; the
+recurring gameplay effect `tc=131` → 8000 Hz, 5153 B; also `tc=236` → 50000 Hz.
+The full E2E demo fires **57 effects** (306,264 B PCM).
+
+These were dropped because the emulated SB ran in `detection_only` mode (no PCM
+streaming). Now captured as a **pure observer**:
+- `skyroads.runtime.create_game_runtime(..., capture_sb_pcm=True)` attaches a
+  full SB that copies each DMA block into `sb.pcm_out` and logs its rate — but
+  **no block-complete IRQ is delivered**, so the CPU timeline is untouched.
+- `skyroads/audio.py::SkyroadsAudioSink` (extends the stock AdLib/speaker sink)
+  drains those blocks, linear-resamples each from its DSP rate to the mixer
+  rate, and sums them into the output alongside OPL + PC speaker.
+- Wired in `SkyroadsFrontend`: capture is enabled only for the viewer with
+  `--audio adlib` (off for headless/demo/test, so those keep the exact
+  detection-only path and accumulate no PCM).
+
+**Determinism proof (the observer guarantee):** replaying the full 1906-frame
+demo in detection-only vs capture mode is **byte-identical** — same 61,050,603
+instructions, same registers, same SHA-256 of the whole 1 MB memory image —
+while capture pulls all 57 effects (306,264 B). Locked in by
+`tests/test_sb_pcm_audio.py` (resample/mix unit tests + a byte-exact
+capture-vs-detect boot integration test). Audible artifact:
+`artifacts/skyroads_sfx_demo.wav`.
+
+### 3. AdLib works under PyPy
+
+The Nuked-OPL3 cffi extension was only built for CPython (cp311); PyPy reported
+"Nuked-OPL3 not built". Built the PyPy-ABI extension
+(`pynuked_opl3/_opl3_cffi.pypy311-pp73-win_amd64.pyd`, a gitignored build
+artifact) via `pynuked_opl3._ffi_build` under PyPy + MSVC. It loads
+(`is_available() → True`) and renders **byte-identically to CPython** (same
+SHA-256 on a test note). Build gotchas worked around: cffi's cross-drive
+`os.path.relpath` (put the build `TMP` on the same drive as the sources) and a
+trailing-space in the `TMP` env var (use cmd's quoted `set "TMP=…"`). The
+vendored `_ffi_build.py` cross-drive bug is left untouched (nested submodule).
+
 ## 2026-07-10 — full-level perf drop root-caused: the 34AE tile renderer (lifted)
 
 A full start→finish level demo (`artifacts/demos/demo_skyroads_20260710_145303`,
