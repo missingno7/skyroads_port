@@ -4,6 +4,36 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — game logic: keyboard control decode recovered (input → speed/steer/jump)
+
+Started the input side of the gameplay handler. Mapped it empirically first —
+traced which code writes each gameplay-state field over the input-carrying demo
+rather than reading disassembly and guessing (RE-hallucination guard). That gave
+clean single-writer islands: speed `[9330]` ← `08E6`, vertical `[AF1C]/[AF2C]`
+← `1965/197D`, lateral target ← `1949`, and the game-state transitions (death/
+complete) ← `2060/27FD/2AC2`.
+
+The input handler is `1010:074C`, a dispatcher on the selected control device
+`ds:[95F6]`: **0 = keyboard**, 1/2 = other devices, 2 = joystick (reads axes via
+`06B9` vs thresholds), **3 = attract-mode autopilot** (reads a packed control
+track at `ds:0x961E`, indexed by `lateral_pos / 0x666`, unpacking speed/steer/
+jump from bitfields). Live play is the keyboard case (`0758`); the whole demo
+runs `95F6==0`.
+
+Recovered the keyboard case as `skyroads/recovered/controls.py::decode_keyboard`
+— **ASM_MATCHED, 1466/1466 full-demo `074C` calls byte-exact** (497 with keys
+held). It reads the per-key row the timer ISR maintains at `ds:0x0BD0` (bit 7 =
+held) and folds nine keys (an 8-direction pad + jump) into three axes:
+`speed=[9330]`, `steer=[95F4]`, `jump=[547A]`, each `(OR of positive dirs) -
+(OR of negative dirs)`; diagonals drive both axes. Guarded by
+`tests/test_controls.py` (+ fixture). Scancode→row-offset mapping (in the ISR
+poll `3BE5`) is separate host-input plumbing, not yet recovered.
+
+⚠️ **`artifacts/gameplay_snap_f520` is attract mode (`95F6==3`), not live play.**
+Lifting `074C` from it exercises the autopilot track decoder, not the keyboard
+case — a trap for future game-logic recovery. Capture snapshots from a demo
+replay at a `95F6==0` frame instead (helper pattern in this session's scratch).
+
 ## 2026-07-10 — gameplay perf: it was a pacing/steps issue, not hook coverage (frame-park)
 
 "Gameplay performance is still not good" turned out **not** to be a
