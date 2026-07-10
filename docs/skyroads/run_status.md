@@ -52,11 +52,22 @@ even harder, −6M steps, memory differs, registers identical). The per-call
 differential verifier is authoritative. All 159 port tests pass with `186B`
 installed.
 
-Honesty note: like `34AE`, this is an installed **lift = scaffolding**, not yet
-refactored into a clean VM-free `skyroads/recovered/` island + `@oracle_link`
-(metrics-honesty). It is also not a CPython perf win (a literal lift runs at
-~interpreter speed; cf. the `34AE` profile at 5744 µs/call) — the payoff is
-correctness/coverage now, speed later via PyPy JIT or a hot-loop refactor.
+**Now refactored into a clean recovered island** (metrics-honesty debt paid):
+`skyroads/recovered/movement.py::resolve_move` is the swept movement+collision
+solver as pure, VM-free Python + `@oracle_link` — the native-port destination
+(roadmap gap #1, movement/collision logic). Verified `ASM_MATCHED` **1760/1760
+full-demo calls** by a *predicate-oracle* method: replay the exact `1732` results
+the ASM saw and check both the output accumulators AND that the reconstruction
+probes the exact same positions (an unrecorded probe = a diverged interpolation).
+This caught a real edge-case bug the 250-sample missed — the axis-refine
+direction uses an **unsigned** compare (`cmp [bp+8],ax; ja`), not signed; it only
+matters when the depth accumulator and its target straddle 0x8000 (2 of 1760
+calls). Guarded by `tests/test_movement.py` (fixture includes those cases). The
+`186B` **lift stays installed as the byte-exact VM hook** (it reproduces the
+exact register/stack state the differential verifier needs); `movement.py` is the
+clean logic that replaces it when the VM is retired. Note neither is a CPython
+perf win (`186B` is only ~2-4% of interpreted work; the lift runs at
+~interpreter speed) — the value here is correctness + native-port coverage.
 
 ## 2026-07-10 — audio: digital SB PCM effects + AdLib-on-PyPy + correct 30 Hz frame rate
 
