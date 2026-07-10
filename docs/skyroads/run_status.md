@@ -4,6 +4,62 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — found + fixed two more music-engine bugs; shelved wiring it as a live hook (wrong tool for the perf goal)
+
+Continued from the perf diagnosis below by attempting cause #3: wire the
+verified `music.py::Engine` as a real `registry.replace` hook for `1010:5A55`,
+replacing the `emulate_call` in `master_timer_isr`. Two things came out of
+this attempt:
+
+**Two more real bugs found and fixed**, both invisible to the existing
+per-tick ASM-comparison fixtures (which always have the real ASM running
+alongside, keeping memory in sync regardless of what the Python engine's own
+state holds) and only exposed by simulating what a *live* hook must do —
+drive itself off nothing but its own committed state across many ticks:
+
+1. The delay-decrement off-by-one documented in the commit above (the loop-back
+   target is the delay check itself, not the word-fetch — the arming tick
+   also performs the first decrement).
+2. (From the prior session entry) cursor/loop not persisted to memory.
+
+Both fixed and regression-tested with a synthetic multi-tick simulation (no
+VM) whose expected sequence was computed, not hand-derived, after hand-tracing
+produced the very bug being fixed. Re-verified byte-exact against the ASM
+over the whole cold-sound demo (12,882/12,882 ticks) after each fix.
+
+**Wiring it as a live hook is shelved — wrong tool for this goal.** The
+project's differential verifier (`HookVerifierConfig.strict()`) compares the
+*entire* machine state after a hook call: every register (AX/BX/CX/DX/SI/DI/
+BP/SP), segments, flags, and DOS/OPL device state — not just memory or
+observable output. Tracing what `1010:5A55`'s handlers leave in scratch
+registers on every exit path turned up a deeper problem than incidental
+bookkeeping: the ASM's `opl_write` primitive (`1010:5892`) ends with `in
+al,dx` — a real hardware status-port *read* — so the exact value left in AL
+depends on the emulated OPL device's live status byte at that instant, not on
+game logic at all. Getting register-exact parity would mean replicating that
+port-read side effect (and equivalents for every opcode's exit path), which
+has nothing to do with the actual sound behavior and would turn the clean
+recovered `Engine` into hardware-timing bookkeeping.
+
+Even if that effort were spent, it likely **wouldn't fix the user's actual
+complaint**: an earlier finding in this project (the `34AE` renderer hook)
+already established that a mechanically-exact lift runs at roughly
+interpreter speed under CPython — only a refactor into genuinely different
+Python control flow (or a PyPy JIT) yields a real speedup. `music.py::Engine`
+*is* that refactor, but achieving strict-verifier parity would mean adding
+back the ASM's own register/port-timing bookkeeping, undermining the reason
+it would be fast in the first place.
+
+**Conclusion: `music.py::Engine` stays as verified-by-output recovered logic**
+(the right tier for it — same as `advance_ship`/`decay_bounce`, sampled/output
+verified rather than a live differential-machine-state replacement), valuable
+for the eventual native port, not wired as a CPython speed hook. The real
+fix for causes #1 and #2 below (the un-hooked text-render and buffer-scan
+loops) is more promising: likely simpler register footprints, no hardware-
+timing reads, and they're the actual source of the multi-hundred-ms frame
+hitches — sound delay is a symptom of those, not of the sound engine's own
+per-tick cost. 175 tests pass.
+
 ## 2026-07-11 — diagnosed the reported perf drops + "sound delay": three distinct un-hooked causes
 
 User report: visible performance drops during some transitions, and sound
