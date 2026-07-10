@@ -4,7 +4,26 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
-## 2026-07-10 — sound/music engine fully reverse-engineered (island tee-up)
+## 2026-07-10 — sound/music island COMPLETE (OPL music engine recovered + verified)
+
+Recovered the whole AdLib/OPL music engine into
+`skyroads/recovered/music.py::Engine.run_tick` — a pure, VM-free song-bytecode
+interpreter (all 8 opcodes incl. the intricate note/instrument/pitch/volume
+register math). **Verified byte-exact**: its OPL register-write stream matches
+the ASM over **all 12,882 cold-sound-demo ticks (intro + menu), zero
+divergences** — lockstep per tick, same proof style as the SB-PCM work. Status
+`VERIFIED`. Guarded by `tests/test_music.py` (+ fixture); the transcription was
+byte-exact on the first lockstep run.
+
+Recovery notes for the trickier handlers: op1 loads an 11-register FM patch
+(operator regs `slot[ch] + offset[i]`, op-2 registers skipped on an add-carry,
+the 11th/connection register gated on a `0xFF` sentinel); op2 computes octave =
+`note/12 + 2` and F-number from `note%12` tables, writes `A0` then `B0|key-on`,
+and channels whose `B0` reg reaches `0xB6` fall through into the rhythm path;
+op4 scales operator total-level with a per-level bias and `0x3F` clamp. The
+song data + tables are *data the port loads*, not code (see below).
+
+The reverse-engineering that made this possible (unchanged, kept for reference):
 
 Reverse-engineered the whole AdLib/OPL music driver — see
 [`sound_engine.md`](sound_engine.md). It is a compact **music-bytecode

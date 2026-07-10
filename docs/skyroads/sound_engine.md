@@ -83,11 +83,16 @@ op1 and op2 both call op3 (`59CF`) first to key the channel off.
 | `0C6B` | op2 | note → F-number low table |
 | `0C77` | op2 | note → F-number high / octave table |
 
-## What "fully complete" means here
+## Status: COMPLETE ✅
 
-Recover `opl_write` + the tick engine + the 8 handlers + the note-frequency math
-as clean VM-free Python operating on (song stream, tables, state), and **verify
-it produces the byte-identical OPL register-write stream** as the ASM over the
-cold-sound demo (lockstep per tick, like the SB-PCM determinism proof). The song
-data and the tables above are *data the port loads*, not code to rewrite. This
-retires the last big interpreted subsystem for the VM-less port.
+Recovered as `skyroads/recovered/music.py::Engine.run_tick` — clean VM-free
+Python operating on (song stream, tables, state) via two DGROUP readers.
+**Verified byte-exact**: the OPL register-write stream matches the ASM over all
+**12,882 cold-sound-demo ticks, zero divergences** (lockstep per tick, like the
+SB-PCM determinism proof). Guarded by `tests/test_music.py`.
+
+The song data and the tables above are *data the port loads*, not code to
+rewrite — a native port supplies `rb`/`rw` over its own copy and gets the exact
+OPL programming for free. This retires the music sequencer for the VM-less port
+(remaining sound work: the SFX trigger path and the OPL init/instrument-load at
+driver start, both smaller).
