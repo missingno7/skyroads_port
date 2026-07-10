@@ -55,17 +55,33 @@ def test_reset_opl_matches_asm() -> None:
 
 
 def test_engine_persists_cursor_and_delay_across_ticks() -> None:
-    """Regression test for a real bug: an earlier version tracked ``cursor``/
-    ``loop`` purely as Python locals and never decremented ``[0C83]`` when
-    waiting, so calling ``run_tick()`` repeatedly off ITS OWN committed state
-    (as a live replacement hook must, with no original ASM running alongside
-    to keep memory in sync) either replayed the same song words forever or
-    never advanced past a wait. Simulates exactly that: a tiny synthetic song
-    in a plain dict, driven tick-by-tick through nothing but ``Engine``."""
+    """Regression test for two real bugs found while checking whether the
+    engine could be wired as a live replacement hook (which must drive itself
+    off ITS OWN committed state, with no original ASM running alongside to
+    keep memory in sync -- unlike the ASM-comparison fixtures above, which
+    can't catch either of these):
+
+    1. An earlier version tracked ``cursor``/``loop`` purely as Python locals
+       and never wrote them back to ``ds:[3196]``/``[3198]``, so a second call
+       would just replay the same words forever.
+    2. The ASM's loop-back target (1010:5A7B `jmp 5A58`) is the delay check
+       ITSELF, not the word-fetch -- so when an ``op0`` arms the delay counter,
+       the very same tick immediately loops back, sees it nonzero, and
+       decrements it once more before returning. The stored delay after a
+       tick that arms it is one less than the song data says. Both the "just
+       return" and the "decrement once" shapes emit identical (empty) OPL
+       output for that tick, so pure output verification against the ASM
+       cannot distinguish them -- only replaying many ticks off nothing but
+       the engine's own state exposes it.
+
+    Simulates exactly that: a tiny synthetic song in a plain dict, driven
+    tick-by-tick through nothing but ``Engine``, with the expected sequence
+    below independently computed (not hand-derived) and cross-checked to be a
+    stable, self-repeating cycle -- confirming the state doesn't drift.
+    """
     # word layout: op=word&7 (3 bits), al=(word&0xFF)>>4 (4 bits), ah=(word>>8)&0xFF.
     # op0 (delay:=3), op7 (flag:=0x11), op0 (delay:=0 -- immediate), op7 (flag:=0x22), loop via op5
     WORDS = [0x0300, 0x1107, 0x0000, 0x2207, 0x0005]
-    LOOP_TARGET_INDEX = 0  # op5 sends the cursor back to the first word
     base = 0x4000
     mem = {}
     for i, w in enumerate(WORDS):
@@ -95,26 +111,14 @@ def test_engine_persists_cursor_and_delay_across_ticks() -> None:
     def cursor():
         return mem[CURSOR] | (mem[CURSOR + 1] << 8)
 
-    # tick 1: processes word0 op0(delay:=3), no OPL writes (op0/op5/op7 never touch the OPL)
-    assert tick() == []
-    assert mem[DELAY] == 3 and cursor() == base + 2
-    # ticks 2-4: waiting -- delay counts down 3,2,1 and nothing else happens (a bug
-    # that forgot to decrement would spin here forever without ever progressing)
-    for expected in (2, 1, 0):
-        assert tick() == []
-        assert mem[DELAY] == expected
-    # tick 5: delay hit 0 -- resumes the stream and runs to completion WITHOUT
-    # stopping (nothing in words 1-4 arms a nonzero delay): op7(0x11), op0(delay:=0,
-    # i.e. keep going), op7(0x22), op5(cursor:=loop==base) sends it back to word0,
-    # which the SAME tick then re-processes (op0, delay:=3) -- that's what finally
-    # ends the tick.  The bug this guards against: cursor stuck / drifting forever.
-    assert tick() == []
-    assert mem[DELAY] == 3 and cursor() == base + 2
-    # the exact tick-1 outcome, one full loop cycle later -- proves the state stays
-    # in a stable, self-consistent cycle across many hook-only-driven ticks, not
-    # just one (a persistence bug could easily survive a single-cycle check).
-    for _ in range(3):
+    # Arming to 3 nets an effective 2-tick wait (the arming tick itself performs
+    # the first decrement -- see bug 2 above), then the "delay==0" tick both
+    # finishes waiting AND re-arms in one call: a stable period-3 cycle,
+    # [2, 1, 0], repeating forever; the cursor always ends back at base+2 (word0
+    # consumed every time the cycle re-arms). No tick ever produces an OPL write
+    # (this song only exercises op0/op5/op7, none of which touch the OPL).
+    for _ in range(4):                 # several full cycles -- proves no drift
         for expected in (2, 1, 0):
-            assert tick() == [] and mem[DELAY] == expected
-        assert tick() == []
-        assert mem[DELAY] == 3 and cursor() == base + 2
+            assert tick() == []
+            assert mem[DELAY] == expected
+            assert cursor() == base + 2

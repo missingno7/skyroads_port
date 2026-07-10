@@ -196,24 +196,37 @@ class Engine:
         the ASM stores unconditionally each word via `mov ds:[3196],si`
         (1010:5A69), and which must be committed for the *next* tick to resume
         from the right position rather than replaying this one forever).
+
+        Faithfully mirrors the ASM's loop shape (1010:5A58 is the top of the
+        loop, not just an entry check): every iteration checks the delay
+        counter FIRST and decrements+exits if it's nonzero, THEN (only if it
+        was zero) fetches and dispatches one word, then loops back to that same
+        check. So when an ``op0`` (delay) fires mid-tick, the very next
+        iteration immediately sees the freshly-armed nonzero delay and
+        decrements it once *before* returning — the delay actually stored
+        after a tick that arms it is one less than the value the song data
+        specifies. This has no effect on the OPL write stream (arming and
+        decrementing both emit nothing), so per-tick output verification alone
+        cannot catch getting it wrong -- only matters for how many *subsequent*
+        ticks wait, i.e. music timing once this drives OPL writes on its own
+        rather than merely being cross-checked against ASM that is still
+        running (see the multi-tick self-consistency regression test).
         """
         self.ovl = {}
         self.writes = []
         self.cursor = self.rw(CURSOR)
         self.loop = self.rw(LOOP)
         self.instr_base = self.rw(INSTR_BASE)
-        delay = self.rb(DELAY)
-        if delay != 0:
-            self._wb(DELAY, delay - 1)                 # 5A5F `dec ds:[0C83]`
-            return self.writes
         while True:
+            delay = self._rb(DELAY)                        # 5A58 (overlay-aware: sees
+            if delay != 0:                                  # an op0 armed just this tick)
+                self._wb(DELAY, delay - 1)                  # 5A5F `dec ds:[0C83]`
+                return self.writes
             word = self.rw(self.cursor)
             self.cursor = (self.cursor + 2) & 0xFFFF
             self._ww(CURSOR, self.cursor)
             op = word & 7
             self._DISPATCH[op](self, (word & 0xFF) >> 4, (word >> 8) & 0xFF)
-            if self._rb(DELAY) != 0:
-                return self.writes
 
     #: Fixed instrument-table base the reset routine loads percussion patches
     #: from (1010:58E2 `mov ds:[3194],0x0C84`) -- distinct from the live song's
