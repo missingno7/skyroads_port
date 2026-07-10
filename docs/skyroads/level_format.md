@@ -62,11 +62,21 @@ drawer:
         or the per-tile handler `[0E40]` (RLE sprites 3153/3190)
 ```
 
-So a block's on-screen appearance is a **pre-drawn bitmap** (selected by
-`bitmap_off/seg` from block C) blitted at a screen position derived from the grid
-cell + the projection LUT (block B); `height` (`0E34`, 40+ distinct values per
-level) picks the tile stack / face. Nothing is extruded — "height" is art +
-table lookup.
+So a block's on-screen appearance is a **pre-drawn bitmap** blitted at a screen
+position derived from the grid cell + the projection LUT (block B). A block type
+ships as a **set of pre-scaled frames** (in the `5E61` graphics bank); as a block
+approaches, the renderer swaps among those frames by distance rather than scaling
+at runtime (see `rendering_architecture.md` §3b). Empirically, a grid cell is
+read **once when it scrolls into the visible range** and its instance cached;
+per-frame draws then use the cached position + a distance-selected frame (the
+`draw_tile` `height` arg is the block's *current projected screen height*, e.g.
+`0x08→0x2F→…` as it nears and passes, not a raw grid value).
+
+**Not yet pinned:** the exact per-cell field split of block A (which nibbles/
+bytes are lane vs block-type vs colour vs the grid coordinate) — that needs
+tracing the grid-scan that spawns block instances (distinct from the per-frame
+draw path observed here). The container format, block roles, and the
+projection-LUT-is-data finding above are solid.
 
 ## Summary
 

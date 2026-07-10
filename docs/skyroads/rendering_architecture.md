@@ -66,6 +66,19 @@ main loop (22xx) --per frame--> 0C98 render frame
    section with `[9336]≈1`; a busier level demo is needed to watch `[9336]`
    scroll and confirm its exact role — pending.)
 
+3b. **Blocks are pre-scaled sprite frames chosen by distance — not scaled at
+   runtime, and certainly not extruded.** Watching a single block approach and
+   pass (draw-tile capture, frames 19→32 of the `world7` demo): its on-screen
+   height rises then falls (`0x08→0F→16→1C→25→29→2B→2D→2F→2F→2D→2B→29→25`) and
+   the engine **swaps among different pre-drawn bitmaps** for it
+   (`5E61:7E90, 8160, 9510, 8F70, 9240, A050 …`) as its apparent size changes.
+   So each block type ships as a *set of artist-drawn frames at discrete
+   scales*; the renderer picks the frame for the current distance (via the
+   projection LUT) and blits it. No runtime scaling, no per-vertex math — the
+   textbook "scaled-sprite billboard road-object" trick. The ground/road surface
+   is the same idea: flat tiles whose bitmap cycles per row for the scroll
+   texture (height 0, reading road params `[5506]/[550A]`).
+
 4. **Rasterization is blitting, not triangles.** `38BF` copies vertical pixel
    runs from a source bitmap to the screen (scanline strips). `325B` draws road
    **tiles** as bitmap blits through a coverage mask (`32C1`) then applies a
