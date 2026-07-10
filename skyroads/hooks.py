@@ -1088,11 +1088,13 @@ def _sgn16(v):
     return v - 0x10000 if v >= 0x8000 else v
 
 
-def _tile_clip_mask_hook(cpu: CPU8086) -> None:
-    s = cpu.s
+# The mask-build loop, shared by the standalone tile_clip_mask hook AND the
+# whole-tile rasterizer at 325B (which calls 32C1 as its first step). Returns
+# the loop's final (ax,bx,cx,dx,si,di,dx_before) so the standalone hook can
+# reproduce 32C1's exact exit registers; 325B ignores them. The mask always
+# writes to ss:[0E86] (32C1 sets es=ss internally, restoring the caller's es).
+def _tile_mask_build(cpu: CPU8086, ds: int, ss: int, ax: int, cx: int):
     mem = cpu.mem
-    ds, ss = s.ds, s.ss
-    ret_ip = mem.rw(ss, s.sp)
     rw, ww, wb = mem.rw, mem.ww, mem.wb
 
     # 32C6-32CE: zero 0x1DE words at es(=ss):[0E86].
@@ -1103,8 +1105,6 @@ def _tile_clip_mask_hook(cpu: CPU8086) -> None:
     bx = rw(ds, 0x0E2C)                          # 32D3
     si = ((0x009D - rw(ds, 0x0E2C)) << 1) & 0xFFFF  # 32D7-32DE
     dx = _TILE_MASK_ROWS                         # 32E0
-    ax = s.ax
-    cx = s.cx
 
     while True:                                  # row loop @32E3
         if not (bx > 0x009D or bx < 0x0014):     # 32E3 ja / 32E9 jb (unsigned) -> skip
@@ -1153,6 +1153,13 @@ def _tile_clip_mask_hook(cpu: CPU8086) -> None:
         dx = (dx - 1) & 0xFFFF                        # 3363
         if dx == 0:                                  # 3364 jz 3369
             break
+    return ax, bx, cx, dx, si, di, dx_before
+
+
+def _tile_clip_mask_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    ret_ip = cpu.mem.rw(s.ss, s.sp)
+    ax, bx, cx, dx, si, di, dx_before = _tile_mask_build(cpu, s.ds, s.ss, s.ax, s.cx)
 
     s.ax, s.bx, s.cx, s.dx, s.si, s.di = (ax & 0xFFFF, bx & 0xFFFF, cx & 0xFFFF,
                                           dx & 0xFFFF, si & 0xFFFF, di & 0xFFFF)
@@ -1188,23 +1195,21 @@ _TILE_SHADE_PATTERN_BASE = 0x068E
 _TILE_SHADE_MASK_BASE = 0x113E
 
 
-def _tile_shade_hook(cpu: CPU8086) -> None:
-    s = cpu.s
+# The shade loop, shared by the standalone tile_shade hook AND the 325B
+# rasterizer (which calls 33FD as its last step). Reads/writes es:[di] (the dest
+# buffer) and ds=ss globals. Returns (early, ax,bx,cx,dx,si,di,dx_before,rem) so
+# the standalone hook can reproduce 33FD's exact exit registers; 325B ignores
+# them (it only needs the pixel writes). `early` marks the tile-index>=5 no-op.
+def _tile_shade_build(cpu: CPU8086, ss: int, es: int):
     mem = cpu.mem
-    ss, es = s.ss, s.es
-    ds = ss                                         # 33FD mov ds,ss
-    ret_ip = mem.rw(ss, s.sp)
     rb, wb, rw = mem.rb, mem.wb, mem.rw
+    ds = ss                                         # 33FD mov ds,ss
 
     v34 = rw(ss, 0x0E34)
     ax = v34 // 5                                    # 3403-3409 div 5
     rem = v34 % 5
     if ax >= 5:                                       # 340B cmp ax,5; 340E jnb 347D
-        s.ax, s.dx, s.cx, s.ds = ax & 0xFFFF, rem & 0xFFFF, 5, ss
-        cpu.set_sub_flags(ax, 5, ax - 5, 16)          # cmp ax,5
-        s.sp = (s.sp + 2) & 0xFFFF
-        s.ip = ret_ip
-        return
+        return True, ax, 0, 5, rem, 0, 0, 0, rem
 
     si = (_TILE_SHADE_PATTERN_BASE + ax * 0x0105) & 0xFFFF   # 3410-3418
     row = (0x009D - rw(ss, 0x0E2C) + 0x0010 + v34) & 0xFFFF  # 341A-3424
@@ -1240,14 +1245,25 @@ def _tile_shade_hook(cpu: CPU8086) -> None:
         dx = (dx - 1) & 0xFFFF                          # 347A
         if dx == 0:                                     # 347B jnz 343F
             break
+    return False, ax, bx, 0, 0, si, di, dx_before, rem
 
-    s.ax, s.bx, s.cx, s.dx, s.si, s.di, s.ds = (
-        ax & 0xFFFF, bx & 0xFFFF, 0, 0, si & 0xFFFF, di & 0xFFFF, ss)
-    # exit flags: `dec dx` (1 -> 0) sets SF/ZF/PF/AF/OF, preserves CF from the
-    # preceding `sub bx,0x0104` (3476). bx here is the post-sub value.
-    sub_borrow = ((bx + 0x0104) & 0xFFFF) < 0x0104
-    cpu.set_sub_flags(dx_before, 1, dx_before - 1, 16)
-    cpu.set_flag(CF, sub_borrow)
+
+def _tile_shade_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    ss = s.ss
+    ret_ip = cpu.mem.rw(ss, s.sp)
+    early, ax, bx, cx, dx, si, di, dx_before, rem = _tile_shade_build(cpu, ss, s.es)
+
+    if early:
+        s.ax, s.dx, s.cx, s.ds = ax & 0xFFFF, rem & 0xFFFF, 5, ss
+        cpu.set_sub_flags(ax, 5, ax - 5, 16)          # cmp ax,5
+    else:
+        s.ax, s.bx, s.cx, s.dx, s.si, s.di, s.ds = (
+            ax & 0xFFFF, bx & 0xFFFF, 0, 0, si & 0xFFFF, di & 0xFFFF, ss)
+        # exit flags: `dec dx` (1 -> 0) sets SF/ZF/PF/AF/OF, preserves CF from
+        # the preceding `sub bx,0x0104` (3476). bx here is the post-sub value.
+        cpu.set_sub_flags(dx_before, 1, dx_before - 1, 16)
+        cpu.set_flag(CF, ((bx + 0x0104) & 0xFFFF) < 0x0104)
 
     s.sp = (s.sp + 2) & 0xFFFF
     s.ip = ret_ip
@@ -1256,6 +1272,75 @@ def _tile_shade_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x33FD, "tile_shade")
 def tile_shade_hook(cpu: CPU8086) -> None:
     _tile_shade_hook(cpu)
+
+
+# CS:IP 1010:325B -- the whole road-tile RASTERIZER, and the first hook that
+# COLLAPSES two child hooks: it calls 32C1 (build the coverage mask) and 33FD
+# (shade) directly, and this hook reproduces BOTH by calling the shared
+# _tile_mask_build / _tile_shade_build helpers -- so the 32C1 and 33FD hooks no
+# longer fire on this path; their logic lives once and is reused. Bare near proc
+# saving bx/di/ds/es (all restored), so only AX/CX/DX/SI + flags are caller-
+# visible scratch. Steps: es←ds:[0E36]; build mask at ss:[0E86]; compute a
+# screen offset di (stored at ds:[0E6C]); `lds si,[0E2E]` loads the tile bitmap
+# far pointer (DS -> the bitmap segment); then a 29-row x 24-col masked blit
+# copies each non-zero bitmap pixel to es:[di] wherever the coverage mask is
+# set (marking that mask byte 2); finally 33FD shades. Exit AX/CX/DX/SI + flags
+# come from the trailing 33FD call (its results are 325B's last writes before
+# the register-restoring pops); bx/di/ds/es are popped back to the caller's.
+def _tile_rasterizer_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss = s.ss
+    ret_ip = mem.rw(ss, s.sp)
+    rb, wb, rw = mem.rb, mem.wb, mem.rw
+
+    es = rw(ss, 0x0E36)                               # 3263 mov es,[0E36]
+    _tile_mask_build(cpu, ss, ss, s.ax, s.cx)         # 3267 call 32C1
+
+    di = (_sgn16((0x009D - rw(ss, 0x0E2C)) & 0xFFFF) * 0x0140) & 0xFFFF  # 326A-3274
+    di = (di + rw(ss, 0x0E28) - 0x006E) & 0xFFFF      # 3278-327C
+    mem.ww(ss, 0x0E6C, di)                             # 327F
+    si = rw(ss, 0x0E2E)                                # 3283 lds si,[0E2E]
+    tile_seg = rw(ss, 0x0E30)
+
+    bx = 0                                             # 3287
+    dx = 0x001D                                        # 3289 (29 rows)
+    while True:
+        cx = 0x0018                                    # 328C (24 cols)
+        while True:
+            al = rb(tile_seg, si)                      # 328F lodsb
+            si = (si + 1) & 0xFFFF
+            if al != 0 and rb(ss, (_TILE_MASK_BUF + bx) & 0xFFFF) != 0:  # 3290-329A
+                wb(ss, (_TILE_MASK_BUF + bx) & 0xFFFF, 0x02)            # 329C
+                wb(es, di, al)                          # 32A2 mov es:[di],al
+            di = (di + 0x0140) & 0xFFFF                # 32A5
+            bx = (bx + 0x001D) & 0xFFFF                # 32A9
+            cx -= 1
+            if cx == 0:                                 # 32AC loop
+                break
+        di = (di - 0x1DFF) & 0xFFFF                    # 32AE
+        bx = (bx - 0x02B7) & 0xFFFF                    # 32B2
+        dx = (dx - 1) & 0xFFFF                          # 32B6
+        if dx == 0:                                     # 32B7 jnz 328C
+            break
+    blit_si = si
+
+    early, ax, bx2, cx2, dx2, si2, di2, dx_before, rem = _tile_shade_build(cpu, ss, es)  # 32B9 call 33FD
+    if early:
+        s.ax, s.dx, s.cx, s.si = ax & 0xFFFF, rem & 0xFFFF, 5, blit_si & 0xFFFF
+        cpu.set_sub_flags(ax, 5, ax - 5, 16)
+    else:
+        s.ax, s.cx, s.dx, s.si = ax & 0xFFFF, 0, 0, si2 & 0xFFFF
+        cpu.set_sub_flags(dx_before, 1, dx_before - 1, 16)
+        cpu.set_flag(CF, ((bx2 + 0x0104) & 0xFFFF) < 0x0104)
+
+    s.sp = (s.sp + 2) & 0xFFFF
+    s.ip = ret_ip
+
+
+@registry.replace(CODE_SEG, 0x325B, "tile_rasterizer")
+def tile_rasterizer_hook(cpu: CPU8086) -> None:
+    _tile_rasterizer_hook(cpu)
 
 
 # CS:IP 1010:3153 -- the FORWARD run-length sprite rasterizer (one of a mirror

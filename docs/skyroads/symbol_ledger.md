@@ -96,6 +96,10 @@ layout — not yet independently confirmed record-by-record on our side).
 
 **Hooked as `tile_shade`** — faithful replication (leaf, no calls); verified byte-exact first try. Same exit-CF nuance as `tile_clip_mask` (the terminating `dec dx` preserves CF from the preceding `sub bx,0x0104`). Called from `325B` (which also builds the mask via `32C1`); it is the tile pathway's pixel-write leaf on this demo, the counterpart to the road-segment path's `38BF`.
 
+| `325B`-`32C0` | The whole road-tile RASTERIZER. Bare near proc saving bx/di/ds/es. Sets `es←ds:[0E36]`, calls `32C1` (build coverage mask at `ss:[0E86]`), computes a screen offset (stored `ds:[0E6C]`), `lds si,[0E2E]` loads the tile-bitmap far pointer, does a 29×24 masked blit copying each non-zero bitmap pixel to `es:[di]` where the coverage mask is set (marking those mask bytes 2), then calls `33FD` (shade). | full fixed-length disasm (2026-07-10) + strict differential verifier (full-demo, 264 calls, 0 divergence) | VERIFIED |
+
+**Hooked as `tile_rasterizer` — the first hook that COLLAPSES two child hooks.** It reproduces the `32C1` and `33FD` calls by invoking the SHARED `_tile_mask_build`/`_tile_shade_build` helpers (extracted from those hooks so the logic lives once), plus the masked blit inline. With `325B` installed, the `32C1` and `33FD` hooks fire **0 times on this demo** — they are subsumed — while still passing standalone when `325B` is disabled (they remain live for `31DB`'s off-path use of `32C1`). This is the concrete demonstration of the island's upward-collapse: N leaf hooks → one higher-level boundary calling shared recovered logic.
+
 ## Renderer island — layer map (2026-07-10)
 
 The road/object renderer is now recovered bottom-up as a verified island; only
