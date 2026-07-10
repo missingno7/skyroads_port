@@ -4,6 +4,34 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — full-level perf drop root-caused: the 34AE tile renderer (lifted)
+
+A full start→finish level demo (`artifacts/demos/demo_skyroads_20260710_145303`,
+1,906 frames, 54.5M steps — the user flagged in-level performance drops) profiled
+to a new dominant un-hooked cost: **page `3500` = 29.4% of interpreted work**
+(the hot loop at `356B`), not prominent in earlier demos. It is the
+`[0E38]`-dispatched tile renderer `1010:34AE` (reached via the `34A7` wrapper) —
+a different tile-render variant this world uses heavily.
+
+Recovered with the **automatic lifter** (`dos_re.lift`): `34AE` is 100% liftable
+(130 insts, 28 blocks, one indirect call run through the VM); `liftverify`
+proved it `ORACLE_PASSING` — 401 calls, 26/28 blocks byte-exact, and a further
+400 full-level-demo calls under the strict differential verifier, zero
+divergence. Installed as `skyroads/lifted/lifted_1010_34ae.py` +
+`registry.replace(0x34AE)`.
+
+Honesty notes:
+- **The raw lift gives ~no CPython speedup** (full-demo wall ~20.4s with vs
+  without) — a literal per-instruction lift runs at roughly interpreter speed.
+  The real perf win needs the hot `356B` loop **refactored into efficient
+  Python** (as `38BF`/`325B` were), and/or PyPy JIT-compiling the lift. The
+  install is correct scaffolding; the refactor into a clean
+  `skyroads/recovered/` island (metrics-honesty rule) is the to-do.
+- A cautionary self-note: a first verification of the lift falsely "diverged"
+  — the ad-hoc harness had installed the `1732` hook function at address
+  `0x34AE` (a sed slip). Always verify the ACTUAL lifted function; `liftverify`
+  (purpose-built) is the trustworthy path.
+
 ## 2026-07-10 — first AUTO-LIFTED island: the master timer ISR (1010:3B17)
 
 The game's INT 08h handler (master clock + music tempo) is the port's first
