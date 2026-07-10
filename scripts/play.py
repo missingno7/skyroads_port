@@ -61,7 +61,16 @@ class SkyroadsFrontend(player.GameFrontend):
     name = "skyroads"
     default_exe = str(ROOT / "assets" / "SKYROADS.EXE")
     default_game_root = str(ROOT / "assets")
-    default_steps_per_frame = 30_000
+    # With --frame-park (default), most frames end at the tick-wait (real work
+    # p50 ~9.2k steps), so this is a *ceiling*, not the per-frame cost. Size it
+    # ABOVE the game's peak per-frame work so no frame is cut mid-tick: measured
+    # peak over the full level is 37,309 steps (113/1906 frames exceed 30,000);
+    # 48,000 clears it with ~28% headroom. Do NOT shrink it toward the average
+    # -- a budget below peak makes the original ASM see itself lagging and engage
+    # its own lag compensation (pre2_port learned this; see run_status.md).
+    # steps_per_frame is stored in demo_metadata, so existing demos still replay
+    # at their recorded budget regardless of this default.
+    default_steps_per_frame = 48_000
     default_timer_irqs_per_frame = 6   # matches SKYROADS' own 6:1 INT 08h software prescaler
     # SKYROADS reprograms PIT channel-0 to divisor 6628 => 1193182/6628 = 180.0 Hz
     # IRQ0 (NOT the 18.2 Hz BIOS default; confirmed by tracing OUT 40h at boot).

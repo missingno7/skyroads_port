@@ -49,6 +49,21 @@ of fade-loop scratch at DGROUP+0xB87C** (a blend/poll counter written by
 `43A9`/`415x`, never read into game state or any rendered frame). Locked in by
 `tests/test_frame_park.py`.
 
+**Budget resized to a ceiling above peak work (30000 → 48000).** With the park
+on, `steps_per_frame` is no longer the per-frame cost — it is a ceiling for the
+frames that *don't* park. Measured real work over the level: p50 ~9.2k, p99
+~34.8k, **peak 37,309** (113/1906 frames exceed 30000 and were being cut
+mid-tick). So the budget must be sized *above* the peak, not toward the average:
+48000 clears 37,309 with ~28% headroom. Shrinking it (e.g. to 5000) is the wrong
+instinct — a budget below peak makes the original ASM see itself lagging and
+engage its own lag compensation (deterministic but not original pacing; the
+lesson is in `pre2_port/scripts/play.py`, which warns below chunk 20000). Safe
+to change: `steps_per_frame` lives in `demo_metadata`, so existing demos replay
+at their recorded budget regardless of the default. (The title/menu idle loops
+are a *different* set of un-parked waits — `skyroads/input_waits.py` is still
+empty — so a fresh boot still spins near the ceiling; parking those is future
+work.)
+
 Also fixed a **pre-existing CI break** surfaced along the way: the updated
 dos_re submodule now ships `dos_re/tests/`, whose top-level package name
 `tests` collided with this repo's `tests/` on `pythonpath`, breaking collection
