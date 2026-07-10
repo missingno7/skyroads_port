@@ -43,10 +43,12 @@ STATE_GAMEPLAY = 3  # ds:[456E] value while in the gameplay update loop
 
 @oracle_link(
     boundary="1010:24C4",
-    contract="advance_ship(pos, speed): pos += speed*75 (32-bit), then clamp to "
-             "[0, 0x2AAA]. Reaching 0x2AAA completes the level. speed*75 is a "
-             "32-bit ulong_mul of the sign-extended speed by 75.",
-    status="ASM_MATCHED",  # 51/51 in-gameplay samples reproduce the ASM's post-clamp pos
+    contract="advance_ship(pos, speed): pos += sign_extend16(speed)*75 (32-bit), "
+             "then clamp the signed result to [0, 0x2AAA]. Reaching 0x2AAA "
+             "completes the level. The ASM sign-extends speed (cwd at 24C7) into "
+             "a 32-bit value before the ulong_mul by 75, so a negative speed "
+             "moves the ship backward.",
+    status="ASM_MATCHED",  # reproduces the ASM post-clamp pos over all full-demo samples
     merge_target="skyroads.native.player (future)",
 )
 def advance_ship(pos: int, speed: int) -> int:
@@ -55,7 +57,10 @@ def advance_ship(pos: int, speed: int) -> int:
     ``pos`` and the return are the 32-bit forward position (ds:[54AC:54AE]);
     ``speed`` is ds:[9330]. Reaching ``LEVEL_END`` means the level is complete.
     """
-    pos = (pos + (speed & 0xFFFF) * SPEED_TO_POS) & 0xFFFFFFFF
+    s = speed & 0xFFFF
+    if s & 0x8000:                  # cwd: sign-extend speed to 32-bit before *75
+        s -= 0x10000
+    pos = (pos + s * SPEED_TO_POS) & 0xFFFFFFFF
     if pos & 0x80000000:            # went negative (high bit set) -> clamp to start
         pos = 0
     elif pos > LEVEL_END:           # 1010:2505-2528 clamp to the road end

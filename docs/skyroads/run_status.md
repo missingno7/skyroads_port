@@ -4,6 +4,23 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-10 — physics recovery verified full-demo + a negative-speed bug fixed
+
+Brought the recovered ship physics (`skyroads/recovered/player.py`) up to the
+movement-island standard: captured real `advance_ship` (`24C4`) and
+`decay_bounce` (`24A1`) I/O by watching those inline IPs over the whole demo and
+verified `player.py` reproduces every sample byte-exact — **1610/1610
+advance_ship, 63/63 decay_bounce**.
+
+The capture found a real bug: the ASM sign-extends speed (`cwd` at `24C7`) into a
+32-bit value before `ulong_mul(speed, 75)`, but `advance_ship` used
+`(speed & 0xFFFF) * 75` (unsigned 16-bit). They diverge for negative speed — the
+ship moving *backward* — which happens **33 of 1610 calls** (e.g. speed `0xFFFF`
+= −1 should step pos back by 75; the old code clamped it wrong). Fixed to
+sign-extend; all 33 now match. Guarded by `tests/test_player.py` (fixture
+includes the negative-speed cases). Same lesson as the `186B` unsigned/signed
+edge case — full-trace verification catches what sampled checks miss.
+
 ## 2026-07-10 — lifted the 186B road-segment stepper (movement + swept collision)
 
 `1010:186B` — the "largest single remaining recovery" per rendering_architecture
