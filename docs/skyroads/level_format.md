@@ -29,9 +29,9 @@ level-load demo:
 
 | Block | Lands at (seg:off) | Size | Role |
 |---|---|---|---|
-| A | `1686:54B0` | 7,926 B | **the level GRID** (block layout) — see below |
+| A | `1686:54B0` | 7,926 B | **block/scaled-sprite descriptor table** — ~16-byte records with far-pointer fields, read by the road-walk (see "Block A" below). NOTE: earlier drafts called this "the level grid"; the *runtime cell array* is actually at `9600` (below). |
 | B | `1686:162C` | 3,136 B | **render tables**, including the projection LUT `04C0` reads at `ds:0x162C` |
-| C | `7176:0000` | 44,160 B | **tile / sprite bitmap graphics** (the `0x7176` source segment the rasterizers blit from) |
+| C | `7176:0000` | 44,160 B | **tile / sprite bitmap graphics** (the `0x7176` / `5E61` source banks the rasterizers blit from) |
 
 **Key finding — the "3D" is precomputed data, not code.** Block B lands exactly
 at `ds:0x162C`, which is where the `04C0` perspective transform does its table
@@ -40,15 +40,30 @@ computed at runtime. That is the most direct possible confirmation of the
 table-driven pseudo-3D design (see `rendering_architecture.md`): the entire
 "perspective" is a LUT baked into the data.
 
-## Block A — the level grid
+## Runtime data: the road-cell array (`9600`) and the descriptor table (`54B0`)
 
-After a small header/pointer table (`54B0`..~`5537`, far-pointer records), block
-A is a dense structure of per-road-row block descriptors. Cells are nibble-coded
-`(high nibble = lane 1..7, low nibble = type)` paired with a value byte; empty
-cells are `0x00` (1,487 of the 7,926 bytes are zero). The road is a **2D grid of
-lanes × distance**; each non-empty cell places a block of a given type/height.
-(Exact per-cell byte semantics — height vs colour vs bitmap-index split — is the
-next decode step; it needs correlating with the road-walk's grid iterator.)
+Tracing what the road-walk (`2600`-`27FF`) actually reads during gameplay (with
+stack accesses filtered out) shows the level lives in two runtime structures,
+both in the `1686` data segment:
+
+- **`1686:9600` — the road-cell array** (most-read, ~432 reads/60 frames). After
+  a small word-table header (`9600`: `00AA 00C6 00E2 0104 012C 0161 …` — looks
+  like per-lane or per-distance offsets), it is a long array of one-byte cells,
+  dominated by `0x05` (the flat-ground / default cell) with block cells as the
+  exceptions. The road-walk scans this by distance as the road scrolls; a cell's
+  value selects the tile/block appearance.
+- **`1686:54B0` — block/scaled-sprite descriptor table** (decompressed block A).
+  ~16-byte records carrying far-pointer-like fields (`F2 73`, `F5 72`, `8B 0E`,
+  `F8 B5` …) — most consistent with per-block-type descriptors pointing at the
+  set of pre-scaled bitmap frames (see `rendering_architecture.md` §3b).
+
+**Not yet fully pinned:** the exact field layout of a `9600` cell and a `54B0`
+record (which bits are lane / block-type / colour / frame-set pointer). Block A
+is *decompressed but never scanned as a raw grid* — it is consumed into these
+runtime structures at level start, a parse that happens between the load demo's
+end and the first gameplay frame (so it is not in either captured demo window).
+Finishing this needs a demo that captures the load→first-gameplay-frame
+transition, or static analysis of the level-start parser.
 
 ## How a cell becomes pixels
 
