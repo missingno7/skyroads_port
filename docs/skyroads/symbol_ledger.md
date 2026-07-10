@@ -76,6 +76,14 @@ layout — not yet independently confirmed record-by-record on our side).
 
 **Hooked as `rle_sprite_forward` / `rle_sprite_backward`** — the two together are ~13% of all interpreted steps in the in-game driving demo (each called ~9K times, ~41K inner iterations). Both matched the ASM oracle on the first verification attempt. These are the leaf rasterizers of the road/object renderer — the natural bottom layer of a future whole-renderer island (see run_status.md).
 
+## Road-column strip compositor (dominant in-game render cost)
+
+| Address | Role | Evidence | Status |
+|---|---|---|---|
+| `38BF`-`39D3` | Bare routine (push bx/bp/ds; `cld`; pop ds/bp/bx; ret — so bx/bp/ds/DF are caller-preserved; only AX/CX/DX/SI/DI/ES + flags clobbered). Uses ds/ss globals (ds==ss in-game): `[0E44]`/`[0E46]` row params, `[0E48]` direction (0=cld/up, else std/down), `[0E60]`/`[0E62]` two stride-3 display-list segments, `[0E64]` screen-offset base, `[0E66]` source-bitmap seg, `[0E68]` dest(screen) seg, `[0E74]`=AX column descriptor (low byte = records to skip to this column; bit15 = position-only). Computes a screen offset `di` from the row params, scans BOTH lists forward in stride-3 records to the (AX&0xFF)-th `0xFF` marker (the hot `3901`/`3927` loops), then composites: per 3-byte record `[start-back-from-bp, runlen, _]`, word-aligns the run (start&=~1; words=ceil((runlen±startLowBit)/2)) and `rep movsw`'s it from source:si to screen:si (di==si), advancing bp one scanline (0x140) per record until a `0xFF` length marker. | full disasm (fixed-length linear) + strict differential verifier (full-demo, 14,896 calls, 0 divergence) | VERIFIED |
+
+**Hooked as `road_column_strip`** — the single most-called rasterizer in gameplay (34 callsites, ~13% of real render work; installing it cut the in-game demo's full-run wall-clock ~23.6s -> ~16.6s, ~1.4x). The verifier drove out four decode errors (see the hook's docstring): exit AX = source seg `[0E66]`; the bit15 path still composites (only skips the pre-skip loop); the `mov al,0xFF` marker leaves AX=`(mul_hi<<8)|0xFF` and DX=bx-after-first-scan on the early-exit path; and the down variant's `rep movsw` decrements si/di (std), which an increment-only loop matched only by luck for 1-word runs.
+
 ## C-runtime 32-bit unsigned long multiply/divide (performance hot spots)
 
 | Address | Role | Evidence | Status |

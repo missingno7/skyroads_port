@@ -60,6 +60,21 @@ Installed hooks:
   table offset on call #1, and capturing the ASM's intermediate divide results
   pinned it to a multiply (d2=3 -> 42 = 3*14, not 3/14).
 
+- road_column_strip (1010:38BF): verified 2026-07-10 — the road-column strip
+  compositor, the single most-called rasterizer in gameplay (34 callsites,
+  ~13% of real render work). All 14,896 calls verified byte-exact across the
+  in-game demo, zero divergence (full-memory diff, strict auto-continuation).
+  Scans two stride-3 display lists for the column marker, then rep-movsw's
+  word-aligned horizontal pixel runs from a source bitmap onto the screen,
+  one scanline per record, with cld/std (up/down) direction variants. The
+  verifier drove out three decode errors: (1) AX at exit = the source segment
+  [0E66] (never assigned in the first cut); (2) the bit15-set path still
+  composites — it only skips the pre-skip loop; (3) the 38EA `mov al,0xFF`
+  marker load leaves AX=(mul_hi<<8)|0xFF on the early-exit path, and DX there
+  is bx-after-the-first-scan (mov dx,bx); (4) the down variant's rep movsw
+  DECREMENTS si/di (std) — an increment-only loop matched 1-word copies by
+  luck but would corrupt multi-word down runs.
+
 - rle_sprite_forward (1010:3153) + rle_sprite_backward (1010:3190): verified
   2026-07-09 — the mirror pair of run-length sprite rasterizers, the dominant
   render cost in the in-game demo (~9K calls each, ~13% of all interpreted
@@ -1191,6 +1206,146 @@ def _perspective_transform_hook(cpu: CPU8086) -> None:
 @registry.replace(CODE_SEG, 0x04C0, "perspective_transform")
 def perspective_transform_hook(cpu: CPU8086) -> None:
     _perspective_transform_hook(cpu)
+
+
+# CS:IP 1010:38BF -- the road-column strip compositor, the single most-called
+# rasterizer in gameplay (34 callsites, ~13% of real render work). Bare routine
+# (push bx/bp/ds at entry; cld; pop ds/bp/bx; ret at exit), so bx/bp/ds and DF
+# are RESTORED to the caller; only AX/CX/DX/SI/DI/ES and flags are clobbered
+# scratch. Uses ds/ss-relative globals (ds==ss==the game data segment in-game):
+#   [0E44]/[0E46] row params, [0E48] scan direction (0=up/cld, !=0=down/std),
+#   [0E60]/[0E62] the two stride-3 display-list segments, [0E64] a screen-offset
+#   base, [0E66] source-bitmap segment, [0E68] dest (screen) segment, [0E74]=AX
+#   the column descriptor (low byte = how many 0xFF-terminated records to skip
+#   to reach this column; bit15 = "just position, don't composite").
+#
+# Flow: (1) compute a screen offset `di` from the row params + [0E64]; (2) scan
+# BOTH display lists (segs [0E62] then [0E60]) forward in stride-3 records to
+# the (AX&0xFF)-th 0xFF column marker -- the two hot 3901/3927 loops; (3) unless
+# bit15 is set, walk the second list's records compositing horizontal pixel runs
+# from the source bitmap onto the screen, one scanline (stride 0x140) per record,
+# until a 0xFF length marker. Two copy variants (3978 vs 39A3) differ only by
+# the [0E48] direction sign. Each record is 3 bytes: [0]=start offset back from
+# the scanline base bp, [1]=run length in bytes, [2]=unused by the copy. The run
+# is word-aligned (start &= ~1; words = ceil((len + startLowBit)/2)) then
+# rep movsw'd from source:si to screen:si (di==si, same offset both segments).
+#
+def _road_column_strip_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ds0, ss = s.ds, s.ss
+    rb, rw, ww = mem.rb, mem.rw, mem.ww
+
+    ax_in = s.ax
+    ww(ds0, 0x0E74, ax_in)                                  # 38C2 mov [0E74],ax
+    di = (ax_in & 0x7FFF) >> 7                               # 38C5-38CD
+    ax = (0x0B - rw(ds0, 0x0E44)) & 0xFFFF                   # 38D0-38D3
+    ax = (ax * 4 + 4) & 0xFFFF                               # 38D7-38DC (mul 4, add 4)
+    ax = (ax - rw(ds0, 0x0E46)) & 0xFFFF                     # 38DF
+    ax = (ax * 0x0C) & 0xFFFF                                # 38E3-38E6 mul cx(12)
+    setup_ax = ax                                            # ax's high byte survives to a 3944 exit
+    di = (di + ax) & 0xFFFF                                  # 38E8
+    MARK = 0xFF                                              # 38EA al=0xFF
+    di = (di + rw(ds0, 0x0E64)) & 0xFFFF                     # 38EC
+
+    def scan(seg: int, bx: int, count: int) -> int:
+        # 3901/3927: `count` times, advance bx by 3 until seg:[bx]==0xFF, then +1
+        for _ in range(count & 0xFF):
+            bx = (bx + 3) & 0xFFFF
+            while rb(seg, bx) != MARK:
+                bx = (bx + 3) & 0xFFFF
+            bx = (bx + 1) & 0xFFFF
+        return bx
+
+    col = rw(ss, 0x0E74) & 0xFF
+    seg1 = rw(ds0, 0x0E62)                                   # 38F0
+    bx = rw(seg1, di)                                        # 38F4
+    bx = scan(seg1, bx, col)                                 # 38F6-3909
+    si = rw(seg1, (bx + 1) & 0xFFFF)                         # 390B
+    dx_scan1 = bx                                            # 390E mov dx,bx
+    di = (di - rw(ss, 0x0E64)) & 0xFFFF                      # 3910
+    seg2 = rw(ss, 0x0E60)                                    # 3915
+    bx = rw(seg2, di)                                        # 391B
+    bx = scan(seg2, bx, rw(ss, 0x0E74) & 0xFF)               # 391D-392F
+    bp = rw(seg2, (bx + 1) & 0xFFFF)                         # 3931
+    bx = (bx + 3) & 0xFFFF                                   # 3934
+
+    # --- 3937 onward: optional skip-loop, then the composite copy loop. ---
+    exited_3944 = False
+    if not (rw(ss, 0x0E74) & 0x8000):                        # 3937 test bit15; 393E jnz 3954
+        # 3940-3952: advance past records whose scanline base bp is < si, until
+        # either a 0xFF marker (-> 3944, the whole routine exits early) or bp>=si.
+        while True:
+            if rb(seg2, bx) == MARK:                         # 3940 cmp[bx],al; ==FF -> 3944
+                exited_3944 = True
+                break
+            if bp >= si:                                     # 3947 cmp bp,si; jnb 3954
+                break
+            bx = (bx + 3) & 0xFFFF                           # 394B
+            bp = (bp + 0x140) & 0xFFFF                       # 394E
+
+    if exited_3944:
+        # 3944 jmp 39CF: exits BEFORE 3958-3967. AX keeps the mul-product high
+        # byte but AL was loaded with 0xFF at 38EA; DX = bx after the first scan
+        # (390E mov dx,bx); ES = entry ES (396B not reached); si/di post-scan;
+        # cx=0 (the second scan's `loop` drained it, or col==0 leaves it 0).
+        s.ax = (setup_ax & 0xFF00) | 0xFF
+        s.dx = dx_scan1
+        s.cx = 0
+        s.si = si
+        s.di = di
+        cpu.set_sub_flags(MARK, MARK, 0, 8)                  # cmp [bx],0xFF (equal)
+    else:
+        bp = (bp + 0x2800) & 0xFFFF                          # 3954
+        src_seg = rw(ss, 0x0E66)                             # 3967 (ax)
+        dst_seg = rw(ss, 0x0E68)                             # 396B (es)
+        down = rw(ss, 0x0E48) != 0                           # 3959/3970
+        if down:
+            bp = (bp - 1) & 0xFFFF                           # 3962 dec bp (std)
+        last_si, last_di = si, di
+        while True:                                          # copy loop 3978/39A3
+            length0 = rb(seg2, bx)                           # mov cl,[bx]
+            if length0 == MARK:                              # cmp cl,0xFF; jz 39CF
+                break
+            if not down:
+                off0 = (bp - length0) & 0xFFFF               # 3983 sub si,cx
+            else:
+                off0 = (bp + length0) & 0xFFFF               # 39AE add si,cx
+            run = rb(seg2, (bx + 1) & 0xFFFF)                # mov cl,[bx+1]
+            low = off0 & 1
+            si_word = off0 & ~1                              # shr si,1; shl si,1
+            if not down:
+                cx = run + low                               # adc cx,0
+            else:
+                cx = (run - low + 1) & 0xFFFF                # sbb cx,0; inc cx
+            words = ((cx >> 1) + (cx & 1)) & 0xFFFF          # shr cx,1; adc cx,0
+            step_w = -2 if down else 2                        # std vs cld movsw
+            sp = si_word
+            di_w = si_word
+            for _ in range(words):                           # rep movsw
+                mem.ww(dst_seg, di_w, rw(src_seg, sp))
+                sp = (sp + step_w) & 0xFFFF
+                di_w = (di_w + step_w) & 0xFFFF
+            last_si, last_di = sp, di_w
+            bp = (bp + 0x140) & 0xFFFF                       # add bp,0x140
+            bx = (bx + 3) & 0xFFFF                           # add bx,3
+        # exit at 39CF from the copy loop: ax=[0E66], dx=seg2 (3965 mov dx,ds),
+        # es=[0E68], cx=0x00FF (ch=0, cl=the 0xFF just read), si/di post-movsw.
+        s.ax = src_seg
+        s.dx = seg2
+        s.es = dst_seg
+        s.cx = 0x00FF
+        s.si = last_si
+        s.di = last_di
+        cpu.set_sub_flags(MARK, MARK, 0, 8)                  # cmp cl,0xFF (equal)
+
+    s.ip = mem.rw(ss, s.sp)
+    s.sp = (s.sp + 2) & 0xFFFF
+
+
+@registry.replace(CODE_SEG, 0x38BF, "road_column_strip")
+def road_column_strip_hook(cpu: CPU8086) -> None:
+    _road_column_strip_hook(cpu)
 
 
 # CS:IP 1010:4344 (one-time reset) + 1010:434A (loop top) -- the palette
