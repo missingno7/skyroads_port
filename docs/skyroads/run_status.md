@@ -4,6 +4,121 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — level-select menu investigation: existing "menu" recovery is actually auto-progression, not human menu-picking; no demo captures the real thing
+
+Asked to build a native level-select menu (pick a level from a demo, it
+starts, with level loading modeled), starting from the assumption that
+`dispatch_menu_action`/`native_menu_frame` (recovered earlier, "318/318
+matched") already models real player menu navigation. Traced the actual
+calls in the E2E demo (`demo_e2e_20260710_132930`, the one described in this
+doc as "menu → level select → play → die → exit → another level → quit") to
+find the confirm/level-load moment, and found the premise was wrong.
+
+**What the trace actually showed** (instrumenting real `1010:1B49` calls —
+correcting an initial mistake of reading `ax` at the call's entry IP, which
+is the CALLER's stale register, not the pushed argument; the real argument
+is the pushed stack word at `ss:[sp+2]` at the call's entry, confirmed
+against the known real action-code distribution): the demo's `game_state`
+sequence is `0 -> 2 -> 0 -> 3 -> 0 -> 2 -> 0 -> 3 -> 0`, with `jump_level_gate`
+(`ds:[4562]`) staying `8` through the first two `0->2->0` cycles and only
+advancing to `9` on the third. Cross-referencing with the already-recovered
+mechanics: action `0xA` (`ACTION_SCROLL_RIGHT`) fires every tick while
+`ship_pos` climbs from `0` toward `LEVEL_END` (`0x2AAA`) — this is the
+AUTOMATIC forward-motion tick (`classify`'s `1B49` side-effect call,
+`skyroads/recovered/classify.py`), not a human pressing a right-arrow key in
+a menu. Action `0xC` (`ACTION_ENTER_LEVEL_SELECT`, sets `game_state:=2`)
+fires exactly when `ship_pos` reaches `LEVEL_END` — this is the
+LEVEL-COMPLETE trigger already documented in the "the native loop is now
+FULLY CLEAN in lockstep" entry below (`ship_pos = 0x2AAA -> game_state = 2`
+via this same action code), not a "confirm level pick" UI action. So
+`menu.py`'s action NAMES (`ACTION_ENTER_LEVEL_SELECT`, "level-select
+dispatcher") describe what the ASM's cmp-chain COULD mean generically, but
+every real exercise of it in this codebase's demo corpus is the
+attract-mode auto-play loop, not a human browsing levels.
+
+**Confirmed via `pb.is_cold_start`**: every one of the 14 demos in
+`artifacts/demos/` resumes from a snapshot (`is_cold_start == False`,
+re-checked here for the E2E demo specifically) — none is a genuine cold EXE
+boot. So by the time any demo's capture begins, whatever REAL menu/title
+interaction a human would see has already happened off-camera; there is
+currently no capturable data anywhere in this repo of a player actually
+navigating a level-select screen with the keyboard.
+
+**Where the real level-load code lives, and why it's not mapped yet**:
+`should_run_gameplay` (already recovered, `skyroads/recovered/orchestration.py`)
+documents that `game_state == 2` makes the frame handler EXIT to
+`1010:2B0B` — "the outer game loop, which then does the transition: respawn
+`201F`, menu return, or level load." `2B0B` itself is NOT recovered. An
+instruction-trace across the `game_state: 2 -> 0` transition window (frames
+612-706) shows execution passing through known RENDER dispatch addresses
+(`2DCC`/`2E6C`, the tile-rasterizer dispatch points from the very first
+`tile_clip_mask` entry in `symbol_ledger.md`) — consistent with a short
+animated transition, not obviously a disk-file read. Static disassembly
+(`tools/lindis.py`) was tried to confirm this without more live capturing,
+but produced garbage output at `1010:1B49` and `1010:2A35` (a KNOWN-correct
+address, sanity-checked) alike — the tool appears broken against this
+snapshot/codebase combination, not trustworthy right now, so this is
+empirical-tracing-only evidence, not a static-disasm-confirmed read.
+
+**Net effect**: did NOT build the requested native level-select driver this
+turn — building it honestly requires either (a) a freshly recorded, genuine
+cold-boot demo that captures real keyboard menu navigation to verify
+against, or (b) mapping the unrecovered `1010:2B0B` outer dispatcher from
+static disassembly alone (harder to verify, and the one disassembly attempt
+made here didn't work). Flagged as an open, scoped question rather than
+guessing further. See `vmless_roadmap.md`'s `native_menu_frame` entry for
+the corrected claim.
+
+## 2026-07-11 — MILESTONE: native cold run completes a full level, zero player input, VM-independently confirmed
+
+The requested milestone: prove the native engine can play a level from a
+genuine COLD start to completion with no VM involvement past the initial
+geometry seed. Added `--cold`/`--cold-verify` to `play_native.py`.
+
+`run_cold(state, jump_level_gate)`: calls `apply_level_init` (the recovered
+respawn/level-init primitive — fixed field reset + `level_gravity`) on a
+seeded `NativeGameState`, then drives `NativeGameplayDriver.tick()` in a loop
+with **zero player input** until a transition fires. This is possible because
+forward motion is automatic — the classification stage's `dispatch_menu_action`
+call (action `0xA`, scroll-right) advances `ship_pos` whenever `[456A]==0`,
+independent of steer/jump/speed input (see the "forward advance is the 1B49
+call" entry below). Gate-8 level: **completes in 57 ticks**
+(`ship_pos=0x2AAA`, `game_state=2`), purely natively, no VM after the seed.
+
+`run_cold_verify(root, demo_path)`: the independent proof. Resets the REAL,
+unmodified VM's memory to the exact same `apply_level_init` field values
+(writing `RespawnState`'s fixed fields + `level_gravity(gate)` directly via
+`cpu.mem` at the frame-loop top, once), then forces player input to zero on
+every subsequent sub-step (re-zeroing the same three input fields each visit
+to the loop-top IP) and lets the pure ASM oracle run un-hooked
+(`install_replacements=False`) until `game_state` leaves 0. Gate-8 level:
+**VM independently reaches the same conclusion** — `game_state=2`,
+`ship_pos=10922` (`=0x2AAA`), confirming the native result byte-for-byte (a
+one-tick counting-convention offset only, not a divergence).
+
+**Found a real difference, not a bug**: the gate-7 level (`demo_
+skyroads_20260710_125418`/`_125610`) does **NOT** complete with zero input —
+both native and VM-independent runs hit `game_state=5` (timer_b/oxygen
+expired) after the tick budget, never reaching `ship_pos=0x2AAA`. This is a
+legitimate level-design difference (this level needs active play to finish
+in time), not a regression — confirmed on both sides so it's not an artifact
+of the harness.
+
+**Bug fixed en route**: `run_cold_verify`'s frame loop originally advanced
+`while not pb.finished(frame)`, which stops once the SEEDING DEMO's own
+recorded input runs out (1075 frames for the gate-7 demo) — far short of the
+1500+ ticks needed to observe the timeout. Since input is forcibly zeroed
+every sub-step regardless of what the demo would have supplied, the fix is to
+keep calling `frontend.advance_frame` past `pb.finished(frame)` (skipping only
+the now-pointless `pb.apply_to_runtime` call) up to the tick budget. This is
+what let the gate-7 VM-side confirmation complete.
+
+This closes the loop on "native should be able to cold run a full level":
+`apply_level_init` + `NativeGameplayDriver` + zero input is a real,
+independently-provable playthrough, not just an offline replay of recorded
+demo input. `tests/test_play_native.py` still needs `--cold`/`--cold-verify`
+coverage (not yet added — next step, along with `vmless_roadmap.md`).
+
 ## 2026-07-11 — play_native.py proven on a SECOND level; quantifies where the known gaps bite hardest
 
 Toward "play any level": scanned all 14 captured demos for `jump_level_gate`

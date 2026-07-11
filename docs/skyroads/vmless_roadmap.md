@@ -39,8 +39,22 @@ run_status.md's 2026-07-11 "first native (VM-less) frame steppers" entry for
 the full account, including a real vertical-velocity divergence this work
 found and fixed. Honest state:
 
-- `native_menu_frame` — **complete and gap-free.** Every level-select
-  transition (`dispatch_menu_action`) is recovered.
+- `native_menu_frame` — **the state-transition RULES are complete and
+  gap-free** (`dispatch_menu_action`, action codes 2/9/0xA/0xC all modeled).
+  **Correction (2026-07-11, later):** every demo captured so far exercises
+  this same code path for AUTOMATIC in-level progression, not manual
+  keyboard menu browsing — action `0xA` is the forward-motion tick, `0xC` is
+  the level-complete trigger (`ship_pos` reaches `LEVEL_END`), not a human
+  picking a level from a list. No demo in the repo is a genuine cold EXE
+  boot, so none captures the real title/level-select screen a player would
+  navigate with arrow keys. The RULE recovery is still correct (it's a
+  general 4-bit dispatcher, verified 318/318 on real calls regardless of
+  which caller drives it) — what's unverified is whether a human-driven
+  level PICK (as opposed to auto-progression) exercises the same rules the
+  same way, and what selects/loads the chosen level's data (traced to an
+  unmapped outer dispatcher at `1010:2B0B` — see run_status.md's "level-select
+  menu investigation" entry). Needs a genuine cold-boot demo with real
+  keyboard menu input to verify and complete.
 - `native_gameplay_frame` — commits forward motion (real-demo-proven), then
   raises one of three typed gaps (`skyroads/native/gaps.py`) on every real
   gameplay frame tested so far: the jump-impulse latch, the vertical-velocity
