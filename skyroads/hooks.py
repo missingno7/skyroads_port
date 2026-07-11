@@ -159,6 +159,7 @@ from dos_re.lift.runtime import emulate_call
 
 from skyroads.codecs.lzs import LzsWidths
 from skyroads.recovered.blit import stencil_blit
+from skyroads.recovered.intro_anim import unpack_animation_segment
 from skyroads.recovered.palette_fade import blend_byte
 from skyroads.recovered.relocate import patch_nonzero_bytes
 from skyroads.recovered.renderer import perspective_row_offset, road_segment_clip
@@ -2158,6 +2159,65 @@ def buffer_relocate_hook(cpu: CPU8086) -> None:
         s.ds = seg
         s.dx = seg
     cpu.set_incdec_flags(old_extra, new_extra, 16, dec=True)
+    s.sp = (sp + 2) & 0xFFFF
+    s.ip = ret_ip
+
+
+# --- intro animation-frame unpacker (1010:3A96) ---------------------------------
+#
+# The intro ship/logo animation decoder, found the same way as 0F62/4052 --
+# hot, un-hooked interpreted work, this time during the true intro frames
+# (page 3A00xx eating the entire step budget for a stretch of consecutive
+# frames). Recovered lift-first (dos_re.tools.liftverify proved a literal
+# transcription byte-exact first; this refactor was derived from that proven
+# code, not from reading the disassembly directly -- doing it the other way
+# round produced a genuine bug here too, see skyroads/recovered/intro_anim.py's
+# docstring: a movsb/movsw instruction-ordering subtlety that only manifests
+# once di catches up to si partway through a segment).
+#
+# Iterates the 8-entry segment table (ss:[bx+0xE76], bx=0,2,..,14) directly;
+# each pass's register-mechanics are trivial (push/pop ds nets to unchanged;
+# BX/CX/DX/flags are fully deterministic at exit -- see below) so this stays a
+# single hook over the WHOLE call rather than one hook per inner block.
+#
+# Exit register state (traced from the lift, matching the same rigor as 0F62/
+# 4052): BX=0x10 (the loop's own exit condition). CX=0 (set once by the header
+# rep movsw, a REP prefix always leaves CX=0, never touched again). DX=0 (the
+# row-countdown's own terminal value). AX: AH = high byte of the LAST segment
+# table entry (the final `mov ax,ss:[bx+0xE76]`, never touched again since the
+# row loop only does 8-bit AL ops); AL = 0xFF (ROW_TERMINATOR -- a row can only
+# end by reading it, so the very last byte read in the whole call is always
+# 0xFF). ES = the last segment value (mirrors DS every pass). DS: net
+# unchanged (push ds at entry, pop ds before ret). SI/DI: the last segment's
+# final cursor (data-dependent, from unpack_animation_segment's own return).
+# Flags: from `cmp bx,0x10` with bx==0x10 (the loop's own exit test).
+_INTRO_ANIM_TABLE_OFF = 0x0E76
+_INTRO_ANIM_SEGMENTS = 8
+
+
+@registry.replace(CODE_SEG, 0x3A96, "intro_anim_unpack")
+def intro_anim_unpack_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    sp = s.sp
+    ret_ip = mem.rw(s.ss, sp)
+
+    seg = 0
+    si = di = 0
+    for i in range(_INTRO_ANIM_SEGMENTS):
+        seg = mem.rw(s.ss, (_INTRO_ANIM_TABLE_OFF + 2 * i) & 0xFFFF)
+        rb = lambda off, _seg=seg: mem.rb(_seg, off & 0xFFFF)
+        wb = lambda off, val, _seg=seg: mem.wb(_seg, off & 0xFFFF, val)
+        si, di = unpack_animation_segment(rb, wb)
+
+    s.bx = _INTRO_ANIM_SEGMENTS * 2
+    s.cx = 0
+    s.dx = 0
+    s.ax = ((seg >> 8) & 0xFF) << 8 | 0xFF
+    s.es = seg
+    s.si = si
+    s.di = di
+    cpu.set_sub_flags(s.bx, s.bx, 0, 16)
     s.sp = (sp + 2) & 0xFFFF
     s.ip = ret_ip
 

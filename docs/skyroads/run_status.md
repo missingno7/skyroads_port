@@ -4,6 +4,58 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — recovered + wired the intro animation-frame unpacker (1010:3A96), lift-first, one more real bug caught
+
+User-reported: the intro ship/logo animation looked like un-hooked rendering.
+Profiled the true intro frames (0-99, before any menu interaction) and found
+page `3A00xx` completely dominating a run of consecutive frames, each burning
+the entire step budget — confirming the report. Traced it to `1010:3A96`, an
+**animation-frame unpacker**, not a renderer: it decompresses the intro's
+sprite/logo data once at startup, not per displayed frame.
+
+Used lift-then-refactor again (now the established process after the
+stencil-blit lesson): `dos_re.tools.liftverify` proved a literal
+transcription byte-exact first (after bumping the emitted lift's own
+runaway-safety cap for one local, throwaway verification run — this function
+does 8 x 1040 = 8320 rows of real work per call, tripping the same
+block-count guard `buffer_relocate` hit). The proven lift revealed the exact
+algorithm: 8 independent 64K segments (a fixed table at `ss:[bx+0xE76]`),
+each self-relocating its own first 624 bytes from a self-referential header
+offset, then unpacking 1040 fixed rows — a 3-byte verbatim prefix followed by
+2-byte tokens expanded into `[b1,b2,0x00]` triplets until a `0xFF`
+terminator.
+
+**Even working from the proven lift, transcribing it into clean Python
+introduced a real bug** (caught by cross-checking against real captured
+segment data, not by the live hook verifier — the strict/lift/hand-checks
+form layers, and this is the layer that caught it): the row prefix is
+`movsb` then `movsw`, two *separate* instructions, not atomic with each
+other. `movsb`'s write can land at a position `movsw` is about to read from
+(`di` grows faster than `si` once a row has tokens, so it can catch up
+mid-segment) — real hardware sees `movsb`'s fresh write; an implementation
+that reads the whole 3-byte prefix before writing any of it does not.
+Confirmed by tracing all 1040 row-boundary `(si, di)` pairs against real
+hardware — they matched exactly once the instruction ordering was fixed.
+
+Recovered as `skyroads/recovered/intro_anim.py::unpack_animation_segment`
+(operating through `rb`/`wb` callbacks, not an isolated buffer copy — table
+segments are less than 64K apart in real memory and physically overlap, so
+writes must land on live memory to behave like real hardware regardless of
+whether the game relies on that). Wired as
+`skyroads/hooks.py::intro_anim_unpack_hook`. Getting the hook's own register
+state right caught **one more bug** — SP was read to get the return address
+but never actually advanced past it, an omission the strict verifier's
+register-diff caught immediately (`SP` off by exactly one word, everything
+else — memory, every other register, flags — already matched).
+
+**Verified byte-exact**: 1/1 real call (it fires once per game session, not
+per frame) over both the E2E demo and the cold-sound demo, zero divergences,
+via `HookVerifierConfig.strict()`. All 1040 row boundaries of the actually-
+processed segment cross-checked directly against real hardware too. Guarded
+by `tests/test_intro_anim.py` (+ fixture). ~1.9x fewer interpreted steps over
+the intro window (a modest number for a one-shot call, but the several
+consecutive full-budget frames it used to cause are gone). 190 tests pass.
+
 ## 2026-07-11 — the level-select/menu dispatcher recovered (1010:1B49)
 
 Followed up the state-2 finding by fully mapping and recovering `1010:1B49`,
