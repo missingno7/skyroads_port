@@ -59,6 +59,7 @@ from skyroads.recovered.dynamics import (
 )
 from skyroads.recovered.menu import MenuState, dispatch_menu_action
 from skyroads.recovered.movement import resolve_move
+from skyroads.recovered.orchestration import should_run_gameplay
 from skyroads.recovered.physics import compute_movement_targets
 from skyroads.recovered.player import (
     GRAVITY_HEIGHT_GATE,
@@ -186,12 +187,16 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
     and the ``1DFA`` effect are not, so they raise
     :class:`~skyroads.native.gaps.SkyroadsGap`.
     """
-    # In-level game states: 0 (active) and 3 (resume-frozen). Anything else is a
-    # level boundary (2 level-select, 4/5 timer-expired, 1 crash) the gameplay
-    # stepper doesn't own.
-    if view.game_state not in (0, 3):
+    # Run gameplay content only when (a) game_state is an in-level state (0
+    # active / 3 resume-frozen) -- states 1/2/4/5 are transition DISPLAYS, not
+    # gameplay, even during their settle window -- AND (b) the frame gate
+    # (229D-22E9) says this frame runs the handler at all (catches the
+    # game_state 3 -> settled-resume exit).
+    if view.game_state not in (0, 3) or not should_run_gameplay(
+            view.game_state, view.grounded, view.frame_ctr):
         raise LevelEndTransition(
-            f"entered with game_state={view.game_state} (not an in-level state)")
+            f"transition: game_state={view.game_state} f456a={view.grounded} "
+            f"frame_ctr={view.frame_ctr}")
     moving = view.game_state == 0
 
     rw = view.rw
@@ -296,11 +301,14 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
     if view.grounded != 0:                       # 2AEA frame-end 456A bump
         view.grounded = view.grounded + 1
 
-    # If this step ended the level (game_state left the in-level set), stop: the
-    # transition (level load / respawn) is a separate subsystem.
-    if view.game_state not in (0, 3):
+    # If this step ended the level / triggered a transition, stop: the
+    # transition (level load / respawn / menu) is a separate subsystem. Mirror
+    # the entry condition so we stop exactly when the VM leaves gameplay.
+    if view.game_state not in (0, 3) or not should_run_gameplay(
+            view.game_state, view.grounded, view.frame_ctr):
         raise LevelEndTransition(
-            f"game_state became {view.game_state} this step (level ended)")
+            f"step ended in a transition state: game_state={view.game_state} "
+            f"f456a={view.grounded} frame_ctr={view.frame_ctr}")
 
     return GameplayScratch(
         jump=jump, bp12=land.gameplay_active, bp14=cls.class_skip,

@@ -4,6 +4,39 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — the native loop is now FULLY CLEAN in lockstep: zero drift, every run ends on a detected boundary
+
+Recovered the per-frame **orchestration gate** (`should_run_gameplay`,
+`1010:229D-22E9`) — the decision the frame handler makes between running the
+gameplay sub-step (`2317`) and exiting to a transition (`2B0B` -> respawn `201F`
+/ menu / level load). It gates on `game_state`, the just-landed settle window
+(`[456A]` 1..0x2A), and the frame counter (`[4558] < 0x6C`). **571/571** real
+frames, including the `game_state 3 -> exit` cases that end a run.
+
+Wired it into `native_gameplay_substep` (both the entry and the post-step
+check): a step runs gameplay content only when `game_state in {0,3}` AND the
+frame gate says the handler runs; otherwise it raises `LevelEndTransition`. Two
+edges this closed:
+- the `game_state 3 -> settled-resume -> respawn` transition (the last field
+  break from the previous entry);
+- the level-complete **settle window**: reaching `ship_pos = 0x2AAA` sets
+  `game_state = 2` (via `dispatch_menu_action` action 0xC) and `[456A] = 1`,
+  which the frame gate would keep "in the handler" for ~42 frames as the
+  level-complete DISPLAY — but that's a transition display, not gameplay, so the
+  stepper now stops immediately at `game_state = 2`.
+
+**Result: the lockstep loop is now fully clean.** Across the demo the native
+loop runs whole-level stretches (up to 122 steps) in perfect byte-for-byte sync
+with the VM, and **every single run ends on a cleanly DETECTED boundary** (a
+typed gap) — ZERO silent field drift, no residual edge. `tests/
+test_native_loop_lockstep.py` + `tests/test_orchestration.py`.
+
+Also learned the demo's shape from a transition trace: it **replays level 9**
+(`[54A8] = 9`) in attract mode — reach the end (`0x2AAA` -> game_state 2) ->
+respawn (`201F`, ship -> 0) -> play again. So the transitions the loop now
+detects are level-complete and restart, exactly the boundaries a full native
+game's transition subsystem would handle next.
+
 ## 2026-07-11 — the native loop plays WHOLE LEVELS in lockstep; frozen path + death/level-end detection
 
 Pushed the lockstep loop from ~20-step runs to whole-level runs and made it stop
