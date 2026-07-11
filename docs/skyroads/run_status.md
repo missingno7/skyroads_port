@@ -17,8 +17,15 @@ reset fields + the derived gravity, returns a fresh `GameplayScratch`).
 This is the piece a native driver calls at each boundary the lockstep loop now
 detects (level-complete -> respawn/replay, death -> respawn). What it does NOT
 yet cover is the ~42-frame level-complete DISPLAY (the `game_state == 2` settle
-window between reaching the end and the respawn) -- that's a menu/transition-tier
-subsystem, distinct from gameplay. With `apply_level_init` + `native_menu_frame`
+window between reaching the end and the respawn). Traced it: the ship is frozen
+at `ship_pos = 0x2AAA` and `af2c` rises by `0x47`/frame (the grounded ramp,
+`bounce = GROUND_RAMP_MAX`) as it lifts off the end of the track, `[456A]` and
+`[4558]` counting up until `[456A]` passes `0x2A` and the frame gate exits to
+the respawn. So it IS the frozen gameplay path -- but running it natively
+through the window desyncs from the VM before the window ends (a
+transition-subsystem timing detail), so the loop deliberately stops cleanly at
+`game_state = 2` rather than approximating the animation. Modelling that window
+exactly is transition-tier work. With `apply_level_init` + `native_menu_frame`
 (level-select, already recovered) + the gameplay loop, the native game's control
 FSM is now nearly all in hand; the transition DISPLAYS and the renderer are the
 remaining large subsystems for a fully playable VM-free game.

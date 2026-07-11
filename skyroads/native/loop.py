@@ -190,10 +190,11 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
     :class:`~skyroads.native.gaps.SkyroadsGap`.
     """
     # Run gameplay content only when (a) game_state is an in-level state (0
-    # active / 3 resume-frozen) -- states 1/2/4/5 are transition DISPLAYS, not
-    # gameplay, even during their settle window -- AND (b) the frame gate
-    # (229D-22E9) says this frame runs the handler at all (catches the
-    # game_state 3 -> settled-resume exit).
+    # active / 3 resume-frozen) AND (b) the frame gate (229D-22E9) says this
+    # frame runs the handler. States 1/2/4/5 are transition DISPLAYS (the
+    # level-complete "settle window" is one -- a frozen ship rising off the end)
+    # that this gameplay stepper doesn't own, so it stops at them; the frame
+    # gate additionally catches the game_state 3 -> settled-resume exit.
     if view.game_state not in (0, 3) or not should_run_gameplay(
             view.game_state, view.grounded, view.frame_ctr):
         raise LevelEndTransition(
@@ -304,12 +305,12 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
         view.grounded = view.grounded + 1
 
     # If this step ended the level / triggered a transition, stop: the
-    # transition (level load / respawn / menu) is a separate subsystem. Mirror
+    # transition (respawn / menu / level load) is a separate subsystem. Mirror
     # the entry condition so we stop exactly when the VM leaves gameplay.
     if view.game_state not in (0, 3) or not should_run_gameplay(
             view.game_state, view.grounded, view.frame_ctr):
         raise LevelEndTransition(
-            f"step ended in a transition state: game_state={view.game_state} "
+            f"step ended in a transition: game_state={view.game_state} "
             f"f456a={view.grounded} frame_ctr={view.frame_ctr}")
 
     return GameplayScratch(
