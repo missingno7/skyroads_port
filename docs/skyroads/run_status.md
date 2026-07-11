@@ -4,6 +4,306 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — FIXED tools/lindis.py (`--live-demo`); CORRECTION: there IS a real file-read path, just not one the sampled level-config read happened to hit
+
+Implemented the fix the previous entry called for: `tools/lindis.py
+--live-demo <demo_dir>` now drives a real demo forward (pure ASM oracle,
+same technique as `play_native.py`'s `boot_and_seed`) until execution
+actually reaches the requested `CS:START`, then disassembles from that
+LIVE, correctly-populated memory instead of a cold snapshot. Verified
+against the known-good `1010:1B49`: output now matches
+`dispatch_menu_action`'s already-recovered model exactly (`ENTER 0,0;
+push si; push di; mov ax,ss:[bp+4]; and ax,0Fh` — the action-code masking
+— then the real `cmp`/`mov` chain for actions `0xC` and `9`, including the
+exact `0x6978`/`0x7530` timer constants already in `menu.py`). The tool is
+now trustworthy for any address, given a demo that actually reaches it.
+
+**Immediately used it on the open staging-buffer question and found a
+correction to the previous entry's "no file I/O" reading.** Disassembled
+`1010:5F80-5FB4` (a function `1010:5F80` calls into) and it's a real,
+robust **DOS file-read wrapper**: `mov ah,3Fh` / `int 21h` (read from
+handle) with retry/error-state bookkeeping at `ss:[41AA]` (a 20-retry
+counter, `0x14`, matching a constant seen earlier in `6326`'s own refill
+path). So genuine disk I/O capability DOES exist and get used somewhere in
+this pipeline (almost certainly the overlay/code-loading system the
+previous entry found evidence of, and/or on-demand level-geometry loading)
+— the earlier claim that "no `INT 21h` file-open activity was observed
+anywhere in this investigation" was only true for the SPECIFIC narrow
+config-triple read sampled (which apparently didn't need to trigger a
+buffer refill in either observed case), not a claim that the whole
+mechanism is file-I/O-free. Corrected here rather than left standing.
+
+**Net effect on scope**: native "pick any level and load it," if pursued
+further, likely needs to handle a real buffered-file-read fallback (not
+just the always-cached fast path this session's sampling happened to
+observe), which is a bigger dependency than "read a few static bytes from
+a fixed DGROUP offset." Not chased further this entry -- flagging the
+scope correction is the priority here; the fixed tool makes chasing it
+properly a much more tractable next step whenever picked up.
+
+## 2026-07-11 — ROOT CAUSE found for `tools/lindis.py`'s garbage output (and probably other session mysteries): SKYROADS.EXE overlays/self-modifies its own code segment at runtime
+
+While chasing the level-select staging-buffer question (previous entry),
+tried `tools/lindis.py` again on a KNOWN-good address (`1010:1B49`,
+`dispatch_menu_action`'s own entry, extensively verified 318/318 earlier
+today) and got garbage starting from the very first byte (`D5 75` — an
+`AAD` instruction, nonsensical as a function entry). Rather than shrug this
+off as "the tool is broken" again, compared the SAME address's raw bytes
+three ways: `dos_re.snapshot.load_snapshot` directly, the real frontend's
+`load_snapshot_runtime`, and a LIVE runtime at increasing points in
+execution:
+
+    frame 0  (right after snapshot load, no stepping): d5 75 f8 46 c3 e6 12 53
+    frame 566+ (once the game actually reaches this code live): c8 00 00 00 56 57 8b 46
+
+The two loaders agree with each other (ruling out a snapshot-format bug) —
+but the bytes **genuinely change between frame 0 and frame 566** in the
+SAME live runtime. `C8 00 00 00` is `ENTER 0,0` — a completely ordinary
+compiled-C function prologue (`ENTER`, `PUSH SI`, `PUSH DI`, `MOV AX,
+[BP+..]`), exactly what a real `dispatch_menu_action` should look like, and
+what `D5 75...` manifestly is not.
+
+**Conclusion: SKYROADS.EXE overlays/decompresses its own code segment at
+runtime** — the bytes at a given `CS:IP` are not fixed for the program's
+lifetime; some region get progressively loaded/decompressed into place as
+the game reaches different phases (title/menu vs. gameplay code sharing the
+same address range at different times), consistent with everything found
+in the last two entries about a real byte-stream decompression primitive
+(`6326`) existing in this codebase. This means **any static, snapshot-based
+disassembly is only valid for code that has ALREADY been loaded into place
+by the time the snapshot was taken** — reading too early (or from a
+snapshot resumed from an earlier point) reads stale/uninitialized bytes and
+produces exactly the kind of garbage `tools/lindis.py` kept producing this
+session (this entry, the `1010:2A35` sanity-check earlier today, and very
+likely explains the still-unresolved mode==1 dynamic-verification mystery
+from the render-entry-point investigation too — worth revisiting with this
+in mind).
+
+**Practical fix, not yet implemented**: `tools/lindis.py` should read bytes
+from a LIVE runtime driven forward to (or past) the address of interest,
+not a cold snapshot load — e.g. accept an already-stepped `cpu.mem`, or
+take a frame-count/IP-reached argument and drive the demo forward first.
+Until that's done, treat any `lindis.py` output as untrustworthy unless the
+target address is independently known to be genuinely static (most of the
+gameplay-hot addresses already recovered this session, all reached and
+executing within the first ~600 frames of any demo, appear to be — this
+bug specifically bit code that's only in place LATER or briefly).
+
+## 2026-07-11 — decoded the byte-stream reader down to real bytes (`1010:6326`); found the config table, but its per-attempt refresh is still unexplained
+
+Direct continuation of the `6490`/`6576` entry below. Read `6326`'s own raw
+bytes directly (unambiguous — a 19-byte fast path, no execution-context
+guessing needed):
+
+    6326: mov ax, [41B6]         ; ax := stream cursor
+    6329: cmp ax, [41B4]         ; cursor == end-of-buffer?
+    632D: jz 6350                ; if so, take the refill path (see below)
+    632F: mov bx, [41B6]         ; bx := cursor
+    6333: inc word [41B6]        ; cursor += 1
+    6337: mov al, [bx]           ; al := *cursor  (ds-relative — a plain byte read)
+    6339: mov [41B0], al         ; stash it in the lookahead cell 6490 pops
+    633C: ret
+
+So `[41B6]` is a genuine sequential cursor over a **plain, uncompressed byte
+array** — `mov al,[bx]` is a direct memory read, not a decode step. `[41B2]`
+is the buffer's start address, `[41B4]` its end; the "refill" path at
+`6350` (not fully decoded — it conditionally calls either a small stub or
+`1010:63D5`, gated on a flag at `[41BB]`) only fires once the cursor runs
+off the end of whatever's currently staged, and never fired during any
+level-config read observed this session.
+
+**Found the table.** `[41B2]` (buffer start) is `DS:0x31A8` — the SAME
+768-byte scratch region `4B8E` clears with `rep stosb` (previous entries).
+Dumping it directly at each of the three real level-config reads (matched
+by the caller IP `568C`, before any bytes get consumed) shows the exact
+expected little-endian word triple sitting right at the front of the
+buffer: frame 282 (level 8) → `08 00 C8 00 B4 00` (gate=8, divA=200,
+divB=180); frame 1327 (level 7, the real arrow-key selection) → `07 00 AF
+00 3C 00` (gate=7, divA=175, divB=60 — matching the earlier
+register-captured results exactly); frame 2016 (level 8 again) → `08 00 96
+00 B4 00` (gate=8, but **divA=150 this time, not 200** — different from the
+frame-282 reading despite the same gate).
+
+**Open question, explicitly not resolved**: that last fact — the SAME
+gate=8 producing a DIFFERENT `divA` on a later attempt — means this isn't a
+static "index into one big table" read; something repopulates this 6-byte
+staging window before each config-read, and it isn't obviously a fixed
+function of the level index alone (or the two gate=8 readings would match).
+Watched for writes to `[0x31A8]` across the transition window and found
+several word-sized writes at `1010:5F95` immediately before the read, but
+the intermediate values (`0`, `2566`, `7`, `19779`) don't read as a clean
+"write the level's config record" — more likely `0x31A8` is ALSO used as an
+ordinary scratch/local-variable slot by unrelated code sharing the same 4KB
+buffer, and only one of these writes is the real one. Distinguishing them
+needs either working static disassembly (this session's attempts with
+`tools/lindis.py` produced garbage against this snapshot, unresolved) or
+more careful register-level tracing than was practical to keep doing by
+hand at this point.
+
+**Net effect**: the level-start pipeline is now understood essentially
+end-to-end — arrow keys (mechanism not yet located) → some write populates
+a 6-byte staging record at `DS:0x31A8` → `6576`/`6490`/`6326` (a real,
+simple, uncompressed byte-stream reader, not a file loader or a general
+compressor) reads it into `jump_level_gate`/`[54A2]`/`[4566]` → `4B8E`
+(level-independent buffer setup, confirmed identical across levels) →
+`apply_level_init` (already recovered) → gameplay. The one remaining gap is
+narrow and specific: what writes the staging record, and does it read from
+a genuinely bigger static per-level table elsewhere, or compute it. This is
+a good stopping point for hand-tracing — real disassembly tooling (fixing
+or replacing `tools/lindis.py`) would make finishing this, and future
+similar work, much faster than continuing to guess instruction boundaries
+from raw opcode bytes one call at a time.
+
+## 2026-07-11 — traced level-selection down to a real, tiny byte-stream reader (`1010:6490`/`6576`); the big table-copy is level-independent boilerplate
+
+Direct continuation of the "FOUND the real level-start code" entry below,
+using the SAME multi-level cold-boot demo, now focused on the one open
+question that entry left: do `4B8E`'s copy-source addresses shift per level,
+or is level selection decided somewhere else?
+
+**Confirmed: `4B8E`'s big table-population sequence is byte-for-byte
+IDENTICAL regardless of which level is selected.** Captured its full
+`rep stosb`/`rep movsb` operand sequence (opcode, `cx`, `si`, `di`, `ds`,
+`es`) at the LAST call of three different level-start bursts in this demo —
+one landing on gate 8, one on gate 7, one back on gate 8 — and the two
+gate-8 instances are pixel-identical to each other, and the gate-7 instance
+uses the exact same source offsets (`0x5473`, `0x34A7`, `0x3285`, `0x3302`,
+`0x33E6`, `0x33F0`, all the same `cx` lengths) as both gate-8 instances. So
+`4B8E` is generic per-attempt buffer/table initialization (clearing and
+re-populating working display-list buffers from FIXED DGROUP offsets), not
+a per-level content loader — retracts the "maybe this is the level geometry
+copy" read from the previous entry.
+
+**Found the real level-selection write.** The demo's own real scancodes
+(boundary 1274 = DOWN-ARROW, boundary 1297 = ENTER) land exactly on a real
+`jump_level_gate` change (`8 -> 7`, confirmed at frame 1327, ~30 frames
+later — the expected short processing delay) — so this demo genuinely
+captures a player picking a DIFFERENT level with the keyboard, not just
+attract-mode auto-progression. Read the raw bytes at the write site
+(`1010:568C-56A0`) directly (opcode `0xA3 disp16` = `MOV [disp16], AX`, no
+ambiguity) instead of guessing from execution alone, and found:
+
+    568C: call 6576         ; -> AX
+    568F: mov [4562], ax    ; jump_level_gate := AX   (confirmed =7)
+    5692: call 6576         ; -> AX
+    5695: mov [54A2], ax    ; the level-timer-A divisor already known
+                            ; from step_level_progression (confirmed =175)
+    5698: call 6576         ; -> AX
+    569B: mov [4566], ax    ; the level-timer-B divisor already known
+                            ; from step_level_progression (confirmed =60)
+
+Three back-to-back reads filling exactly the three per-level tuning
+constants `progression.py` already needed a source for. Captured entry/exit
+registers at each of the three real calls (matched to caller by return
+address, not just call order, to avoid misattributing an unrelated call to
+the same shared function): **`bx` at entry to each call is the PREVIOUS
+call's own result** (call 1 returns 7 -> call 2 enters with `bx=7` -> returns
+175 -> call 3 enters with `bx=175` -> returns 60), which rules out a plain
+"lookup by level index" read and instead looks like each call thread a
+cursor/state value through the next.
+
+**Decoded `6576` itself** (13 bytes, unambiguous — two calls to `1010:6490`
+bracketing a byte-combine):
+
+    6576: call 6490   ; -> AL (byte 1)
+    6579: push ax
+    657A: call 6490   ; -> AL (byte 2)
+    657D: pop bx
+    657E: mov ah, al   ; ah := byte 2
+    6580: mov al, bl   ; al := byte 1
+    6582: ret          ; ax := byte1 | (byte2 << 8) -- a little-endian word
+                        ; assembled from two single-byte reads
+
+So `6576` is a two-byte-read word-assembler, and `6490` (not yet decoded)
+is almost certainly a "read next byte from an embedded stream, advance a
+cursor" primitive — likely how this era of DOS game encodes a small level
+config table (level gravity constant + two timer divisors per level,
+possibly packed/delta-encoded given the byte-at-a-time read rather than a
+flat word array) without any file I/O. No `INT 21h` file-open activity was
+observed anywhere in this investigation, reconfirming the earlier finding.
+
+**Where this leaves things**: the level-SELECTION mechanism (arrow keys ->
+`jump_level_gate` + the two timer divisors, via a small byte-stream reader)
+is now understood in outline and precisely located, but NOT yet ported —
+`6490`'s own logic (the actual cursor/stream mechanics) and the source table
+it reads from are still unknown, and the arrow-key-to-selection-cursor link
+(what field DOWN/UP arrow actually move, before ENTER triggers this read)
+hasn't been traced. This is real, tractable follow-on work, not a fresh
+unknown the way "is there even a menu system" was at the start of this
+investigation. Given the size of what's already been covered this session,
+stopping here to check in before committing to a full port.
+
+
+## 2026-07-11 — FOUND the real level-start code: table-driven, not a file loader, and it calls the already-recovered apply_level_init
+
+Direct follow-up to the investigation below. The user recorded two fresh,
+genuine cold-boot demos with real keyboard menu input (`demo_cold_
+20260711_201855` — full session, multiple levels, dies, finishes the last
+level; `demo_skyroads_20260711_202740` — a tight 156-frame clip that starts
+already sitting at the level-select screen and just confirms). These are the
+first demos in the repo to actually exercise the real menu/level-start code
+(confirmed: real scancodes at low boundaries — ALT, SPACE, ENTER, arrow,
+ENTER — landing on real gameplay input by frame ~80-90, not the `1B49`
+auto-progression loop this session had been misreading as "menu" activity).
+
+**Method**: near-call detection (scanning for real `0xE8` opcodes via
+`cpu.mem.rb`, decoding the `rel16` operand directly — a poor man's
+disassembler that doesn't depend on `tools/lindis.py`, which is still broken
+against this snapshot) over the small demo's 156 frames surfaced a tight,
+one-shot call chain right where `game_state` flips from level-select to
+active gameplay: `1010:2B53 -> 3B9D`, `2BD6 -> 1114`, `2C0F -> 0BAF`,
+`2C1B -> 0BE9`, `2C58 -> 4B8E`, then **`2C5E -> 1FD9`** — the LAST call in
+the chain is `apply_level_init`, the routine this session already ported and
+verified back in the "recovered the level-init" entry. So the transition
+handler `should_run_gameplay` hands off to (`1010:2B0B`, previously
+unmapped) ends, after its own setup, by calling code we already have.
+
+**Full-memory-diffed each unknown call** (the same technique that caught the
+two real `road_column_strip` bugs) to see what they actually touch:
+- `3B9D`, `0BAF`, `0BE9`: tiny (4-6 bytes), all in a stack-adjacent scratch
+  region (`0xB900`-`0xB910`) — almost certainly this enclosing routine's own
+  locals, not persistent level data.
+- `1114`: ~88 bytes across several small regions — looks like a
+  buffer/working-state reset (many bytes go to 0), not new content.
+- **`4B8E`: 843 bytes touched, dominated by one contiguous ~750-byte run at
+  `[0x31BC, 0x34A7]`.** This is the one that matters.
+
+**Traced `4B8E`'s own `rep stosb`/`rep movsb` instructions directly** (their
+operands — `cx`/`si`/`di`/`ds`/`es` — say exactly what's being moved and
+where, no guessing): it does a `rep stosb` clearing `ds:[0x31A8..0x31A8+0x300)`
+(768 bytes, matches the diffed region), a `rep movsb` from `ds:0x5473` into a
+**different, separately-allocated segment** (`es=0x8118`, cx=0x300) and
+another from `ds:0x34A7` into yet another allocated segment (`es=0x8148`),
+then a huge `rep stosb` clearing 7000 bytes starting at **`ds:0x162C`** —
+`PERSPECTIVE_TABLE_BASE`, the SAME base `renderer.perspective_row_offset`
+already reads — followed by several smaller `rep movsb` copies filling parts
+of that region from other DGROUP offsets (`0x3285`, `0x3302`, `0x33E6`,
+`0x33F0`), and finally a 19840-byte `rep stosb` clearing yet another freshly
+allocated segment (`es=0x7176`).
+
+**The headline finding**: this is a **table-driven load, not a disk file
+read**. Every source/dest address observed is either a fixed DGROUP offset
+or a DOS-allocated working-buffer segment (the same pattern `road_column.
+road_column_strip` already established for display-list/screen segments) —
+consistent with a small DOS game of this era baking all level geometry into
+the EXE's own data segment rather than shipping separate level files. No
+`INT 21h` file-open activity was observed anywhere in this window. This
+means genuinely native, VM-free "pick any level and load it" is a real,
+tractable target — it needs porting a table-copy/buffer-init routine, not a
+file-format parser.
+
+**Not yet done, and why this isn't shipped as a recovery yet**: whether
+these source offsets (`0x5473`, `0x3285`, etc.) are FIXED (same for every
+level, with the actual per-level selection happening somewhere upstream —
+e.g. picking which physical EXE-embedded blob a different pointer refers to)
+or shift with the selected level hasn't been checked against the multi-level
+demo yet. `4B8E` itself is also not remotely disassembled/understood beyond
+its raw copy operands — treating it as a black box that "does something
+copy-shaped" is enough to answer "is this a file loader" but nowhere near
+enough to port and verify it. This is real, substantial follow-on work, not
+a quick add — comparable in size to the renderer subsystem recovered earlier
+this session.
+
 ## 2026-07-11 — level-select menu investigation: existing "menu" recovery is actually auto-progression, not human menu-picking; no demo captures the real thing
 
 Asked to build a native level-select menu (pick a level from a demo, it
