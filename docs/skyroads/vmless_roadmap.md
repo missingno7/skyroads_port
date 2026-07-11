@@ -60,6 +60,48 @@ found and fixed. Honest state:
 
 ## What's missing (in rough dependency order)
 
+-1. **Renderer reconnaissance (2026-07-11, not yet recovered code).** Scoped the
+    next frontier: the per-column road-draw dispatch. `road_column_strip`
+    (`1010:38BF`) is a fully-understood, register-exact hook already (the
+    single most-called rasterizer, 34 callsites/~13% of render work — see
+    `skyroads/hooks.py`'s extensive comment there), but the code that DECIDES
+    which columns to draw and with what argument (`ax`, encoding a column index
+    + edge-composite flags) was unmapped. Traced its caller: an indirect call
+    through a function pointer at `ds:[0E42]` (`1010:35F8`), meaning the game
+    SWITCHES between multiple column-dispatch variants depending on road/track
+    shape — not one dispatcher. Hand-transcribed and verified one variant
+    (`1010:364F-36F2`, a nested `E56/E58/E4E/E50/E52`-gated decision tree
+    calling `38BF` with `ax` in `{0, 1, 0x200, 0x201, 0x400..0x405, 0x500,
+    0x501}`) against 480 real captured invocations: **474/480 (98.75%)
+    matched**; the 6 misses all came from calls with `ax=0x8002` from a
+    DIFFERENT call site (`0x3710`, inside a second variant starting near
+    `0x36F3` that wasn't transcribed). Deliberately NOT landed as recovered
+    code — the session's bar is verified-before-landed, and this needs the
+    second variant (and likely more) mapped and cross-checked first.
+
+    Read the second variant's disassembly (`1010:36F3-37DF`, and it continues
+    past there): structurally similar to the first (nested `E4E/E50/E52/E54/
+    E56/E58/E5A`-gated `38BF` calls with `ax` including new codes `0x8300`,
+    `0x0201` at a different gate, `0x0500`) but noticeably LONGER and pulls in
+    two fields the first variant never touches: `ds:[0E5C]`/`ds:[0E5E]`
+    (compared against `[0E4E]`/`[0E50]` at `375D-376D` and `37C7-37D7` — likely
+    a second pair of "previous column" state the first variant's simpler cases
+    don't need). So this is genuinely a multi-variant, multi-session
+    subsystem — each variant is its own 30-80 instruction decision tree,
+    `[0E42]` picks among them, and cracking one doesn't shortcut the rest.
+
+    **Concrete next steps** for whoever picks this up: (1) finish transcribing
+    `36F3` onward (it continues past `37DF`, not yet read); (2) capture what
+    `[0E42]`'s value(s) actually are across a real demo and what selects
+    between variants (road curvature? a level-data flag?); (3) verify each
+    variant the same way — capture real `(fields) -> [ax...]` sequences and
+    check a hand transcription byte-exact, exactly like every game-logic
+    island this session; (4) once column dispatch is solid, the NEXT layer up
+    is the display-list BUILDER that populates `[0E60]`/`[0E62]`'s stride-3
+    records each frame (not investigated yet) and the outer per-frame render
+    entry point (not yet located — `0C98`, called once per frame from the
+    gameplay handler, turned out to be game-logic setup, not the renderer).
+
 0. **ASSEMBLED (2026-07-11).** The recovered islands now compose into a running
    native stepper: `skyroads.native.loop.native_gameplay_substep(view, scratch)`
    steps one COMPLETE gameplay sub-step (`2324-2AE2`) in ASM spine order over a
