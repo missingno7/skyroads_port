@@ -4,6 +4,85 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — fully decoded 1010:34AE from its own proven lift; paused before assembling a native renderer (redirected to broader lifting first)
+
+User asked for `play_native.py --level 8.1` with real interactive play.
+Assessed honestly: that needs an assembled native renderer (none exists —
+`road_column_strip`/`dispatch_variant_a`/`_b` are recovered but nothing
+calls them from a real per-frame entry point) plus a real-time input/render
+loop (doesn't exist either). User chose the big option — build toward real
+interactive native play — so started by reading `1010:34AE`'s own proven
+lift (`skyroads/lifted/lifted_1010_34ae.py`, 130 instructions/28 blocks,
+`ORACLE_PASSING` from before this session) end-to-end, since a previous
+attempt at this refactor was abandoned mid-draft after catching three
+transcription mistakes (see the 2026-07-11 "found the render entry point"
+entry).
+
+**Fully understood this time, reading the LIFT (not re-deriving from ASM,
+avoiding the earlier mistakes' root cause)**:
+- Block 0: `ds:=ss` (a no-op in practice — this program's `ss` and `ds`
+  are the same segment throughout, confirmed empirically all session), then
+  an early-exit check on `ss:[0x3C]` (a genuine caller-supplied local/param,
+  the one field here that ISN'T a DGROUP alias).
+- Blocks 2-3: `mode` (the `ax` value on entry) selects `[0E66]`/`[0E68]`/
+  `[0E42]` — `mode==0`: source `[5170]`, dest `[0E36]` (off-screen), dispatch
+  `0x364F` (`dispatch_variant_a`); `mode!=0`: source `[0E36]`, dest `0xA000`
+  (VGA), dispatch `0x36F3` (`dispatch_variant_b`). Confirms the earlier
+  finding exactly.
+- Blocks 4-9: `[0E32]!=0` OR the unsigned delta `[0E2A]-[0E6A]` `>=8` →
+  jump straight to the FLAT COPY fast path (blocks 25-27, a `rep movsw`
+  from `[0E66]:si` to `[0E68]:di`, `cx`/`si` picked by `[0E32]`: `(0x2800,
+  0x4240)` normally or `(0, 0x5640)` when `[0E32]!=0`). Delta `==0` → skip
+  straight to finalize (blocks 7→23) — a real per-frame CACHE: unchanged
+  position does zero column work.
+- Block 10-12 (the real per-column setup, `0 < delta < 8`): `[0E64] = 0x30`
+  if `([0E2A]>>3) == ([0E6A]>>3)` else `0`; `[0E62] = table_0xE76[([0E6A]&7)*2]`,
+  `[0E60] = table_0xE76[([0E2A]&7)*2]` (an 8-slot word table — a rotating
+  multi-buffer scheme, NOT the same source field twice, correcting a
+  misread from earlier in this same investigation); `[0E4C] = ([0E2A]>>3)
+  // 14 + 0x168E` (`0x162C` = `PERSPECTIVE_TABLE_BASE` + `0x62`) — the
+  road-segment RECORD POINTER for this frame's position.
+- Blocks 13-22 (the classification loop, confirmed the SAME shape
+  `render_dispatch.py` already expects): outer loop `[0E46]` 1..4, inner
+  toggle `[0E48]` 0/1, each iteration reading 1-2 bytes from the record at
+  `[0E4C]` (stride `0x0E` per outer step, sign/offset selected by
+  `[0E48]`), building `e4e/e50/e52/e54` via an 8-entry BYTE table at
+  `0xBA7` (a "shape reduction" lookup — a real, distinct table from the
+  `0xE76` word table) and `e56/e58/e5a/e5c/e5e` via nibble extraction, then
+  `call [0E42]` — confirms `dispatch_variant_a`/`_b`'s existing recovered
+  contract byte-for-byte, this is genuinely where those functions' inputs
+  come from. Loop ends when `[0E44]` (started at `0x0B`=11) counts down to
+  1, walking `[0E4C]` backward by `0x0E` each outer pass.
+- Every path converges on block 23: `call 1010:39D4`, then `pop ds; ret`.
+
+**Disassembled `1010:39D4` too** (small, tractable, via the now-fixed
+`tools/lindis.py --live-demo`): draws up to 4 fixed-position sprites via a
+shared blitter (`1010:3A22`, not yet examined) using the SAME `[0E66]`/
+`[0E68]` segments — 2 always, 2 more gated on `[0E68]==0xA000` (i.e., only
+composited on the real-screen pass, not the off-screen one). Almost
+certainly the HUD/dashboard/ship overlay (`DASHBRD.LZS`/`CARS.LZS` are
+real, on-disk resource files this session already found — see the
+level-select entries above).
+
+**Two real, static lookup tables still needed, content not yet read**:
+`0xE76` (8 words — display-list buffer segment numbers) and `0xBA7` (8
+bytes — shape-class reduction). Both are constant/compile-time DGROUP data,
+not per-level — readable directly from any VM capture (same "seed once
+from the VM, then go native" pattern this whole session already uses), not
+a new unknown mechanism.
+
+**Paused here, deliberately, mid-task** — not because of a blocker, but a
+user course-correction: rather than keep assembling a native renderer in
+isolation (this decode, `road_column_strip`, `dispatch_variant_a`/`_b`,
+`3A22`'s blitter, and the interactive I/O loop are all still separate,
+unintegrated pieces), the user redirected toward continuing the broader
+hooking/lifting effort first, to grow real coverage before attempting a
+full native product again. This entry preserves the research (a real,
+verified, from-the-proven-lift understanding of `34AE`'s COMPLETE
+algorithm) so it's not lost — porting it to `skyroads/recovered/road_frame.py`
+remains a concretely scoped, mostly-solved next step whenever the project
+returns to the renderer.
+
 ## 2026-07-11 — the road GEOMETRY decodes too — found and reused an existing, already-VM-verified LZS codec
 
 Follow-up to landing `roads_archive.py`'s header reader. Went to scope the
