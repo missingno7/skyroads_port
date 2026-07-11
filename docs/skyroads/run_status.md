@@ -4,6 +4,63 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — RESOLVED: SkyRoads loads levels from real, separate `.lzs` compressed resource files — the level-select investigation's final answer
+
+Closes the thread run through the last several entries. Scanned for every
+DOS file-open (`INT 21h` `AH=3D/3C/6C`) in the first 400 frames of the
+multi-level cold-boot demo, reading each call's ASCIIZ filename directly
+out of `DS:DX`. Found the game's real, on-disk resource manifest, in
+load order:
+
+    skyroads.cfg  muzax.lzs  oxy_disp.dat  ful_disp.dat  speed.dat
+    demo.rec  trekdat.lzs  intro.lzs  anim.lzs  intro.snd  mainmenu.lzs
+    cars.lzs  dashbrd.lzs  sfx.snd  gomenu.lzs  roads.lzs  world5.lzs
+
+**This settles it**: SkyRoads is a classic disk-resource-file DOS game —
+menus (`mainmenu.lzs`, `gomenu.lzs`), sprites (`cars.lzs`, `dashbrd.lzs`),
+generic road-shape pieces (`roads.lzs`), and **per-world level data
+(`world5.lzs`)** all live in separate files, most `.lzs`-compressed (`lzs`
+almost certainly = an LZ-style compressor, matching the buffered
+byte-stream reader `6326`/refill-via-`INT 21h AH=3Fh` chain traced over the
+last several entries). `world5.lzs` opens right where the level-config
+triple (`jump_level_gate`/`[54A2]`/`[4566]`) gets read for the FIRST
+level-start — so that read genuinely does trickle down to a real,
+compressed, on-disk file, not a compile-time DGROUP constant as earlier
+entries guessed. This also explains the earlier puzzle (same `jump_level_
+gate=8` producing a different `divA` on a later attempt): different level
+SLOTS within a world's file can share a gate value while differing on
+tuning constants — nothing was inconsistent, the read source just wasn't
+a flat, index-addressable array the way this investigation kept assuming.
+
+**What this means for "native level select"**: it is NOT the small,
+almost-free addition earlier entries hoped for. Genuinely native (VM-free)
+"pick any level, load its data" needs a real `.lzs` decompressor and file
+reader — comparable in scope to a NEW subsystem, not a quick table lookup.
+Concretely scoped next steps, in dependency order: (1) get a `world5.lzs`
+(and a `roads.lzs`) file off disk and reverse-engineer the `.lzs` container
+format (header, compression scheme — likely a classic LZ77/LZSS variant
+given the byte-at-a-time decode pattern already traced); (2) port a clean
+decompressor once the format's understood, verified against real reads via
+the now-fixed `tools/lindis.py --live-demo`; (3) locate the per-level
+record layout inside a decompressed world file (gate/timerA/timerB, and
+almost certainly the actual road-shape/geometry table the renderer needs
+too — `roads.lzs` is a strong candidate for exactly the display-list data
+this session's earlier renderer work never found a builder for). This
+consolidates cleanly with the renderer's own still-open "display-list
+BUILDER" gap (`vmless_roadmap.md` item -1) — they may be the same missing
+piece.
+
+**Session summary for the level-select investigation as a whole**: started
+from "does the existing `dispatch_menu_action` recovery even model a real
+human menu" (it didn't — it modeled auto-progression); ended at a complete,
+concrete, disk-file-based resource-loading picture with named real files,
+a real DOS `INT 21h` read path, and a fixed disassembly tool
+(`tools/lindis.py --live-demo`) that will make the next phase (the `.lzs`
+format itself) far more tractable than the hand-decoding done to get here.
+Nothing was ported or landed as recovered code this session — this was
+entirely successful reconnaissance, now accurately scoped instead of an
+open question.
+
 ## 2026-07-11 — FIXED tools/lindis.py (`--live-demo`); CORRECTION: there IS a real file-read path, just not one the sampled level-config read happened to hit
 
 Implemented the fix the previous entry called for: `tools/lindis.py

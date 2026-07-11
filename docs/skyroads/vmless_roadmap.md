@@ -40,21 +40,30 @@ the full account, including a real vertical-velocity divergence this work
 found and fixed. Honest state:
 
 - `native_menu_frame` — **the state-transition RULES are complete and
-  gap-free** (`dispatch_menu_action`, action codes 2/9/0xA/0xC all modeled).
-  **Correction (2026-07-11, later):** every demo captured so far exercises
-  this same code path for AUTOMATIC in-level progression, not manual
-  keyboard menu browsing — action `0xA` is the forward-motion tick, `0xC` is
-  the level-complete trigger (`ship_pos` reaches `LEVEL_END`), not a human
-  picking a level from a list. No demo in the repo is a genuine cold EXE
-  boot, so none captures the real title/level-select screen a player would
-  navigate with arrow keys. The RULE recovery is still correct (it's a
-  general 4-bit dispatcher, verified 318/318 on real calls regardless of
-  which caller drives it) — what's unverified is whether a human-driven
-  level PICK (as opposed to auto-progression) exercises the same rules the
-  same way, and what selects/loads the chosen level's data (traced to an
-  unmapped outer dispatcher at `1010:2B0B` — see run_status.md's "level-select
-  menu investigation" entry). Needs a genuine cold-boot demo with real
-  keyboard menu input to verify and complete.
+  gap-free** (`dispatch_menu_action`, action codes 2/9/0xA/0xC all modeled;
+  still correct — a general 4-bit dispatcher verified 318/318 regardless of
+  caller). **Correction (2026-07-11, later):** every demo captured up to
+  that point exercised this same code path for AUTOMATIC in-level
+  progression (action `0xA` = forward-motion tick, `0xC` = level-complete
+  trigger), not manual keyboard menu browsing.
+
+  **Resolved (2026-07-11, same day, with two freshly recorded genuine
+  cold-boot demos):** real human menu navigation traced end-to-end. Arrow
+  keys + ENTER lead to a small read (`1010:568C-56A0`) of three words
+  (`jump_level_gate`/`[54A2]`/`[4566]`) via a buffered byte-stream reader
+  (`1010:6326`/`6490`/`6576`, decoded down to real opcodes with a fixed
+  `tools/lindis.py --live-demo`), then a level-independent buffer-init pass
+  (`4B8E`, confirmed byte-identical across levels — NOT itself level
+  content), then straight into the already-recovered `apply_level_init`
+  (`1FD9`). **The buffered reader's source turned out to be a real, open
+  DOS file** (`INT 21h AH=3Fh`, traced to `1010:5F80`) — SkyRoads loads its
+  resources from separate on-disk files (`mainmenu.lzs`, `roads.lzs`,
+  `world5.lzs`, etc. — a full manifest is in run_status.md), most
+  `.lzs`-compressed. So native level SELECTION (the arrow-key/confirm
+  state machine) is understood and cheap to port; native level LOADING
+  (getting a chosen level's actual data without the VM) needs a real
+  `.lzs` decompressor and file reader first — see item -2 below, a new,
+  properly-scoped subsystem, not a quick follow-up.
 - `native_gameplay_frame` — commits forward motion (real-demo-proven), then
   raises one of three typed gaps (`skyroads/native/gaps.py`) on every real
   gameplay frame tested so far: the jump-impulse latch, the vertical-velocity
@@ -73,6 +82,24 @@ found and fixed. Honest state:
   operationally, but the gap is now a single, precisely-named next island.
 
 ## What's missing (in rough dependency order)
+
+-2. **NEW (2026-07-11): the `.lzs` resource file format / decompressor.**
+    SkyRoads loads its levels, menus, and sprites from separate on-disk
+    files (`mainmenu.lzs`, `gomenu.lzs`, `cars.lzs`, `dashbrd.lzs`,
+    `roads.lzs`, `world5.lzs`, plus `.dat`/`.snd`/`.cfg` files — full
+    manifest in run_status.md's "RESOLVED: SkyRoads loads levels from real,
+    separate .lzs compressed resource files" entry), most `.lzs`-compressed
+    — confirmed via real `INT 21h` file-open calls with their filenames read
+    directly off the stack, and a buffered read chain (`1010:6326` →
+    `1010:5F80`, a real `AH=3Fh` file-read wrapper) traced down to real
+    opcodes with a newly fixed `tools/lindis.py --live-demo`. This is the
+    genuine blocker for native level SELECTION (picking any level without
+    the VM) and quite possibly the renderer's own still-missing display-list
+    BUILDER (item -1's open question 2 below) — `roads.lzs` is a strong
+    candidate for exactly that data. Not started: getting a `.lzs` file off
+    disk and reverse-engineering its container format (header + compression
+    scheme, likely a classic LZ77/LZSS variant given the byte-at-a-time
+    decode pattern already traced) is the concrete first step.
 
 -1. **Renderer: column-draw dispatch RECOVERED (2026-07-11).** The first real
     renderer decision logic. `road_column_strip` (`1010:38BF`) is a
