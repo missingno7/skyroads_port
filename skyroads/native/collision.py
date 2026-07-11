@@ -21,6 +21,12 @@ from __future__ import annotations
 
 from typing import Callable
 
+from skyroads.recovered.collision_response import (
+    FELL_SEG_HIGH_TABLE,
+    FELL_SEG_LOW_TABLE,
+    fell_off_segment,
+    ship_fell_off as _ship_fell_off_pure,
+)
 from skyroads.recovered.renderer import (
     SEG_BOUND_HIGH_TABLE,
     SEG_BOUND_LOW_TABLE,
@@ -28,6 +34,21 @@ from skyroads.recovered.renderer import (
     road_object_visible,
     road_segment_clip,
 )
+
+
+def ship_fell_off(rw: Callable[[int], int], lateral: int, af1c: int, af2c: int) -> int:
+    """Whether the ship has fallen off the road (`1010:0533`), reading the
+    perspective + per-segment clip tables through ``rw``. Returns 1 (fell) / 0."""
+    r = perspective_row_offset(lateral & 0xFFFF, (lateral >> 16) & 0xFFFF, af1c)
+    persp_word = rw(r.offset) if r.in_range else 0
+    seg = fell_off_segment(af1c)
+    if seg < 0:
+        # segment out of range -> can't have fallen (the pure fn returns 0 too,
+        # but avoid a bogus table read).
+        return _ship_fell_off_pure(persp_word, af1c, af2c, 0, 0)
+    seg_low = rw((FELL_SEG_LOW_TABLE + 2 * seg) & 0xFFFF)
+    seg_high = rw((FELL_SEG_HIGH_TABLE + 2 * seg) & 0xFFFF)
+    return _ship_fell_off_pure(persp_word, af1c, af2c, seg_low, seg_high)
 
 
 def make_visible(rw: Callable[[int], int]) -> Callable[[int, int, int], int]:

@@ -136,20 +136,24 @@ class DynamicsResult(NamedTuple):
              "effect_latch=1 and flag hit_effect_path (a 1DFA call, unmodelled). "
              "(gravity 25DB-2635) if grounded==0: af2c>=0x2800 -> bounce+=gravity "
              "else clamp bounce down to -106 if above; grounded -> ramp bounce to "
-             "+0x47 (>=0, +0x27/step). Returns new bounce/lateral_accel/scratch.",
+             "+0x47 (>=0, +0x27/step). Returns new bounce/lateral_accel/scratch. "
+             "When moving is False (game_state != 0, the 24BA->25AC frozen path), "
+             "the steering and jump-latch stages (2534-25A9) are SKIPPED -- only "
+             "the effect + gravity stages (25AC-2635) run.",
     status="ASM_MATCHED",  # 415/416 real E2E-demo frames byte-exact on
     # (bounce, lateral_accel, bp-8, bp-10); the single miss is a hit_effect_path
     # frame whose 1DFA call rewrote lateral_accel (correctly flagged, not
     # modelled). The grounded ramp (260D-262F) and the airborne terminal clamp
     # (af2c<0x2800) branches are transcribed from the ASM; whether the demo
-    # exercised each is asserted by tests/test_dynamics.py.
+    # exercised each is asserted by tests/test_dynamics.py. The moving=False
+    # (frozen) path is verified via the lockstep loop (test_native_loop_lockstep).
     merge_target="skyroads.native.dynamics (future)",
 )
 def step_jump_steer_gravity(
     scratch: JumpScratch, class_skip: int, class_zero: int,
     bounce: int, lateral_accel: int, af2c: int, steer: int,
     jump_req: int, jump_gate: int, grounded: int, gravity: int,
-    effect_gate: int,
+    effect_gate: int, moving: bool = True,
 ) -> DynamicsResult:
     jumping = scratch.jumping
     jump_start_y = scratch.jump_start_y
@@ -157,22 +161,25 @@ def step_jump_steer_gravity(
     bounce &= 0xFFFF
     lateral_accel &= 0xFFFF
 
-    # --- steering momentum (1010:2534-256D) ---
-    if class_skip == 0:
-        do_update = False
-        if jumping == 0 and class_zero == 0:
-            do_update = True                                    # 2534->253D->2543
-        elif (lateral_accel == 0 and _s16(bounce) > 0
-              and ((af2c - jump_start_y) & 0xFFFF) < STEER_HEIGHT_WINDOW):
-            do_update = True                                    # 2546->2550->255A
-        if do_update:
-            lateral_accel = (_s16(steer) * STEER_ACCEL_MUL) & 0xFFFF
+    # steering (2534-256D) + jump latch (2570-25A9) run ONLY on the moving path
+    # (game_state == 0); the frozen path (24BA -> 25AC) enters below them.
+    if moving:
+        # --- steering momentum (1010:2534-256D) ---
+        if class_skip == 0:
+            do_update = False
+            if jumping == 0 and class_zero == 0:
+                do_update = True                                # 2534->253D->2543
+            elif (lateral_accel == 0 and _s16(bounce) > 0
+                  and ((af2c - jump_start_y) & 0xFFFF) < STEER_HEIGHT_WINDOW):
+                do_update = True                                # 2546->2550->255A
+            if do_update:
+                lateral_accel = (_s16(steer) * STEER_ACCEL_MUL) & 0xFFFF
 
-    # --- jump latch (1010:2570-25A9) ---
-    if jumping == 0 and class_zero == 0 and jump_req != 0 and jump_gate < JUMP_GATE_MAX:
-        bounce = JUMP_IMPULSE & 0xFFFF
-        jumping = 1
-        jump_start_y = af2c & 0xFFFF
+        # --- jump latch (1010:2570-25A9) ---
+        if jumping == 0 and class_zero == 0 and jump_req != 0 and jump_gate < JUMP_GATE_MAX:
+            bounce = JUMP_IMPULSE & 0xFFFF
+            jumping = 1
+            jump_start_y = af2c & 0xFFFF
 
     # --- the 25AC-25D6 one-shot effect (a 1DFA call; unmodelled) ---
     hit_effect_path = False

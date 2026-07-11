@@ -20,7 +20,33 @@ from skyroads.recovered.collision_response import (
     resolve_lateral_crash,
     vertical_center_nudge,
 )
+from skyroads.recovered.collision_response import fell_off_segment, ship_fell_off
 from skyroads.recovered.dynamics import JumpScratch
+
+
+# ---- ship_fell_off (fall predicate) unit tests -----------------------------
+
+def test_fell_off_invalid_segment_never_falls() -> None:
+    # persp_word nibble not in {0x100,0x300,0x500} -> 0 (no valid road segment).
+    assert ship_fell_off(0x0000, af1c=0x8000, af2c=0x3000, seg_low=0, seg_high=0) == 0
+    assert ship_fell_off(0x0200, af1c=0x8000, af2c=0x3000, seg_low=0, seg_high=0) == 0
+
+
+def test_fell_off_row_below_midpoint_is_a_fall() -> None:
+    # valid segment (nibble 0x100); row = (af2c-0x2200)/128 < mid -> fell (1).
+    # af2c=0x2300 -> row=(0x100)/128=2; seg_low+seg_high large -> mid big -> 2<mid.
+    assert ship_fell_off(0x0100, af1c=0x8000, af2c=0x2300, seg_low=0x40, seg_high=0x40) == 1
+
+
+def test_fell_off_row_at_or_above_midpoint_is_safe() -> None:
+    # row >= mid -> on road (0). mid = (0+0)/2 = 0; any row >= 0 -> 0.
+    assert ship_fell_off(0x0100, af1c=0x8000, af2c=0x3000, seg_low=0, seg_high=0) == 0
+
+
+def test_fell_off_segment_is_minus_one_or_in_range() -> None:
+    # fell_off_segment returns -1 (out of range) or a valid mirrored index 0..0x25.
+    segs = {fell_off_segment(a) for a in range(0, 0x10000, 0x40)}
+    assert all(s == -1 or 0 <= s <= 0x25 for s in segs), sorted(segs)[:5]
 
 
 # ---- resolve_lateral_crash unit tests --------------------------------------

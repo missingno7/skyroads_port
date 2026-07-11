@@ -4,6 +4,42 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — the native loop plays WHOLE LEVELS in lockstep; frozen path + death/level-end detection
+
+Pushed the lockstep loop from ~20-step runs to whole-level runs and made it stop
+cleanly at every boundary it doesn't own. Four things:
+
+1. **Frozen-ship path** (`game_state != 0`, the `24BA -> 25AC` gate): added a
+   `moving` flag to `dynamics.step_jump_steer_gravity` that skips steering +
+   jump when the ship is frozen, and `native_gameplay_substep` skips
+   `advance_ship` too. Extended lockstep runs from ~20 to ~95 steps.
+2. **af2c floor clamp** (`2A24-2A2F`, `if af2c > 0x7FFF: af2c = 0`) between the
+   collision tail and progression — a stage I'd missed. Fixed a single-field
+   `af2c` divergence; that run extended to 122 steps.
+3. **Fall-off-the-road death predicate** (`ship_fell_off`, `1010:0533`):
+   recovered (perspective word segment -> clip-bound midpoint vs the ship's row).
+   Death fires (`23CA-2421`) past the `[41C0]` lateral threshold while
+   `game_state == 0`. **682/682 + 511/511 death-check evaluations matched with
+   ZERO false positives** — but neither demo actually falls, so the positive
+   branch is decoded, not yet confirmed on a real death (flagged).
+4. **Boundary detection**: `native_gameplay_substep` now raises typed gaps —
+   `LevelEndTransition` when `game_state` leaves the in-level set `{0, 3}`
+   (level complete -> 2, timer-expired -> 4/5, crash -> 1), and
+   `FallDeathTransition` on a fall — instead of drifting past them.
+
+**Result**: the native loop runs **whole levels (50-122 steps) in perfect
+lockstep** with the VM and ends every run by cleanly DETECTING the boundary and
+raising a gap — ZERO silent field drift across the demo (`tests/
+test_native_loop_lockstep.py`). One un-modelled edge remains (a `game_state 3 ->
+respawn` mid-level transition), bounded in the test.
+
+So `native_gameplay_substep` is a real VM-free gameplay loop: it plays a level
+start to finish in lockstep with the original, and knows when it's reached a
+boundary (level end, death) it hasn't yet recovered the transition for. What's
+left for a FULL native game: the transition subsystem (level load / respawn /
+menu return) at those boundaries, and a standalone driver to run it without the
+VM at all.
+
 ## 2026-07-11 — LOCKSTEP: the native loop runs in sync with the VM and never drifts
 
 The accumulated-state convergence proof (stronger than the per-step test): seed

@@ -77,6 +77,7 @@ class GameView(StructView):
     timer_a_param = U16(0x54A2)    # ds:[54A2] per-level fuel-rate divisor (progression.py)
     timer_b_param = U16(0x4566)    # ds:[4566] per-level oxygen-rate divisor (progression.py)
     effect_gate = U16(0x4570)      # ds:[4570] gates the 25AC-25D6 one-shot effect (dynamics.py)
+    f41c0 = U16(0x41C0)            # ds:[41C0] the fall-death lateral-threshold base (loop.py, 23CA)
 
     # -- respawn/reset fields not yet named elsewhere (player.py's RespawnState) --------------
     unknown_5496 = U16(0x5496)

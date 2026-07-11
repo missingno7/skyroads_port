@@ -36,8 +36,14 @@ from typing import NamedTuple
 
 from skyroads.bridge.dgroup_view import GameView
 from skyroads.native.classify import classify_ship
-from skyroads.native.collision import make_visible
-from skyroads.native.gaps import JumpGateGap, MovementPhysicsGap, VerticalVelocityGap
+from skyroads.native.collision import make_visible, ship_fell_off
+from skyroads.native.gaps import (
+    FallDeathTransition,
+    JumpGateGap,
+    LevelEndTransition,
+    MovementPhysicsGap,
+    VerticalVelocityGap,
+)
 from skyroads.recovered.collision_response import (
     af1c_contact_fixup,
     lateral_wall_bump,
@@ -174,19 +180,31 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
     (`1010:1BDC`). The residual misses are documented edge cases (a rare
     ``[AF2E]`` landing adjustment).
 
-    Only the active-gameplay path (``game_state == 0``) is recovered; other
-    states (the ship is frozen -- advance/steer/jump are skipped) and the
-    out-of-bounds death check (`23CA-2421`) and the ``1DFA`` effect are not, so
-    they raise :class:`~skyroads.native.gaps.SkyroadsGap`.
+    Both the active-gameplay path (``game_state == 0``) and the frozen-ship path
+    (``game_state != 0``: forward motion / steering / jump are skipped at
+    ``24BA -> 25AC``) are handled. The out-of-bounds death check (`23CA-2421`)
+    and the ``1DFA`` effect are not, so they raise
+    :class:`~skyroads.native.gaps.SkyroadsGap`.
     """
-    if view.game_state != 0:
-        raise MovementPhysicsGap(
-            f"game_state={view.game_state} != 0 -- the frozen-ship path "
-            "(advance/steer/jump skipped, 24BA->25AC) is not recovered yet"
-        )
+    # In-level game states: 0 (active) and 3 (resume-frozen). Anything else is a
+    # level boundary (2 level-select, 4/5 timer-expired, 1 crash) the gameplay
+    # stepper doesn't own.
+    if view.game_state not in (0, 3):
+        raise LevelEndTransition(
+            f"entered with game_state={view.game_state} (not an in-level state)")
+    moving = view.game_state == 0
 
     rw = view.rw
     visible = make_visible(rw)
+
+    # Fall-off-the-road death check (23CA-2421): fires past the [41C0] lateral
+    # threshold while game_state == 0. (Verified no false positives; a real fall
+    # was not exercised by the demos -- see FallDeathTransition.)
+    if moving:
+        thr = (((view.f41c0 // 0x10) + 0xFFFF8000) & 0xFFFFFFFF)
+        if view.lateral >= thr and ship_fell_off(rw, view.lateral, view.af1c, view.af2c):
+            raise FallDeathTransition(
+                f"ship fell off the road at lateral={view.lateral:#x}")
 
     # 1. perspective classification (2324-23BF) -> class flags. Its reduction
     #    path makes a live dispatch_menu_action call (2385-238B) whose effect,
@@ -209,15 +227,17 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
         view.bounce, view.af2c, scratch.tgt_af2c, view.unknown_5496,
         scratch.bp24, view.jump_level_gate, view.grounded)
 
-    # 3. forward motion (24C4-2528) -- a no-op each sub-step (speed advances in
-    #    the outer frame loop), kept for spine fidelity.
-    view.ship_pos = advance_ship(view.ship_pos, view.speed)
+    # 3. forward motion (24C4-2528) -- ONLY on the moving path (24BA gate).
+    if moving:
+        view.ship_pos = advance_ship(view.ship_pos, view.speed)
 
-    # 4. steering + jump latch + gravity (252B-2635)
+    # 4. steering + jump latch + gravity (252B-2635); the frozen path (moving
+    #    False) skips steering/jump and runs only effect + gravity (25AC-2635).
     dyn = step_jump_steer_gravity(
         scratch.jump, cls.class_skip, cls.class_zero, view.bounce,
         view.lateral_accel, view.af2c, view.steer, view.jump,
-        view.jump_level_gate, view.grounded, view.gravity, view.effect_gate)
+        view.jump_level_gate, view.grounded, view.gravity, view.effect_gate,
+        moving=moving)
     if dyn.hit_effect_path:
         raise MovementPhysicsGap(
             "the 25AC-25D6 effect path fired (a 1DFA call) -- lateral_accel is "
@@ -260,6 +280,11 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
         view.unknown_af30 = 0
         bp24 = _vertical_scan_cell(visible, view.lateral, view.af1c, view.af2c)
 
+    # af2c floor clamp (2A24-2A2F): if it wrapped past 0x7FFF (went "negative"
+    # under gravity), reset to 0 -- between the collision tail and progression.
+    if view.af2c > 0x7FFF:
+        view.af2c = 0
+
     # 7. level progression (2A35-2AE2)
     prog = step_level_progression(
         view.game_state, view.af2c, view.timer_a, view.timer_b,
@@ -270,6 +295,12 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
     view.frame_ctr = prog.frame_ctr
     if view.grounded != 0:                       # 2AEA frame-end 456A bump
         view.grounded = view.grounded + 1
+
+    # If this step ended the level (game_state left the in-level set), stop: the
+    # transition (level load / respawn) is a separate subsystem.
+    if view.game_state not in (0, 3):
+        raise LevelEndTransition(
+            f"game_state became {view.game_state} this step (level ended)")
 
     return GameplayScratch(
         jump=jump, bp12=land.gameplay_active, bp14=cls.class_skip,

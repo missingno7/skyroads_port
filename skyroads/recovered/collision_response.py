@@ -56,6 +56,60 @@ def _s16(v: int) -> int:
 
 
 @oracle_link(
+    boundary="1010:0533",
+    contract="ship_fell_off(persp_word, af1c, af2c, seg_low, seg_high): the "
+             "fall-off-the-road test. persp_word is the 04C0 perspective word "
+             "for the ship's (lateral, af1c); if its 0xF00 nibble isn't 0x100/"
+             "0x300/0x500 -> 0 (no valid segment). Else seg = 23 - "
+             "((af1c/128 - 49) mod 46), mirrored (1-seg) when <=0; if seg > 0x25 "
+             "-> 0. row = (af2c - 0x2200)/128 (unsigned). mid = "
+             "((seg_high + seg_low) & 0xFFFF)/2 where seg_high/seg_low are "
+             "ds:[0x98+2*seg]/ds:[0x4C+2*seg]. Return 1 (fell) iff row < mid.",
+    status="ASM_MATCHED",  # 682/682 (E2E) + 511/511 (collision demo) death-check
+    # evaluations matched -- but NO real fall occurred in either demo (both are
+    # clean runs / crashes, not falls), so only the negative (didn't-fall) case
+    # is exercised; the positive branch is decoded from the ASM, not yet
+    # confirmed on a real death. See skyroads.native.gaps.FallDeathTransition.
+    merge_target="skyroads.native.collision_response (future)",
+)
+def ship_fell_off(persp_word: int, af1c: int, af2c: int,
+                  seg_low: int, seg_high: int) -> int:
+    """The `1010:0533` pure fall predicate. ``persp_word`` is the 04C0 result;
+    ``seg_low``/``seg_high`` are the per-segment clip bounds
+    ``ds:[0x4C+2*seg]``/``ds:[0x98+2*seg]`` (the caller reads them once ``seg``
+    is known -- see ``skyroads.native.collision.ship_fell_off``)."""
+    if (persp_word & 0xF00) not in (0x100, 0x300, 0x500):
+        return 0
+    rem = (((af1c & 0xFFFF) // 128) + 0xFFCF) & 0xFFFF     # af1c/128 - 49
+    rem %= 46
+    seg = (0x17 - rem) & 0xFFFF                             # 23 - rem
+    if seg == 0 or seg > 0x7FFF:                            # <= 0 signed -> mirror
+        seg = (1 - seg) & 0xFFFF
+    if seg > 0x25:
+        return 0
+    row = ((af2c + 0xDE00) & 0xFFFF) // 128                 # (af2c - 0x2200)/128
+    mid = ((seg_high + seg_low) & 0xFFFF) // 2
+    return 1 if row < mid else 0
+
+
+#: The ship-fell segment index maps into these per-segment clip tables (same
+#: tables road_segment_clip reads; 1010:05C2/05CB).
+FELL_SEG_LOW_TABLE = 0x4C
+FELL_SEG_HIGH_TABLE = 0x98
+
+
+def fell_off_segment(af1c: int) -> int:
+    """The mirrored segment index `ship_fell_off` uses for its table lookups
+    (`1010:0576-05A1`), or -1 when out of the valid ``0..0x25`` range."""
+    rem = (((af1c & 0xFFFF) // 128) + 0xFFCF) & 0xFFFF
+    rem %= 46
+    seg = (0x17 - rem) & 0xFFFF
+    if seg == 0 or seg > 0x7FFF:
+        seg = (1 - seg) & 0xFFFF
+    return -1 if seg > 0x25 else seg
+
+
+@oracle_link(
     boundary="1010:26EC",
     contract="lateral_wall_bump(visible, cur_lateral, tgt_lateral, af1c, "
              "tgt_af1c, af2c): only when the ship's lateral was blocked short "
