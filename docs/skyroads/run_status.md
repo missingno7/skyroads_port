@@ -4,6 +4,75 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — play_native.py proven on a SECOND level; quantifies where the known gaps bite hardest
+
+Toward "play any level": scanned all 14 captured demos for `jump_level_gate`
+(the per-level constant `apply_level_init`/`level_gravity` key off) and found
+two distinct levels already available — most demos are gate `8`
+(`gravity=0xFF8D`), but `demo_skyroads_20260710_125418`/`_125610` are gate `7`
+(`gravity=0xFF9C`). So "any level" partially works TODAY without any new
+recovery: `play_native.py --demo <either>` already plays either level.
+
+Ran both modes against the gate-7 demo:
+- Offline: 1575 ticks (1075 recorded + 500 extra), 3 transitions, zero
+  crashes — same clean result as the gate-8 demo.
+- `--verify`: 1014 total in-sync steps (a lot), but 6/7 runs ended on a real
+  field divergence rather than a clean gap — worse than the gate-8 demo's
+  `<=2` (the tolerance `tests/test_native_loop_lockstep.py` was written
+  against, which only exercises the gate-8 demo).
+
+**This is not a new bug** — every divergence's field set matches one of the
+TWO ALREADY-DOCUMENTED gaps: `['af1c', 'lateral_accel', 'f455a']` (3
+occurrences) is exactly what the `1DFA`-effect approximation
+(`allow_unmodelled_effect=True`) touches; the rest (`timer_a`/`f455a`/
+`af2e`/`af30`/`ship_pos`/`lateral`) match the un-modelled respawn/level-load
+transition edge already called out in that test's docstring. What's NEW here
+is quantifying that these two known gaps have a much BIGGER impact on this
+level specifically — likely because it has more jumps/crashes exercising
+them. Neither gap was closed this session (both need real, careful ASM work
+— the `1DFA` effect's actual `lateral_accel` modification isn't recovered at
+all yet); this is honest measurement, not a regression to chase down.
+
+**Concrete next steps for "any level"**: (1) close the `1DFA` effect gap
+properly (recover what it actually does to `lateral_accel`) — the single
+biggest lever based on this measurement; (2) find/recover the respawn/
+level-load transition itself (today `apply_level_init` handles a FRESH
+level init, but not the specific mid-level `game_state 3 -> respawn` path);
+(3) native level-FILE loading, so `play_native.py` never needs the VM at all,
+not even to seed — level selection today is "which demo you happen to have."
+
+## 2026-07-11 — caveat found on the dispatch variants: call-sequence-verified, not full-memory-diff-verified
+
+Chasing the mode==1 mismatch above led to a genuinely useful realization:
+`dispatch_variant_a`/`_b` (landed earlier today, `render_dispatch.py`) were
+verified on their `road_column_strip` CALL SEQUENCE (which `ax` codes fire,
+in what order) against real captures — NOT a full memory diff of everything
+`1010:364F`/`36F3` themselves touch, the way `road_column.road_column_strip`
+was (which caught two real bugs a narrower check would have missed). Tried to
+run the SAME full-memory-diff technique against these two functions and hit
+an unresolved capture-script issue: the expected return address (`0x35FC`,
+confirmed correct via a separate return-address read at entry) was never
+observed as REACHED by the step hook, despite the identical technique working
+flawlessly for `road_column_strip` (196/196). Tried several fixes (an
+SP-based match guard, removing it again, isolating the check to just these
+two functions) without resolving it — spent real effort here without success
+and stopped rather than keep burning time on debugging my OWN instrumentation
+rather than game logic.
+
+**Net effect**: `dispatch_variant_a`/`_b`'s shipped behavior is still
+correctly verified for what it claims (the call sequence matches real
+captures) — this isn't a retraction. But whether `1010:364F`/`36F3` have any
+OTHER silent side effect (on `[0E42]` or elsewhere) beyond the documented
+`road_column_strip` calls is now an explicitly flagged OPEN question, not
+something the current docs could honestly claim was ruled out. Added the
+caveat to `render_dispatch.py`'s module docstring. If picking this up again:
+the return-address-tracking approach needs a different technique for THESE
+two functions specifically (they're the target of the SAME `[0E42]` INDIRECT
+call from a much larger enclosing loop, unlike `road_column_strip`'s several
+direct call sites) -- worth checking whether the interpreter's indirect-call
+handling has some difference from direct calls that a step-hook doesn't
+observe the same way, rather than continuing to vary the matching logic.
+
 ## 2026-07-11 — found the render entry point: 1010:34AE, ALREADY a proven-correct lift from before this session
 
 Traced upward from the column-dispatch/compositor work (previous two entries)

@@ -21,12 +21,24 @@ called with, in order:
   gated) plus extra codes (`0x8300`, `0x8502`) and two fields
   (``ds:[0E5C]``/``[0E5E]``) variant A never reads.
 
-**What selects between variants (what `[0E42]` points to, and when) is NOT
-yet recovered** — these are the two variants observed in a real E2E-demo
-capture; there may be more. Consuming these dispatch functions to build a
-real framebuffer additionally needs `road_column_strip`'s own recovery (today
-only a hook, not yet a pure function) and the (unlocated) code that populates
-the two display-list segments (``ds:[0E60]``/``[0E62]``) each frame.
+**What selects between variants** is now understood (see run_status.md's
+"found the render entry point" entry — `1010:34AE` sets `[0E42]`
+unconditionally based on a caller mode: off-screen-buffer pass vs
+direct-to-VGA pass, not a road-shape choice as first guessed). `34AE` itself
+is not yet ported to clean code (an attempt was made and deliberately backed
+out after catching transcription mistakes -- see the same entry).
+
+**Open caveat**: these two functions were verified on their `road_column_strip`
+CALL SEQUENCE (which `ax` codes fire, in what order) against real captures —
+not a full memory diff of everything `1010:364F`/`36F3` themselves touch (the
+way `road_column.road_column_strip` was, which caught two real bugs a
+narrower check would have missed). An attempt to full-memory-diff these two
+functions the same way hit an unresolved capture-script issue (the return
+address never observed as reached, despite the identical technique working
+for `road_column_strip`) — not chased down further; see run_status.md. So a
+possible SILENT side effect on `[0E42]` or elsewhere, beyond the
+`road_column_strip` calls these functions already document, is an open,
+undischarged question, not one this docstring can currently rule out.
 """
 from __future__ import annotations
 

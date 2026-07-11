@@ -140,7 +140,13 @@ found and fixed. Honest state:
     input through the standalone driver for its full length: 682 ticks, 6
     transitions, zero crashes (`tests/test_native_driver.py`). This is the
     complete-gameplay-simulation milestone; rendering/input/boot remain for a
-    fully PLAYABLE game (see item -1 below and item 4/5).
+    fully PLAYABLE game (see item -1 below and item 4/5). Promoted into a real
+    standalone tool the same day: `scripts/play_native.py` (offline replay +
+    `--verify` lockstep modes). Proven on a SECOND level too (the captured
+    demos include two distinct `jump_level_gate` values, 7 and 8) -- which
+    also quantified where the two known remaining gaps (the `1DFA` effect
+    approximation, the un-modelled mid-level respawn transition) bite hardest;
+    see run_status.md's "play_native.py proven on a SECOND level" entry.
 
 0. **ASSEMBLED (2026-07-11).** The recovered islands now compose into a running
    native stepper: `skyroads.native.loop.native_gameplay_substep(view, scratch)`
