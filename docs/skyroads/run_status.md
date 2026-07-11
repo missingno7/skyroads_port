@@ -4,6 +4,41 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — the level-select/menu dispatcher recovered (1010:1B49)
+
+Followed up the state-2 finding by fully mapping and recovering `1010:1B49`,
+the dispatcher `1010:1B68` (state-2 entry) turned out to belong to. It's a
+clean, linear action dispatcher (`cmp ax,N; jnz next; jmp handler`, not a
+jump table) on a 4-bit action code passed by the caller, always ending in a
+common tail. Four known action codes:
+
+- **`2`** scroll left: `scroll_pos -= 0x12F`, only if not yet "entered"
+- **`0xA`** scroll right: `scroll_pos += 0x12F`, same guard
+- **`0xC`** enter level-select: `[456E]:=2`; latches an "entered" flag once
+- **`9`** confirm/start: if `[456E]==0` and either post-level timer is still
+  under a threshold, reset both timers to `0x7530` (the same reset value
+  `RespawnState` uses)
+- any other code: no state change (the common "heartbeat" case — called every
+  menu frame)
+- **always**: clamp `scroll_pos` to `[0, LEVEL_END]` (`0x2AAA`) — the exact
+  same constant `advance_ship`'s clamp uses
+
+The key discovery: **`ds:[54AC:54AE]` — the same field `advance_ship` calls
+`pos` — is reused as the level-select scroll position** while not in
+gameplay. Confirmed directly: `54AC` increased by exactly `0x12F` (303) per
+scroll-right call, tracked across 100+ consecutive samples.
+
+Recovered as `skyroads/recovered/menu.py::dispatch_menu_action` (clean rule,
+sampled verification — this is UI-tier code, not performance-hot, so no live
+VM hook). **ASM_MATCHED: 318/318 real E2E-demo calls byte-exact**, across
+every action code the demo actually exercises (`0`, `1`, `3` — all no-op/
+default; `0xA` scroll-right; `0xC` enter). Actions `2` (scroll-left) and `9`
+(confirm) are transcribed from the identical disassembly pattern as the
+verified ones but never exercised by any demo — documented as ASM-derived,
+not independently verified. Also not modeled: the conditional calls to
+`1010:03C2(0)`/`03C2(4)` (side effects on other state). Guarded by
+`tests/test_menu.py` (+ fixture). 188 tests pass.
+
 ## 2026-07-11 — a third tick-wait parked (menu/animation timer at 1010:47CD); `[456E]` state 2 identified
 
 Continued the perf work autonomously. Re-profiled the E2E demo with both new
