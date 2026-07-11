@@ -40,6 +40,9 @@ class _FakeSink(SkyroadsAudioSink):
         self._log_cursor = 0
         self._pcm_cursor = 0
         self._sfx = np.zeros(0, dtype=np.float32)
+        # SFX backlog cap (part of _enqueue_sfx's contract since the wall-clock
+        # pacing fix); large enough that these small maths cases never trim.
+        self._sfx_cap = int(rate * SkyroadsAudioSink.MAX_SFX_S)
 
 
 def test_unsigned8_pcm_is_recentred_and_scaled() -> None:
