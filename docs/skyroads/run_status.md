@@ -4,6 +4,44 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — recovered the landing check (28D7-295D), 224/224 — jump-latch lifecycle complete
+
+Recovered `resolve_landing` (`collision_response.py`, `1010:28D7-295D`): the
+post-move landing detection. A landing resolves iff `af2c != tgt_af2c` AND
+`bounce < 0` (descending, off the vertical target); on a landing it clears
+`ds:[455A]`, the effect latch `bp-6`, and **the jump latch `bp-8`**, sets the
+gameplay-active flag `bp-12 := 1`, and backs `ship_pos` off by the 32-bit
+`[AF30:AF2E]` (clamped to `[0, 0x2AAA]`). This **completes the jump-latch
+lifecycle** — `dynamics.step_jump_steer_gravity` sets `bp-8` on the impulse,
+this clears it on landing (answering the long-standing `JumpGateGap` question).
+
+**Verified 224/224** real landing frames byte-exact (collision demo
+`demo_skyroads_20260710_213019`) on `(bp-6, bp-8, bp-12, [455A], ship_pos)`.
+The non-landing branch just leaves `bp-12 = 0` and is trivial by construction.
+Learned `[AF2E]/[AF30]` were nonzero in only 1/224 frames — the ship_pos
+back-off is a practical no-op but faithfully applied (and the one real case
+matched). Landed 4 pure unit tests + a collision-demo live-oracle test.
+
+Then recovered that last piece too: `resolve_lateral_crash` (`27A3-2830`), the
+**wall-crash handler**. On a lateral collision (`lateral != tgt_lateral` = the
+ship was blocked sideways into a wall) it restarts the ship (`ship_pos := 0`)
+and, once past forward position `0x0E38`, flags the crash (`[456A]:=1`, and
+`[456E]:=1` if it was 0). Verified 511/511 on the collision demo — though only
+2 were real crashes (both past the gate), so the pre-gate and already-flagged
+branches are decoded-but-unexercised (flagged in the `@oracle_link`). With this,
+**the entire `26EC-2A24` collision-response region is recovered**, and the whole
+post-move tail (`26EC-2AE2`) with it.
+
+**The gameplay SUB-STEP is now essentially complete**: classification
+(`2324-23BF`), dynamics (`252B-2635`), movement pipeline (`2635-26E9`), the full
+collision response (`26EC-2A24`), and level progression (`2A35-2AE2`) are all
+recovered and VM-verified. What's left of the per-frame handler is the parts
+BEFORE the movement step: the `decay_bounce` region (`2421-24BA`) and the early
+visibility/height classification (`23CA-2421`), plus the outer state dispatch
+(`2280-2317`) and the `1B49`/`1DFA` side effects. After those, the pieces can be
+assembled into a self-contained `native_gameplay_frame` and multi-frame-verified
+against the VM (the pre2_port tick-keyed-harness convergence proof).
+
 ## 2026-07-11 — recovered the lateral wall-bump + af1c contact fix-up (26EC-27A0, 283C-28AE)
 
 Two more collision-response pieces, into `collision_response.py`:

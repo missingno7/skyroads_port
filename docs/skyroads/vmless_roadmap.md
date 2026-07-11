@@ -91,9 +91,10 @@ found and fixed. Honest state:
    (`vertical_center_nudge`, 314/314), the lateral wall-bump (`lateral_wall_bump`,
    511/511 on a collision demo incl. a real bump), and the af1c contact fix-up
    (`af1c_contact_fixup`, 511/511 incl. real collisions). Still open in this
-   region: the position milestones (`27A3-2800`, `[54AC]>=0xE38` →
-   `[456A]/[456E]:=1`) and the `bp-8`-clear landing check (`28DC-2901`, mapped);
-   (b) the upstream
+   region: the `bp-8`-clear landing check (`resolve_landing`, `28D7-295D`,
+   224/224) and the wall-crash handler (`resolve_lateral_crash`, `27A3-2830`,
+   511/511 incl. real crashes) are recovered — the whole `26EC-2A24` collision
+   response is done. (b) the upstream
    `decay_bounce` region (`2421-24BA`) and early visibility check
    (`23CA-2421`); (c) the `1B49` gameplay side effect (`classify` flags it,
    doesn't model it); (d) the `1DFA` special effect (`25AC-25D6`); (e) `bp-12`'s

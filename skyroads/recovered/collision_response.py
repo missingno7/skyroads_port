@@ -15,19 +15,25 @@ Recovered so far:
 * :func:`af1c_contact_fixup` — the vertical-contact fix-up (`1010:283C-28AE`)
   that brakes on an `af1c` collision (clears `lateral_accel`, conditionally
   zeroes `ds:[5496]`, backs `ship_pos` off by 0x97);
+* :func:`resolve_landing` — the landing check (`1010:28D7-295D`) that clears
+  the jump latch (`bp-8`) and the effect latch (`bp-6`), sets the
+  gameplay-active flag (`bp-12`), and backs `ship_pos` off by `[AF30:AF2E]`;
+* :func:`resolve_lateral_crash` — the lateral-collision handler
+  (`1010:27A3-2830`) that restarts the ship (`ship_pos := 0`) and, past a
+  distance gate, flags the crash (`ds:[456A]`/`ds:[456E]`);
 * :func:`vertical_center_nudge` — the vertical collision-depth scan
   (`1010:2963-2A24`) that maintains `ds:[5496]`, the vertical-centering term
   `physics.compute_movement_targets` adds into `tgt_af1c`.
 
-Still to recover in this region (see docs/skyroads/vmless_roadmap.md): the
-position milestones (`27A3-2800`) and the landing check that clears the jump
-latch (`28DC-2901`, already mapped — see `skyroads.native.gaps.JumpGateGap`).
+That covers the whole `26EC-2A24` collision-response region.
 """
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, NamedTuple
 
 from skyroads.islands import oracle_link
+from skyroads.recovered.dynamics import JumpScratch
+from skyroads.recovered.player import LEVEL_END
 
 #: The scan probes up to this many cells each way (1010:29B5/2A01 `cmp bp,0x0E`).
 SCAN_MAX_CELLS = 14
@@ -39,6 +45,9 @@ CENTER_NUDGE = 17
 LATERAL_BUMP_STEP = 0x3A0
 #: `ds:[54AC]` is braked by this on an af1c contact (1010:287E `sub [54AC],0x97`).
 CONTACT_BRAKE = 0x97
+#: A lateral crash flags the run only once the ship is past this forward
+#: position (1010:27CA `cmp [54AC],0x0E38`).
+CRASH_MILESTONE_POS = 0x0E38
 
 
 def _s16(v: int) -> int:
@@ -115,6 +124,90 @@ def af1c_contact_fixup(
     if pos & 0x80000000:                                         # clamp >= 0
         pos = 0
     return lateral_accel, cur_5496 & 0xFFFF, pos
+
+
+class LateralCrashResult(NamedTuple):
+    ship_pos: int      # ds:[54AC:54AE] -- reset to 0 (restart) on any lateral crash
+    f456a: int         # ds:[456A]
+    game_state: int    # ds:[456E]
+    crashed: bool
+
+
+@oracle_link(
+    boundary="1010:27A3",
+    contract="resolve_lateral_crash(cur_lateral, tgt_lateral, ship_pos, f456a, "
+             "game_state): if cur_lateral == tgt_lateral, nothing happens. "
+             "Otherwise (the ship was blocked laterally = hit a wall): "
+             "ship_pos := 0 (restart to the road start); and if the ship was "
+             "already past forward position 0x0E38 (signed 32-bit) AND "
+             "f456a == 0, flag the crash: f456a := 1 and, if game_state == 0, "
+             "game_state := 1. The ASM also fires SFX (03C2), not modelled.",
+    status="ASM_MATCHED",  # 511/511 real frames on a collision demo
+    # (demo_skyroads_20260710_213019) on (ship_pos, f456a, game_state) -- but
+    # only 2 were actual lateral crashes (both past the gate with f456a==0);
+    # the pre-gate branch (ship_pos < 0x0E38) and the already-flagged branch
+    # (f456a != 0) are decoded from the ASM but not exercised by any demo
+    # sampled. The 2800-2828 SFX sub-branch touches only audio, so it does not
+    # affect the returned game-state fields.
+    merge_target="skyroads.native.collision_response (future)",
+)
+def resolve_lateral_crash(
+    cur_lateral: int, tgt_lateral: int, ship_pos: int, f456a: int, game_state: int,
+) -> LateralCrashResult:
+    """The `1010:27A3-2830` lateral-collision (wall-crash) handler."""
+    if (cur_lateral & 0xFFFFFFFF) == (tgt_lateral & 0xFFFFFFFF):
+        return LateralCrashResult(ship_pos & 0xFFFFFFFF, f456a & 0xFFFF,
+                                  game_state & 0xFFFF, False)
+    hi = _s16((ship_pos >> 16) & 0xFFFF)
+    lo = ship_pos & 0xFFFF
+    past_gate = hi > 0 or (hi == 0 and lo >= CRASH_MILESTONE_POS)
+    if past_gate and (f456a & 0xFFFF) == 0:
+        f456a = 1
+        if (game_state & 0xFFFF) == 0:
+            game_state = 1
+    return LateralCrashResult(0, f456a & 0xFFFF, game_state & 0xFFFF, True)
+
+
+class LandingResult(NamedTuple):
+    scratch: JumpScratch    # bp-6 (effect) and bp-8 (jump latch) cleared on landing
+    gameplay_active: int    # bp-12: 0 normally, 1 the frame a landing resolves
+    f455a: int              # ds:[455A] (cleared to 0 on landing)
+    ship_pos: int           # ds:[54AC:54AE]
+    landed: bool
+
+
+@oracle_link(
+    boundary="1010:28D7",
+    contract="resolve_landing(scratch, tgt_af2c, af2c, bounce, af2e, af30, "
+             "f455a, ship_pos): gameplay_active(bp-12) := 0. A landing resolves "
+             "iff af2c != tgt_af2c AND bounce < 0 (signed; descending, off the "
+             "vertical target). On a landing: clear ds:[455A], jump latch "
+             "(bp-8) and effect latch (bp-6) to 0, set gameplay_active := 1, "
+             "subtract the 32-bit [af30:af2e] from ship_pos and clamp to "
+             "[0, 0x2AAA]. bp-10 (jump_start_y) is preserved. Otherwise nothing "
+             "else changes.",
+    status="ASM_MATCHED",  # 224/224 real landing frames (collision demo
+    # demo_skyroads_20260710_213019) byte-exact on (bp-6, bp-8, bp-12, [455A],
+    # ship_pos). The non-landing branch just leaves gameplay_active=0 and is
+    # trivial by construction (28E5/28EF jmp past everything). [af2e]/[af30]
+    # were nonzero in only 1/224 frames -- the ship_pos back-off is a no-op in
+    # practice but faithfully applied.
+    merge_target="skyroads.native.collision_response (future)",
+)
+def resolve_landing(
+    scratch: JumpScratch, tgt_af2c: int, af2c: int, bounce: int,
+    af2e: int, af30: int, f455a: int, ship_pos: int,
+) -> LandingResult:
+    """The `1010:28D7-295D` landing check. Returns a :class:`LandingResult`."""
+    if (af2c & 0xFFFF) != (tgt_af2c & 0xFFFF) and _s16(bounce) < 0:
+        pos = (ship_pos - ((af2e & 0xFFFF) | ((af30 & 0xFFFF) << 16))) & 0xFFFFFFFF
+        if pos & 0x80000000:
+            pos = 0
+        elif pos > LEVEL_END:
+            pos = LEVEL_END
+        return LandingResult(
+            JumpScratch(0, scratch.jump_start_y, 0), 1, 0, pos, True)
+    return LandingResult(scratch, 0, f455a & 0xFFFF, ship_pos & 0xFFFFFFFF, False)
 
 
 @oracle_link(

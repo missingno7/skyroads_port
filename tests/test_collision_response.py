@@ -16,8 +16,85 @@ from skyroads.recovered.collision_response import (
     SCAN_MAX_CELLS,
     af1c_contact_fixup,
     lateral_wall_bump,
+    resolve_landing,
+    resolve_lateral_crash,
     vertical_center_nudge,
 )
+from skyroads.recovered.dynamics import JumpScratch
+
+
+# ---- resolve_lateral_crash unit tests --------------------------------------
+
+def test_no_crash_when_lateral_reached_target() -> None:
+    r = resolve_lateral_crash(cur_lateral=0x1234, tgt_lateral=0x1234,
+                              ship_pos=0x2000, f456a=0, game_state=3)
+    assert r.crashed is False
+    assert (r.ship_pos, r.f456a, r.game_state) == (0x2000, 0, 3)
+
+
+def test_crash_resets_ship_pos_to_zero() -> None:
+    r = resolve_lateral_crash(cur_lateral=1, tgt_lateral=5, ship_pos=0x2000,
+                              f456a=0, game_state=3)
+    assert r.crashed is True
+    assert r.ship_pos == 0
+
+
+def test_crash_past_gate_flags_state_when_transitional() -> None:
+    r = resolve_lateral_crash(cur_lateral=1, tgt_lateral=5, ship_pos=0x1C5C,
+                              f456a=0, game_state=0)
+    assert r.f456a == 1
+    assert r.game_state == 1     # 0 -> 1
+
+
+def test_crash_past_gate_keeps_nonzero_state() -> None:
+    r = resolve_lateral_crash(cur_lateral=1, tgt_lateral=5, ship_pos=0x1D48,
+                              f456a=0, game_state=3)
+    assert r.f456a == 1
+    assert r.game_state == 3     # not overwritten
+
+
+def test_crash_before_gate_does_not_flag() -> None:
+    r = resolve_lateral_crash(cur_lateral=1, tgt_lateral=5, ship_pos=0x0500,
+                              f456a=0, game_state=0)
+    assert r.ship_pos == 0       # still restarts
+    assert r.f456a == 0          # but no flag before the gate
+    assert r.game_state == 0
+
+
+# ---- resolve_landing unit tests --------------------------------------------
+
+def test_landing_when_descending_off_target_clears_latches() -> None:
+    r = resolve_landing(JumpScratch(jumping=1, jump_start_y=0x2800, effect_latch=1),
+                        tgt_af2c=0x2000, af2c=0x2800, bounce=0xFF00,  # bounce<0
+                        af2e=0, af30=0, f455a=5, ship_pos=0x1000)
+    assert r.landed is True
+    assert r.scratch.jumping == 0 and r.scratch.effect_latch == 0
+    assert r.scratch.jump_start_y == 0x2800   # preserved
+    assert r.gameplay_active == 1
+    assert r.f455a == 0
+    assert r.ship_pos == 0x1000                # af2e/af30 zero -> no back-off
+
+
+def test_no_landing_when_at_vertical_target() -> None:
+    r = resolve_landing(JumpScratch(1, 0x2800, 1), tgt_af2c=0x2800, af2c=0x2800,
+                        bounce=0xFF00, af2e=0, af30=0, f455a=5, ship_pos=0x1000)
+    assert r.landed is False
+    assert r.gameplay_active == 0
+    assert r.scratch.jumping == 1              # unchanged
+    assert r.f455a == 5 and r.ship_pos == 0x1000
+
+
+def test_no_landing_when_ascending() -> None:
+    r = resolve_landing(JumpScratch(1, 0x2800, 1), tgt_af2c=0x2000, af2c=0x2800,
+                        bounce=0x0100, af2e=0, af30=0, f455a=5, ship_pos=0x1000)
+    assert r.landed is False
+    assert r.gameplay_active == 0
+
+
+def test_landing_backs_off_and_clamps_ship_pos() -> None:
+    r = resolve_landing(JumpScratch(1, 0, 0), tgt_af2c=0x2000, af2c=0x2800,
+                        bounce=0xFF00, af2e=0x0050, af30=0, f455a=0, ship_pos=0x0030)
+    assert r.ship_pos == 0  # 0x30 - 0x50 < 0 -> clamped
 
 
 # ---- lateral_wall_bump unit tests ------------------------------------------
@@ -321,3 +398,162 @@ def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
     # The whole point of this demo is that the ACTIVE branches actually fire.
     assert stats["bump_active"] >= 1, f"no real wall-bump exercised ({stats})"
     assert stats["fixup_active"] >= 1, f"no real af1c contact exercised ({stats})"
+
+
+@pytest.mark.skipif(not (EXE.exists() and COLLISION_DEMO.exists()),
+                    reason="needs SKYROADS.EXE + a collision demo")
+def test_resolve_landing_matches_asm_over_demo() -> None:
+    import scripts.play as sp
+    from dos_re import player
+    from dos_re.cpu import CPU8086, HaltExecution
+    from dos_re.dos import ConsoleInputWouldBlock
+    from dos_re.input_demo import InputDemoPlayback
+    from dos_re.player import _use_real_console_input
+
+    frontend = sp.SkyroadsFrontend(ROOT)
+    args = player.build_arg_parser(frontend).parse_args(
+        ["--play-demo", str(COLLISION_DEMO), "--headless"])
+    pb = InputDemoPlayback.load(str(COLLISION_DEMO))
+    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
+    rt = (frontend.create_runtime(args) if pb.is_cold_start
+          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
+    args.install_replacements = False
+    frontend.apply_hook_mode(rt, args)
+    _use_real_console_input(rt)
+
+    def _bpw(m, ss, bp, o):
+        return m.rw(ss, (bp - o) & 0xFFFF)
+
+    pending: dict = {}
+    checked = [0]
+
+    def _probe(cpu):
+        s = cpu.s
+        m = cpu.mem
+        ds = s.ds
+        bp = s.bp
+        if s.ip == 0x28D7:
+            pending.clear()
+            pending.update(
+                scratch=JumpScratch(_bpw(m, s.ss, bp, 8), _bpw(m, s.ss, bp, 10),
+                                    _bpw(m, s.ss, bp, 6)),
+                tgt_af2c=_bpw(m, s.ss, bp, 28), af2c=m.rw(ds, 0xAF2C),
+                bounce=m.rw(ds, 0x9336), af2e=m.rw(ds, 0xAF2E), af30=m.rw(ds, 0xAF30),
+                f455a=m.rw(ds, 0x455A),
+                ship_pos=m.rw(ds, 0x54AC) | (m.rw(ds, 0x54AE) << 16),
+            )
+        elif s.ip == 0x2963 and pending:  # 2963 is reached ONLY on a landing
+            r = resolve_landing(
+                pending["scratch"], pending["tgt_af2c"], pending["af2c"],
+                pending["bounce"], pending["af2e"], pending["af30"],
+                pending["f455a"], pending["ship_pos"])
+            assert r.landed is True
+            assert r.scratch.jumping == _bpw(m, s.ss, bp, 8)
+            assert r.scratch.effect_latch == _bpw(m, s.ss, bp, 6)
+            assert r.gameplay_active == _bpw(m, s.ss, bp, 12)
+            assert r.f455a == m.rw(ds, 0x455A)
+            assert r.ship_pos == (m.rw(ds, 0x54AC) | (m.rw(ds, 0x54AE) << 16))
+            checked[0] += 1
+            pending.clear()
+
+    orig = CPU8086.step
+
+    def patched(self):
+        if self.s.cs == 0x1010 and self.s.ip in (0x28D7, 0x2963):
+            _probe(self)
+        return orig(self)
+
+    CPU8086.step = patched
+    try:
+        frame = 0
+        while not pb.finished(frame) and frame < 1906:
+            pb.apply_to_runtime(frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
+            try:
+                frontend.advance_frame(rt, args, frame)
+            except ConsoleInputWouldBlock:
+                pass
+            except HaltExecution:
+                break
+            frame += 1
+    finally:
+        CPU8086.step = orig
+
+    assert checked[0] > 20, f"only {checked[0]} landing frames checked"
+
+
+@pytest.mark.skipif(not (EXE.exists() and COLLISION_DEMO.exists()),
+                    reason="needs SKYROADS.EXE + a collision demo")
+def test_resolve_lateral_crash_matches_asm_over_demo() -> None:
+    import scripts.play as sp
+    from dos_re import player
+    from dos_re.cpu import CPU8086, HaltExecution
+    from dos_re.dos import ConsoleInputWouldBlock
+    from dos_re.input_demo import InputDemoPlayback
+    from dos_re.player import _use_real_console_input
+
+    frontend = sp.SkyroadsFrontend(ROOT)
+    args = player.build_arg_parser(frontend).parse_args(
+        ["--play-demo", str(COLLISION_DEMO), "--headless"])
+    pb = InputDemoPlayback.load(str(COLLISION_DEMO))
+    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
+    rt = (frontend.create_runtime(args) if pb.is_cold_start
+          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
+    args.install_replacements = False
+    frontend.apply_hook_mode(rt, args)
+    _use_real_console_input(rt)
+
+    def _bpw(m, ss, bp, o):
+        return m.rw(ss, (bp - o) & 0xFFFF)
+
+    pending: dict = {}
+    stats = {"total": 0, "crashed": 0}
+
+    def _probe(cpu):
+        s = cpu.s
+        m = cpu.mem
+        ds = s.ds
+        bp = s.bp
+        if s.ip == 0x27A3:
+            pending.clear()
+            pending.update(
+                cur_lateral=m.rw(ds, 0x9618) | (m.rw(ds, 0x961A) << 16),
+                tgt_lateral=_bpw(m, s.ss, bp, 32) | (_bpw(m, s.ss, bp, 30) << 16),
+                ship_pos=m.rw(ds, 0x54AC) | (m.rw(ds, 0x54AE) << 16),
+                f456a=m.rw(ds, 0x456A), game_state=m.rw(ds, 0x456E),
+            )
+        elif s.ip == 0x283C and pending:  # end of the crash region
+            r = resolve_lateral_crash(
+                pending["cur_lateral"], pending["tgt_lateral"],
+                pending["ship_pos"], pending["f456a"], pending["game_state"])
+            assert r.ship_pos == (m.rw(ds, 0x54AC) | (m.rw(ds, 0x54AE) << 16))
+            assert r.f456a == m.rw(ds, 0x456A)
+            assert r.game_state == m.rw(ds, 0x456E)
+            stats["total"] += 1
+            if r.crashed:
+                stats["crashed"] += 1
+            pending.clear()
+
+    orig = CPU8086.step
+
+    def patched(self):
+        if self.s.cs == 0x1010 and self.s.ip in (0x27A3, 0x283C):
+            _probe(self)
+        return orig(self)
+
+    CPU8086.step = patched
+    try:
+        frame = 0
+        while not pb.finished(frame) and frame < 1906:
+            pb.apply_to_runtime(frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
+            try:
+                frontend.advance_frame(rt, args, frame)
+            except ConsoleInputWouldBlock:
+                pass
+            except HaltExecution:
+                break
+            frame += 1
+    finally:
+        CPU8086.step = orig
+
+    assert stats["total"] > 100, f"only {stats['total']} crash-region frames checked"
+    assert stats["crashed"] >= 1, f"no real lateral crash exercised ({stats})"
