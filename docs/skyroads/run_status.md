@@ -4,6 +4,48 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — ASSEMBLED the native gameplay sub-step: the islands run as one stepper (228/232 sub-step fields vs VM)
+
+The convergence step. With the whole physics/collision sub-step recovered as
+individual VM-verified islands, composed them — in confirmed ASM spine order,
+over a session-persistent `GameplayScratch` — into a single running native
+stepper: `skyroads/native/loop.py::native_gameplay_substep(view, scratch)`.
+
+Spine (empirically traced, `game_state == 0` active gameplay):
+
+    classify_ship -> gate_bounce_decay -> advance_ship -> step_jump_steer_gravity
+      -> compute_movement_targets -> resolve_move -> lateral_wall_bump
+      -> resolve_lateral_crash -> af1c_contact_fixup -> resolve_landing
+      -> vertical_center_nudge (if landed) -> step_level_progression
+
+`GameplayScratch` carries the cross-sub-step `ss:[bp-N]` locals the one
+continuous `2280-2B0B` handler reads before writing each sub-step: the
+`JumpScratch` (`bp-6/8/10`), `bp12` (gameplay-active), `bp14` (persisted class
+flag), `bp24` (last vscan cell, read by the decay gate), and `tgt_af2c`
+(`bp-28`, read by the decay gate before recompute).
+
+**Differential result vs the VM** (seed a NativeGameState + scratch at each
+`game_state==0` loop top `2324`, run one native sub-step, compare DGROUP at the
+next loop top): **228/232 sub-step fields match**. The 4 misses are all
+already-documented edge cases (the `1DFA` effect frame — now raises a gap; the
+rare `[AF2E]` landing adjustment; a `game_state -> 2` transition). Landed
+`tests/test_native_substep.py` asserting a ≥95% sub-step-field match rate.
+
+**Key discovery — the forward advance is per-FRAME, not per-sub-step.** The
+233/sub-step ship_pos advance (and lateral, timer_a) does NOT happen inside the
+sub-step: at `24C4` `advance_ship` runs with `speed ([9330]) == 0` (a no-op),
+and the real advance happens in the OUTER frame loop (`2280-2317`), which runs
+once per displayed frame around many sub-steps. So `native_gameplay_substep`
+faithfully steps ONE sub-step; those three outer-driven fields are excluded
+from the match (they diverge exactly when a sample pair straddles a frame
+boundary). Recovering that outer per-frame advance + the state dispatch
+(`2280-2317`) is what remains to step a whole displayed frame.
+
+This is the pre2_port convergence in miniature: the recovered leaves now
+compose into a native stepper that reproduces real gameplay, VM-free, with the
+remaining gaps precisely named (outer-frame advance, the frozen-ship
+`game_state != 0` path, the out-of-bounds death check, the `1DFA` effect).
+
 ## 2026-07-11 — recovered the pre-move bounce-decay gate (2421-24BA), 682/682 — the core physics sub-step is now whole
 
 Recovered `gate_bounce_decay` (`dynamics.py`, `1010:2421-24BA`): the gating

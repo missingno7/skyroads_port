@@ -72,8 +72,11 @@ class GameView(StructView):
     af2c = U16(0xAF2C)             # depth/vertical accumulator B == view Y base
 
     # -- level-select / respawn timers (menu.py, RespawnState) --------------------------------
-    timer_a = U16(0x5494)
-    timer_b = U16(0xB13C)
+    timer_a = U16(0x5494)          # ds:[5494] distance/"fuel" timer (progression.py)
+    timer_b = U16(0xB13C)          # ds:[B13C] time/"oxygen" timer (progression.py)
+    timer_a_param = U16(0x54A2)    # ds:[54A2] per-level fuel-rate divisor (progression.py)
+    timer_b_param = U16(0x4566)    # ds:[4566] per-level oxygen-rate divisor (progression.py)
+    effect_gate = U16(0x4570)      # ds:[4570] gates the 25AC-25D6 one-shot effect (dynamics.py)
 
     # -- respawn/reset fields not yet named elsewhere (player.py's RespawnState) --------------
     unknown_5496 = U16(0x5496)
@@ -88,6 +91,12 @@ class GameView(StructView):
     @property
     def key_row(self) -> _KeyRow:
         return _KeyRow(self._backend)
+
+    @property
+    def rw(self):
+        """The backend's DGROUP word-reader, for the collision/classify predicates
+        (``skyroads.native.collision.make_visible`` / ``classify.classify_ship``)."""
+        return self._backend.rw
 
     # -- 32-bit fields: state_view has no U32 descriptor (dos_re/state_view.py), so these are
     # plain lo/hi word compositions over the same backend -- not a new descriptor class, since

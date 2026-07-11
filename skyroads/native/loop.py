@@ -32,16 +32,57 @@ mode they're in, exactly like pre2_port's per-mode ``native_*`` functions.
 """
 from __future__ import annotations
 
+from typing import NamedTuple
+
 from skyroads.bridge.dgroup_view import GameView
+from skyroads.native.classify import classify_ship
+from skyroads.native.collision import make_visible
 from skyroads.native.gaps import JumpGateGap, MovementPhysicsGap, VerticalVelocityGap
+from skyroads.recovered.collision_response import (
+    af1c_contact_fixup,
+    lateral_wall_bump,
+    resolve_landing,
+    resolve_lateral_crash,
+    vertical_center_nudge,
+)
 from skyroads.recovered.controls import decode_keyboard
+from skyroads.recovered.dynamics import (
+    JumpScratch,
+    gate_bounce_decay,
+    step_jump_steer_gravity,
+)
 from skyroads.recovered.menu import MenuState, dispatch_menu_action
+from skyroads.recovered.movement import resolve_move
+from skyroads.recovered.physics import compute_movement_targets
 from skyroads.recovered.player import (
     GRAVITY_HEIGHT_GATE,
     advance_ship,
     decay_bounce,
     update_vertical_velocity,
 )
+from skyroads.recovered.progression import step_level_progression
+
+
+class GameplayScratch(NamedTuple):
+    """The session-persistent gameplay-handler state carried ACROSS sub-steps
+    (the `ss:[bp-N]` locals of the one continuous `1010:2280-2B0B` handler that
+    are read before they are written each sub-step -- see
+    docs/skyroads/run_status.md). Not derivable from DGROUP.
+
+    * ``jump`` -- the :class:`~skyroads.recovered.dynamics.JumpScratch`
+      (``bp-6``/``bp-8``/``bp-10``): effect + jump latches and the jump-start height.
+    * ``bp12`` -- the gameplay-active flag (set by the landing check, read by the
+      classification's reduction gate next sub-step).
+    * ``bp14`` -- the persisted classification "skip" flag (kept when ``bp12==0``).
+    * ``bp24`` -- the vertical scan's last cell index (read by the decay gate).
+    * ``tgt_af2c`` -- the previous sub-step's vertical target (``bp-28``), read by
+      the decay gate before this sub-step recomputes it.
+    """
+    jump: JumpScratch = JumpScratch()
+    bp12: int = 0
+    bp14: int = 0
+    bp24: int = 0
+    tgt_af2c: int = 0
 
 
 def native_menu_frame(view: GameView, action: int) -> None:
@@ -116,3 +157,122 @@ def native_gameplay_frame(view: GameView) -> None:
         f"steering momentum not yet derivable from frame-start state -- "
         f"see MovementPhysicsGap / the 1010:2534-256D steering block"
     )
+
+
+def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> GameplayScratch:
+    """Run ONE gameplay sub-step (`1010:2324-2AE2`) on ``view`` in place, the
+    full assembly of every recovered island in ASM spine order, and return the
+    new :class:`GameplayScratch` to carry to the next sub-step.
+
+    This is the convergence of the recovered leaves into a running native
+    stepper (the pre2_port model). Verified against the VM: over real
+    ``game_state == 0`` sub-steps, every DGROUP field this composes matches the
+    oracle EXCEPT the per-frame forward advance (``ship_pos``/``lateral``) and
+    the level timers, which the game advances in the OUTER frame loop
+    (`1010:2280-2317`), not the sub-step -- that framing is not recovered yet,
+    so this steps the sub-step, not the whole displayed frame. See
+    tests/test_native_substep.py and docs/skyroads/run_status.md.
+
+    Only the active-gameplay path (``game_state == 0``) is recovered; other
+    states (the ship is frozen -- advance/steer/jump are skipped) and the
+    out-of-bounds death check (`23CA-2421`) and the ``1DFA`` effect are not, so
+    they raise :class:`~skyroads.native.gaps.SkyroadsGap`.
+    """
+    if view.game_state != 0:
+        raise MovementPhysicsGap(
+            f"game_state={view.game_state} != 0 -- the frozen-ship path "
+            "(advance/steer/jump skipped, 24BA->25AC) is not recovered yet"
+        )
+
+    rw = view.rw
+    visible = make_visible(rw)
+
+    # 1. perspective classification (2324-23BF) -> class flags
+    cls = classify_ship(rw, view.lateral, view.af1c, view.af2c,
+                        scratch.bp12, scratch.bp14)
+    # (the out-of-bounds death check 23CA-2421 falls through while game_state==0)
+
+    # 2. bounce-decay gate (2421-24BA) -- uses the PRIOR sub-step's tgt_af2c/bp24
+    view.bounce = gate_bounce_decay(
+        view.bounce, view.af2c, scratch.tgt_af2c, view.unknown_5496,
+        scratch.bp24, view.jump_level_gate, view.grounded)
+
+    # 3. forward motion (24C4-2528) -- a no-op each sub-step (speed advances in
+    #    the outer frame loop), kept for spine fidelity.
+    view.ship_pos = advance_ship(view.ship_pos, view.speed)
+
+    # 4. steering + jump latch + gravity (252B-2635)
+    dyn = step_jump_steer_gravity(
+        scratch.jump, cls.class_skip, cls.class_zero, view.bounce,
+        view.lateral_accel, view.af2c, view.steer, view.jump,
+        view.jump_level_gate, view.grounded, view.gravity, view.effect_gate)
+    if dyn.hit_effect_path:
+        raise MovementPhysicsGap(
+            "the 25AC-25D6 effect path fired (a 1DFA call) -- lateral_accel is "
+            "not modelled for this sub-step")
+    view.bounce = dyn.bounce
+    view.lateral_accel = dyn.lateral_accel
+    jump = dyn.scratch
+
+    # 5. movement targets + swept collision (2635-26E9)
+    tgt = compute_movement_targets(
+        view.ship_pos, view.lateral, view.af1c, view.af2c, view.bounce,
+        view.lateral_accel, view.unknown_5496)
+    new_tgt_af2c = tgt.tgt_af2c
+    lat, af1c, af2c = resolve_move(
+        view.lateral, view.af1c, view.af2c,
+        tgt.tgt_lateral, tgt.tgt_af1c, tgt.tgt_af2c, visible)
+    view.lateral, view.af1c, view.af2c = lat, af1c, af2c
+
+    # 6. collision response (26EC-2A24), in spine order
+    new_af1c, tgt_lateral = lateral_wall_bump(
+        visible, view.lateral, tgt.tgt_lateral, view.af1c, tgt.tgt_af1c, view.af2c)
+    view.af1c = new_af1c
+    crash = resolve_lateral_crash(
+        view.lateral, tgt_lateral, view.ship_pos, view.grounded, view.game_state)
+    view.ship_pos, view.grounded, view.game_state = (
+        crash.ship_pos, crash.f456a, crash.game_state)
+    accel, c5496, pos = af1c_contact_fixup(
+        view.af1c, tgt.tgt_af1c, view.unknown_5496, view.lateral_accel, view.ship_pos)
+    view.lateral_accel, view.unknown_5496, view.ship_pos = accel, c5496, pos
+    land = resolve_landing(
+        jump, tgt.tgt_af2c, view.af2c, view.bounce, view.unknown_af2e,
+        view.unknown_af30, view.unknown_455a, view.ship_pos)
+    jump = land.scratch
+    view.unknown_455a, view.ship_pos = land.f455a, land.ship_pos
+    bp24 = scratch.bp24
+    if land.landed:
+        view.unknown_5496 = vertical_center_nudge(
+            visible, view.lateral, view.af1c, view.af2c, view.unknown_5496)
+        view.unknown_af2e = 0
+        view.unknown_af30 = 0
+        bp24 = _vertical_scan_cell(visible, view.lateral, view.af1c, view.af2c)
+
+    # 7. level progression (2A35-2AE2)
+    prog = step_level_progression(
+        view.game_state, view.af2c, view.timer_a, view.timer_b,
+        view.timer_a_param, view.timer_b_param, view.ship_pos, view.frame_ctr)
+    view.game_state = prog.game_state
+    view.timer_a = prog.level_timer_a
+    view.timer_b = prog.level_timer_b
+    view.frame_ctr = prog.frame_ctr
+    if view.grounded != 0:                       # 2AEA frame-end 456A bump
+        view.grounded = view.grounded + 1
+
+    return GameplayScratch(
+        jump=jump, bp12=land.gameplay_active, bp14=cls.class_skip,
+        bp24=bp24, tgt_af2c=new_tgt_af2c)
+
+
+def _vertical_scan_cell(visible, lateral: int, af1c: int, af2c: int) -> int:
+    """The scan cell index (``bp-24``) `vertical_center_nudge` settles on -- the
+    first unblocked cell above, else below (1010:29AB/29F4). Session state the
+    next sub-step's decay gate reads."""
+    screen_y = (af2c - 1) & 0xFFFF
+    for k in range(1, 15):
+        if visible(lateral, (af1c + (k << 7)) & 0xFFFF, screen_y) == 0:
+            return k
+    for k in range(1, 15):
+        if visible(lateral, (af1c - (k << 7)) & 0xFFFF, screen_y) == 0:
+            return k
+    return 0
