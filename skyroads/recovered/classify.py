@@ -27,14 +27,18 @@ reader).
    (`class_skip_prev`). `bp12` itself is the gameplay-active latch set at
    `1010:206C`/`2901` and cleared at `28D7` (the tail state machine — a
    separate island).
-2. In the `bp12 != 0` path the ASM makes a side-effect call to `1010:1B49`
-   (the same address recovered as `menu.dispatch_menu_action`) with the reduced
-   word as its argument (`1010:2385-238B`), BEFORE reading the nibble for the
-   flags. The flags do NOT depend on that call's result (they read the local,
-   not the return), so this function reproduces them without it — but whatever
-   DGROUP side effect that call has DURING gameplay is NOT modelled here (see
-   the module TODO / run_status.md). It is flagged so a native frame stepper
-   knows to treat it as an unresolved effect, not silently drop it.
+2. In the `bp12 != 0` path the ASM calls `1010:1B49`
+   (`menu.dispatch_menu_action`) with the reduced word as its argument
+   (`1010:2385-238B`), BEFORE reading the nibble for the flags. The flags do
+   NOT depend on that call's result (they read the local, not the return), so
+   this function reproduces them without it — but that call is NOT a no-op
+   during gameplay: it is the **forward-motion mechanism**. Action `0xA`
+   advances `ds:[54AC]` (ship_pos) by `SCROLL_STEP` (`0x12F`) when
+   `ds:[456A] == 0` (`1010:1BDC`). So a native stepper MUST apply
+   `dispatch_menu_action(reduced_word, ...)` here — this is surfaced via
+   `calls_1b49`/`reduced_word`, and `skyroads.native.loop.native_gameplay_substep`
+   does exactly that. (Verified: wiring it in took the assembled sub-step's
+   VM match from 148/232 to 230/232, incl. ship_pos — see run_status.md.)
 """
 from __future__ import annotations
 

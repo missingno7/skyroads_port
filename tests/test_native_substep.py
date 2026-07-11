@@ -3,22 +3,17 @@
 
 This is the payoff of recovering the whole physics/collision sub-step as
 individual islands: composed in ASM spine order over a GameplayScratch, they
-step real gameplay. Driving the E2E demo, we seed a NativeGameState + scratch
-from the VM at each game_state==0 sub-step (loop top 2324), run one native
-sub-step, and compare the DGROUP back to the VM at the next loop top.
-
-Two field groups are handled separately:
-
-* SUB-STEP fields (bounce, af1c, af2c, game_state, 456A, lateral_accel, [5496],
-  timer_b, frame_ctr, [455A], [AF2E], [AF30]) -- what THIS sub-step computes.
-  These must match the oracle.
-* OUTER fields (ship_pos, lateral, timer_a) -- the game advances these in the
-  per-frame OUTER loop (2280-2317), NOT the sub-step, so they legitimately
-  diverge when a sample pair straddles a displayed-frame boundary. Excluded.
+step real gameplay -- INCLUDING the forward motion, which is the classification's
+dispatch_menu_action (1B49) call (action 0xA advances ship_pos by 0x12F).
+Driving the E2E demo, we seed a NativeGameState + scratch from the VM at each
+game_state==0 sub-step (loop top 2324), run one native sub-step, and compare
+the full gameplay DGROUP back to the VM at the next loop top.
 
 native_gameplay_substep raises a gap on the paths not yet recovered (the 1DFA
 effect frame, game_state != 0); those sub-steps are counted as gaps, not
-failures -- the honest current ceiling.
+failures -- the honest current ceiling. A tiny number of edge cases (a rare
+[AF2E] landing adjustment) still miss, so the assertion is a high match rate,
+not 100%.
 """
 from __future__ import annotations
 
@@ -35,12 +30,15 @@ pytestmark = pytest.mark.skipif(
     reason="needs SKYROADS.EXE + the E2E demo",
 )
 
-# Pure sub-step DGROUP fields (offset -> name); OUTER fields are excluded.
+# Gameplay DGROUP fields the sub-step computes (word fields).
 SUBSTEP_FIELDS = {
     0x9336: "bounce", 0xAF1C: "af1c", 0xAF2C: "af2c", 0x456E: "game_state",
     0x456A: "f456a", 0x4568: "lateral_accel", 0x5496: "u5496", 0xB13C: "timer_b",
     0x4558: "frame_ctr", 0x455A: "f455a", 0xAF2E: "af2e", 0xAF30: "af30",
+    0x5494: "timer_a",
 }
+# 32-bit fields.
+SUBSTEP_DWORDS = {0x54AC: "ship_pos", 0x9618: "lateral"}
 
 
 def test_native_substep_matches_vm_over_demo() -> None:
@@ -101,8 +99,13 @@ def test_native_substep_matches_vm_over_demo() -> None:
         ds = cpu.s.ds
         misses = []
         for off, name in SUBSTEP_FIELDS.items():
-            got = view._backend.rw(off)
-            if got != m.rw(ds, off):
+            if view._backend.rw(off) != m.rw(ds, off):
+                misses.append(name)
+                field_misses[name] = field_misses.get(name, 0) + 1
+        for off, name in SUBSTEP_DWORDS.items():
+            got = view._backend.rw(off) | (view._backend.rw(off + 2) << 16)
+            exp = m.rw(ds, off) | (m.rw(ds, off + 2) << 16)
+            if got != exp:
                 misses.append(name)
                 field_misses[name] = field_misses.get(name, 0) + 1
         if misses:

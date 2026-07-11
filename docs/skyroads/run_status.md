@@ -4,6 +4,36 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — the forward advance is the 1B49 call: native sub-step now COMPLETE (230/232 all fields, incl. ship_pos)
+
+Correction + closure of the previous entry's open question. I'd concluded the
+per-frame ship_pos advance happened in the OUTER frame loop, outside the
+sub-step. That was wrong. Watchpointing `[54AC]` pinned the +0x12F advance to
+`1010:1BE2` — inside `1B49`, the function recovered as
+`menu.dispatch_menu_action`. **The forward motion IS the classification's
+`1B49` call**: the classification passes the reduced perspective word to
+`dispatch_menu_action` (`2385-238B`), and action `0xA` (scroll-right) advances
+`ship_pos += SCROLL_STEP` (`0x12F`) when `[456A] == 0` (`1BDC`). So this is the
+"1B49 gameplay side effect" I'd flagged in `classify.py` — not a side effect,
+the core forward-motion mechanism, and it lives IN the sub-step.
+
+`native_gameplay_substep` now applies `dispatch_menu_action` in its
+classification stage (using the `calls_1b49`/`reduced_word` the classifier
+already surfaces). Result: the differential match jumped from 148/232 (all
+fields) to **230/232 — the full gameplay DGROUP including `ship_pos` and
+`lateral`**. The 2 residual misses are documented edge cases (a rare `[AF2E]`
+landing back-off; the `1DFA` effect frame, which the stepper raises a gap for).
+`tests/test_native_substep.py` now compares every field (no outer-field
+exclusion) and asserts a ≥95% match.
+
+So `native_gameplay_substep` is a COMPLETE self-contained gameplay step: the
+recovered islands, composed in spine order over `GameplayScratch`, reproduce
+real VM gameplay — forward motion, steering, jumping, gravity, collision,
+landing, crash, and level progression — with no VM. What remains for a fully
+playable native loop: a driver that calls it per input frame (the
+`play_native.py` equivalent), the frozen `game_state != 0` path, the
+out-of-bounds death check (`23CA-2421`), and the `1DFA` effect.
+
 ## 2026-07-11 — ASSEMBLED the native gameplay sub-step: the islands run as one stepper (228/232 sub-step fields vs VM)
 
 The convergence step. With the whole physics/collision sub-step recovered as

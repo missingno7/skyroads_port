@@ -62,13 +62,16 @@ found and fixed. Honest state:
 
 0. **ASSEMBLED (2026-07-11).** The recovered islands now compose into a running
    native stepper: `skyroads.native.loop.native_gameplay_substep(view, scratch)`
-   steps one gameplay sub-step (`2324-2AE2`) in ASM spine order over a
-   session-persistent `GameplayScratch`, reproducing the VM's sub-step fields
-   228/232 (`tests/test_native_substep.py`). What remains to step a whole
-   DISPLAYED frame: the per-frame forward advance + state dispatch in the OUTER
-   loop (`2280-2317`; ship_pos advances there, not in the sub-step), the
-   frozen-ship `game_state != 0` path, the out-of-bounds death check
-   (`23CA-2421`), and the `1DFA` effect. Items 1-4 below are the leaf detail.
+   steps one COMPLETE gameplay sub-step (`2324-2AE2`) in ASM spine order over a
+   session-persistent `GameplayScratch`, reproducing the full VM gameplay DGROUP
+   **230/232 — including the forward advance of `ship_pos`/`lateral`**
+   (`tests/test_native_substep.py`). The forward motion turned out to be the
+   classification's `dispatch_menu_action` (`1B49`) call (action `0xA` →
+   `ship_pos += 0x12F`), not an outer-loop step as first thought. What remains
+   for a fully PLAYABLE native loop: a per-input-frame driver (the
+   `play_native.py` equivalent), the frozen `game_state != 0` path, the
+   out-of-bounds death check (`23CA-2421`), and the `1DFA` effect. Items 1-4
+   below are the leaf detail.
 
 1. **Game logic — mostly mapped, partially recovered, not yet fully wired.**
    Forward motion (`advance_ship`), the menu/level-select dispatcher, and the

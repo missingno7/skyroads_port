@@ -166,12 +166,13 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
 
     This is the convergence of the recovered leaves into a running native
     stepper (the pre2_port model). Verified against the VM: over real
-    ``game_state == 0`` sub-steps, every DGROUP field this composes matches the
-    oracle EXCEPT the per-frame forward advance (``ship_pos``/``lateral``) and
-    the level timers, which the game advances in the OUTER frame loop
-    (`1010:2280-2317`), not the sub-step -- that framing is not recovered yet,
-    so this steps the sub-step, not the whole displayed frame. See
-    tests/test_native_substep.py and docs/skyroads/run_status.md.
+    ``game_state == 0`` sub-steps, the full gameplay DGROUP this composes --
+    INCLUDING the forward advance of ``ship_pos``/``lateral`` -- matches the
+    oracle 230/232 (`tests/test_native_substep.py`). The forward motion is the
+    classification's ``dispatch_menu_action`` (`1B49`) call: action ``0xA``
+    advances ``ship_pos`` by ``SCROLL_STEP`` (`0x12F`) when ``[456A] == 0``
+    (`1010:1BDC`). The residual misses are documented edge cases (a rare
+    ``[AF2E]`` landing adjustment).
 
     Only the active-gameplay path (``game_state == 0``) is recovered; other
     states (the ship is frozen -- advance/steer/jump are skipped) and the
@@ -187,9 +188,20 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
     rw = view.rw
     visible = make_visible(rw)
 
-    # 1. perspective classification (2324-23BF) -> class flags
+    # 1. perspective classification (2324-23BF) -> class flags. Its reduction
+    #    path makes a live dispatch_menu_action call (2385-238B) whose effect,
+    #    during gameplay, IS the forward motion: action 0xA advances ship_pos by
+    #    SCROLL_STEP (0x12F) when [456A]==0 (the 1B49 body at 1BDC). So apply it.
     cls = classify_ship(rw, view.lateral, view.af1c, view.af2c,
                         scratch.bp12, scratch.bp14)
+    if cls.calls_1b49:
+        ms = dispatch_menu_action(cls.reduced_word, MenuState(
+            view.game_state, view.grounded, view.ship_pos, view.timer_a, view.timer_b))
+        view.game_state = ms.game_state
+        view.grounded = ms.entered
+        view.ship_pos = ms.scroll_pos
+        view.timer_a = ms.timer_a
+        view.timer_b = ms.timer_b
     # (the out-of-bounds death check 23CA-2421 falls through while game_state==0)
 
     # 2. bounce-decay gate (2421-24BA) -- uses the PRIOR sub-step's tgt_af2c/bp24
