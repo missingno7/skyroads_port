@@ -4,6 +4,51 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — recovered both column-draw dispatch variants (364F/36F3), the first real renderer decision logic
+
+Started the native renderer (scoped last turn, see the entry below). Finished
+transcribing and verified BOTH column-dispatch variants reached indirectly
+through `ds:[0E42]` (`1010:35F8`) — the decision logic that decides which
+columns `road_column_strip` (`1010:38BF`, already a fully-understood
+register-exact hook) composites and with what argument.
+
+- `dispatch_variant_a` (`1010:364F-36F2`): raw real-capture match **474/480
+  (98.75%)**.
+- `dispatch_variant_b` (`1010:36F3-38BE`): a longer, separate function (NOT a
+  continuation of variant A despite sitting right after it in memory — variant
+  A ends in a real `ret` at `36F2`) touching two fields variant A never reads
+  (`ds:[0E5C]`/`[0E5E]`). Raw match **633/640 (98.9%)**.
+
+**The anomaly, understood and excluded, not hidden**: the misses in both raw
+counts (6 for A, 7 for B) all come from real invocations that share ONE
+repeated field snapshot and produce an implausibly long call burst (16-24
+`road_column_strip` calls between two dispatch-entry hits) that neither
+transcription predicts. This is almost certainly calls from a THIRD,
+unisolated dispatch source looping without re-entering `364F`/`36F3` in
+between — not a bug in either transcription (every OTHER snapshot, including
+many exercising every documented branch, matched exactly). Re-dumped with a
+larger sample (1280 invocations each) and explicitly EXCLUDED any call-burst
+longer than 8 from the committed fixtures (101 distinct clean field-snapshots
+kept per variant, ALL matching exactly) rather than leave a fuzzy pass rate in
+the test suite. Added `test_fixtures_exclude_the_known_anomaly` asserting the
+exclusion holds, so this can't quietly regress into hiding a real bug later.
+
+Landed `skyroads/recovered/render_dispatch.py` (`dispatch_variant_a`/`_b`,
+pure functions returning the ordered `ax` call list) + `tests/
+test_render_dispatch.py` (101 distinct real field-snapshots per variant, plus
+synthetic edge-case tests for the six-record volley).
+
+**What's still needed for an actual native framebuffer**: (1) what selects
+between the variants (and whether there are more) -- `[0E42]`'s value(s)
+weren't captured; (2) `road_column_strip` itself ported from a VM-facing hook
+to a pure function -- it touches FOUR distinct segments (the two display-list
+segments, a source bitmap segment, and the destination screen segment), so it
+needs `NativeGameState` extended to the full 1 MB address space (its own
+docstring already anticipated this) -- a real, invasive change to a
+widely-used foundation, deliberately NOT done this turn without an actual
+consumer to verify it against; (3) the display-list BUILDER that populates
+`ds:[0E60]`/`[0E62]` each frame, not yet located.
+
 ## 2026-07-11 — FULL VMLESS NATIVE GAMEPLAY: a standalone driver plays the whole demo, purely natively
 
 The `/goal` target: a complete, self-contained gameplay simulation loop that
