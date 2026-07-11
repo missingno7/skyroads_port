@@ -4,6 +4,57 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — LANDED: native ROADS.LZS level-directory reader, verified 3/3 against real captures — the level-select mystery's data source is now real, portable code
+
+Closes the level-select investigation with an actual shipped deliverable,
+not just documentation. Rather than reverse-engineer `ROADS.LZS`'s
+compression from scratch, checked whether the format was already
+documented publicly first — it was: [ModdingWiki's "SkyRoads compression"
+and "SkyRoads level format"](https://moddingwiki.shikadi.net/wiki/SkyRoads_compression)
+pages (reverse-engineered previously by the retro-game-preservation
+community) describe an LZSS scheme for the game's `.lzs` resource files, and
+specifically that `ROADS.LZS` holds a directory of per-level entries:
+`(UINT16LE offset, UINT16LE length)` pairs, each entry then starting with
+plain `UINT16LE gravity; UINT16LE fuel; UINT16LE oxygen` before a palette
+and the (LZSS-compressed) road-geometry bytes.
+
+**Verified directly against the real `assets/ROADS.LZS` file** — no VM
+needed, since this is a static game asset, not runtime memory. Parsed the
+31-entry directory (self-terminating: entries repeat until the read
+position reaches the FIRST entry's own offset) and read the plain
+`gravity/fuel/oxygen` triple at each entry. Checked all THREE real
+values this session's live tracing had captured from the VM:
+
+| source | gravity | fuel | oxygen | `ROADS.LZS` index |
+|---|---|---|---|---|
+| frame 282 (first level pick) | 8 | 200 | 180 | 16 |
+| frame 1327 (real DOWN-ARROW+ENTER pick) | 7 | 175 | 60 | 17 |
+| frame 2016 (third pick) | 8 | 150 | 180 | 1 |
+
+**All three exact.** This also fully explains the "same gate=8, different
+fuel" puzzle from two entries ago — it isn't an anomaly, it's just a flat,
+index-addressed table where multiple distinct levels legitimately share a
+`gravity` value while differing on `fuel`/`oxygen`.
+
+Landed `skyroads/recovered/roads_archive.py` (`parse_directory`,
+`read_level_header`, `level_count` — pure, VM-free, reads a byte string) +
+`tests/test_roads_archive.py` (the 3 real-capture matches, a directory
+self-consistency check, and a regression test locking in the "same gravity,
+different fuel" fact so it can't quietly look like a bug again later).
+
+**What this unlocks**: native code can now enumerate every one of
+SkyRoads' 31 levels' `(gravity, fuel, oxygen)` — the exact three fields
+`apply_level_init` needs — with ZERO VM involvement, just reading a static
+asset file. Combined with `apply_level_init` (already recovered) and
+`NativeGameplayDriver` (already recovered), `play_native.py` could now, in
+principle, cold-start ANY of the 31 levels by index alone, not just
+whichever one a captured demo happened to seed. Not wired up yet (that's
+the natural next step). **Still NOT solved**: the actual road GEOMETRY
+(the LZSS-compressed `road[]` bytes after the palette) — porting that needs
+the actual LZSS decompressor (width1/width2/width3 bit-stream scheme,
+documented but not yet implemented/verified here), which is what a real
+native RENDERER of an arbitrary level would need next.
+
 ## 2026-07-11 — RESOLVED: SkyRoads loads levels from real, separate `.lzs` compressed resource files — the level-select investigation's final answer
 
 Closes the thread run through the last several entries. Scanned for every

@@ -83,23 +83,36 @@ found and fixed. Honest state:
 
 ## What's missing (in rough dependency order)
 
--2. **NEW (2026-07-11): the `.lzs` resource file format / decompressor.**
-    SkyRoads loads its levels, menus, and sprites from separate on-disk
-    files (`mainmenu.lzs`, `gomenu.lzs`, `cars.lzs`, `dashbrd.lzs`,
-    `roads.lzs`, `world5.lzs`, plus `.dat`/`.snd`/`.cfg` files — full
-    manifest in run_status.md's "RESOLVED: SkyRoads loads levels from real,
-    separate .lzs compressed resource files" entry), most `.lzs`-compressed
-    — confirmed via real `INT 21h` file-open calls with their filenames read
-    directly off the stack, and a buffered read chain (`1010:6326` →
-    `1010:5F80`, a real `AH=3Fh` file-read wrapper) traced down to real
-    opcodes with a newly fixed `tools/lindis.py --live-demo`. This is the
-    genuine blocker for native level SELECTION (picking any level without
-    the VM) and quite possibly the renderer's own still-missing display-list
-    BUILDER (item -1's open question 2 below) — `roads.lzs` is a strong
-    candidate for exactly that data. Not started: getting a `.lzs` file off
-    disk and reverse-engineering its container format (header + compression
-    scheme, likely a classic LZ77/LZSS variant given the byte-at-a-time
-    decode pattern already traced) is the concrete first step.
+-2. **The `.lzs` resource file format / decompressor — level SELECTION
+    solved (2026-07-11), level GEOMETRY still open.** SkyRoads loads its
+    levels, menus, and sprites from separate on-disk files (`mainmenu.lzs`,
+    `gomenu.lzs`, `cars.lzs`, `dashbrd.lzs`, `roads.lzs`, `world0-9.lzs`,
+    plus `.dat`/`.snd`/`.cfg` files), most `.lzs`-compressed — confirmed via
+    real `INT 21h` file-open calls with filenames read directly off the
+    stack, and a buffered read chain (`1010:6326` → `1010:5F80`, a real
+    `AH=3Fh` file-read wrapper) traced down to real opcodes with a newly
+    fixed `tools/lindis.py --live-demo`.
+
+    **Level selection is DONE**, and turned out not to need the compression
+    at all: `ROADS.LZS`'s per-level directory stores `gravity`/`fuel`/
+    `oxygen` as PLAIN, uncompressed words (the format is already documented
+    by the retro-game-preservation community —
+    [ModdingWiki's SkyRoads compression/level-format pages](https://moddingwiki.shikadi.net/wiki/SkyRoads_compression)
+    — checked before reverse-engineering from scratch, which paid off).
+    Landed `skyroads/recovered/roads_archive.py`
+    (`parse_directory`/`read_level_header`/`level_count`), verified 3/3
+    against real live-VM-captured `(gravity, fuel, oxygen)` triples,
+    including a real keyboard DOWN-ARROW+ENTER level pick. Combined with the
+    already-recovered `apply_level_init` + `NativeGameplayDriver`, native
+    code can now enumerate and cold-start any of the 31 levels by index —
+    zero VM involvement, just a static asset file.
+
+    **Still open**: the actual road GEOMETRY (`road[]`, LZSS-compressed,
+    documented on the same ModdingWiki page: width1/width2/width3 bit-stream
+    parameters, MSB-first control bits selecting literal/short-backref/
+    long-backref). Needed for a real native RENDERER of an arbitrary level —
+    `roads.lzs` is a strong candidate for exactly the display-list data
+    item -1's open question 2 below never found a builder for. Not started.
 
 -1. **Renderer: column-draw dispatch RECOVERED (2026-07-11).** The first real
     renderer decision logic. `road_column_strip` (`1010:38BF`) is a
