@@ -4,6 +4,55 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — a third tick-wait parked (menu/animation timer at 1010:47CD); `[456E]` state 2 identified
+
+Continued the perf work autonomously. Re-profiled the E2E demo with both new
+hooks (`0F62`, `4052`) installed and found several menu frames still burning
+the *entire* step budget on page `4700xx`. Traced it to a **third tick-wait
+spin**, structurally identical to the two `frame-park` already handles:
+`1010:47CD` (`cmp ds:[1600],0002h; jnb 47D7; jmp 47CD`) — a menu/animation
+frame-timer waiting for `[1600] >= 2` rather than "changed". Same reasoning
+applies (`[1600]` is frozen for the whole frame, so once it's under the
+threshold it cannot cross it before the next frame) — added as a third park
+hook in `skyroads/pacing.py::install_frame_park`. This is **runtime-loaded
+code** (invisible in the static EXE, same gotcha as the sound driver from
+earlier — disassembled from a live snapshot).
+
+**Byte-equivalence proof**: replaying the full E2E demo (1719 frames) park-ON
+vs the full-spin baseline (`--no-frame-park`) — every one of 1719 rendered
+frames byte-identical (`frames_hash` matches exactly across two separate
+runs), **5.03x fewer interpreted steps** (43,556,327 -> 8,649,674). Locked in
+by a new `tests/test_frame_park.py::test_menu_anim_wait_is_byte_equivalent_and_cheaper`
+using a captured mid-spin snapshot (the gameplay snapshot the existing park
+tests use never reaches menu code). 181 tests pass.
+
+Also checked the other recurring hot pages (`6000`/`6300`/`6500`) for a
+similar win: `1010:6013-601A` is a VGA vertical-retrace hardware poll
+(`in al,0x3DA; test al,8; loope`) — a categorically different, riskier kind of
+wait (it polls emulated *hardware* state, which — unlike `[1600]` — is not
+necessarily frozen for the whole frame, so "park until next frame" is not
+provably safe the same way; pre2_port's own pitfalls doc warns against
+conflating a deterministic skip with live pacing for exactly this reason).
+Checked `dos_re.dos.DOSMachine._vga_status`: in this emulator the retrace bit
+toggles on **read-count parity**, not wall-clock/instruction time, so the poll
+already resolves in 1-2 iterations in practice — not actually a bottleneck.
+Left alone; flagging the reasoning here so a future session doesn't have to
+re-derive it.
+
+**`ds:[456E]` (top-level game-state) gains a mapped value.** Re-traced state
+transitions over the E2E demo with the segment-filter bug fixed (an earlier
+probe captured `cpu.s.ds` at hook-install time, before the game had even set
+up its DGROUP — comparing against `0x1000` instead of the real `0x1686`,
+so it silently matched nothing). The real E2E demo cycles cleanly:
+`0->2 (1010:1B68) -> 2->0 (1010:2060) -> 0->3 (1010:2AC2, gameplay start) ->
+3->0 (1010:2060, gameplay end)`, repeating once per level played. `1010:1B49`
+is a dispatcher (`enter 0x0000,0`, dispatch on `(bp+4)&0xF` through a jump
+table at `1BED`) whose relevant action case writes `[456E]:=2` and, if
+`[456A]==0`, sets it to 1 and calls `1010:03C2(0)` — consistent with
+**state 2 = level-select/menu entry**. Not further recovered this session
+(a full dispatcher recovery is comparable in scope to the earlier `074C`
+controls work) — flagging it mapped, not claiming it recovered.
+
 ## 2026-07-11 — recovered + wired the buffer-relocation hook (perf cause #2), lift-first this time
 
 Picked up perf cause #2 from the diagnosis: the un-hooked buffer scan/patch

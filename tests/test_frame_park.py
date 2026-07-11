@@ -92,3 +92,44 @@ def test_frame_park_parks_every_gameplay_frame() -> None:
         except HaltExecution:
             break
     assert parked == FRAMES, f"only {parked}/{FRAMES} frames parked at the tick-wait"
+
+
+# --- menu/animation tick-wait (1010:47CD) --------------------------------------
+# Runtime-loaded code (invisible in the static EXE), found profiling the E2E
+# demo's menu screens (2026-07-11 perf diagnosis): several consecutive frames
+# were burning the entire step budget on this spin. Uses a captured snapshot
+# mid-spin (not the gameplay snapshot above, which never reaches menu code).
+
+MENU_SNAP = ROOT / "artifacts" / "page4700_snap"
+
+menu_pytestmark = pytest.mark.skipif(
+    not (EXE.exists() and MENU_SNAP.exists()),
+    reason="needs SKYROADS.EXE + the menu-animation snapshot",
+)
+
+
+@menu_pytestmark
+def test_menu_anim_wait_is_byte_equivalent_and_cheaper() -> None:
+    def run(park: bool):
+        rt = load_game_snapshot(str(EXE), str(MENU_SNAP))
+        if park:
+            install_frame_park(rt)
+        cpu = rt.cpu
+        start = cpu.instruction_count
+        frames = []
+        for _ in range(FRAMES):
+            for _ in range(IRQS):
+                deliver_interrupt(rt, 0x08)
+            try:
+                cpu.run(SPF)
+            except FrameIdle:
+                pass
+            except HaltExecution:
+                break
+            frames.append(decode_frame_default(rt).tobytes())
+        return frames, cpu.instruction_count - start
+
+    base_frames, base_steps = run(park=False)
+    park_frames, park_steps = run(park=True)
+    assert park_frames == base_frames, "a rendered frame diverged under the menu-anim park"
+    assert park_steps < base_steps, (park_steps, base_steps)
