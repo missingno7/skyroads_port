@@ -32,6 +32,11 @@ from __future__ import annotations
 from typing import NamedTuple
 
 from skyroads.islands import oracle_link
+from skyroads.recovered.movement import _ulong_div, _ulong_mul
+
+#: Per-level gravity is `-((jump_level_gate * 0x1680) / 0x190)` (1010:1FFA-201C).
+GRAVITY_LEVEL_MUL = 0x1680
+GRAVITY_LEVEL_DIV = 0x190
 
 #: Road length in forward-position units; ship_pos is clamped to [0, LEVEL_END],
 #: and reaching LEVEL_END is level-complete (1010:2514 `cmp [54AC],0x2AAA`).
@@ -235,3 +240,21 @@ class RespawnState(NamedTuple):
 def respawn() -> RespawnState:
     """The fixed post-death reset state (1010:201F-20A7)."""
     return RespawnState()
+
+
+@oracle_link(
+    boundary="1010:1FFA",
+    contract="level_gravity(jump_level_gate): the per-level downward gravity "
+             "written to ds:[54AA] at level init (1010:1FFA-201C). = "
+             "-(ulong_div(ulong_mul(jump_level_gate, 0x1680), 0x190)) as a "
+             "16-bit value. Higher jump_level_gate (ds:[4562]) -> stronger "
+             "(more negative) gravity.",
+    status="ASM_MATCHED",  # matches the ASM's ax at 201C for the jump_gate
+    # values the E2E demo inits with (8 -> 0xFF8D, 9 -> 0xFF7F).
+    merge_target="skyroads.native.player (future)",
+)
+def level_gravity(jump_level_gate: int) -> int:
+    """The per-level gravity ``ds:[54AA]`` derived from ``jump_level_gate``
+    (``ds:[4562]``) at level init (1010:1FFA-201C)."""
+    prod = _ulong_mul(jump_level_gate & 0xFFFF, GRAVITY_LEVEL_MUL)
+    return (-_ulong_div(prod, GRAVITY_LEVEL_DIV)) & 0xFFFF

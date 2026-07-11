@@ -16,8 +16,23 @@ from pathlib import Path
 
 from skyroads.recovered.player import (
     JUMP_IMPULSE, RESUME_HEIGHT_GATE, TERMINAL_VVEL, RespawnState, advance_ship,
-    decay_bounce, is_landed_for_resume, respawn, update_vertical_velocity,
+    decay_bounce, is_landed_for_resume, level_gravity, respawn,
+    update_vertical_velocity,
 )
+
+
+def test_level_gravity_matches_asm() -> None:
+    # -(jump_level_gate * 0x1680 / 0x190); verified vs the ASM at 1010:201C for
+    # the E2E demo's init values (jump_gate 8 -> 0xFF8D, 9 -> 0xFF7F).
+    assert level_gravity(8) == 0xFF8D
+    assert level_gravity(9) == 0xFF7F
+
+
+def test_level_gravity_stronger_with_higher_gate() -> None:
+    # more negative (as signed 16-bit) for a higher gate
+    def s16(v):
+        return v - 0x10000 if v & 0x8000 else v
+    assert s16(level_gravity(9)) < s16(level_gravity(8)) < 0
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "physics_trace.json"
 _CASES = json.loads(_FIXTURE.read_text())

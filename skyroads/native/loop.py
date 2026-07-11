@@ -63,8 +63,10 @@ from skyroads.recovered.orchestration import should_run_gameplay
 from skyroads.recovered.physics import compute_movement_targets
 from skyroads.recovered.player import (
     GRAVITY_HEIGHT_GATE,
+    RespawnState,
     advance_ship,
     decay_bounce,
+    level_gravity,
     update_vertical_velocity,
 )
 from skyroads.recovered.progression import step_level_progression
@@ -313,6 +315,33 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
     return GameplayScratch(
         jump=jump, bp12=land.gameplay_active, bp14=cls.class_skip,
         bp24=bp24, tgt_af2c=new_tgt_af2c)
+
+
+def apply_level_init(view: GameView, jump_level_gate: int) -> GameplayScratch:
+    """Apply the per-level init (`1010:1FD9-206C`) to ``view`` in place and
+    return a fresh :class:`GameplayScratch`: the transition primitive a driver
+    runs at the start of each level / after a respawn. Writes the fixed reset
+    fields (:class:`~skyroads.recovered.player.RespawnState`) plus the per-level
+    gravity derived from ``jump_level_gate`` and clears ``ds:[516E]``.
+
+    (The joystick-recenter side call at 1FDF, for control device 2, is not
+    modelled -- keyboard play doesn't take it.)
+    """
+    r = RespawnState()
+    view.lateral = (r.lateral_hi << 16) | r.lateral_lo
+    view.af1c = r.vert_af1c
+    view.af2c = r.vert_af2c
+    view.unknown_5496 = r.unknown_5496
+    view.lateral_accel = r.lateral_accel
+    view.bounce = r.vvel
+    view.ship_pos = (r.ship_pos_hi << 16) | r.ship_pos_lo
+    view.timer_a = r.level_timer_a
+    view.timer_b = r.level_timer_b
+    view.game_state = r.game_state
+    view.frame_ctr = r.frame_ctr
+    view.grounded = r.unknown_456a
+    view.gravity = level_gravity(jump_level_gate)
+    return GameplayScratch(bp12=1)
 
 
 def _vertical_scan_cell(visible, lateral: int, af1c: int, af2c: int) -> int:

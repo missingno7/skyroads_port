@@ -4,6 +4,25 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — recovered the level-init (respawn + per-level gravity); the transition primitive is ready
+
+Recovered the per-level init the frame handler runs on entry (`1010:1FD9-206C`)
+— it's the fixed `respawn()` field reset PLUS a per-level gravity computation I'd
+missed: `ds:[54AA] = -((jump_level_gate * 0x1680) / 0x190)` (`level_gravity`,
+verified vs the ASM: gate 8 -> 0xFF8D, 9 -> 0xFF7F). Landed
+`skyroads.native.loop.apply_level_init(view, jump_level_gate)` — the transition
+primitive a driver runs at the start of each level / after a respawn (writes the
+reset fields + the derived gravity, returns a fresh `GameplayScratch`).
+
+This is the piece a native driver calls at each boundary the lockstep loop now
+detects (level-complete -> respawn/replay, death -> respawn). What it does NOT
+yet cover is the ~42-frame level-complete DISPLAY (the `game_state == 2` settle
+window between reaching the end and the respawn) -- that's a menu/transition-tier
+subsystem, distinct from gameplay. With `apply_level_init` + `native_menu_frame`
+(level-select, already recovered) + the gameplay loop, the native game's control
+FSM is now nearly all in hand; the transition DISPLAYS and the renderer are the
+remaining large subsystems for a fully playable VM-free game.
+
 ## 2026-07-11 — the native loop is now FULLY CLEAN in lockstep: zero drift, every run ends on a detected boundary
 
 Recovered the per-frame **orchestration gate** (`should_run_gameplay`,
