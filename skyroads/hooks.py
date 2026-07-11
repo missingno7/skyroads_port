@@ -2251,3 +2251,14 @@ registry.replace(CODE_SEG, 0x34AE, "lifted_tile_render_34AE")(_lifted_34ae)
 # under the strict differential verifier), byte-exact.
 from skyroads.lifted.lifted_1010_186b import lifted_1010_186b as _lifted_186b  # noqa: E402
 registry.replace(CODE_SEG, 0x186B, "lifted_road_stepper_186B")(_lifted_186b)
+
+# 1010:39D4 -- the fixed-position HUD/dashboard sprite blitter that every 34AE
+# render pass finalizes into (called every frame, 2 sprites always + 2 more
+# gated on the VGA pass). Calls 1010:3A22 4x per invocation -- ALREADY
+# hand-recovered above as sprite_blit_hook (verified 2026-07-09, 1,806 calls,
+# zero divergence), so only 39D4 itself is new here. Surfaced while decoding
+# 34AE's own algorithm from its proven lift (2026-07-12); lifted + verified
+# ORACLE_PASSING (liftverify: 100 calls, 3/3 blocks, full coverage),
+# byte-exact.
+from skyroads.lifted.lifted_1010_39d4 import lifted_1010_39d4 as _lifted_39d4  # noqa: E402
+registry.replace(CODE_SEG, 0x39D4, "lifted_hud_blit_finalize_39D4")(_lifted_39d4)

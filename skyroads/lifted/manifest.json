@@ -1,0 +1,15 @@
+{
+ "1010:39D4": {
+  "entry": "1010:39D4",
+  "module": "lifted_1010_39d4.py",
+  "status": "ORACLE_PASSING",
+  "instructions": 23,
+  "blocks": 3,
+  "native_pct": 95.8,
+  "calls": 100,
+  "verified": 100,
+  "divergences": 0,
+  "blocks_covered": 3,
+  "note": ""
+ }
+}
