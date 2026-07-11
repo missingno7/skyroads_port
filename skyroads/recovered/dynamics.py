@@ -44,10 +44,13 @@ from skyroads.recovered.player import (
     GRAVITY_HEIGHT_GATE,
     JUMP_IMPULSE,
     TERMINAL_VVEL,
+    decay_bounce,
 )
 
 #: `steer` multiplier forming lateral_accel (1010:2568 `imul [95F4],29`).
 STEER_ACCEL_MUL = 29
+#: The small-bounce kill threshold is `low16(0x104*jump_gate)//8` (1010:2458-2464).
+BOUNCE_KILL_MUL = 0x104
 #: Per-level jump gate: a jump only fires while `ds:[4562] < 0x14` (1010:258C).
 JUMP_GATE_MAX = 0x14
 #: The steering "check path" only recomputes accel while the ship is within this
@@ -61,6 +64,44 @@ GROUND_RAMP_MAX = 0x47
 def _s16(v: int) -> int:
     v &= 0xFFFF
     return v - 0x10000 if v & 0x8000 else v
+
+
+@oracle_link(
+    boundary="1010:2421",
+    contract="gate_bounce_decay(bounce, af2c, tgt_af2c, cur_5496, scan_cell, "
+             "jump_gate, grounded): the pre-move bounce-decay gate. If "
+             "af2c == tgt_af2c, bounce is untouched. Otherwise bounce := 0 when "
+             "(cur_5496 != 0 and scan_cell < 2), or |bounce| < "
+             "(low16(0x104*jump_gate) // 8), or grounded != 0; else "
+             "bounce := decay_bounce(bounce). scan_cell is ss:[bp-24] (the "
+             "vertical scan's last cell index, session state); jump_gate is "
+             "ds:[4562]; grounded is ds:[456A].",
+    status="ASM_MATCHED",  # 682/682 real E2E-demo frames byte-exact
+    # (unchanged 236, zero-small 439, decay 6, zero-5496 1). The grounded!=0
+    # zero branch was decoded but not exercised by the demo; the ASM also plays
+    # a landing SFX (03C2(1), gated by a 0476 predicate) on some decay frames --
+    # audio only, so not modelled here.
+    merge_target="skyroads.native.dynamics (future)",
+)
+def gate_bounce_decay(
+    bounce: int, af2c: int, tgt_af2c: int, cur_5496: int, scan_cell: int,
+    jump_gate: int, grounded: int,
+) -> int:
+    """The `1010:2421-24BA` bounce-decay gate. Returns the new ``ds:[9336]``.
+
+    Runs BEFORE :func:`step_jump_steer_gravity` each sub-step; its output bounce
+    is that block's input.
+    """
+    if (af2c & 0xFFFF) == (tgt_af2c & 0xFFFF):          # 2424: at vertical target
+        return bounce & 0xFFFF
+    if (cur_5496 & 0xFFFF) != 0 and (scan_cell & 0xFFFF) < 2:   # 242D-243D
+        return 0
+    threshold = ((BOUNCE_KILL_MUL * (jump_gate & 0xFFFF)) & 0xFFFF) // 8  # 2458-2464
+    if abs(_s16(bounce)) < threshold:                    # 2466-246D: kill small bounce
+        return 0
+    if (grounded & 0xFFFF) != 0:                         # 2470: grounded -> no bounce
+        return 0
+    return decay_bounce(bounce)                           # 24A1: damped oscillation
 
 
 class JumpScratch(NamedTuple):

@@ -4,6 +4,41 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — recovered the pre-move bounce-decay gate (2421-24BA), 682/682 — the core physics sub-step is now whole
+
+Recovered `gate_bounce_decay` (`dynamics.py`, `1010:2421-24BA`): the gating
+around `decay_bounce` (already recovered) that runs just before the jump/gravity
+block each sub-step. If `af2c == tgt_af2c` the bounce passes through untouched;
+otherwise it's zeroed when `([5496] != 0 and scan_cell < 2)`, or `|bounce|`
+falls below `low16(0x104 * jump_gate) // 8`, or `[456A] != 0` (grounded); else
+`bounce := decay_bounce(bounce)`. **Verified 682/682** with good branch coverage
+(unchanged 236, small-kill 439, decay 6, 5496-kill 1). Landed
+`tests/test_decay_gate.py` + a 57-case fixture. The grounded-kill branch was
+decoded but unexercised; the landing SFX (`03C2(1)`, gated by an `0476`
+predicate) is audio-only and not modelled.
+
+**Milestone: the whole physics/collision sub-step (2421-2AE2) is recovered.**
+With the decay gate in place, every stage from the vertical decay through the
+movement pipeline, the full collision response, and level progression is now
+recovered and VM-verified:
+
+    2421-24BA  gate_bounce_decay        (dynamics)        682/682
+    2324-23BF  classify_perspective     (classify)        682/682
+    252B-2635  step_jump_steer_gravity  (dynamics)        415/416
+    2635-26E9  compute_movement_targets + resolve_move    300/300
+    26EC-2A24  collision response (5 fns)                  full region
+    2A35-2AE2  step_level_progression   (progression)     682/682
+
+What's left of the per-frame handler is the *framing* around this core: the
+out-of-bounds/fall death check (`23CA-2421`, calls `0533`/`0F05`, gated on the
+transitional state so it falls through in normal gameplay), the outer state
+dispatch (`2280-2317`), and the sub-step loop (`2317-2B08`, `bp-2 < [1600]`).
+The next major step is ASSEMBLY: thread the session scratch
+(`bp-2/6/8/10/12/24` + the `bp-14/16/18` classification flags) through these
+recovered stages in spine order to build a self-contained `native_gameplay_frame`,
+then multi-frame-verify it against the VM (the pre2_port tick-keyed-harness
+convergence proof).
+
 ## 2026-07-11 — recovered the landing check (28D7-295D), 224/224 — jump-latch lifecycle complete
 
 Recovered `resolve_landing` (`collision_response.py`, `1010:28D7-295D`): the
