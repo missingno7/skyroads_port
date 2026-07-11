@@ -29,21 +29,87 @@ The ~17 recovered routines are the **render + math hot path** — the hardest an
 most performance-critical part. The other ~114 functions (the majority by count)
 are still interpreted.
 
+## Progress: the first native (VM-less) frame steppers (2026-07-11)
+
+`skyroads/native/` now composes the currently-recovered game-logic islands
+into real, VM-free per-frame steppers over a `NativeGameState` (a plain
+`bytearray`, no VM) via a named `GameView` (`skyroads/bridge/dgroup_view.py`,
+using the shared `dos_re.state_view` machinery promoted from pre2_port). See
+run_status.md's 2026-07-11 "first native (VM-less) frame steppers" entry for
+the full account, including a real vertical-velocity divergence this work
+found and fixed. Honest state:
+
+- `native_menu_frame` — **complete and gap-free.** Every level-select
+  transition (`dispatch_menu_action`) is recovered.
+- `native_gameplay_frame` — commits forward motion (real-demo-proven), then
+  raises one of three typed gaps (`skyroads/native/gaps.py`) on every real
+  gameplay frame tested so far: the jump-impulse latch, the vertical-velocity
+  gate outside one narrow verified envelope, or (always, since it's reached
+  last) the movement-target block. No full native gameplay frame has
+  completed yet — this narrows exactly what item 1 below still needs, rather
+  than replacing it.
+- Later the same day: the movement-target FORMULA (`1010:2635-26E6`,
+  `compute_movement_targets`) got recovered, and then the WHOLE movement
+  pipeline (targets → `resolve_move` → `collision.make_visible`) was proven to
+  reproduce the VM's post-move axes 300/300
+  (`tests/test_native_movement_pipeline.py`). The movement math has no
+  remaining gap. `native_gameplay_frame` still can't call it because of one
+  input — `lateral_accel`, stateful steering momentum (see `MovementPhysicsGap`
+  and run_status.md) — so the "always gapped" state above is unchanged
+  operationally, but the gap is now a single, precisely-named next island.
+
 ## What's missing (in rough dependency order)
 
-1. **Game logic — none recovered yet.** Ship physics (movement, thrust, jump,
-   gravity, speed), **collision detection** (ship vs blocks — the core rule of
-   the game), fuel/oxygen, scoring, death/level-complete conditions. These were
-   never hooked because they are not performance-hot, but a port cannot run
-   without them. Most of this is straightforward integer logic — far simpler
-   than the renderer already done.
+1. **Game logic — mostly mapped, partially recovered, not yet fully wired.**
+   Forward motion (`advance_ship`), the menu/level-select dispatcher, and the
+   entire lateral/vertical movement PIPELINE are recovered:
+   `compute_movement_targets` (`1010:2635-26E6`) → `resolve_move` (`186B`) →
+   `collision.make_visible` reproduces the VM's post-move axes **300/300**
+   (`tests/test_native_movement_pipeline.py`) — the movement MATH has no
+   remaining gap (`af1c_base_offset` is the constant `0x0618`; the earlier
+   "unrecovered selector" reading was corrected — see run_status.md). Still
+   pipeline's `lateral_accel` input, the jump latch, and gravity are now ALSO
+   recovered — `skyroads.recovered.dynamics.step_jump_steer_gravity`
+   (`1010:252B-2635`, 415/416 vs VM), which carries a session-persistent
+   `JumpScratch` (`bp-8`/`bp-10`/`bp-6`). The perspective **classification**
+   (`1010:2324-23BF`) that produces the `bp-14`/`bp-18` flags
+   `step_jump_steer_gravity` needs is now ALSO recovered —
+   `skyroads.recovered.classify` / `skyroads.native.classify` (682/682 vs VM).
+   `skyroads.recovered.classify` / `skyroads.native.classify` (682/682 vs VM).
+   And the post-move tail's **level-progression state machine**
+   (`1010:2A35-2AE2`) is recovered too — `skyroads.recovered.progression`
+   (682/682 vs VM): the level timers (`[5494]` distance/"fuel", `[B13C]`
+   time/"oxygen") and the `game_state` transitions (`0→3` resume when
+   `af2c<0x2800`, `0→4`/`0→5` timer-expired) — i.e. the level-complete /
+   out-of-time death logic. (Also fixed an inverted resume-gate bug in
+   `player.is_landed_for_resume` found in the process.)
+   So classification + dynamics + movement pipeline + level progression are all
+   recovered and proven. What's still open before `native_gameplay_frame` can
+   run the whole chain end to end: (a) the **collision-response** middle of the
+   tail (`26EC-2A24`) — mostly recovered now in
+   `skyroads.recovered.collision_response`: the vertical `1732`-probe scan
+   (`vertical_center_nudge`, 314/314), the lateral wall-bump (`lateral_wall_bump`,
+   511/511 on a collision demo incl. a real bump), and the af1c contact fix-up
+   (`af1c_contact_fixup`, 511/511 incl. real collisions). Still open in this
+   region: the position milestones (`27A3-2800`, `[54AC]>=0xE38` →
+   `[456A]/[456E]:=1`) and the `bp-8`-clear landing check (`28DC-2901`, mapped);
+   (b) the upstream
+   `decay_bounce` region (`2421-24BA`) and early visibility check
+   (`23CA-2421`); (c) the `1B49` gameplay side effect (`classify` flags it,
+   doesn't model it); (d) the `1DFA` special effect (`25AC-25D6`); (e) `bp-12`'s
+   full drive (set at `206C`/`2901`, cleared at `28D7`). Then: scoring, and the
+   session-scratch plumbing to carry `bp-6/8/10/12/14` across frames.
 
 2. **The orchestration / state machine.** The main loop and the game-state
    dispatch (`ds:[456A]/[456E]/[4558]`) that sequences intro → menu → level
    select → gameplay → death → exit. The top-level `0C98`/`22xx` frame driver.
+   (`native_menu_frame`/`native_gameplay_frame` are per-mode steppers a future
+   dispatcher would call — they don't decide which mode is active themselves.)
 
-3. **The menu/UI subsystem.** Main menu, level select, settings, help/credits,
-   the "go" screens — several screens' worth of layout, input handling, and
+3. **The menu/UI subsystem.** Level-select's ACTION DISPATCH is recovered and
+   wired natively (`native_menu_frame`, see "Progress" above). Still open:
+   the rest of the menu/UI subsystem — main menu, settings, help/credits, the
+   "go" screens — several screens' worth of layout, input handling, and
    rendering (some of which reuse the recovered sprite/blit leaves).
 
 4. **Input.** Keyboard handling: today the game polls `INT 21h AH=0Bh`/`07h` and

@@ -4,6 +4,530 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — recovered the lateral wall-bump + af1c contact fix-up (26EC-27A0, 283C-28AE)
+
+Two more collision-response pieces, into `collision_response.py`:
+- `lateral_wall_bump` (`26EC-27A0`): when the ship's lateral was blocked short
+  of target but `af1c` reached target and the target cell is blocked, nudge
+  `af1c` down `0x3A0` (else up `0x3A0`) to slip past, snapping `tgt_lateral` to
+  the current lateral;
+- `af1c_contact_fixup` (`283C-28AE`): on an `af1c` collision (`af1c != tgt_af1c`),
+  clear `lateral_accel`, conditionally zero `[5496]` (when its sign agrees with
+  the still-needed `af1c` direction), and brake `ship_pos` by `0x97` (clamped ≥0).
+
+**Verification note — needed a collision demo.** The E2E demo is a clean run
+that almost never collides: the wall-bump's active branch fired 0×, the contact
+fix-up 1×. So while the entry/no-op paths verified 682/682 there, that's weak.
+Scanned all 14 demos for the collision IPs and found
+`demo_skyroads_20260710_213019` exercises both (1 real wall-bump, 4 real af1c
+collisions). Verified the **active** branches against it: wall-bump 511/511
+(incl. the real down-bump), contact fix-up 511/511 (incl. all 4 collisions).
+Landed pure-logic unit tests + a live-oracle test bound to that collision demo
+that asserts the active branches actually fire (`stats["bump_active"] >= 1`
+etc.), so the recovery can't silently regress to only testing the no-op path.
+The wall-bump's UP branch (`2788`) is decoded but was not itself triggered by
+any sampled demo — flagged in its `@oracle_link` note.
+
+Remaining in the `26EC-2A24` collision middle: the position milestones
+(`27A3-2800`, the `[54AC]>=0xE38` → `[456A]/[456E]:=1` transition) and the
+landing check that clears the jump latch (`28DC-2901`, mapped). After those, the
+entire post-move tail is recovered.
+
+## 2026-07-11 — recovered the vertical collision-depth scan (2963-2A24), 314/314
+
+Started into the collision-RESPONSE middle of the post-move tail
+(`26EC-2A24`), the `1732`-heavy region that resolves the ship against the track
+after `resolve_move`. First self-contained piece: the vertical centering scan
+(`1010:2963-2A24`) that maintains `ds:[5496]` — the vertical term
+`compute_movement_targets` adds into `tgt_af1c` (so this closes a real loop: the
+movement target's `[5496]` input is now itself recovered).
+
+The scan probes `road_object_visible` (`1732`) at `af1c ± k*128` for `k = 1..14`,
+finds the first UNBLOCKED cell above and below the ship, nets that into `{-1, 0,
++1}`, and moves `[5496]` by `net * 17` (or zeroes it when net is 0). Recovered as
+`skyroads/recovered/collision_response.py::vertical_center_nudge` (pure, takes
+the same `visible` predicate `resolve_move` uses), **verified 314/314** real
+E2E scans byte-exact — every probe computed through
+`renderer.road_object_visible` bound to the frame's real DGROUP tables. Landed
+`tests/test_collision_response.py` (5 pure-branch unit tests + 1 live-oracle).
+
+New module `collision_response.py` is where the rest of this region will accrete.
+Still to recover in `26EC-2A24`: the lateral wall-bump (`26EC-27A0`, nudges
+`[AF1C]` ±0x3A0 when the ship's lateral is blocked, plays an SFX), the position
+milestones (`27A3-2800`, the `[54AC]>=0xE38` → `[456A]/[456E]:=1` transition),
+the `[AF1C]`/`[5496]` contact fix-up (`283C-28AE`), and the landing check that
+clears the jump latch (`28DC-2901`, mapped — clears `bp-6/bp-8`, sets `bp-12`,
+adjusts `ship_pos` by `[AF2E]`).
+
+## 2026-07-11 — recovered the level-progression state machine (2A35-2AE2), 682/682 + fixed an inverted resume-gate bug
+
+Went into the post-move tail (`26E9-2B0B`) and recovered its state-machine end,
+`1010:2A35-2AE2` — the level timers and `ds:[456E]` game-state transitions that
+end or resume a level. Landed as `skyroads/recovered/progression.py::
+step_level_progression`, **verified 682/682** real E2E sub-steps byte-exact on
+`(game_state, level_timer_a, level_timer_b, frame_ctr)`, including the demo's
+real `0->3` resume transitions.
+
+The logic (only when `game_state == 0`, i.e. transitional/just-respawned):
+- **level_timer_b** (`ds:[B13C]`, time/"oxygen") -= `0x7530/(0x24*[4566])`;
+- **level_timer_a** (`ds:[5494]`, distance/"fuel") -=
+  `slong_div(ulong_mul(0x7530/[54A2], ship_pos), 0x10000)` (ship_pos-proportional);
+- both unsigned-clamped at 0;
+- then `game_state := 3` if `af2c < 0x2800` (resumed), `:= 4` if timer_a hit 0,
+  `:= 5` if timer_b hit 0 (later override earlier).
+While `game_state != 0`, none of that runs — the frame counter `ds:[4558]`
+increments instead. This is the level-complete / out-of-time death logic
+`vmless_roadmap` item 1 lists.
+
+**Found and fixed a real bug in an earlier "ASM_MATCHED" recovery.**
+`player.is_landed_for_resume` returned `af2c >= 0x2800`, but the ASM's `jb` at
+`2AB7` resumes when `af2c < 0x2800` (the ship has DESCENDED past the gate). The
+earlier recovery inferred `>=` from all 3 respawns writing `af2c = 0x2800` and
+assuming that "immediately satisfied" resume — but at exactly `0x2800` resume
+does NOT fire; the ship stays transitional until `af2c` drops below the gate.
+The 682/682 progression match (with the real `0->3` transitions) is the
+authoritative evidence. Corrected the function, its `@oracle_link` note, and its
+test (`test_player.py`); it was only used by that test, so no downstream impact.
+
+Two derivation details worth noting: the fuel decrement's divisor is `0x10000`
+(from the `5E5A` call's `bx=1,cx=0` operand), not 1; and both timers are gated
+entirely on `game_state == 0`, so normal gameplay (state 3) never touches them —
+they only tick in the transitional/death window.
+
+**State of the native gameplay frame**: classification, dynamics, movement
+pipeline, AND now the level-progression tail are all recovered and proven. The
+remaining un-recovered part of the `26E9-2B0B` tail is the **collision-response**
+middle (`26EC-2A24`: the lateral wall-bump nudges and the vertical `1732`-probe
+scan that adjusts `[5496]`/`[AF1C]`, plus the `bp-8`-clear landing check at
+`28DC-2901`) — a larger, `1732`-heavy island for a future pass. Plus the
+upstream `decay_bounce` region (`2421-24BA`) and the early visibility check
+(`23CA-2421`).
+
+## 2026-07-11 — recovered the perspective classification (2324-23BF), 682/682 + located where the jump latch clears
+
+Took the classification block feeding the dynamics block's `bp-14`/`bp-18`
+inputs (below). It projects the ship's own `(lateral, af1c)` through the
+perspective transform (`04C0` = `renderer.perspective_row_offset`) to a table
+word `bp-20`, then:
+- `bp-18 (class_zero) = (bp-20 == 0)`;
+- if `bp-12 == 0`: `bp-16 = 0`, `bp-14` **unchanged** (persists across frames —
+  it's session state, not a pure per-frame value);
+- else: reduce `bp-20` (if `af2c > 0x2800`, look up `ds:[0x228 + 2*(bp-20>>8)]`
+  and set `bp-20 = bp-20>>4` if `af2c` matches else 0), make a side-effect
+  `1B49` call, then `bp-14 = (bp-20 & 0xF == 8)`, `bp-16 = (bp-20 & 0xF == 2)`.
+
+Recovered as `skyroads/recovered/classify.py::classify_perspective` (pure, takes
+the perspective word + a table reader) + `skyroads/native/classify.py::classify_ship`
+(binds `perspective_row_offset` + DGROUP reads, like `collision.make_visible`).
+**Verified 682/682** real E2E frames byte-exact on `(bp-14, bp-16, bp-18)`,
+computing the perspective word natively. Landed `tests/test_classify.py` (6
+pure-branch unit tests + 1 live-oracle test driving the demo).
+
+**Also found where the jump latch clears.** Chasing `bp-12`'s source
+(`classify`'s one remaining upstream input) into the post-move tail led to
+`1010:28F2-2901`: `bp-6 := 0`, **`bp-8 := 0` (jump latch cleared)**, `bp-12 := 1`
+— reached when `ds:[AF2C] != bp-28` (the af2c target) AND `ds:[9336] < 0`
+(descending), i.e. the landing/collision-resolved condition. This answers the
+long-standing `JumpGateGap` "where does bp-8 reset" question (previously only
+inferred from the `af2c→0x2800` correlation).
+
+**Two documented subtleties** (in `classify.py`): (1) `bp-14` persists when
+`bp-12 == 0`, so it's session state the caller must thread; (2) the `1B49`
+side-effect call during gameplay (same address as `menu.dispatch_menu_action`,
+called with the reduced perspective word) — the flags don't depend on its
+result so `classify` reproduces them without it, but its DGROUP side effect
+during gameplay is flagged (`calls_1b49`), not modelled. Worth resolving what
+`1B49` actually does with a perspective-derived arg mid-gameplay.
+
+**State of the native gameplay frame now**: classification, dynamics (jump +
+steering + gravity), and the movement pipeline (targets + resolve_move) are ALL
+recovered and proven against the VM. Remaining to stand up a full self-contained
+frame: the `26E9-2B0B` post-move **tail state machine** (drives `bp-12`, clears
+`bp-8` on landing, handles level-end/death — `28C0` has the `[54AC]==0x2AAA`
+level-end clamp), the upstream `decay_bounce` region (`2421-24BA`), the early
+visibility check (`23CA-2421`), and the `1B49` side effect.
+
+## 2026-07-11 — recovered the jump-latch + steering + gravity block (252B-2635), 415/416
+
+Followed the movement-pipeline proof (below) into the block right before it —
+`1010:252B-2635`, the per-frame jump/steering/gravity update — because its
+output `lateral_accel` was the movement pipeline's one un-derivable input.
+Disassembled the whole thing and found the "jump latch" I'd been calling an
+unrecovered gap is right here: `2570-25A9` fires the up-impulse
+(`bounce := 0x480`), latches `bp-8 := 1`, and records the jump-start height
+`bp-10 := af2c`, gated by `bp-8==0 && bp-18==0 && [547A]!=0 && [4562]<0x14`.
+
+Recovered the block as `skyroads/recovered/dynamics.py::step_jump_steer_gravity`,
+operating on a small session-persistent `JumpScratch` (`bp-6`/`bp-8`/`bp-10`)
+plus two per-frame classification flags (`bp-14`/`bp-18`) and DGROUP scalars.
+It covers three things the earlier naive functions couldn't gate correctly:
+- **steering momentum** (`2534-256D`): `lateral_accel = steer*29`, but latched —
+  only recomputed when `class_skip==0` and either `(not jumping && class_zero==0)`
+  or `(lateral_accel==0 && bounce>0 && af2c-jump_start_y < 0xF00)`. This is why
+  60/682 frames had `lateral_accel != steer*29` (momentum persisting a frame
+  after the steer key released);
+- **the jump latch** (`2570-25A9`), above;
+- **gravity/velocity** (`25DB-2635`): airborne → `+gravity` (or clamp to
+  terminal `-106` below the height gate); grounded → ramp to `+0x47`.
+
+**Verified 415/416** real E2E-demo frames byte-exact on `(bounce,
+lateral_accel, bp-8, bp-10)`. The single miss is one frame where the rare
+`25AC-25D6` effect path (a `1DFA` call gated by `[4570]`/`bp-6`/`af2c>=0x3700`,
+fired only 5× in the whole demo) separately rewrote `lateral_accel` — the
+function detects and flags that path (`hit_effect_path`) rather than
+mis-modelling it. Landed with `tests/test_dynamics.py` + a 89-case fixture
+(`dynamics_trace.json`, all jump-fire/1DFA/steering frames + a spread).
+
+This **supersedes** the `decay_bounce` + `update_vertical_velocity` composition
+that `VerticalVelocityGap` guarded — the "`[9336]` frozen for 8 frames" mystery
+was just this block's gating (grounded/af2c/jump-latch), now modelled. Updated
+all three native gaps (`JumpGateGap`/`VerticalVelocityGap`/`MovementPhysicsGap`)
+to point here.
+
+**Remaining before a full native gameplay frame** (each a scoped island):
+1. the perspective **classification** (`2324-23BF`) that produces `bp-14`/`bp-18`
+   — `bp-20` = the perspective-table word for the ship's own `(lateral, af1c)`
+   via `renderer.perspective_row_offset`, then `bp-18=(bp-20==0)` and
+   `bp-14=(bp-20 & 0xF==8)` after an `af2c`/`ds:[0x228]`-table reduction that
+   also makes a side-effect `1B49` call (the messy part);
+2. where `bp-8` **clears** on landing (traced to the frame `af2c` snaps to
+   `0x2800`, exact write not yet located);
+3. the upstream `decay_bounce` region (`2421-24BA`);
+4. the `1DFA` effect (`25AC-25D6`) and the death/level-end event paths.
+Not wired into `native_gameplay_frame` yet (it still needs 1 & 2); the block is
+proven in isolation.
+
+## 2026-07-11 — movement MATH complete (pipeline proven 300/300) + af1c_base_offset corrected to a constant
+
+Two results pushing native gameplay forward.
+
+**1. The af1c_base_offset was never an open selector gap — it's the constant
+`0x0618`.** The "movement-target formula recovered" entry (and the follow-up
+that "ruled out a hypothesis for the selector") both leaned on an empirical
+"offset is 0 for non-steering, 0x0618 for steering" reading. That was a
+measurement artifact. Probing the real `ss:[bp-16]` (the ASM's actual selector,
+`1010:2650`: `bp-16==0 → +0x0618`) directly at the decision point found it `0`
+in **every one of 682 real E2E calls** — so the multiply's base is always
+`ship_pos + 0x0618`. The apparent "offset 0" for non-steering frames was just
+`lateral_accel == 0` making the multiply `0 * base == 0`, so the base value was
+irrelevant there and the fixture-builder's "try 0 first" recorded 0. Held
+`lateral_accel` nonzero, only `0x0618` matches (58/58). The alternate `0` needs
+the `af2c > 0x2800` + `ds:[0x228]`-table-match path (`1010:2340-23BF`), which
+never fired in the demo — a real but UNEXERCISED branch, not a gap. Corrected
+`skyroads/recovered/physics.py` (default `af1c_base_offset=0x0618`, docstring
+rewritten), re-patched the fixture, updated `tests/test_physics.py`. This
+retires the "open selector" caveat from all three earlier places it appeared.
+
+**2. The lateral/vertical movement MATH is complete — the whole pipeline
+reproduces the VM 300/300.** Composed the two already-ASM_MATCHED halves —
+`compute_movement_targets` (`2635-26E6`) → `resolve_move` (`186B`) — with the
+`skyroads/native/collision.make_visible` predicate bound to a `NativeGameState`'s
+DGROUP tables, and diffed the result against the real VM's post-move
+`(lateral, af1c, af2c)` captured at `26E9`. **300/300 exact, 39 with real
+steering.** Landed as `tests/test_native_movement_pipeline.py` (live-oracle,
+gated on the game files). This establishes there is NO remaining gap in the
+movement math itself.
+
+**What still blocks a full native gameplay frame** (precisely bounded now, down
+from "the 2560-26E9 block is unrecovered"): the pipeline's `lateral_accel`
+(`ds:[4568]`) input is **stateful steering momentum**, not a stateless
+`steer*29` — 60/682 real frames have `lateral_accel != steer*29` (e.g. `-29`
+persisting a frame after the steer key released). It's updated mid-frame at
+`1010:2568` under the jump-latch-gated steering block (`1010:2534-256D`), whose
+gates depend on the perspective classification (`1010:2324-23BF` →
+`bp-14`/`bp-16`/`bp-18` from `perspective_row_offset`, already recovered) and
+the session-persistent jump-latch state (`ss:[bp-8]`/`[bp-10]`). So
+`native_gameplay_frame` still raises `MovementPhysicsGap` — but the gap is now
+specifically "derive `lateral_accel`", not "recover the movement math."
+Deliberately did NOT wire `resolve_move` in with `lateral_accel=steer*29`: it
+would silently diverge on those 60 frames, violating the fail-loud rule. Next
+concrete island: the `2534-256D` steering-momentum update (+ its `2324-23BF`
+classification dependency).
+
+## 2026-07-11 — fixed the audio stutter + >1s sound delay: it was pacing, not missing hooks
+
+User report: music/sound stutters, and sound is delayed by more than a second.
+Confirmed empirically it is a **pacing/audio-architecture** problem, not
+under-hooking (though the two are linked — see below).
+
+**Measurement** (full E2E demo, real frontend cost per frame): 496/1719 frames
+(29%) exceed the 33.3ms budget a 30Hz loop allows — p90 71ms, p99 230ms, max
+450ms; on those frames the loop drops to 14Hz (p10) down to 2.2Hz.
+`clock.tick(present_hz)` only pads a *fast* frame up to the budget, never
+speeds a slow one up, so `AudioSink.pump()` is called well below 30Hz on
+nearly a third of frames. The stock sink generates AND drains a **fixed**
+`chunk = rate // present_hz` samples per pump, on the assumption pump() runs at
+a steady `present_hz`. Over the demo that means the consumer can only emit
+57.3s of audio (1719 pumps x 1470 samples) while 83.6s of wall-clock playback
+is needed — a **26s structural deficit** that surfaces two ways:
+
+- **Stutter**: the OPL music channel underruns on every slow stretch, goes
+  idle, and restarts with a fresh 0.1s lead (an audible gap).
+- **>1s SFX delay**: a captured SB-DMA effect is resampled to real-time
+  duration and dumped into `self._sfx` all at once, but drained at only
+  `chunk` samples *per pump* — coupled to pump frequency, not the wall clock.
+  On every sub-30Hz frame the backlog grows and never clears, so effects play
+  seconds after their visual.
+
+**Fix** (`skyroads/audio.py::SkyroadsAudioSink.pump`, an override — kept in the
+port repo, observer-only, so demos/tests/determinism are untouched): size each
+pump by **real elapsed wall-clock time** (`n = round(dt * rate)`, clamped)
+instead of a fixed chunk, so samples produced/drained always track what the
+mixer consumes; and hard-cap the pre-mixer buffer (200ms) and SFX backlog (1s
+safety) so a long stall resyncs to "now" (a brief glitch) rather than
+accumulating delay. Verified end-to-end on the real demo through the real sink
+with a fake mixer + real clock: **peak SFX backlog 951ms and self-recovering
+(the 1s cap never even engaged), pre-mixer buffer bounded at 200ms** — vs the
+pre-fix 26s ratchet. 4 new deterministic regression tests
+(`tests/test_audio_pacing.py`, injected clock + fake mixer) lock in that the
+backlog stays bounded and generation tracks wall-clock, not pump count. 226
+tests pass.
+
+**What this does NOT fix** (stated honestly): when the VM itself runs below
+30Hz, the game emits OPL note changes at its own slow tick rate, so the music
+*tempo/sequence* genuinely drags — no audio pacing can fix that, only a faster
+VM (i.e. more hooking) can. So the two questions the user raised are both
+"yes, partly": pacing was the direct cause of the stutter and the SFX delay
+(now fixed); remaining tempo unevenness on heavy transition frames is the
+un-hooked-work side, and every renderer/logic island still to be hooked
+reduces how often frames blow the 33ms budget. Note the same fixed-chunk bug
+lives in the shared `dos_re/dos_re/audio_sink.py::AdlibSpeakerSink` base (all
+games using it); left as an upstream-candidate rather than re-pinning the
+submodule from a port-side fix.
+
+## 2026-07-11 — ruled out one hypothesis for the af1c_base_offset selector
+
+Quick follow-up to the "movement-target formula recovered" entry's open
+question: does the `ss:[bp-16]` selector (`1010:2340-23BF`) actually reduce
+to `perspective_row_offset(lateral, af1c)` plus a `ds:[0x228]`-table lookup,
+as that disassembly reading suggested? Implemented it directly (reusing the
+already-recovered `perspective_row_offset`, matching `hooks.py`'s
+`_persp_exit` argument convention) and checked it against all 682 real
+`186B` calls from the movement-target fixture's source demo, predicting
+`bp-16` and comparing to the real `af1c_base_offset` (0 vs `0x618`) deduced
+from each sample's actual `tgt_af1c`.
+
+**Result: wrong exactly where it matters.** 624/682 correct — but ALL 58 are
+the real-steering (`lateral_accel != 0`) samples, and the hypothesis predicts
+`bp-16=0` (offset 0) for every single one of them, when the real value is
+always `0x618`. Not a near-miss or an off-by-one; the `af2c > 0x2800` +
+table-match branch never fires when it should for these samples, so either
+the argument order/quantity fed into `perspective_row_offset` here is wrong,
+or `ss:[bp-20]`'s value at this point in the ASM isn't what
+`1010:2324-2336`'s disassembly suggested. Ruling this out so a future attempt
+doesn't re-derive the same dead end — the only currently-known signal for
+`af1c_base_offset` remains the empirical `lateral_accel != 0` correlation
+already documented in `skyroads/recovered/physics.py`'s docstring (682/682
+in this demo, structurally unconfirmed).
+
+## 2026-07-11 — CONFIRMED: the jump-latch locals are session-persistent, not per-frame (architecture, not just a hypothesis anymore)
+
+Follow-up to the "movement-target formula recovered" entry below, which
+flagged the `ss:[bp-8]` etc. persistence question as informed speculation.
+Settled it directly: monkeypatched `CPU8086.step` to snapshot `SS:BP` and
+`ss:[bp-8]`/`[bp-10]`/`[bp-18]` every time `cs:ip` hit `1010:26E6` (the
+`resolve_move` call site, known-reachable from the movement-target probe)
+over the full E2E demo — no hook, no replacement, pure observation.
+
+**Result: `SS:BP` was `(0x1686, 0xB910)` on all 274 visits across every one
+of the demo's ~1900 frames — never once different.** This settles it: the
+per-frame handler at `1010:2280-2B0B` is not re-entered each displayed
+frame; it is ONE continuous execution context (a single `enter`, presumably
+at level start) that loops across frames via `jmp`, exactly as the tick-wait
+spin `skyroads/pacing.py` already parks at `1010:22F8` (*inside* this same
+block) implied. `ss:[bp-N]` locals are therefore genuine session state, not
+per-call scratch — confirming what the movement-target entry could only
+infer from bp-8 outliving a key release.
+
+**bp-8's full lifecycle**, traced across the whole demo: sets to 1 exactly
+when the jump impulse fires (`1010:25A1`, already known), and reset to 0 was
+observed at 3 independent points (frames 746, 915, 1366) — in every case,
+the SAME frame `ds:[AF2C]` snapped back to exactly `0x2800`
+(`player.RESUME_HEIGHT_GATE`) via `resolve_move`'s own collision clamp, with
+`ds:[456A]` staying 0 throughout (so `456A` is NOT the "landed" signal here
+— it's a rarer, separate flag; found it set by an unrelated side-wall
+collision case at `1010:27DF`, not investigated further). bp-8 is NOT
+recomputable as `af2c != 0x2800` (it's already 1 the same frame af2c is
+still 0x2800, the very frame the jump fires) — it is a true latch, just one
+whose reset trigger (landing) is now empirically pinned down even though the
+exact ASM instruction doing the reset write wasn't located (checked
+`1010:2704-2800`, the af1c-target/lateral-wall-collision block right after
+`resolve_move` returns — not there; the reset write is elsewhere, not yet
+found).
+
+**Implication for skyroads.native**: confirms the gaps.py architecture note
+was right, not just plausible. `native_gameplay_frame` cannot model bp-8/
+bp-10/bp-14/bp-16/bp-18 as either DGROUP fields (they aren't) or per-call
+locals (they don't reset per call) — it needs a companion session-scoped
+scratch object threaded across frame calls, reset only at whatever re-enters
+this handler (level load, most likely), mirroring pre2_port's
+`NativeGameState.__slots__` side channels (`sfx_queue`, `particle_capture`,
+etc. — "this session's" state that isn't memory-backed). Not built yet; this
+entry exists so the next session doesn't have to re-derive the persistence
+question from scratch.
+
+## 2026-07-11 — the movement-target formula recovered (1010:2635-26E6), closing most of MovementPhysicsGap
+
+Continued from the native-loop work below: disassembled forward from the
+per-frame state dispatcher (`1010:2280-2317`, the top-level `[456A]/[456E]/
+[4558]` orchestration `vmless_roadmap.md` item 2 calls out as fully missing —
+mapped but not yet lifted/verified this session) through the jump-latch gate
+(`1010:2570-25AC`, confirming `ss:[bp-8]` is exactly the self-latching
+"jumped already" flag `player.py`'s docstring predicted) to
+`1010:2635-26E6`: the block that computes the `(tgt_lateral, tgt_af1c,
+tgt_af2c)` triple `resolve_move` (`1010:186B`) sweeps toward — previously
+mapped only at a high level ("Vertical/lateral physics", earlier today) and
+explicitly called "the tee-up, not recovered source."
+
+Cross-checked the derived formula against 682 real `186B` call arguments
+captured over the full E2E demo (58 with real steering held) by monkeypatching
+`CPU8086.step` to snapshot state whenever `cs:ip == 1010:26E6` (the `call
+186B` instruction, args already pushed) — no hook needed, since this was pure
+observation, not replacement. First pass wrongly concluded "the lateral
+offset is always 0" from an incomplete 400-sample/frame<1193 window; the full
+682-sample pass falsified that and led to the real structure:
+
+- `tgt_af2c = af2c + vvel` (vvel = `ds:[9336]` as of the call site, i.e.
+  after that frame's decay/gravity/jump already ran) — **682/682 exact**.
+- `tgt_lateral = ship_pos + lateral` (32-bit, ship's forward position
+  re-centers the lateral target each frame as the curving track advances) —
+  **682/682 exact, no offset term** (an earlier draft of this finding wrongly
+  conflated this with the af1c multiply's separate offset below — different
+  DGROUP accumulator, computed at a different point in the ASM,
+  `1010:263C-2647` vs `1010:2650-2673`).
+- `tgt_af1c = af1c + slong_div(ulong_mul(lateral_accel, ship_pos +
+  af1c_base_offset), 0x200) + [5496]`, clamped to `af1c` unchanged if the raw
+  result and `af1c` straddle a `[0x2F80, 0xD080)` wrap-seam band from
+  opposite sides (`1010:26AA-26D7`) — **682/682 exact given the real
+  af1c_base_offset per sample** (0 or `0x618`, see below). First consumer of
+  `ds:[4568]` (`lateral_accel`, `steer*29`) — previously only a documented
+  *write* target (`player.RespawnState`'s comment).
+
+**What's still open**: `af1c_base_offset`'s real ASM selector (a stack-local
+`ss:[bp-16]`, set at `1010:2340-23BF` when `af2c > 0x2800` AND a `ds:[0x228]`
+-indexed table lookup on a `04C0` perspective-transform result for the ship's
+own position matches `af2c` exactly — machinery that, confusingly, ALSO
+fires a live side-effect call into `menu.dispatch_menu_action` with a
+related action code before the low nibble is inspected again for this same
+flag) is traced but not implemented. Empirically, `af1c_base_offset ==
+0x618` in exactly the 58 real samples where `lateral_accel != 0`, and `== 0`
+in all 624 others — a clean, perfect correlation in this demo, but the two
+conditions are structurally independent circuits in the ASM, so it may be
+coincidental to this demo rather than the true rule. Landed as
+`skyroads/recovered/physics.py::compute_movement_targets`, requiring the
+caller to supply `af1c_base_offset` explicitly rather than defaulting to the
+correlation (tests: `tests/test_physics.py`, fixture
+`tests/fixtures/movement_target_trace.json`, 98 samples: all 58 real-steering
+ones + a spread of 40 non-steering).
+
+**Not wired into `skyroads/native/loop.py` yet** — `MovementPhysicsGap`
+still fires unconditionally. Closing it for real needs: (1) the
+`af1c_base_offset` selector properly implemented (not the correlation
+heuristic), (2) `lateral_accel` (`ds:[4568]`)'s own write-gate
+(`1010:2550-256D`, mapped: only when `[9336] > 0` and
+`[AF2C]-heightref < 0x0F00`, not yet independently verified as a pure
+function), and (3) the jump-latch's session-persistence architecture: `ss:
+[bp-8]`/`[bp-10]`/`[bp-14]`/`[bp-16]`/`[bp-18]` clearly persist ACROSS
+frames (bp-8 stayed latched for the 8-frame freeze `VerticalVelocityGap`'s
+finding described below), which a per-call stack local can't do unless this
+whole per-frame handler (`1010:2280-2B0B`) is actually one continuous
+execution context looping internally (via `jmp`, not `call`/`ret`) across
+displayed frames — the tick-wait spin `skyroads/pacing.py` already parks at
+`1010:22F8` sits INSIDE this same block, consistent with that theory. If
+true, `skyroads.native`'s per-frame steppers need a companion session-scoped
+scratch object alongside `GameView` (mirroring pre2_port's non-memory
+`NativeGameState.__slots__` side channels: `sfx_queue`, `particle_capture`,
+etc.) to hold these latches across `native_gameplay_frame` calls — not
+something `GameView`'s DGROUP fields can represent. This is now a
+concrete, scoped follow-up rather than an open question.
+
+## 2026-07-11 — first native (VM-less) frame steppers, and a real vertical-velocity bug found through them
+
+Started wiring "the entire game loop towards native vmless game" (the
+pre2_port endgame model, see `vmless_roadmap.md`). Landed the state-mirror
+plumbing and two frame steppers over it:
+
+- `skyroads/native/state.py::NativeGameState` — the game's DGROUP owned as a
+  plain 64 KB `bytearray` (no VM), with `from_vm(rt)` seeding. Smaller than
+  pre2's 1 MB image on purpose: every SkyRoads island recovered so far only
+  touches DGROUP.
+- `skyroads/state_view.py` — a re-export shim (mirrors `skyroads/islands.py`
+  for `oracle_link`) so `skyroads/bridge/dgroup_view.py::GameView` can use
+  the shared `dos_re.state_view` backend/descriptor machinery (promoted from
+  pre2_port) without a direct `dos_re` import — keeps skyroads/bridge under
+  the same pitfall-#17 bar as skyroads/recovered. `GameView` names every
+  DGROUP field the current islands touch (ship_pos, lateral, speed, bounce,
+  af1c/af2c, game_state, entered/grounded (the same offset, two names for two
+  modes), the timers, the keyboard row) as one dword/word property per field,
+  reading raw (unsigned) words — the recovered functions each sign-extend
+  their own inputs, so a view field must hand them the raw word, not an
+  already-Python-signed one, or a function like `decay_bounce` double-converts.
+- `skyroads/native/collision.py::make_visible` — wires
+  `renderer.road_object_visible`/`perspective_row_offset`/`road_segment_clip`
+  into the `visible(lateral32, depth, screen_y)` callback
+  `movement.resolve_move` needs, mirroring `hooks.py`'s `_persp_exit`/
+  `_clip_exit` minus their register-exit bookkeeping. Cross-checked against
+  an independent reimplementation of the same wiring over 500 random table/
+  probe samples (`tests/test_native_collision.py`) — not yet CALLED from the
+  gameplay stepper (see below).
+- `skyroads/native/loop.py::native_menu_frame` — complete, gap-free: every
+  transition `dispatch_menu_action` needs is recovered. Verified against 4
+  real E2E-demo frames where the ASM's own dispatch was confirmed a no-op
+  (menu.py's "heartbeat" case) — the action code itself isn't observable
+  without a dedicated capture hook, so only no-op frames are valid samples.
+- `skyroads/native/loop.py::native_gameplay_frame` — commits forward motion
+  (`advance_ship`) unconditionally (real-demo-proven, 0 mismatches), then
+  raises a typed gap (`skyroads/native/gaps.py`) the instant it needs
+  something not safe to compute: `JumpGateGap` if a jump is held (the
+  impulse latch isn't recovered), `MovementPhysicsGap` for the lateral/
+  vertical movement-target block (`1010:2560-26E9`, mapped but not recovered
+  — see the entry below), or, new today, `VerticalVelocityGap`.
+
+**The `VerticalVelocityGap` finding.** Composing `decay_bounce` then
+`update_vertical_velocity` unconditionally every frame — the natural reading
+of player.py's own docstring ("applied AFTER decay_bounce") — was the first
+thing tried. Cross-checking it against real E2E-demo data
+(`demo_e2e_20260710_132930`, frames ~765-772) falsified it: `ds:[9336]`
+(bounce/vertical velocity) stayed **frozen** at a fixed value for 8 straight
+frames while airborne with `af2c < 0x2800` — exactly the branch player.py's
+`update_vertical_velocity` docstring already flagged as an untested,
+"ASM-derived, dark" terminal-clamp. Composing the two recovered functions on
+that frozen value predicts an immediate flip-and-clamp to `TERMINAL_VVEL`
+instead; real ASM did nothing to that field for 8 frames. So the whole
+decay+gravity/clamp block is evidently GATED by something not yet
+recovered — most likely the same jump-in-flight state the (also unrecovered)
+impulse latch tracks, since the freeze starts the frame the jump key was
+pressed and outlives the frame it was released. This is stronger than "an
+unexercised branch": it disproves the "runs every frame unconditionally"
+assumption itself, not just one arm of the clamp.
+
+`native_gameplay_frame` now only computes `decay_bounce`/
+`update_vertical_velocity` inside the ONE envelope player.py's existing
+verification actually covers (airborne, `af2c >= GRAVITY_HEIGHT_GATE`,
+`grounded == 0`) and raises `VerticalVelocityGap` otherwise. Re-run against
+the E2E demo: 10/10 "outside the envelope" samples now correctly gap with
+`ship_pos` still matching real ASM (0 mismatches, vs. 2/8 silent wrong
+values before this fix); the demo never happened to exercise the envelope
+case itself (0 samples in the first ~1700 frames), so that narrow branch's
+only evidence remains player.py's own earlier "238/238 deaths-demo frames"
+claim from a different demo — not re-confirmed here.
+
+**Honest coverage today**: every real gameplay frame in the E2E demo hits
+either `JumpGateGap` or `VerticalVelocityGap` or `MovementPhysicsGap` before
+`native_gameplay_frame` could call `resolve_move` — there is no frame yet
+where a full native gameplay step completes without a gap. What IS proven:
+the state-mirror plumbing (`NativeGameState` <-> `GameView` <-> recovered
+function <-> writeback) is correct end-to-end for every field it touches,
+`native_menu_frame` is a complete gap-free island, and the exact next
+recovery targets are now precisely bounded (the jump latch, the vertical-
+velocity gate, and the `2560-26E9` movement-target block) rather than
+vaguely "game logic, none recovered yet". Tests: `tests/test_native_state.py`,
+`tests/test_native_collision.py`, `tests/test_native_loop.py` (synthetic,
+no demo needed), `tests/test_native_loop_integration.py` (real E2E demo,
+skips if assets/demo are absent), `tests/test_layer_audit.py` (wires
+`tools/audit_layers.py` into the suite for skyroads/recovered + native +
+bridge, pitfall #17).
+
 ## 2026-07-11 — recovered + wired the intro animation-frame unpacker (1010:3A96), lift-first, one more real bug caught
 
 User-reported: the intro ship/logo animation looked like un-hooked rendering.

@@ -116,6 +116,16 @@ def decay_bounce(bounce: int) -> int:
     # byte-exact (all airborne, af2c>=0x2800, incl. 3 jump frames). The terminal
     # clamp (af2c<0x2800) and grounded ramp (456A!=0) branches are transcribed
     # from the ASM but NOT yet exercised by any demo -- see run_status.md.
+    #
+    # 2026-07-11: real E2E-demo data shows this function is NOT safe to CALL
+    # unconditionally every frame outside the verified envelope above -- not
+    # just an unexercised branch, but evidence the whole decay_bounce/
+    # update_vertical_velocity block is skipped by an unrecovered gate for
+    # several frames around a jump (ds:[9336] observed frozen for 8 straight
+    # frames where this function's transcribed terminal-clamp branch would
+    # predict an immediate change). See run_status.md's "first native
+    # (VM-less) frame steppers" entry and skyroads.native.gaps.VerticalVelocityGap,
+    # which is how skyroads/native/loop.py guards this.
     status="ASM_MATCHED",
     merge_target="skyroads.native.player (future)",
 )
@@ -161,18 +171,23 @@ RESUME_HEIGHT_GATE = 0x2800
 @oracle_link(
     boundary="1010:2AB1",
     contract="is_landed_for_resume(af2c): gates resuming gameplay (ds:[456E]:=3) "
-             "after a respawn/reset. True iff af2c >= 0x2800 (the height the "
-             "reset block itself writes AF2C to -- so a fresh respawn resumes on "
-             "the very next check unless something has since dropped AF2C below "
-             "the gate).",
-    status="ASM_MATCHED",  # matches the ASM branch direction; the gate condition
-    # itself was sampled indirectly (all 3 deaths-demo respawns wrote exactly
-    # 0x2800, immediately satisfying it) -- not yet exercised with af2c < gate.
+             "after a respawn/reset. True iff af2c < 0x2800 -- the ASM's `jb` at "
+             "2AB7 resumes when AF2C is BELOW the gate (the ship has descended). "
+             "A fresh respawn writes AF2C = 0x2800 exactly, which does NOT resume "
+             "yet; the ship stays transitional (game_state 0) until AF2C drops "
+             "below the gate.",
+    status="ASM_MATCHED",  # 682/682 real E2E-demo frames via the full progression
+    # state machine (skyroads.recovered.progression.step_level_progression),
+    # including the real 0->3 transitions. NOTE 2026-07-11: this CORRECTS an
+    # earlier inverted reading (>= gate) that had wrongly inferred, from all 3
+    # respawns writing exactly 0x2800, that 0x2800 "immediately satisfied" resume
+    # -- the real `jb` needs af2c strictly below the gate.
     merge_target="skyroads.native.player (future)",
 )
 def is_landed_for_resume(af2c: int) -> bool:
-    """Whether the ship is high enough (`ds:[AF2C]`) to resume gameplay (1010:2AB1)."""
-    return af2c >= RESUME_HEIGHT_GATE
+    """Whether the ship has descended enough (`ds:[AF2C]`) to resume gameplay
+    (1010:2AB1 `jb`): True iff af2c < RESUME_HEIGHT_GATE."""
+    return (af2c & 0xFFFF) < RESUME_HEIGHT_GATE
 
 
 class RespawnState(NamedTuple):

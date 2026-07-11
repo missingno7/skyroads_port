@@ -81,9 +81,11 @@ def test_respawn_matches_asm() -> None:
 
 
 def test_respawn_is_landed_for_resume() -> None:
-    # respawn() sets AF2C to exactly the resume gate, so a fresh respawn is
-    # immediately resume-eligible (1010:2AB1)
+    # respawn() sets AF2C to exactly the resume gate, which does NOT resume yet
+    # (1010:2AB1 `jb` needs af2c strictly below the gate) -- the ship stays
+    # transitional until it descends below 0x2800. Verified 682/682 via the full
+    # progression state machine; corrects an earlier inverted (>=) reading.
     assert respawn().vert_af2c == RESUME_HEIGHT_GATE
-    assert is_landed_for_resume(respawn().vert_af2c) is True
-    assert is_landed_for_resume(RESUME_HEIGHT_GATE - 1) is False
-    assert is_landed_for_resume(RESUME_HEIGHT_GATE) is True
+    assert is_landed_for_resume(respawn().vert_af2c) is False
+    assert is_landed_for_resume(RESUME_HEIGHT_GATE - 1) is True
+    assert is_landed_for_resume(RESUME_HEIGHT_GATE) is False
