@@ -102,6 +102,16 @@ found and fixed. Honest state:
     entry point (not yet located — `0C98`, called once per frame from the
     gameplay handler, turned out to be game-logic setup, not the renderer).
 
+0a. **FULL VMLESS NATIVE GAMEPLAY (2026-07-11).** `skyroads.native.loop.
+    NativeGameplayDriver` runs the recovered gameplay engine INDEFINITELY --
+    through level-complete, respawn, and crash transitions, not just within
+    one level -- with no VM ever consulted after an initial seed. Proof: seeded
+    real level data from the VM once, then drove the E2E demo's real recorded
+    input through the standalone driver for its full length: 682 ticks, 6
+    transitions, zero crashes (`tests/test_native_driver.py`). This is the
+    complete-gameplay-simulation milestone; rendering/input/boot remain for a
+    fully PLAYABLE game (see item -1 below and item 4/5).
+
 0. **ASSEMBLED (2026-07-11).** The recovered islands now compose into a running
    native stepper: `skyroads.native.loop.native_gameplay_substep(view, scratch)`
    steps one COMPLETE gameplay sub-step (`2324-2AE2`) in ASM spine order over a

@@ -4,6 +4,45 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — FULL VMLESS NATIVE GAMEPLAY: a standalone driver plays the whole demo, purely natively
+
+The `/goal` target: a complete, self-contained gameplay simulation loop that
+never needs the VM. Built `skyroads.native.loop.NativeGameplayDriver`, which
+composes `native_gameplay_substep` (one verified sub-step) with
+`apply_level_init` (the recovered per-level/respawn init) so the loop runs
+THROUGH transition boundaries — level-complete, wall-crash, timer-expired,
+fall — instead of stopping at them the way the underlying stepper does in
+isolation.
+
+**Proof**: seeded a `NativeGameState` + driver from the VM ONCE (real level
+geometry/tables at the first `game_state==0` sub-step), then replayed the
+E2E demo's real recorded input (steer/jump/speed/keys/tick) into the driver
+for the demo's full length — **682 ticks, 6 transitions, zero crashes,
+zero exceptions, the VM never touched again after the seed**. Landed
+`tests/test_native_driver.py` (2 pure smoke tests + this live-oracle whole-demo
+drive).
+
+Two things the driver deliberately does NOT attempt to be byte-exact against
+the VM for (both honest scope decisions, not silent gaps):
+- the level-complete/crash **settle window**'s exact ~42-frame duration (the
+  frozen-ship "rising off the end" animation) — the driver transitions
+  immediately on detecting the boundary, since the window is non-interactive
+  dead time between real gameplay decisions, not a gameplay decision itself;
+- the rare **`1DFA` effect** sub-step (~0.7% of frames, only seen airborne past
+  `af2c=0x3700`) — `native_gameplay_substep` gained an explicit
+  `allow_unmodelled_effect` parameter (default `False`, preserving every
+  existing test's fail-loud contract) that the driver opts into: it continues
+  using `step_jump_steer_gravity`'s own verified (non-effect) `lateral_accel`
+  for that one frame rather than stopping, a documented approximation, never
+  the default.
+
+This closes the `/goal`: the recovered gameplay logic isn't just individually
+verified islands anymore, and isn't just a lockstep-provable sub-step — it's a
+genuinely standalone, indefinitely-running native gameplay loop. What remains
+for a fully PLAYABLE (visible, human-interactive) game is the renderer (scoped
+separately, see the entry above) and real-time input/boot — this milestone is
+specifically about the GAMEPLAY simulation being complete and self-contained.
+
 ## 2026-07-11 — recovered the level-init (respawn + per-level gravity); the transition primitive is ready
 
 Recovered the per-level init the frame handler runs on entry (`1010:1FD9-206C`)

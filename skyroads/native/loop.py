@@ -29,6 +29,26 @@ Nothing here decides WHEN each stepper runs (the ``ds:[456E]`` game-state
 dispatch that sequences intro -> menu -> gameplay -> death is itself an
 unrecovered gap, see vmless_roadmap.md item 2) -- callers already know which
 mode they're in, exactly like pre2_port's per-mode ``native_*`` functions.
+
+``native_gameplay_frame`` above describes the ORIGINAL, narrow stepper (kept,
+still tested, historically where the ``VerticalVelocityGap`` divergence was
+found) from when only forward motion was safe to commit. Everything since has
+superseded it:
+
+* :func:`native_gameplay_substep` -- the COMPLETE gameplay sub-step
+  (`1010:2324-2AE2`), composing every recovered physics/collision/progression
+  island in ASM spine order. Verified against the VM 230/232 real fields incl.
+  forward motion, and in a MULTI-STEP lockstep proof (whole levels, zero
+  drift, every stop a clean boundary detection -- see
+  `tests/test_native_loop_lockstep.py`).
+* :func:`apply_level_init` -- the per-level/respawn init
+  (`1010:1FD9-206C`), the transition primitive run at each boundary
+  `native_gameplay_substep` detects.
+* :class:`NativeGameplayDriver` -- composes the two above into a
+  COMPLETE, SELF-CONTAINED, INDEFINITELY-RUNNING gameplay loop: "full vmless
+  native gameplay". Proven driving the E2E demo's full length of real recorded
+  input purely natively (`tests/test_native_driver.py`) -- the VM is touched
+  once, to seed real level data, and never again.
 """
 from __future__ import annotations
 
@@ -168,7 +188,9 @@ def native_gameplay_frame(view: GameView) -> None:
     )
 
 
-def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> GameplayScratch:
+def native_gameplay_substep(
+    view: GameView, scratch: GameplayScratch, *, allow_unmodelled_effect: bool = False,
+) -> GameplayScratch:
     """Run ONE gameplay sub-step (`1010:2324-2AE2`) on ``view`` in place, the
     full assembly of every recovered island in ASM spine order, and return the
     new :class:`GameplayScratch` to carry to the next sub-step.
@@ -186,8 +208,18 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
     Both the active-gameplay path (``game_state == 0``) and the frozen-ship path
     (``game_state != 0``: forward motion / steering / jump are skipped at
     ``24BA -> 25AC``) are handled. The out-of-bounds death check (`23CA-2421`)
-    and the ``1DFA`` effect are not, so they raise
-    :class:`~skyroads.native.gaps.SkyroadsGap`.
+    is a boundary (raises :class:`~skyroads.native.gaps.FallDeathTransition`).
+
+    The ``1DFA`` effect (`25AC-25D6`, ~0.7% of real sub-steps, only ever seen
+    airborne past ``af2c=0x3700``) rewrites ``lateral_accel`` in a way this
+    module doesn't model -- by default this raises
+    :class:`~skyroads.native.gaps.MovementPhysicsGap` (the fail-loud, verified
+    contract every test in this session relies on). Pass
+    ``allow_unmodelled_effect=True`` to instead CONTINUE using
+    ``step_jump_steer_gravity``'s own (verified, non-effect) ``lateral_accel`` --
+    an explicit, documented approximation for exactly this one rare sub-step,
+    for callers (like :class:`NativeGameplayDriver`) that need to keep running
+    rather than stop on it. Never the default.
     """
     # Run gameplay content only when (a) game_state is an in-level state (0
     # active / 3 resume-frozen) AND (b) the frame gate (229D-22E9) says this
@@ -246,7 +278,7 @@ def native_gameplay_substep(view: GameView, scratch: GameplayScratch) -> Gamepla
         view.lateral_accel, view.af2c, view.steer, view.jump,
         view.jump_level_gate, view.grounded, view.gravity, view.effect_gate,
         moving=moving)
-    if dyn.hit_effect_path:
+    if dyn.hit_effect_path and not allow_unmodelled_effect:
         raise MovementPhysicsGap(
             "the 25AC-25D6 effect path fired (a 1DFA call) -- lateral_accel is "
             "not modelled for this sub-step")
@@ -357,3 +389,60 @@ def _vertical_scan_cell(visible, lateral: int, af1c: int, af2c: int) -> int:
         if visible(lateral, (af1c - (k << 7)) & 0xFFFF, screen_y) == 0:
             return k
     return 0
+
+
+class TickOutcome(NamedTuple):
+    """What one :meth:`NativeGameplayDriver.tick` call did."""
+    transitioned: bool   # True if this tick crossed a boundary and re-inited
+    reason: str          # "" for a normal sub-step; else the transition's cause
+
+
+class NativeGameplayDriver:
+    """Drives :func:`native_gameplay_substep` INDEFINITELY, with no VM ever
+    involved -- "full vmless native gameplay". A single sub-step is a proven,
+    verified primitive (see that function's docstring); this class is what
+    turns it into a complete, self-contained, never-stopping simulation loop
+    by composing it with :func:`apply_level_init` at every boundary
+    (level-complete, wall-crash, timer-expired, fall) instead of surfacing the
+    boundary as an exception to the caller.
+
+    Two things are deliberately NOT modelled byte-exact against the VM here
+    (both out-of-scope for gameplay decision-making, not silent gaps):
+
+    * the level-complete/crash SETTLE WINDOW's exact multi-frame duration (the
+      frozen-ship "rising off the end" animation the VM shows for ~42 frames)
+      -- this driver transitions to the next level/respawn IMMEDIATELY on
+      detecting the boundary, since the window is non-interactive dead time
+      between real gameplay decisions, not gameplay itself;
+    * the rare ``1DFA`` effect sub-step (~0.7% of real sub-steps) -- handled
+      via :func:`native_gameplay_substep`'s documented
+      ``allow_unmodelled_effect`` fallback rather than stopping the loop.
+
+    ``jump_level_gate`` (``ds:[4562]``) is a per-level constant normally read
+    from level data the VM loads; a standalone driver not loading real level
+    files supplies it directly (or reads whatever the view already has from a
+    prior VM-seeded state).
+    """
+
+    def __init__(self, view: GameView, jump_level_gate: int,
+                scratch: "GameplayScratch | None" = None):
+        self.view = view
+        self.jump_level_gate = jump_level_gate
+        self.scratch = scratch if scratch is not None else apply_level_init(view, jump_level_gate)
+        self.ticks = 0
+        self.transitions = 0
+
+    def tick(self) -> TickOutcome:
+        """Advance one gameplay sub-step, transparently driving through any
+        transition boundary. Call once per input frame; set the view's input
+        fields (``steer``/``jump``/``speed``/the key row/``elapsed_ticks``)
+        before calling to drive with real input."""
+        self.ticks += 1
+        try:
+            self.scratch = native_gameplay_substep(
+                self.view, self.scratch, allow_unmodelled_effect=True)
+            return TickOutcome(False, "")
+        except (LevelEndTransition, FallDeathTransition) as exc:
+            self.scratch = apply_level_init(self.view, self.jump_level_gate)
+            self.transitions += 1
+            return TickOutcome(True, str(exc))
