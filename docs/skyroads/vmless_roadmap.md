@@ -98,16 +98,39 @@ found and fixed. Honest state:
     draw (dispatch) and how to draw one column (compositor) — the first actual
     pixel-writing recovered code, not just state decisions.
 
-    **Concrete next steps**: (1) what selects between the dispatch variants
-    (and whether there are more) — `[0E42]`'s actual runtime value(s) proved
-    hard to observe dynamically (likely code relocation between the
-    disassembled snapshot and the live demo); (2) the display-list BUILDER
+    **UPDATE, same day**: found the answer to (1) below — `[0E42]`'s two
+    values are NOT road-shape variants, they're set unconditionally by
+    `1010:34AE` (see the next entry) based on a caller parameter: variant A
+    for an off-screen-buffer pass, variant B for a direct-to-VGA-screen pass.
+    Renumbering what's left:
+
+    **Concrete next steps**: (1) `1010:34AE` itself needs a verified clean
+    refactor (in progress, see the next entry — a proven-correct lift already
+    exists, this is "just" porting it carefully); (2) the display-list BUILDER
     that populates `ds:[0E60]`/`[0E62]`'s stride-3 records each frame, not yet
-    located; (3) the outer per-frame render entry point itself, also not yet
-    located (`0C98`, called once per frame from the gameplay handler, turned
-    out to be game-logic setup, not the renderer); (4) with those, assembling
-    an actual native frame-render pass and diffing it against a real VGA
-    framebuffer capture — the renderer's own "lockstep" milestone.
+    located; (3) with those, assembling an actual native frame-render pass and
+    diffing it against a real VGA framebuffer capture — the renderer's own
+    "lockstep" milestone.
+
+-0.5. **Render entry point FOUND: `1010:34AE`, already a proven lift
+    (2026-07-11).** Traced upward from the dispatch/compositor work above to
+    `1010:34AE` — already recovered via the automatic lifter on 2026-07-10
+    (BEFORE this session), proven `ORACLE_PASSING` and installed as a live
+    hook, but never refactored into clean code (that was already flagged as
+    the to-do back then). Reading the proven lift resolved the `[0E42]`
+    mystery (see above) plus found: an early-exit flag (`ss`-relative, not
+    `ds` — a stack param/local), and a full-buffer `rep movsw` fast path
+    (reachable two different ways, both re-checking the same flag). A clean
+    refactor attempt (`skyroads/recovered/road_frame.py`) was started and
+    deliberately backed out after catching three of my own transcription
+    mistakes in one sitting (a `cmp` that's really a result-storing `sub`; the
+    fast path's two entry conditions needing independent re-checks; the
+    `ss`-vs-`ds` segment confusion, caught mid-verification). Dynamically
+    confirmed the `mode==0` half of the mode-selection logic 30/30 against
+    real captures; `mode==1` hit an unresolved capture-script bug, not chased
+    further this session. See run_status.md's "found the render entry point"
+    entry for the full, honest account — nothing broken was committed; this
+    is a documented map for a careful follow-up, not a shortcut to skip.
 
 0a. **FULL VMLESS NATIVE GAMEPLAY (2026-07-11).** `skyroads.native.loop.
     NativeGameplayDriver` runs the recovered gameplay engine INDEFINITELY --

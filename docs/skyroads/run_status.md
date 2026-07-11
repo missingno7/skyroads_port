@@ -4,6 +4,86 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — found the render entry point: 1010:34AE, ALREADY a proven-correct lift from before this session
+
+Traced upward from the column-dispatch/compositor work (previous two entries)
+to find their actual caller, and landed on something already known: `1010:34AE`
+— the "`[0E38]`-dispatched tile renderer" recovered via the automatic lifter
+on 2026-07-10, **before this session began** (see that date's "full-level perf
+drop root-caused" entry). It was already proven `ORACLE_PASSING` (401 calls
+byte-exact, then 400 further full-level-demo calls under the strict
+differential verifier, zero divergence) and installed as a live hook
+(`skyroads/lifted/lifted_1010_34ae.py` + `registry.replace(0x34AE)`) — but
+never refactored into clean `skyroads/recovered/` code (explicitly flagged as
+"the to-do" in that 2026-07-10 entry).
+
+**Reading the proven lift resolves several open questions from today's
+renderer work in one shot**:
+
+- `[0E42]`'s two values (`0x364F`/`0x36F3`) are NOT road-shape variants as
+  first guessed — they're set UNCONDITIONALLY based on a caller parameter
+  (`ax` on entry, called `mode` below): `mode==0` sets dispatch to
+  `dispatch_variant_a` with source `ds:[5170]` and dest `ds:[0E36]` (an
+  off-screen buffer); `mode!=0` sets dispatch to `dispatch_variant_b` with
+  source `ds:[0E36]` and dest **`0xA000`, the real VGA segment**. So the two
+  dispatch variants recovered earlier today are the SAME rendering logic run
+  twice per displayed frame — once into a back buffer, once flushed to the
+  actual screen — not different road shapes. This also explains why my
+  attempt to observe `[0E42]`'s value dynamically kept coming up empty: I was
+  probing the wrong address for the WRITE (it's set unconditionally near the
+  top of `34AE`, not read from a stored pointer at `35F8` the way I'd assumed
+  from a stale disassembly).
+- A `ds:[0x3C]` flag gates the WHOLE call as a no-op when nonzero (an early
+  return before anything else runs) — the caller decides per-call whether
+  this mode renders at all.
+- `ds:[0E32]` (or the segment-index delta being `>= 8` unsigned — TWO separate
+  conditions reach the same target) triggers a flat `rep movsw` full-buffer
+  copy fast path instead of any per-column compositing — likely a "just blit
+  the whole buffer" case (e.g. after a fade/transition).
+- The geometry-decode block populating the column-dispatch fields
+  (`e4e`/`e50`/`e52`/etc., which this session had already reverse-engineered
+  the CONSUMER side of via real captures) reads from a per-level road-segment
+  table whose base derives from the SAME `PERSPECTIVE_TABLE_BASE` (`0x162C`)
+  `renderer.perspective_row_offset` uses, via an 8-entry shape lookup table at
+  `ds:[0xBA7]`.
+
+**Attempted a clean refactor into `skyroads/recovered/road_frame.py` and
+deliberately backed it out.** The function has real subtlety I mis-transcribed
+twice in a row while drafting (a `cmp` at `34F8` is actually a `sub` that
+STORES its result, not a flag-only compare; the full-copy fast path is
+reachable from TWO different conditions that must both re-check `[0E32]`
+fresh, not assume a fixed outcome from whichever path was taken to reach it).
+Rather than land something with those errors still lurking, removed the
+in-progress file entirely — nothing was committed.
+
+**Then tried to verify dynamically against real captures with the lift itself
+active** (not a fresh ASM re-derivation — the lift is already proven, this
+just observes its own real behavior) and immediately caught a THIRD reading
+error of my own: `ds:[0x3C]` (the early-exit flag) is actually **SS-relative**
+— the function's first three instructions are `push ds; bx:=ss; ds:=bx`
+(reassigning DS to SS) BEFORE testing `[0x3C]`, so it's really a stack-frame
+value (a parameter/caller local), not a persistent DGROUP field. My first
+capture read the wrong segment entirely (values like 1099, 1156... — some
+unrelated DGROUP field at that offset) and, separately, had the branch
+polarity backwards (`flag != 0` continues to render; `== 0` is the early
+exit, not the other way round). Fixed the segment and polarity and re-ran:
+**mode==0 calls matched 30/30** (source/dest/dispatch-pointer all exactly as
+predicted). Mode==1 calls did NOT match on this pass, but the failure values
+look like a capture-script bug (stale reads from a wrong nesting level, not a
+real logic error) rather than a wrong understanding — not chased further this
+session given three transcription mistakes already caught in one sitting.
+
+**Net effect**: the mode-selection understanding (documented above) is now
+dynamically CONFIRMED for the `mode==0` path and believed-correct-but-not-
+independently-verified for `mode==1` (read directly from the proven lift's
+own unambiguous Python source, which is a meaningfully lower-risk reading
+than hand-transcribing ASM, but still not the same as a passing test). **The
+concrete next step**: fix the mode==1 capture-script bug (or verify via a
+from-scratch CPU+mem harness driving `lifted_1010_34ae` directly, which needs
+no VM/demo at all), then write the refactor against that as the oracle. Given
+how many small mistakes surfaced in one sitting here, budget real care for
+this — it is NOT a quick follow-up.
+
 ## 2026-07-11 — road_column_strip ported to a pure function, verified by FULL MEMORY DIFF — the first real compositing primitive
 
 Ported `road_column_strip` (`1010:38BF`) from its existing VM-facing hook to a
