@@ -4,6 +4,42 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — the road GEOMETRY decodes too — found and reused an existing, already-VM-verified LZS codec
+
+Follow-up to landing `roads_archive.py`'s header reader. Went to scope the
+LZSS decompressor for `road[]` (the last open piece for native level data)
+and discovered `skyroads/codecs/lzs.py` **already exists** — recovered in an
+EARLIER session (before this one), VM-verified byte-for-byte against
+`TREKDAT.LZS`/`MUZAX.LZS`/`INTRO.LZS` via a differential hook verifier. Not
+duplicated; reused directly.
+
+`ROADS.LZS` turned out to need a simpler per-entry header than those files'
+self-modifying-code-patched widths: three raw bytes — `(width_len,
+width_dist_long, width_dist_short)` — sit plainly at the start of each
+entry's `road[]` data, right after the 216-byte palette. Fed through the
+existing `decompress_block`/`LzsWidths`: **31/31 real `ROADS.LZS` levels
+decompress to EXACTLY the length the directory records.** Landed
+`read_level_road` and `read_level_palette` in `roads_archive.py`, plus two
+more tests (7 total in `tests/test_roads_archive.py`, all passing).
+
+**Honest caveat**: the road array's DECODE is now verified (31/31, plus the
+existing codec's own prior VM-verification for the underlying LZ scheme);
+the FIELD MEANINGS within each decoded `UINT16LE` (the "seven values per
+line", tunnel/color bit layout ModdingWiki documents) are sourced from that
+public documentation, not independently re-derived from ASM or cross-checked
+against a live VM memory capture of the in-memory road array this session.
+Good enough to treat the decode as trustworthy; not yet the same standard
+of proof as this project's own from-ASM recoveries.
+
+**State of native level DATA, now complete for what native gameplay
+actually needs**: gravity/fuel/oxygen (feeds `apply_level_init`, already
+recovered) — verified 3/3 against live captures; road geometry — decodes
+correctly (31/31 length-exact) but its field semantics aren't independently
+re-verified. Combined with the already-recovered gameplay/menu-selection
+pipeline, `play_native.py` could load real per-level tuning constants for
+any of the 31 levels without the VM; consuming the road geometry (for
+collision/rendering) is the natural next integration step, not yet done.
+
 ## 2026-07-11 — LANDED: native ROADS.LZS level-directory reader, verified 3/3 against real captures — the level-select mystery's data source is now real, portable code
 
 Closes the level-select investigation with an actual shipped deliverable,

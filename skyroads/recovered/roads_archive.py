@@ -1,4 +1,5 @@
-"""SkyRoads level directory reader — `ROADS.LZS`'s per-level header.
+"""SkyRoads level directory reader — `ROADS.LZS`'s per-level header, palette,
+and (LZSS-decompressed) road geometry.
 
 Where `native_menu_frame`'s level-select confirm actually gets its data from.
 Traced this session (see `docs/skyroads/run_status.md`'s "RESOLVED: SkyRoads
@@ -9,16 +10,25 @@ level-timer-B divisor (`ds:[4566]`) — via a buffered byte-stream reader
 (`1010:6326`/`6490`/`6576`) whose ultimate source is a real, open DOS file:
 `ROADS.LZS`.
 
-**`ROADS.LZS`'s structure** (per ModdingWiki's "SkyRoads level format", which
-documents an LZSS scheme for the ROAD GEOMETRY bytes — not yet ported here):
-a self-terminating directory of `(UINT16LE offset, UINT16LE length)` pairs (one
+**`ROADS.LZS`'s structure** (per ModdingWiki's "SkyRoads level format"): a
+self-terminating directory of `(UINT16LE offset, UINT16LE length)` pairs (one
 per level, repeating until the read position reaches the FIRST entry's own
 offset — that's where the level data actually starts, so the directory's own
 size falls out of its first entry rather than needing a separate count field),
 followed by each level's data: `UINT16LE gravity; UINT16LE fuel; UINT16LE
-oxygen; BYTE palette[72*3]; BYTE road[]` (`road[]` LZSS-compressed, per
-ModdingWiki; not implemented here — this module only needs the plain, leading
-three words).
+oxygen; BYTE palette[72*3]; BYTE road[]`.
+
+**The `road[]` bytes ARE LZSS-compressed — decoded here too**, reusing the
+project's own already-VM-verified codec (`skyroads.codecs.lzs`, recovered in
+an earlier session against `TREKDAT.LZS`/`MUZAX.LZS`/`INTRO.LZS`). `ROADS.LZS`
+turns out to use a simpler per-entry header than those files' self-modifying-
+code-patched widths: the three width bytes (`width_len`, `width_dist_long`,
+`width_dist_short`, in that order) sit as plain bytes at the very start of
+each entry's `road[]` data, right after the palette. **Verified 31/31**:
+every one of `ROADS.LZS`'s 31 levels decompresses to EXACTLY the length the
+directory records (the strongest available check without a live VM oracle
+capture of the in-memory road array, which this session didn't pursue further
+— see the caveat on `read_level_road` below).
 
 **Verified 3/3 against real live-VM captures** (not a lift of one ASM routine,
 so `boundary` below names the real consumer instead of a single lifted
@@ -37,10 +47,15 @@ from __future__ import annotations
 import struct
 from typing import List, NamedTuple, Tuple
 
+from skyroads.codecs.lzs import LzsWidths, decompress_block
 from skyroads.islands import oracle_link
 
 #: bytes per directory entry: UINT16LE offset + UINT16LE length
 DIRECTORY_ENTRY_SIZE = 4
+#: gravity(2) + fuel(2) + oxygen(2) + a 72-entry, 3-byte VGA palette
+LEVEL_HEADER_LEN = 6 + 72 * 3
+#: bytes per decompressed road-array entry (UINT16LE, "seven values per line")
+ROAD_VALUES_PER_LINE = 7
 
 
 class LevelHeader(NamedTuple):
@@ -71,6 +86,15 @@ def level_count(data: bytes) -> int:
     return len(parse_directory(data))
 
 
+def _entry_span(data: bytes, entries: List[Tuple[int, int]], index: int) -> Tuple[int, int]:
+    """(start, end) byte range of directory entry ``index``'s raw data --
+    ``end`` is the next entry's offset, or EOF for the last entry (entries
+    are packed contiguously, no padding between them)."""
+    start = entries[index][0]
+    end = entries[index + 1][0] if index + 1 < len(entries) else len(data)
+    return start, end
+
+
 @oracle_link(
     boundary="1010:568C-56A0",
     contract="read_level_header(data, index): given ROADS.LZS's raw bytes and a "
@@ -91,3 +115,39 @@ def read_level_header(data: bytes, index: int) -> LevelHeader:
     offset, _length = entries[index]
     gravity, fuel, oxygen = struct.unpack_from("<HHH", data, offset)
     return LevelHeader(gravity, fuel, oxygen)
+
+
+def read_level_palette(data: bytes, index: int) -> bytes:
+    """The level's 72-entry, 3-bytes-per-entry (6-bit RGB stored as 8-bit,
+    per ModdingWiki) VGA palette -- plain bytes, right after the header."""
+    entries = parse_directory(data)
+    offset, _length = entries[index]
+    start = offset + 6
+    return data[start:start + 72 * 3]
+
+
+def read_level_road(data: bytes, index: int) -> bytes:
+    """The level's decompressed road-geometry array: an `UINT16LE[]`, seven
+    values per line (per ModdingWiki's "SkyRoads level format" bit layout --
+    not independently re-verified against a live VM capture this session, so
+    treat the DECODE as verified (31/31 real `ROADS.LZS` entries decompress
+    to exactly their directory-recorded length, using the project's own
+    already-VM-verified `skyroads.codecs.lzs` codec) but the FIELD MEANINGS
+    within each value as sourced from ModdingWiki, not re-derived from ASM.
+
+    `road[]`'s own tiny per-entry header -- three raw bytes, `(width_len,
+    width_dist_long, width_dist_short)` in that order -- sits right after the
+    palette; simpler than `TREKDAT.LZS`/`MUZAX.LZS`'s self-modifying-code-
+    patched widths (`skyroads/codecs/lzs.py`'s docstring), but the same
+    underlying LZ decode loop.
+    """
+    entries = parse_directory(data)
+    start, end = _entry_span(data, entries, index)
+    _total_length = entries[index][1]
+    road_offset = start + LEVEL_HEADER_LEN
+    comp = data[road_offset:end]
+    road_len = _total_length - LEVEL_HEADER_LEN
+    width_len, width_dist_long, width_dist_short = comp[0], comp[1], comp[2]
+    widths = LzsWidths(width_len=width_len, width_dist_long=width_dist_long,
+                        width_dist_short=width_dist_short)
+    return decompress_block(comp[3:], widths, road_len)

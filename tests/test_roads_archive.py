@@ -11,7 +11,15 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.recovered.roads_archive import LevelHeader, level_count, parse_directory, read_level_header
+from skyroads.recovered.roads_archive import (
+    LEVEL_HEADER_LEN,
+    LevelHeader,
+    level_count,
+    parse_directory,
+    read_level_header,
+    read_level_palette,
+    read_level_road,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 ROADS_LZS = ROOT / "assets" / "ROADS.LZS"
@@ -59,3 +67,22 @@ def test_same_gravity_different_fuel_is_real_not_an_anomaly(roads_data: bytes) -
         if read_level_header(roads_data, i).gravity == 8
     }
     assert len(gravity_8_fuels) > 1
+
+
+def test_read_level_palette_is_72_entries(roads_data: bytes) -> None:
+    for index in (0, 1, 16, 17):
+        palette = read_level_palette(roads_data, index)
+        assert len(palette) == 72 * 3
+        assert all(b <= 63 for b in palette), "VGA palette entries are 6-bit RGB"
+
+
+def test_read_level_road_decompresses_to_the_exact_directory_length(roads_data: bytes) -> None:
+    """31/31 real levels decompress to exactly their directory-recorded
+    length, using the project's own already-VM-verified skyroads.codecs.lzs
+    codec -- the strongest available check without a live VM oracle capture
+    of the in-memory road array (not pursued this session)."""
+    entries = parse_directory(roads_data)
+    for index, (_offset, total_length) in enumerate(entries):
+        road = read_level_road(roads_data, index)
+        assert len(road) == total_length - LEVEL_HEADER_LEN, f"index {index}"
+        assert len(road) % 2 == 0, "road[] is a UINT16LE array"

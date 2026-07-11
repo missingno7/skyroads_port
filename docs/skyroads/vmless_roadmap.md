@@ -83,9 +83,9 @@ found and fixed. Honest state:
 
 ## What's missing (in rough dependency order)
 
--2. **The `.lzs` resource file format / decompressor — level SELECTION
-    solved (2026-07-11), level GEOMETRY still open.** SkyRoads loads its
-    levels, menus, and sprites from separate on-disk files (`mainmenu.lzs`,
+-2. **The `.lzs` resource file format / decompressor — level SELECTION and
+    level DATA DECODE both DONE (2026-07-11).** SkyRoads loads its levels,
+    menus, and sprites from separate on-disk files (`mainmenu.lzs`,
     `gomenu.lzs`, `cars.lzs`, `dashbrd.lzs`, `roads.lzs`, `world0-9.lzs`,
     plus `.dat`/`.snd`/`.cfg` files), most `.lzs`-compressed — confirmed via
     real `INT 21h` file-open calls with filenames read directly off the
@@ -93,26 +93,38 @@ found and fixed. Honest state:
     `AH=3Fh` file-read wrapper) traced down to real opcodes with a newly
     fixed `tools/lindis.py --live-demo`.
 
-    **Level selection is DONE**, and turned out not to need the compression
-    at all: `ROADS.LZS`'s per-level directory stores `gravity`/`fuel`/
-    `oxygen` as PLAIN, uncompressed words (the format is already documented
-    by the retro-game-preservation community —
+    **Level selection is DONE**, and turned out not to need decompression at
+    all: `ROADS.LZS`'s per-level directory stores `gravity`/`fuel`/`oxygen`
+    as PLAIN, uncompressed words (the format is already documented by the
+    retro-game-preservation community —
     [ModdingWiki's SkyRoads compression/level-format pages](https://moddingwiki.shikadi.net/wiki/SkyRoads_compression)
     — checked before reverse-engineering from scratch, which paid off).
-    Landed `skyroads/recovered/roads_archive.py`
-    (`parse_directory`/`read_level_header`/`level_count`), verified 3/3
-    against real live-VM-captured `(gravity, fuel, oxygen)` triples,
-    including a real keyboard DOWN-ARROW+ENTER level pick. Combined with the
-    already-recovered `apply_level_init` + `NativeGameplayDriver`, native
-    code can now enumerate and cold-start any of the 31 levels by index —
-    zero VM involvement, just a static asset file.
+    Verified 3/3 against real live-VM-captured `(gravity, fuel, oxygen)`
+    triples, including a real keyboard DOWN-ARROW+ENTER level pick.
 
-    **Still open**: the actual road GEOMETRY (`road[]`, LZSS-compressed,
-    documented on the same ModdingWiki page: width1/width2/width3 bit-stream
-    parameters, MSB-first control bits selecting literal/short-backref/
-    long-backref). Needed for a real native RENDERER of an arbitrary level —
-    `roads.lzs` is a strong candidate for exactly the display-list data
-    item -1's open question 2 below never found a builder for. Not started.
+    **The road GEOMETRY decodes too, same day** — and needed no NEW
+    decompressor at all: `skyroads/codecs/lzs.py` already existed (recovered
+    in an earlier session, VM-verified against `TREKDAT.LZS`/`MUZAX.LZS`/
+    `INTRO.LZS`), just reused directly. `ROADS.LZS` uses a simpler per-entry
+    header (three plain bytes: `width_len`/`width_dist_long`/
+    `width_dist_short`) than those files' self-modifying-code-patched
+    widths. **31/31** real levels decompress to exactly their
+    directory-recorded length. Field MEANINGS within the decoded array (the
+    "seven `UINT16LE` values per line" tunnel/color bit layout) are sourced
+    from ModdingWiki, not independently re-derived from ASM or checked
+    against a live VM capture of the in-memory array — good enough to trust,
+    not yet this project's usual from-ASM proof standard.
+
+    Landed `skyroads/recovered/roads_archive.py` (`parse_directory`/
+    `read_level_header`/`read_level_palette`/`read_level_road`/
+    `level_count`) + `tests/test_roads_archive.py` (7 tests). Combined with
+    the already-recovered `apply_level_init` + `NativeGameplayDriver`,
+    native code can now load real per-level tuning constants AND geometry
+    for any of the 31 levels — zero VM involvement, just a static asset
+    file. Consuming the decoded road array for collision/rendering is the
+    natural next integration step, not yet done. `roads.lzs`'s road array is
+    a strong candidate for exactly the display-list data item -1's open
+    question 2 below never found a builder for.
 
 -1. **Renderer: column-draw dispatch RECOVERED (2026-07-11).** The first real
     renderer decision logic. `road_column_strip` (`1010:38BF`) is a
