@@ -4,7 +4,7 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
-## 2026-07-12 — systematic lifting toward "load, start, play a level": 39D4 landed, found the level's 8-buffer bootstrap (3A96), one function still elusive (3A3F)
+## 2026-07-12 — systematic lifting toward "load, start, play a level": 39D4 landed; re-discovered 3A96 was already recovered (intro_anim_unpack); 3A3F still open; generalized the lifter's runaway-guard tooling
 
 User redirected from renderer-assembly (previous entry) to continuing
 hooking/lifting more broadly first, with an explicit goal: keep lifting
@@ -17,52 +17,49 @@ installed in `skyroads/hooks.py`. Its own 4 sprite-blit calls go to
 `1010:3A22`, already hand-recovered and verified in an earlier session
 (`sprite_blit_hook`) — no duplicate work needed there.
 
-**Found, not yet landed**: profiled a hotspot (`1010:39D4`'s neighborhood at
-`1010:3A3F`/`3A96`) and disassembled both live via the now-fixed
-`tools/lindis.py --live-demo`. Both read a per-`bx`-index segment number
-from the SAME `0xE76` 8-word table `34AE` uses for its rotating display-list
-buffers (an earlier read of one disassembly line as a literal "3702" was a
-misread of the interpreter's OWN decimal-formatted disp16 — `3702` decimal
-`== 0x0E76` hex, the same table, not a second one) — these are the
-**level's 8-buffer bootstrap**, called once per level/session, not per
-frame:
-- `1010:3A96`: for each of the 8 buffer segments, reads a length-prefixed,
-  `0xFF`-terminated byte stream and expands it (word copy + a
-  singles-become-pairs unpacking loop) into the buffer.
-- `1010:3A3F`: for each of the 8 buffer segments, walks `0x410` (1040)
-  "rows" of a `si=0x271`-based stream, packing byte pairs with a clamped
-  subtraction into 3-byte records — plausibly where the per-column
-  occlusion/shape data this session's `34AE`/`road_column_strip` work
-  already consumes gets built.
+**Investigated `1010:3A3F`/`3A96`, profiled as `39D4`'s neighbors**, and
+disassembled both live via the now-fixed `tools/lindis.py --live-demo`.
+Both read a per-`bx`-index segment number from the same `0xE76` 8-word
+table `34AE` uses for its rotating display-list buffers (an earlier read of
+one disassembly line as a literal "3702" was a misread of the
+interpreter's own decimal-formatted disp16 — `3702` decimal `== 0x0E76`
+hex, the same table, not a second one).
 
-**Confirmed real, but not cleanly verified yet**: `3A96` DOES execute (once,
-early in a genuine fresh EXE boot with no snapshot at all — confirmed at
-CPU step ~450,000 — and NOT reached from any of this repo's existing demo
-captures, all of which resume from a snapshot taken after it already ran).
-Saved a fresh snapshot at exactly that moment and ran `liftverify` against
-it: the LIFT itself (not the game) hit its own `MAX_ITERATIONS` guard
-(135,000) mid-verification — the real per-boot data stream is apparently
-longer than the emitter's default budget assumed, not a decode/logic bug
-(liftgen's static census already cross-checks every instruction length).
-Needs a rerun with a larger iteration budget (or a hand-adjusted generated
-file) to get a clean `ORACLE_PASSING`, not yet done. **Not installed** —
-left as a documented, reproducible next step rather than landing an
-unverified hook. Exact repro: fresh-boot the EXE with `--timer-irqs 6`
-delivered manually (no demo/snapshot has been observed to reach it),
-snapshot the instant `cs:ip == 1010:3A96`, then `liftverify.py --entry
-1010:3A96` from that snapshot with a larger `MAX_ITERATIONS` in the emitted
-module.
+**Correction**: `1010:3A96` turned out to be ALREADY recovered, one day
+earlier in this same project (2026-07-11's "recovered + wired the intro
+animation-frame unpacker" entry) — `intro_anim_unpack_hook` in
+`skyroads/hooks.py`, verified and installed. It's the intro's sprite/logo
+decompressor (fires once at startup, not a per-level buffer bootstrap as
+this investigation first guessed) — a real, if embarrassing, instance of
+not searching for existing coverage before assuming a gap. Confirmed by
+independently re-lifting and re-verifying it (before finding the existing
+hook): `liftverify` initially hit the lift's own `MAX_ITERATIONS` runaway
+guard mid-verification against a freshly captured pre-execution snapshot
+(the real per-boot data stream — 8 segments × 1040 rows — needs more
+block-transitions than the emitter's default budget assumed, matching
+EXACTLY the same guard the 2026-07-11 recovery of this same function hit
+and worked around with a "local, throwaway" patch at the time). Discarded
+the redundant re-lift once the existing hook was found; kept the one
+durable improvement this produced —
 
-**`3A3F` never observed executing at all** — not in any of the 14 demo
-captures, not in a ~450K-step genuine fresh boot (where `3A96` DID fire).
-Its trigger condition is unknown; both `liftgen`'s static census confirm
-it's mechanically liftable (40 insts/10 blocks) whenever it's found.
+**Generalized the lifter's runaway-guard workaround into real tooling**
+(`dos_re` submodule, pushed upstream): `emit_function` previously computed
+`MAX_ITERATIONS` purely from instruction count with no override; added an
+optional `min_iterations` parameter, exposed as `--max-iterations` on both
+`liftgen.py --emit` and `liftverify.py`. This is exactly the fix the
+`buffer_relocate`/`intro_anim_unpack` recoveries each improvised
+one-off, now a documented, reusable flag for the next large data-driven
+loop this project (or any other using `dos_re`) hits. Verified against
+`dos_re`'s own `test_lift_emit.py`/`test_lift_decode.py`/`test_lift_cfg.py`
+(80 tests) before pushing; skyroads_port's own full suite (325/325) still
+passes with the bumped submodule pin.
 
-**Net effect**: `39D4` is real, verified progress. `3A96`/`3A3F` sharpen the
-picture of what "load a level" needs on the render side (the 8-buffer
-bootstrap, keyed off the same `0xE76` table `34AE` already uses) without yet
-closing it — both are concrete, scoped, reproducible next steps rather than
-open-ended unknowns.
+**`1010:3A3F` remains genuinely unrecovered** — never observed executing in
+any of the 14 demo captures, nor in a ~450K-step genuine fresh EXE boot
+(where `3A96` DID fire). Its trigger condition is unknown. `liftgen`'s
+static census confirms it's mechanically liftable (40 insts/10 blocks)
+whenever it is found — a real, scoped, reproducible next step, not an
+open-ended unknown, but genuinely still open (unlike `3A96`).
 
 ## 2026-07-12 — fully decoded 1010:34AE from its own proven lift; paused before assembling a native renderer (redirected to broader lifting first)
 
