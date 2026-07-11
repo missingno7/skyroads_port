@@ -82,19 +82,32 @@ found and fixed. Honest state:
     committed fixtures per variant (after excluding that anomaly) match 100%.
     See run_status.md's "recovered both column-draw dispatch variants" entry.
 
-    **Concrete next steps**: (1) what selects between the variants (and
-    whether there are more) — `[0E42]`'s actual value(s) weren't captured;
-    (2) port `road_column_strip` itself from a VM-facing hook to a pure
-    function — it touches FOUR distinct segments (two display-list segments,
-    a source bitmap segment, the destination screen segment), so it needs
-    `NativeGameState` extended to the full 1 MB address space (its own
-    docstring already anticipates this) — a real, invasive change to a
-    widely-used foundation, deliberately not done without an actual consumer
-    to verify it against; (3) the display-list BUILDER that populates
-    `ds:[0E60]`/`[0E62]`'s stride-3 records each frame, not yet located; (4)
-    the outer per-frame render entry point itself, also not yet located
-    (`0C98`, called once per frame from the gameplay handler, turned out to be
-    game-logic setup, not the renderer).
+    `road_column_strip` ITSELF is now recovered too (2026-07-11, same day) —
+    `skyroads/recovered/road_column.py`, verified by FULL MEMORY DIFF (every
+    byte a real call touched anywhere in the 1 MB address space, not sampled
+    fields): 196/196 real calls matched exactly. Needed
+    `skyroads/native/image.py::NativeGameImage` (a full 1 MB image, additive —
+    the existing DGROUP-only `NativeGameState` is untouched). This process
+    caught and fixed two real bugs a sampled check would likely have missed: a
+    missing scratch write, and an INVERTED bit15 semantic inherited from an
+    old `hooks.py` comment ("position only, don't composite" — wrong; it only
+    skips a sync pre-loop, compositing always happens). See run_status.md's
+    "road_column_strip ported to a pure function" entry.
+
+    So the renderer now has BOTH pieces pure and verified: which columns to
+    draw (dispatch) and how to draw one column (compositor) — the first actual
+    pixel-writing recovered code, not just state decisions.
+
+    **Concrete next steps**: (1) what selects between the dispatch variants
+    (and whether there are more) — `[0E42]`'s actual runtime value(s) proved
+    hard to observe dynamically (likely code relocation between the
+    disassembled snapshot and the live demo); (2) the display-list BUILDER
+    that populates `ds:[0E60]`/`[0E62]`'s stride-3 records each frame, not yet
+    located; (3) the outer per-frame render entry point itself, also not yet
+    located (`0C98`, called once per frame from the gameplay handler, turned
+    out to be game-logic setup, not the renderer); (4) with those, assembling
+    an actual native frame-render pass and diffing it against a real VGA
+    framebuffer capture — the renderer's own "lockstep" milestone.
 
 0a. **FULL VMLESS NATIVE GAMEPLAY (2026-07-11).** `skyroads.native.loop.
     NativeGameplayDriver` runs the recovered gameplay engine INDEFINITELY --

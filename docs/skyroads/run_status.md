@@ -4,6 +4,55 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — road_column_strip ported to a pure function, verified by FULL MEMORY DIFF — the first real compositing primitive
+
+Ported `road_column_strip` (`1010:38BF`) from its existing VM-facing hook to a
+pure function, `skyroads/recovered/road_column.py`. Needed real physical
+segment addressing (the DGROUP fields it reads — `[0E60]`/`[0E62]`/`[0E66]`/
+`[0E68]` — are real DOS segment NUMBERS pointing at other parts of the address
+space: display lists, source bitmap, screen), so added
+`skyroads/native/image.py::NativeGameImage`, a SEPARATE, purely additive class
+holding the full 1 MB real-mode image (the existing
+`skyroads.native.state.NativeGameState` stays DGROUP-only — zero risk to the
+300+ tests depending on it).
+
+**Verification here is qualitatively different from every prior recovery**:
+instead of sampling a handful of named fields, it's a FULL MEMORY DIFF — every
+byte the real ASM call touched anywhere in the 1 MB image, compared exactly.
+This caught TWO real bugs the first port had, both invisible to a
+sampled-field check:
+
+1. A missing unconditional scratch write (`ds:[0E74] := ax`, literally the
+   routine's first instruction) — every one of the first 98 verification
+   attempts failed on exactly this one word, at a fixed offset, until found.
+2. An INVERTED reading of what I'd been calling `POSITION_ONLY_BIT`
+   (`ax & 0x8000`). The original `hooks.py` comment (carried over verbatim
+   when I started this port) describes it as "bit15 = 'just position, don't
+   composite'" — wrong. Tracing the real branch (`1010:3937-393E jnz -> 3954`)
+   shows the bit only skips a bp/si SYNCHRONIZATION pre-loop; compositing
+   ALWAYS happens either way. Renamed to `SKIP_SYNC_LOOP_BIT` with a
+   corrected contract. This is a genuine correction to a comment that had
+   stood, unchallenged, since an earlier session — full-memory-diff
+   verification is what surfaced it; sampling would very plausibly have
+   missed it (a "position-only" call NOT compositing looks identical to a
+   quiet no-op unless something is watching the destination bytes).
+
+**Result: 196/196 real calls matched exactly** on the fuller sample; the
+committed fixture keeps 38 diverse cases (a size spread from 11 to 1017
+touched bytes, plus calls exercising `SKIP_SYNC_LOOP_BIT`), storing only the
+touched-address set per case (determined by instrumenting the pure function
+itself) to keep the fixture a reasonable size while remaining fully
+reproducible. `tests/test_road_column.py` + `tests/test_native_image.py`.
+
+This is the first ACTUAL pixel-compositing code in `skyroads/recovered/` —
+everything before it (dispatch variants, classification, physics) decided
+game STATE; this one writes real screen bytes. Combined with the dispatch
+variants (previous entry), the renderer now has: which columns to draw
+(dispatch), and how to draw one column (compositor) — both pure, both
+verified. What's still needed for an actual framebuffer: what selects between
+dispatch variants; the display-list BUILDER that populates
+`ds:[0E60]`/`[0E62]` each frame; and the outer per-frame render entry point.
+
 ## 2026-07-11 — recovered both column-draw dispatch variants (364F/36F3), the first real renderer decision logic
 
 Started the native renderer (scoped last turn, see the entry below). Finished
