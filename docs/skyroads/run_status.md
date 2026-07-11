@@ -4,6 +4,28 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-11 — LOCKSTEP: the native loop runs in sync with the VM and never drifts
+
+The accumulated-state convergence proof (stronger than the per-step test): seed
+a NativeGameState + GameplayScratch ONCE from the VM at a gameplay sub-step,
+then run `native_gameplay_substep` over and over carrying its OWN scratch,
+injecting only the INPUT fields (steer/jump/speed/keys/tick) the outer loop sets
+between sub-steps, and check every other gameplay field stays byte-identical to
+the VM at every step.
+
+Result: the native loop runs **13, 19, 20 consecutive steps in perfect
+lockstep** and **NEVER silently drifts** — the only thing that ends a run is the
+stepper hitting a not-yet-recovered path (a `game_state != 0` transition, or the
+`1DFA` effect frame) where it RAISES a gap. Zero field divergences on any
+recovered path. Landed `tests/test_native_loop_lockstep.py`, which asserts both
+a real accumulated streak AND that runs only ever end on gaps, never drift.
+
+This is the real thing: the recovered islands, composed over a session scratch,
+are a self-contained native gameplay loop that reproduces the VM exactly for as
+long as it stays on recovered paths. The streaks are bounded only by how often
+gameplay transitions into the `game_state != 0` (frozen-ship) path, which isn't
+recovered yet — recovering it is what extends the streaks toward a whole level.
+
 ## 2026-07-11 — the forward advance is the 1B49 call: native sub-step now COMPLETE (230/232 all fields, incl. ship_pos)
 
 Correction + closure of the previous entry's open question. I'd concluded the
