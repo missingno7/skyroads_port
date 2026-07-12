@@ -232,6 +232,35 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+12) — live-frame anatomy: 2D1F draws via 4 ALREADY-RECOVERED rasterizers, delta-rendered
+
+Captured a real gameplay `2D1F` call (frame 90, params
+`row_base=0x100, lateral_col=0x18, screen_row=0x50, sprite=5e61:7620, dest=0x8116`)
+with full pre/post 1MB images (`artifacts/frame_2d1f`, gitignored), and probed it:
+
+- **The frame is DELTA-rendERED**: this call changed only **18 net bytes** of the
+  dest (rows 95–98) — the rotating display-list pair (`[0E60]`/`[0E62]`, fed by
+  the `[0E2A]`→`[0E6A]` frame rotation) makes each frame redraw only what moved.
+  A native frame assembler must reproduce that rotation, or force full redraws.
+- **Every dest byte is written by an already-recovered routine.** Writers during
+  the call (VM, write-watchers): `0x3153` rle_sprite_forward, `0x3190`
+  rle_sprite_backward, `0x3a22` sprite_blit (pure), `0x325b` tile_rasterizer —
+  the per-tile handlers `2D1F`'s loop dispatches through the `ss:[bx+2991]`
+  pointer table (+ `[0E38]`/`[0E40]`). ~3.9 KB written total (mostly rewriting
+  identical pixels), 18 net.
+- The pure `composite_mode0` (34AE mode-0) produced **0 column calls** on this
+  frame — the LIVE call is `34AE(ax=1)` + `2D1F`'s own loop, i.e. the mode-0
+  model is a different pass; the live loop's per-tile dispatch through `[2991]`
+  (tile type → rle_sprite/tile_rasterizer/road_column) is the composition still
+  to assemble natively.
+
+**Net for task #22:** the live frame = `render_classify` grid walk → per-tile
+handler dispatch (`[2991]` table) → the four recovered rasterizers, with
+delta-rendering via the display-list rotation. All pixels-writing pieces exist;
+the remaining work is the tile-type→handler dispatch wiring (the `[2991]` table
++ per-tile args), which the lifted `2D1F` already encodes — either port that
+dispatch purely (preferred) or drive the lifted chain over a NativeGameImage.
+
 ## 2026-07-12 (latest+11) — render orchestrator PORTED + verified 40/40: `native/render_params.py`
 
 Ported `1010:0C98` to the pure `compute_render_params(rw, ww, offscreen)`
