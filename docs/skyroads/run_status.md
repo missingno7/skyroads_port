@@ -230,7 +230,36 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   multi-step loader recovery (isolate the data-load subset from the render fade,
   lift it, attach a native file-read shim, assemble `native_level_load.py`,
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
-  tree are done/verified; this loader is the last milestone-1 gap. Then mirror pre2's
+  tree are done/verified; this loader is the last milestone-1 gap.
+
+## 2026-07-12 (latest+5) — native `level_load.py` scaffold landed; perspective-placement chain traced; write-tracing hits its limit (→ lift)
+
+- **Landed `skyroads/native/level_load.py`** (pre2-style, committed): the
+  FILE-DECODE half is recovered + tested VM-free — `read_game_file` (native
+  file shim, no DOS) + `decode_level_files` reads/decompresses all **31/31**
+  ROADS.LZS levels byte-exact via `roads_archive`. `native_level_load` FAILS
+  LOUD at the DGROUP-placement boundary. 5 tests, lint + layer audit clean.
+- **User correction:** there is NO "loading screen" — the demos start ON the
+  level-select screen and run the level; the `0x43A9`(palette-fade)/`0x0F62`
+  (glyph) writes are the level-select→gameplay TRANSITION + menu render, not a
+  loading screen. (Terminology fixed in the module.)
+- **Perspective-placement chain traced:** the sim-critical `0x162C` LUT is NOT
+  written by `4B8E` (that's frames 46/48; `0x162C` is written at frame 45).
+  It is filled by **`5D18`** — a `rep movs` copying **7000 bytes (`cx=0x1B58`)
+  from DGROUP `0x0CA5`** into `0x162C` (matches the earlier "clear+fill
+  [0x162C..+0x1B58]"). `0x0CA5` is a DECOMPRESSED WORLD buffer (a `6712` decode
+  output). So the perspective recipe is: WORLD sub-block → `6712` decode →
+  `0x0CA5` → `5D18` copy → `0x162C`.
+- **Write-tracing has hit its limit here.** Every attempt to trace what fills
+  `0x0CA5` (and the other placement sources) is drowned by the timer ISR
+  (`3B22`, constantly writing `[1600]`) + the menu/transition palette fade
+  (`434A`/`43A9`) churning DGROUP during the load. The one-time data fills can't
+  be cleanly isolated from this runtime churn by watching writes. **This
+  confirms the lift strategy is REQUIRED** — recover the loader by reading its
+  CODE (liftgen/liftverify, which is churn-immune), not by observing runtime
+  writes. Next: lift the `5D18`/`6712`-caller data-load subset (churn-free from
+  the disassembly), attach the file shim, fill in `native_level_load`'s
+  placement, verify byte-exact. Then mirror pre2's
 `probe_native_level_load`: run the real loader to capture the post-DGROUP witness
 at the RIGHT point (the actual gameplay-start, not a stray `4B8E`), build
 `skyroads/native/level_load.py` to reproduce it, assert byte-exact.
