@@ -75,6 +75,33 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 — native EXE unpack: SKYROADS.EXE's CUSTOM packer stub recovered register-exact; the initial program image (incl. the startup tables) now builds from the file alone, verified 0-diff vs a real cold boot
+
+Milestone-2 boot chain, first big piece. Following the boot manifest's lead
+that the "computed tables" writer `1767:06B1` is the PACKER STUB's own
+`stosb`: disassembled the resident stub from the cold-boot capture (the EXE
+has NO LZ91/PKLITE signature — a custom packer; the bit-LZ loop resembles
+LZEXE but the length/distance coding differs), captured the decode loop's
+initial registers live (stream at file offset 0x62, initial `lodsw` -> BP,
+output forward at `100F:0010` = load 0x1010:0000), and transcribed the loop
+register-exact into `skyroads/native/exe_image.py`:
+
+- getbit `063A` (16-bit LSB-first BP buffer), main loop `06B3`: `1` ->
+  literal; else disp-low byte then LONG (`0646`: BH gamma-windowed high
+  disp bits + length code with three escapes incl. `byte+0x11`) / `01`
+  (3 BH bits, `dec bh`, 2-byte copy) / `00` (2-byte copy, or END when the
+  disp byte is 0xFF).
+- 3 relocations from the stub's cs:0x2A table: program-image words at
+  `0x0B04`/`0x3ACA`/`0x61F4` += load segment.
+
+**Verification: `build_program_image(load=0x1010)` == the VM's memory at
+the stub's far jump (`1010:61F3`, captured cold) — 0/0x75A2 differences;
+without relocs, exactly the 3 sites differ.** So the ~30 KB program image —
+code, initialized DGROUP data, clip tables `0x4C..0xE3`, shape `0xBA7`, the
+loaders' filename strings — is now derivable from the shipped EXE natively.
+`initial_dgroup()` extracts the DGROUP init image (BSS zero-extended).
+`tests/test_exe_image.py` (3 tests).
+
 ## 2026-07-13 — MILESTONE-2 GROUNDWORK: the complete cold-boot manifest (every file load, dest buffer, and the computed-table site), traced from a real cold EXE start
 
 User goal set: continue until the native port cold-starts with intro + menus +
