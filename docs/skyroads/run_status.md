@@ -268,10 +268,33 @@ perspective LUT: it is road data, straight from ROADS.LZS.
 
 **Remaining for `play_native --level N` (end-to-end):** the native sim also reads
 level-INDEPENDENT DGROUP constants (clip tables `0x4C..0xE3`, shape `0xBA7`,
-etc.) that a fresh `NativeGameState` lacks — those are static EXE data-segment
-init, captured once (level-independent) as a baseline the geometry load overlays.
-Wire `play_native --level N` = baseline DGROUP + `native_level_load(N)` +
-`apply_level_init` → native driver; verify vs the VM cold-run.
+etc.). Checked: these are NOT static in the EXE image (all-zero at load) — they
+are COMPUTED by startup init, so a fresh/EXE baseline lacks them. They ARE
+level-independent, so a captured baseline works for milestone 1 (full native
+computation of them = milestone 2's cold boot).
+
+**End-to-end attempt + two gaps found (this turn).** Ran (gameplay_f640
+constants baseline) + `native_level_load(14)` + `apply_level_init` → native
+driver: it loaded correctly but the ship did NOT advance. Diffing the
+native-constructed DGROUP vs a real VM level-14 seed (14 KB / 24 regions differ)
+exposed that the sim seed needs MORE than road[]+scalars+palette:
+- **The road region extends past `roads_archive`'s output.** road[] ends at
+  `0x2244` (3096 B for lvl 14), but the VM has non-zero level data at
+  `0x2244..~0x2320` that our memset zeroed. So either `roads_archive`'s road
+  length is TOO SHORT (truncating), or a second sub-block follows road[] in the
+  `0x162C` region. (Reconcile against task #20's "byte-exact" — likely it matched
+  the road[] prefix but not the tail.) The loader's `data_size` (from the 4-byte
+  directory) is the authority — compare it to `roads_archive`'s length.
+- **`0x54B0` block-A cell array (7505 B, level-dependent)** is NOT set by the
+  `5614` road loader — a SEPARATE loader writes it, and if the sim reads it
+  (road cells / block descriptors) the stale baseline value breaks motion.
+
+So the `5614` road/perspective load is DONE + VM-verified, but end-to-end play
+needs: (a) the correct road-region LENGTH (loader `data_size`, may exceed
+`roads_archive`'s), and (b) recovering the `0x54B0` block-A loader (and checking
+whether the sim actually reads it vs it being render-only). Next: read the
+loader `data_size` for a level and compare to `roads_archive`; then find the
+`0x54B0` loader the same way (disassembly from `gameplay_f640`).
 
 ## 2026-07-12 (latest+6) — LOADER ROUTINES PINNED (from disassembly, churn-immune): 0x55C0 orchestrator + 5C77/5FB5/5D07
 
