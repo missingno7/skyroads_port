@@ -147,10 +147,18 @@ def read_level_road(data: bytes, index: int) -> bytes:
     """
     entries = parse_directory(data)
     start, end = _entry_span(data, entries, index)
-    _total_length = entries[index][1]
+    # The directory's length field is the DECOMPRESSED road size (the out_size the
+    # loader `1010:5614` passes straight to the LZS decode `66E6(0x162C, size)` --
+    # verified vs the VM: level 14's length=3318 decodes exactly 3318 bytes into
+    # 0x162C, matching memory). The 222-byte header is UNCOMPRESSED and lives
+    # before the compressed road, so it only shifts the INPUT offset (road_offset
+    # below) -- it must NOT be subtracted from the decompressed out_size. (An
+    # earlier version subtracted LEVEL_HEADER_LEN here and truncated every road by
+    # 222 bytes; that still matched the VM as a prefix, hiding the bug -- see
+    # run_status.md 2026-07-12.)
+    road_len = entries[index][1]
     road_offset = start + LEVEL_HEADER_LEN
     comp = data[road_offset:end]
-    road_len = _total_length - LEVEL_HEADER_LEN
     width_len, width_dist_long, width_dist_short = comp[0], comp[1], comp[2]
     widths = LzsWidths(width_len=width_len, width_dist_long=width_dist_long,
                         width_dist_short=width_dist_short)

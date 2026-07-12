@@ -78,12 +78,16 @@ def test_read_level_palette_is_72_entries(roads_data: bytes) -> None:
 
 def test_read_level_road_decompresses_to_the_exact_directory_length(roads_data: bytes) -> None:
     """31/31 real levels decompress to exactly their directory-recorded
-    length, using the project's own already-VM-verified skyroads.codecs.lzs
-    codec."""
+    length (the out_size the loader `1010:5614` passes to the LZS decode), using
+    the project's own already-VM-verified skyroads.codecs.lzs codec. The 222-byte
+    header is uncompressed and precedes the compressed road, so it shifts the
+    INPUT offset only -- it is NOT subtracted from the decompressed size (fixed
+    2026-07-12: the old `-LEVEL_HEADER_LEN` truncated every road by 222 bytes;
+    level 14's road is 3318 B = its directory length, matching VM memory)."""
     entries = parse_directory(roads_data)
     for index, (_offset, total_length) in enumerate(entries):
         road = read_level_road(roads_data, index)
-        assert len(road) == total_length - LEVEL_HEADER_LEN, f"index {index}"
+        assert len(road) == total_length, f"index {index}"
         assert len(road) % 2 == 0, "road[] is a UINT16LE array"
 
 
