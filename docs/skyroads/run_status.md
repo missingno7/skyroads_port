@@ -258,13 +258,21 @@ ship_pos=0x0` — while `--cold --demo <demo_e2e>` completes its level in 57 tic
 So the native cold-run is LEVEL/seed-specific: it advances demo_e2e's level but not
 the level-14 seed, independent of how the seed was produced. `native_level_load`'s
 geometry is verified byte-exact; this is a separate native-sim discrepancy (task
-#18's "--cold plays whole levels" is really "plays the demo_e2e level"). Likely the
-level-select seed is captured too early / in a not-yet-advancing state (a "waiting
-to start" gate, or road-scroll/af-state the substep needs), OR the sim mishandles
-this level's start. NEXT: diff a VM level-14 seed that the VM ITSELF advances (drive
-the VM forward in that level and confirm ship_pos increments) against the frame-79
-seed to find the state that unblocks forward motion; then native `--level N` = that
-+ `native_level_load`.
+#18's "--cold plays whole levels" is really "plays the demo_e2e level"). PINNED IT: traced VM `ship_pos` over the level-14 demo — it stays 0 through frame
+~80, then STARTS ADVANCING at frame 88 (`0x177`→`0x465`→`0x708`→… steady). So level
+14 has a **~80-frame START-DELAY** before forward motion begins, and `boot_and_seed`
+captures at frame 79 — squarely INSIDE the pre-move phase. `apply_level_init` resets
+to `ship_pos=0` but the native sub-step does NOT reproduce the start-delay→move
+transition, so it stays parked. demo_e2e's `--cold` works because its seed (frame
+566) is past its own start-delay. **This is a pre-existing native-sim gap: the
+start countdown / "go" trigger that unblocks forward motion is not modelled** (or
+depends on state `apply_level_init` doesn't set). It is INDEPENDENT of
+`native_level_load` (geometry verified byte-exact) and of the roads_archive fix.
+NEXT: diff the VM DGROUP at frame 80 (parked) vs frame 88 (moving) for level 14 —
+the byte(s) that flip are the start-delay counter / go-flag the native sub-step must
+honor. Fixing that makes BOTH the existing `--cold` (on any level) and native
+`--level N` advance. This is squarely in the recovered sim (dynamics/classify), not
+the loader.
 
 ## 2026-07-12 (latest+7) — BREAKTHROUGH: native VM-free level GEOMETRY load recovered + VM-verified; `native_level_load` implemented
 
