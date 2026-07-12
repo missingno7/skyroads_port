@@ -213,7 +213,24 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   the proven workflow. Loader nesting/entry (from the WORLD4-open stack walk):
   `…→0x53BB→…→0x6C2E (open+read wrapper)→6712 (decode)`; callers of `5F95`/`5D18`
   read as bp-frame offsets (not raw sp), so use the stack-walk chain, not the
-  top-of-stack, to trace them. Then mirror pre2's
+  top-of-stack, to trace them.
+- **TWO distinct `4B8E` calls (key to the remaining work):** at frame ~46 from
+  caller `0x5374` (args `[0x5174,0,0x24,0xa]`) and at frame ~48 from caller
+  `0x2C58`/ret `0x2c5b` (args `[0x41c2,1,0x24,0x1e]`). The `0x2C58` one is
+  RENDER-heavy — it drives the `4331` palette cross-fade, which is exactly what
+  RUNS AWAY on a bare snapshot resume (it needs live render/tick state). The
+  sim-relevant DATA load is the other path. Per pre2's "separate the DGROUP sim
+  contract from render side-effects" rule, the native loader should reproduce
+  only the DATA-load subset (file read + `6712` decode + place), NOT the
+  palette-fade render. Witness snapshot `artifacts/snap_load_4b8e` was captured
+  at a `4B8E` entry (frame 48 = the `0x2C58` render call) — useful but note it
+  is the render-heavy one; a data-load witness needs the `0x5374` entry.
+- **Honest state:** milestone 1 is fully mapped and proven tractable (loader
+  100% liftable), but it is the hard, fiddly remaining piece — a focused
+  multi-step loader recovery (isolate the data-load subset from the render fade,
+  lift it, attach a native file-read shim, assemble `native_level_load.py`,
+  verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
+  tree are done/verified; this loader is the last milestone-1 gap. Then mirror pre2's
 `probe_native_level_load`: run the real loader to capture the post-DGROUP witness
 at the RIGHT point (the actual gameplay-start, not a stray `4B8E`), build
 `skyroads/native/level_load.py` to reproduce it, assert byte-exact.
