@@ -203,6 +203,56 @@ def run_cold(state, jump_level_gate, max_ticks: int = 2000) -> None:
           f"(ship_pos={view.ship_pos:#x})")
 
 
+def run_level(root: Path, level: int, baseline_dir: Path, max_ticks: int = 4000) -> None:
+    """Play LEVEL by INDEX, VM-FREE -- no demo, no per-run snapshot. Loads the
+    level's geometry straight from ``ROADS.LZS`` with
+    :func:`skyroads.native.level_load.native_level_load` (verified byte-exact vs
+    the VM), over a level-INDEPENDENT constants baseline (the sim's clip/shape
+    tables are computed at startup, so a fresh state lacks them -- see
+    run_status.md; computing them from scratch is the cold-boot milestone). Then
+    :func:`apply_level_init` for the player state, and runs the native driver with
+    the accelerate key held (forward motion is input-driven: `[0x9330]` speed
+    comes from the up key). The ship advances +75/tick and crashes at the first
+    obstacle absent steer/jump -- to COMPLETE a level, feed its recorded input.
+    """
+    from skyroads.native.level_load import native_level_load
+    from skyroads.native.state import NativeGameState, DATA_SEG
+
+    mem_bin = baseline_dir / "memory_1mb.bin"
+    if not mem_bin.exists():
+        raise SystemExit(
+            f"constants baseline not found: {mem_bin}\n"
+            "Pass --baseline <snapshot_dir> (a captured DGROUP providing the "
+            "level-independent startup constants). Any gameplay snapshot works; "
+            "the level geometry in it is overwritten by native_level_load.")
+    base = DATA_SEG << 4
+    dg = mem_bin.read_bytes()[base:base + 0x10000]
+    state = NativeGameState(bytearray(dg))
+
+    decoded = native_level_load(state, level, game_root=str(root / "assets"))
+    gate = state.rw(0x4562)
+    print(f"[level] loaded level {level} from ROADS.LZS VM-FREE: gravity/gate={gate:#06x} "
+          f"fuel={decoded.fuel} oxygen={decoded.oxygen} road={len(decoded.road)}B")
+
+    view = GameView(state)
+    scratch = apply_level_init(view, gate)
+    print(f"[level] cold start: ship_pos={view.ship_pos:#x} game_state={view.game_state} "
+          f"gravity={view.gravity:#06x} -- holding ACCELERATE (no steer/jump)")
+    driver = NativeGameplayDriver(view, gate, scratch)
+    for i in range(max_ticks):
+        view.speed = 1  # hold the accelerate key
+        outcome = driver.tick()
+        if outcome.transitioned:
+            if "game_state=2" in outcome.reason:
+                print(f"\n*** LEVEL {level} COMPLETE in {i + 1} ticks -- 100% native, "
+                      f"loaded by index, zero VM ***")
+            else:
+                print(f"[level] tick {i}: {outcome.reason} (ship_pos={view.ship_pos:#x}) "
+                      f"-- expected without steer/jump; feed recorded input to finish")
+            return
+    print(f"[level] no transition in {max_ticks} ticks (ship_pos={view.ship_pos:#x})")
+
+
 def run_cold_verify(root: Path, demo_path: Path, max_ticks: int = 2000) -> None:
     """The strongest form of the cold-run proof: reset the REAL VM (the
     unmodified original game) to the SAME cold level-start state, force zero
@@ -383,7 +433,14 @@ def run_verify(root: Path, demo_path: Path) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--demo", required=True, help="demo dir to boot from and seed level data with")
+    p.add_argument("--demo", help="demo dir to boot from and seed level data with "
+                   "(not needed with --level)")
+    p.add_argument("--level", type=int, default=None,
+                   help="play THIS level index (0-30) VM-FREE: load its geometry from ROADS.LZS "
+                        "and play natively -- no demo, no per-run snapshot")
+    p.add_argument("--baseline", default="artifacts/snapshots/gameplay_f640",
+                   help="constants-baseline snapshot dir for --level (level-independent startup "
+                        "constants; the geometry in it is overwritten). Default: %(default)s")
     p.add_argument("--extra-ticks", type=int, default=0,
                    help="keep ticking the native driver this many times past the demo's recorded input")
     p.add_argument("--verify", action="store_true",
@@ -397,6 +454,15 @@ def main() -> None:
     p.add_argument("--max-ticks", type=int, default=2000, help="tick budget for --cold/--cold-verify")
     args = p.parse_args()
 
+    if args.level is not None:
+        baseline = Path(args.baseline)
+        if not baseline.is_absolute():
+            baseline = ROOT / baseline
+        run_level(ROOT, args.level, baseline, args.max_ticks)
+        return
+
+    if not args.demo:
+        p.error("one of --demo or --level is required")
     demo_path = ROOT / args.demo if not Path(args.demo).is_absolute() else Path(args.demo)
 
     if args.cold_verify:
