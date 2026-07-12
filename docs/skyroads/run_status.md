@@ -232,6 +232,38 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+10) — toward a WINDOWED native player: the render orchestrator `0x0C98` decoded; all its callees already recovered
+
+User tried `play_native --level 2` expecting a game window — it's the HEADLESS
+sim (now says so explicitly in its output). The gap to a windowed player is the
+frame-render assembly (task #22): native sim state → pixels → window+keyboard.
+Decoded the missing node this turn — the per-frame RENDER ORCHESTRATOR
+(`2D1F`'s caller), entry **`1010:0C98`** (enter 0x0E, one flag arg), body
+`0x0C98..0x0ECF`, fully readable from `gameplay_f640` disassembly:
+
+- Computes the 8 render params for `2D1F` PURELY from sim state we own natively:
+  lateral `[9618/961A]`, vertical `[AF1C]`/`[AF2C]`, grounded `[456A]`,
+  game_state `[456E]`, via `0533` (fall predicate — recovered), `0BAF`/`0BE9`
+  (lifted), `0C26` (= recovered `04C0` perspective_transform + a tiny
+  cell→value map: hi-nibble→`[0x228+hi*2]` table / lo-nibble→`0x2800`),
+  `5D8C` (recovered ulong_div).
+- **Frame dirty-cache**: `[0E1C..0E26]` holds last-rendered (lateral, af1c,
+  af2c/si, page); if unchanged → SKIP the render entirely.
+- **Dest select**: `[003C]!=0` → off-screen `[5478]`; else PAGE FLIP —
+  `0xA000 + ([9334]?0:1)<<9` (A000/A200), post-render `xor [9334],1`, and
+  `0x0ED0` does `int 10h AH=05` to show the completed page.
+- Then `call 2D1F(...8 params...)` — which stores them to `[0E28..0E36]` and
+  renders (the lifted driver; the PURE equivalent over those globals is
+  `native/render_frame.py`'s pipeline).
+
+**Every callee is already recovered or lifted — the windowed native player is
+now pure assembly, zero reverse-engineering left on this path:**
+1. Port `0x0C98` orchestration to pure Python (small; callees exist).
+2. Per frame: write the 8 params → run the pure render pipeline over a 1MB
+   native image (graphics segments seeded from the baseline; palette from the
+   level's `[41C2]`, 6-bit→8-bit).
+3. Window + keyboard (feed the key row `[0BD0..]`) around the native sim loop.
+
 ## 2026-07-12 (latest+9) — MILESTONE 1 SIM ACHIEVED: native `--level N` plays BIT-FOR-BIT identically to the VM
 
 The "crash / ship-not-move" was two misreads on my part, both now resolved:

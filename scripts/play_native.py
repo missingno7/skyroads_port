@@ -231,6 +231,9 @@ def run_level(root: Path, level: int, baseline_dir: Path, max_ticks: int = 4000)
 
     decoded = native_level_load(state, level, game_root=str(root / "assets"))
     gate = state.rw(0x4562)
+    print("[level] NOTE: this is the HEADLESS native SIM (no game window yet) -- it plays the "
+          "level's physics/collision and prints the outcome. The native renderer is recovered "
+          "but not yet assembled into a windowed player; for windowed play use scripts/play.py.")
     print(f"[level] loaded level {level} from ROADS.LZS VM-FREE: gravity/gate={gate:#06x} "
           f"fuel={decoded.fuel} oxygen={decoded.oxygen} road={len(decoded.road)}B")
 
