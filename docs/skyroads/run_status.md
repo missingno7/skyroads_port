@@ -37,12 +37,43 @@ own last two entries (which flip-flopped). The confirmed facts:
 **Accurate open state for mode-1**: the "mode-0 pipeline with `dispatch_variant_b`
 + VGA dest" model is NEITHER proven NOR disproven — I never captured a clean
 NORMAL-gameplay mode-1 pass (small fields) to test it against; the e2e demo's
-mode-1 passes I sampled were the atypical all-large-field kind. Completing
-mode-1 needs (a) capturing a genuine gameplay road-render mode-1 (small
-classification fields) and testing the model there, and (b) the `39D4` sprite
-finalize for full VGA pixels. The mode-0 renderer (byte-exact, 686/686) is
-entirely unaffected by all of this. This entry supersedes the two mode-1
-entries below — read this one.
+mode-1 passes I sampled were the atypical all-large-field kind.
+
+**Further finding that reframes it (same day)**: tested BOTH models on the
+first several DEEP-gameplay (`frame>650`) `34AE` passes. The mode-0 passes all
+still verify **24/24** (`record_base=0x16B8`) — mode-0 is rock-solid. But the
+gameplay `ax!=0` ("mode-1") passes DON'T even enter the per-column path
+(`[0E32]!=0`, huge `delta`), and when sampled they made **0** `road_column_strip`
+calls AND **0** `rep movs` to `0xA000`. So in real gameplay the `ax!=0` `34AE`
+call is NOT drawing the road to VGA per-column at all — meaning **the actual
+off-screen→screen flush probably does NOT go through `34AE` "mode-1"** the way I
+assumed from the lift. The per-column-variant-B `34AE` passes I originally
+sampled were the atypical (menu/transition) ones.
+
+**FOUND the real screen present — it's `1010:41A0`, NOT `34AE` "mode-1".**
+Watched what writes VGA (`0xA000`) during gameplay frames 700-705: the writers
+are all at `1010:41C8`/`41FA` (`rep movsb`) and the `41E7-41F1` loop — i.e. one
+function, `1010:41A0`. Disassembled it: it's a **masked two-buffer→VGA blit**
+(the presentation / "flip" routine), which composites the road over the
+background and copies to the screen:
+- `es = ds:[961C]` (= VGA `0xA000`), `ds:[4512]`=source A (background),
+  `ds:[4514]`=source B (the road buffer mode-0 filled), thresholds
+  `ds:[9614]` and `ds:[AF3A]`.
+- **top region**: `rep movsb` verbatim from source A → VGA (`cx=ss:[bp+8]`);
+- **middle region** (`41E7-41F1`, per-pixel MASK): read a pixel from source B;
+  if `< [9614]` → transparent (skip, leave background); elif `< [AF3A]` →
+  substitute the co-located source-A pixel; else copy source B → this is the
+  road drawn over the background with a color-key;
+- **bottom region**: `rep movsb` verbatim from source A → VGA (`cx=ss:[bp+10]`).
+
+So the whole "mode-1 = 34AE with variant B" investigation was chasing the wrong
+routine — `34AE` only ever fills the OFF-SCREEN road buffer (mode-0, byte-exact),
+and a SEPARATE function `1010:41A0` composites+flips it to the screen. `41A0` is
+a self-contained leaf (no calls, `enter`-prologue, already flagged liftable in
+the 2026-07-12 leaf-lift census). **Recovering `1010:41A0` is the concrete,
+bounded remaining piece for native presentation** — it + the byte-exact mode-0
+composite = the road on the actual VGA screen, VM-free. This supersedes every
+mode-1 entry below; there is no "mode-1 variant-B" pass to recover.
 ## 2026-07-12 — mode-1 sharpened: it DOES run 80 variant-B dispatches / 74 rcs (same loop shape as mode-0), but its classification fields are NOT at [0E44]…
 
 Follow-up that pins the mode-1 mystery precisely. Instrumented a real mode-1
