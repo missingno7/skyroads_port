@@ -16,10 +16,18 @@ would, and only THEN switches to the native driver. That boot is the one
 VM-touching step; everything after ``--native-from`` is decided is 100% native.
 
 Usage:
-    # THE MILESTONE: cold-start a level (ship_pos=0, zero player input) and
-    # play it 100% natively to completion -- forward motion is automatic in
-    # SkyRoads (driven by the per-sub-step classification, not player input),
-    # so an idle input still finishes the level:
+    # PLAY THE GAME (the default): open the native game window on any level --
+    # arrows steer/accelerate, space jumps, ESC quits. Sim, renderer and music
+    # are all pure recovered Python; the level loads from ROADS.LZS by index:
+    python scripts/play_native.py --level 2
+
+    # Agent/CI: the headless sim run of a level (no window; plays holding
+    # accelerate and prints the outcome):
+    python scripts/play_native.py --level 2 --headless
+
+    # Verification workflows (headless by nature, driven from a demo):
+    # cold-start a level (ship_pos=0, zero player input) and play it natively
+    # to a transition:
     python scripts/play_native.py --demo artifacts/demos/demo_e2e_20260710_132930 --cold
 
     # Same, but ALSO reset the real VM to the identical cold state and confirm
@@ -231,9 +239,9 @@ def run_level(root: Path, level: int, baseline_dir: Path, max_ticks: int = 4000)
 
     decoded = native_level_load(state, level, game_root=str(root / "assets"))
     gate = state.rw(0x4562)
-    print("[level] NOTE: this is the HEADLESS native SIM (no game window yet) -- it plays the "
-          "level's physics/collision and prints the outcome. The native renderer is recovered "
-          "but not yet assembled into a windowed player; for windowed play use scripts/play.py.")
+    print("[level] headless native SIM run (--headless): plays the level's physics/collision "
+          "holding accelerate and prints the outcome. To PLAY the game, drop --headless "
+          "(the window is the default).")
     print(f"[level] loaded level {level} from ROADS.LZS VM-FREE: gravity/gate={gate:#06x} "
           f"fuel={decoded.fuel} oxygen={decoded.oxygen} road={len(decoded.road)}B")
 
@@ -555,10 +563,11 @@ def main() -> None:
     p.add_argument("--baseline", default="artifacts/snapshots/gameplay_f640",
                    help="constants-baseline snapshot dir for --level (level-independent startup "
                         "constants; the geometry in it is overwritten). Default: %(default)s")
-    p.add_argument("--window", action="store_true",
-                   help="with --level: open a real game window (pygame) and PLAY the level "
-                        "interactively -- arrows steer/accelerate, space jumps, ESC quits. "
-                        "100%% native (sim + renderer both pure recovered Python)")
+    p.add_argument("--headless", action="store_true",
+                   help="with --level: run the HEADLESS native sim (agent/CI use -- plays the "
+                        "level's physics holding accelerate and prints the outcome) instead of "
+                        "opening the game window")
+    p.add_argument("--window", action="store_true", help=argparse.SUPPRESS)  # deprecated: now the default
     p.add_argument("--window-baseline", default="artifacts/frame_2d1f/snap92",
                    help="full snapshot (memory_1mb.bin + state.json) supplying world graphics "
                         "banks + palette for --window. Default: %(default)s")
@@ -578,16 +587,17 @@ def main() -> None:
     args = p.parse_args()
 
     if args.level is not None:
-        if args.window:
-            wb = Path(args.window_baseline)
-            if not wb.is_absolute():
-                wb = ROOT / wb
-            run_window(ROOT, args.level, wb, args.window_frames)
+        if args.headless:                        # agent/CI: the sim-only run
+            baseline = Path(args.baseline)
+            if not baseline.is_absolute():
+                baseline = ROOT / baseline
+            run_level(ROOT, args.level, baseline, args.max_ticks)
             return
-        baseline = Path(args.baseline)
-        if not baseline.is_absolute():
-            baseline = ROOT / baseline
-        run_level(ROOT, args.level, baseline, args.max_ticks)
+        # DEFAULT: the game window -- this is how a person plays.
+        wb = Path(args.window_baseline)
+        if not wb.is_absolute():
+            wb = ROOT / wb
+        run_window(ROOT, args.level, wb, args.window_frames)
         return
 
     if not args.demo:
