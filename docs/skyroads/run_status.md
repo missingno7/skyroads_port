@@ -124,9 +124,37 @@ physics/scroll/HUD regions are DYNAMIC state (ship pos/vel, scroll cursor, input
 NOT level-load data — `apply_level_init` already owns those. To isolate pure
 static level data, diff two levels at the SAME (cold-start) frame.
 
+**FILE→DGROUP dig (this turn).** Instrumented the level-load demo's file opens +
+DGROUP writes. This level opens **`MUZAX.LZS`** (music, not level data),
+**`ROADS.LZS`** (road cells/params — `roads_archive` ✓), and **`WORLD4.LZS`**
+(the ~14 KB render/perspective/staging tables). So there IS a level→world
+mapping (this demo's level → WORLD4), and the level tables come from
+`WORLD<n>.LZS`.
+
+**`WORLD4.LZS` decompresses cleanly:** container is `CMAP`(4) + 114-byte palette,
+LZS payload at **`0x7A`**, first 3 bytes = widths (`07 07 09`), decompresses to
+**55,222 bytes** (= block A 7926 + B 3136 + C 44160 per `level_format.md`),
+51,705 non-zero — real data, matches the expected size.
+
+**OPEN QUESTION (next pass):** the decompressed `WORLD4` bytes were NOT found
+verbatim at the demo-level's DGROUP table regions (`0x162C` perspective,
+`0x0ed4`, `0x34a8`, `0x54B0`) — no full match, no 48-byte needle match. So the
+load is NOT a naive "decompress → memcpy block to fixed offset" at the offsets I
+tried. Possible causes to resolve: (a) block BOUNDARIES misaligned (I searched
+`0x162C..0x2320` which overshoots block B's 3136 bytes into adjacent data);
+(b) the three blocks are placed in a different ORDER / at different DGROUP
+offsets than `level_format.md`'s WORLD7-derived guess; (c) my demo-level DGROUP
+capture point (10th gameplay sub-step) already had dynamic overwrites; (d) a
+per-block copy loop reorders. RESOLVE by instrumenting `6712`/`5D18` during the
+real WORLD4 decode to record exact (decompressed-source-offset →
+DGROUP-dest-offset, length) tuples — the definitive placement map — rather than
+guessing block layout.
+
 **Clean next dig (replaces the confounded file-byte search):** instrument the LZS
-decoder `6712` during the REAL level-load and record (input-file-bytes →
-output-DGROUP-offset) pairs — a definitive file→DGROUP map. Then mirror pre2's
+decoder `6712` (and the `5D18` copy) during the REAL level-load and record
+(decompressed-source-offset → output-DGROUP-offset, length) tuples — the
+definitive block-placement map. Then mirror pre2's probe and build
+`skyroads/native/level_load.py`. Then mirror pre2's
 `probe_native_level_load`: run the real loader to capture the post-DGROUP witness
 at the RIGHT point (the actual gameplay-start, not a stray `4B8E`), build
 `skyroads/native/level_load.py` to reproduce it, assert byte-exact.
