@@ -179,7 +179,29 @@ its segment/DGROUP dest (reusing `codecs/lzs`), + `ROADS.LZS[level]` cells/param
 (`roads_archive`). Remaining detail: the sub-block DIRECTORY format inside
 WORLD*.LZS (where the per-sub-block offsets/sizes/dests are encoded — the
 `0x77xx`/`0x0Cxx` read pointers suggest a small header the loader walks). Then
-mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM. Then mirror pre2's
+mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
+
+**More context + a strategy pivot (this turn):**
+- The level-select demo (`..._202740`) reads only **6765 B** (`[0x1000,0xA6D]`)
+  of WORLD4.LZS into DGROUP `0x31A8` then closes — the per-level TABLE block. Its
+  world GRAPHICS (`0x7176`/`0x7c3e` bitmaps) source from a DIFFERENT buffer
+  (`0xb91a`) that was NOT read in this window: this demo RESUMES with the world's
+  graphics already cached in its snapshot. A true cold load re-reads them.
+- The `demo_cold_20260711_201845` is NOT a gameplay cold-start — it's the
+  INTRO/attract sequence (`is_cold_start=False`; opens `INTRO.LZS`/`ANIM.LZS`/
+  `DEMO.REC`/`INTRO.SND`, never reaches WORLD/ROADS). General LZS read pattern
+  seen: a small header read first (e.g. MUZAX `[6, 4096]`) then 4096-byte chunks.
+- **STRATEGY PIVOT:** manually reverse-engineering the WORLD*.LZS sub-block
+  directory format is tedious and error-prone (this dig kept finding it more
+  layered than assumed). pre2_port did NOT hand-decode its file format — it
+  recovered the LOADER ROUTINE (`3ed6`) and reproduced its logic, which encodes
+  the format in code. The SkyRoads analog: **lift/recover the level-load
+  orchestrator** (the `0x5D07`/`0x5F95`/`0x5D18`/`0x4052` family `4B8E` calls,
+  which read the file + drive `6712` decodes + place blocks) via the proven
+  liftgen/liftverify workflow, feeding it a native file-read shim — rather than
+  reconstructing the container format from raw bytes. That reuses the exact
+  machinery that just landed the render tree, and inherits the format knowledge
+  from the ASM instead of re-deriving it. Then mirror pre2's
 `probe_native_level_load`: run the real loader to capture the post-DGROUP witness
 at the RIGHT point (the actual gameplay-start, not a stray `4B8E`), build
 `skyroads/native/level_load.py` to reproduce it, assert byte-exact.
