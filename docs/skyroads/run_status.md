@@ -68,6 +68,25 @@ This is the same lindis→liftgen→liftverify→port workflow that just landed 
 render tree; the target is liftable, verified on its real path, and has a
 positioned snapshot to iterate on.
 
+**`4331` disassembled + structurally decoded (this turn, static from
+`snap_before_4b8e` — its code is NOT overlaid, so plain lindis works):**
+- `enter 0x16,0`; `[003C]==0` → the `0x4344` path (gameplay), else `0x4455`.
+- `ds:[1600]=0`; iteration percent `bp-4 = (ss:[bp+8] ? 100*ds:[1600]/ss:[bp+8]
+  : 100)`, clamped ≤100 (with a `ds:[54A0]` gate).
+- `bp-14 = 0x31A8` (dest staging cursor).
+- Two source segments loaded from the record pointers `ss:[bp+4]`/`ss:[bp+6]`
+  (`ds:[bx]` → `bp-6`/`bp-10`), each with its own offset counter (`bp-8`/`bp-12`).
+- LOOP bound: runs while `i < 3 * ds:[(bp+4 record)+4]` (i.e. **3× the road
+  element count** — this is why it's ~30k steps for a long level, bounded).
+- Body (`0x43F4`+): `les bx, ss:[bp-8]` loads the far src1 pointer, reads, and
+  writes processed bytes to `0x31A8` staging; advances both source cursors and
+  the dest cursor per iteration.
+
+So `4331` is a straightforward dual-source→`0x31A8` element loop — portable pure
+Python. Remaining to fully port it: decode the `0x43F4`-`0x4430` body (the exact
+per-element read/transform/write) and the `0x4455` non-gameplay branch. The
+verified `4B8E` lift is the oracle to check the port against.
+
 ---
 
 ## 2026-07-12 (latest+2) — render DRIVER `1010:2D1F` LIFTED and oracle-verified — every render node now recovered
