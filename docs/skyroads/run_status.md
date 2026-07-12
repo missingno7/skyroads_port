@@ -4,6 +4,43 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — CORRECTION to the previous entry: it's the PERSPECTIVE table (0x162C) that's level-dependent, not the clip tables — and that pins the exact native-load transform still needed
+
+The previous entry ("perspective tables are level-INDEPENDENT") was WRONG,
+and I'm correcting it directly. It was based on eyeballing a TAIL-TRUNCATED
+run list (the diff output only showed runs from `0x1813` upward; I missed
+every differing run between `0x162C` and `0x1813` and wrongly concluded the
+region barely changed). Re-checked by directly diffing the exact regions the
+collision predicate (`native/collision.make_visible`) actually reads, byte
+for byte, between two levels (index 16 gate-8/200/180 vs index 17
+gate-7/175/60):
+
+| region the sim reads | address | bytes differ between levels |
+|---|---|---|
+| `SEG_BOUND_LOW_TABLE` (clip) | `0x4C..0x97` | **0 / 76** — level-independent |
+| `SEG_BOUND_HIGH_TABLE` (clip) | `0x98..0xE3` | **0 / 76** — level-independent |
+| shape lookup | `0xBA7` | **0 / 17** — level-independent |
+| **perspective table** (`04C0`) | `0x162C..0x18FF` | **360 / 724** — LEVEL-DEPENDENT |
+
+So the picture flips: the segment CLIP-bound tables are fixed (screen-space
+projection geometry, same every level), but the **PERSPECTIVE table at
+`0x162C` holds the per-level projected road** the collision predicate reads
+via `perspective_row_offset` → `rw(r.offset)`. That's the real per-level sim
+state a native `--level N` must produce.
+
+**This precisely pins the one transform native sim-start still needs**, and
+it's exactly the `4B8E` populate step already partially traced (the 34AE
+entry): a `rep stosb` clears `[0x162C..0x162C+0x1B58]` (7000 bytes), then
+`rep movsb` copies fill it from `[0x3285]`/`[0x3302]`/`[0x33E6]`/`[0x33F0]`
+— which are themselves derived from the staged road array. So the chain is:
+`ROADS.LZS` road[] (✓ byte-exact recovered) → those `0x32xx`/`0x33xx`
+intermediate buffers → the `0x162C` perspective table (level-dependent, what
+the sim reads). Recovering the middle arrows (the `4B8E` road→perspective
+build) is the concrete, now-fully-located remaining RE for a VM-free
+`--level N` simulation start. NOT level-independent-and-therefore-free as the
+previous entry mistakenly claimed — my error, corrected here. `4B8E` is
+`liftgen`-liftable (an earlier entry confirmed it's mechanically liftable),
+so lift-then-refactor is the natural attack.
 ## 2026-07-12 — scoping native arbitrary-level sim-start: perspective tables are level-INDEPENDENT, per-level DGROUP delta is mostly render buffers (good news, but wiring needs care)
 
 Investigated whether a fully-native `--level N` SIMULATION start (no VM) is
