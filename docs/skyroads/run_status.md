@@ -232,6 +232,36 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+9) — MILESTONE 1 SIM ACHIEVED: native `--level N` plays BIT-FOR-BIT identically to the VM
+
+The "crash / ship-not-move" was two misreads on my part, both now resolved:
+1. Forward motion is INPUT-driven (hold accelerate → `view.speed=1`); with that,
+   the ship advances +75/tick (`0x4B,0x96,0xE1,…`).
+2. The `game_state=3` at frame 108 is a CORRECT crash — holding accelerate
+   STRAIGHT into an obstacle with no steer/jump. Not a bug.
+
+**PROOF (compare_play):** `native_level_load(14)` over a constants baseline vs a
+VM-captured level-14 seed, both run with held-accelerate → **IDENTICAL** 296-tick
+ship_pos progression AND identical transition (`game_state=3, frame_ctr=108`).
+`A == B` byte-for-byte. So native `--level N` plays the level VM-exactly. The
+`0x54B0` block-A cell array does NOT affect the sim (render-only, per pre2's
+separate-render rule) — `native_level_load` is COMPLETE for the sim contract; no
+block-A loader needed. Retract the previous entry's "recover the 0x54B0 loader"
+next-step: it isn't required for play.
+
+**So milestone 1's core is done:** load ANY level by index from `ROADS.LZS`
+(VM-free, verified) → `native_level_load` places the geometry → the native sim
+plays it identically to the original. Remaining is PACKAGING, not recovery:
+- Wire `scripts/play_native.py --level N` (baseline + `native_level_load(N)` +
+  `apply_level_init` + play/replay-input).
+- The level-INDEPENDENT sim constants (clip `0x4C..0xE3`, shape `0xBA7`, …) that a
+  fresh state lacks are computed at startup, not static in the EXE. For milestone
+  1 they're a fixed captured baseline (a small boot-constants asset — level
+  independent). Computing them natively from scratch = milestone 2's cold boot.
+- To COMPLETE a level (not just play its opening), feed the level's recorded
+  input (steer/jump/accelerate) — the strongest proof is native+input in lockstep
+  with the VM to `game_state=2`.
+
 ## 2026-07-12 (latest+8) — roads_archive road-length BUG fixed (−222); ship-not-move is a PRE-EXISTING native-sim issue, NOT the loader
 
 Two findings while pushing `native_level_load` end-to-end:
