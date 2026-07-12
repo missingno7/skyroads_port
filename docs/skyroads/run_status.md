@@ -232,6 +232,31 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+14) — TILE DISPATCH PORTED + verified WRITE-FOR-WRITE (3166/3166): the native road frame renders
+
+Landed `skyroads/native/tile_dispatch.py` — the pure transcription of `2D1F`'s
+11-row × 2-pass × 4-column road loop + all 6 tile handlers + the `31D1` strip
+skip, drawing through the promoted pure RLE pair. **Verified against the
+captured VM frame: all 3166 road-tile rasterizer writes (`3153`/`3190`)
+reproduced EXACTLY — same count, same order, same offsets, same values.**
+(`tests/test_tile_dispatch.py`, gated on the gitignored capture.)
+
+Debug notes for the record: (a) first comparison showed "0 writes logged" — the
+loop writes through the BUMPED segment (`[0E36]+0x280` → `0x8396`, aliasing
+into the `0x8116` 64KB window), so log by PHYSICAL range, not segment equality;
+(b) the dest bump is `+0x280` paragraphs when `[003C]!=0` (off-screen) and
+`+0x50` when rendering to the VGA pages.
+
+**What remains of the live frame** (the other 774 VM writes in the capture):
+- `325b` ship-row tile chain (`call ss:[0E3E]` between the ship row's two runs):
+  `325B` setup + `32C1` mask clear + `3283` 29×24 stencil blit + `33FD` shade —
+  ALL already hook-reimplemented in Python; promote like the RLE pair.
+- `3a22` ship sprite via the `34AE(1)` finalize / `39D4` chain — `sprite_blit`
+  is already pure; the `34AE` mode-1 pass drives it (lifted; decode its mode-1
+  path or drive from the lift).
+- then the frame post-steps (`[0E6A]=[0E2A]` rotation, `0E86→1243` mask copy —
+  trivial) and the window shell.
+
 ## 2026-07-12 (latest+13) — tile-dispatch fully decoded; every piece of the live frame is Python-portable
 
 Continued dissecting the captured live frame. LINDIS GOTCHA resolved first: its
