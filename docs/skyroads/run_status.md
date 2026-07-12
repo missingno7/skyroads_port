@@ -4,6 +4,47 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — 34AE setup (blocks 0-12) decoded + verified 6/6 for the mode-0 composite pass; mode-1 (VGA flush) setup is a separate, still-open path
+
+Continuing the renderer assembly (after landing `render_classify`), decoded
+`34AE`'s SETUP blocks (0-12 — mode/segment selection + the `[0E60]`/`[0E62]`/
+`[0E64]` computation + `record_base`) from the proven lift, and verified the
+formulas against 12 real captured `34AE` invocations. Result splits cleanly by
+mode:
+
+**mode-0 (off-screen composite pass — the one that classifies & draws the
+road): formulas verified 6/6 exact.**
+- source/dest/dispatch: `[0E66]=[5170]`, `[0E68]=[0E36]`, `[0E42]=0x364F`
+  (variant A).
+- `record_base = ([0E2A] >> 3) * 0xE + 0x168E` — matched (e.g. `[0E2A]>>3=3`
+  → `0x16B8`, the exact `record_base` `render_classify` was verified against).
+- `[0E62] = [0E76][ [0E6A] & 7 ]`, `[0E60] = [0E76][ [0E2A] & 7 ]` (8-word
+  runtime-allocated buffer-segment table) — matched every sample.
+- **`[0E64] = 0x30 if ([0E2A]>>3) == ([0E6A]>>3) else 0`** — note my initial
+  mental decode had this polarity BACKWARDS (thought `!=`); the captures
+  corrected it (all 6 mode-0 samples had the two `>>3` values EQUAL and
+  `e64 == 0x30`). Exactly the kind of error verifying-against-captures exists
+  to catch.
+
+**mode-1 (`[0E68]=0xA000` VGA-flush pass): a DIFFERENT, unresolved path.** Its
+captured `[0E2A]`/`[0E6A]` are erratic, large, buffer-like values
+(`0x1a0e`/`0x3eff`/`0x0006`…), its `record_base` reads stale (`0x16B8`,
+left over from the preceding mode-0 pass — so block-12 didn't recompute it
+the same way), yet it still reached variant-B dispatch (`36F3`). So mode-1
+is NOT just "mode-0 with different segments" — it's a separate flush behavior
+this capture didn't cleanly resolve (possibly reading `[0E2A]` mid-update, or
+mode-1 genuinely takes the fast-copy/other path and the dispatch I attributed
+to it belongs to interleaving). Deliberately NOT porting a setup function on
+this murky data — flagged as the specific open question.
+
+**Net**: the mode-0 composite pass — which is what actually draws the road — is
+now fully spec'd end to end and each stage verified: `34AE` setup (6/6) →
+`render_classify` (80/80) → `dispatch_variant_a` → `road_column_strip` →
+`39D4`. Assembling these into a native `render_frame` over `NativeGameImage`
+(and diffing its output buffer against the VM) is the concrete next step for
+the mode-0 pass; the mode-1 VGA flush needs its own short investigation first.
+No code landed for the setup this stretch (the mode-1 ambiguity makes a clean
+`render_frame` premature) — `render_classify` was the shipped milestone.
 ## 2026-07-12 — RECOVERED the render-classification loop (render_classify), 80/80 — the classify→dispatch pipeline is now complete and VM-verified
 
 Landed the piece the previous entry spec'd: `skyroads/recovered/
