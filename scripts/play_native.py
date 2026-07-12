@@ -256,6 +256,93 @@ def run_level(root: Path, level: int, baseline_dir: Path, max_ticks: int = 4000)
     print(f"[level] no transition in {max_ticks} ticks (ship_pos={view.ship_pos:#x})")
 
 
+def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) -> None:
+    """THE WINDOW: play LEVEL interactively in a real window, 100% native.
+
+    Per frame: pygame keys -> the sim's speed/steer/jump axes; one native sim
+    tick (`NativeGameplayDriver`, which auto-respawns at crash/complete
+    boundaries); one native render (`render_native_frame` -- the pipeline
+    verified byte-exact against the VM on both captured frames); present the
+    composed viewport through the level's DAC. The baseline snapshot supplies
+    the world graphics banks + startup constants + palette; the level geometry
+    itself is loaded VM-free from ROADS.LZS by index.
+    """
+    import json as _json
+    import pygame
+
+    from skyroads.native.frame import render_native_frame
+    from skyroads.native.image import NativeGameImage
+    from skyroads.native.level_load import native_level_load
+    from skyroads.native.state import NativeGameState, DATA_SEG
+    from dos_re.display import Display
+
+    mem_bin = baseline_dir / "memory_1mb.bin"
+    state_json = baseline_dir / "state.json"
+    if not mem_bin.exists() or not state_json.exists():
+        raise SystemExit(f"--window needs a full baseline snapshot (memory_1mb.bin + "
+                         f"state.json) at {baseline_dir}")
+    img = NativeGameImage(bytearray(mem_bin.read_bytes()))
+    palette = [tuple(e) for e in _json.loads(state_json.read_text())["dos"]["vga_palette"]]
+
+    # VM-free level geometry over the baseline DGROUP.
+    dg_base = DATA_SEG << 4
+    st = NativeGameState(bytearray(img.data[dg_base:dg_base + 0x10000]))
+    decoded = native_level_load(st, level, game_root=str(root / "assets"))
+    img.data[dg_base:dg_base + 0x10000] = st.data
+    gate = st.rw(0x4562)
+    print(f"[window] level {level} loaded VM-free (road={len(decoded.road)}B, gate={gate:#06x}); "
+          f"graphics/palette from {baseline_dir.name} -- levels from another world "
+          f"show that world's tile art until the WORLD loader is native")
+
+    view = GameView(img, base=dg_base)
+    scratch = apply_level_init(view, gate)
+    driver = NativeGameplayDriver(view, gate, scratch)
+
+    pygame.init()
+    disp = Display((960, 720), title=f"SkyRoads native -- level {level}")
+    clock = pygame.time.Clock()
+    dest = img.rw(DATA_SEG, 0x5478)          # the off-screen frame buffer segment
+    first = True
+    frames = 0
+    running = True
+    while running and (max_frames <= 0 or frames < max_frames):
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT or (
+                    ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
+                running = False
+        keys = pygame.key.get_pressed()
+        view.speed = (1 if keys[pygame.K_UP] else 0) - (1 if keys[pygame.K_DOWN] else 0)
+        view.steer = ((1 if keys[pygame.K_RIGHT] else 0)
+                      - (1 if keys[pygame.K_LEFT] else 0)) & 0xFFFF
+        view.jump = 1 if keys[pygame.K_SPACE] else 0
+        view.elapsed_ticks = (view.elapsed_ticks + 2) & 0xFFFF   # the 70Hz tick pace
+
+        outcome = driver.tick()
+        if outcome.transitioned:
+            print(f"[window] {outcome.reason} -- respawned")
+        render_native_frame(img, DATA_SEG, offscreen=1, rebuild=first)
+        first = False
+
+        base = dest << 4
+        frame = img.data[base:base + 64000]
+        rgb = bytearray(320 * 200 * 3)
+        for i in range(320 * 138):            # viewport rows; dashboard area stays black
+            r, g, b = palette[frame[i]]
+            j = i * 3
+            rgb[j] = r; rgb[j + 1] = g; rgb[j + 2] = b
+        try:
+            import numpy as _np
+            arr = _np.frombuffer(bytes(rgb), dtype=_np.uint8).reshape(200, 320, 3)
+        except ImportError:
+            raise SystemExit("--window needs numpy (pip install numpy pygame)")
+        disp.draw_game(arr)
+        disp.flip()
+        clock.tick(35)
+        frames += 1
+    pygame.quit()
+    print(f"[window] closed after {frames} frames")
+
+
 def run_cold_verify(root: Path, demo_path: Path, max_ticks: int = 2000) -> None:
     """The strongest form of the cold-run proof: reset the REAL VM (the
     unmodified original game) to the SAME cold level-start state, force zero
@@ -444,6 +531,15 @@ def main() -> None:
     p.add_argument("--baseline", default="artifacts/snapshots/gameplay_f640",
                    help="constants-baseline snapshot dir for --level (level-independent startup "
                         "constants; the geometry in it is overwritten). Default: %(default)s")
+    p.add_argument("--window", action="store_true",
+                   help="with --level: open a real game window (pygame) and PLAY the level "
+                        "interactively -- arrows steer/accelerate, space jumps, ESC quits. "
+                        "100%% native (sim + renderer both pure recovered Python)")
+    p.add_argument("--window-baseline", default="artifacts/frame_2d1f/snap92",
+                   help="full snapshot (memory_1mb.bin + state.json) supplying world graphics "
+                        "banks + palette for --window. Default: %(default)s")
+    p.add_argument("--window-frames", type=int, default=0,
+                   help="auto-quit the window after N frames (0 = run until closed)")
     p.add_argument("--extra-ticks", type=int, default=0,
                    help="keep ticking the native driver this many times past the demo's recorded input")
     p.add_argument("--verify", action="store_true",
@@ -458,6 +554,12 @@ def main() -> None:
     args = p.parse_args()
 
     if args.level is not None:
+        if args.window:
+            wb = Path(args.window_baseline)
+            if not wb.is_absolute():
+                wb = ROOT / wb
+            run_window(ROOT, args.level, wb, args.window_frames)
+            return
         baseline = Path(args.baseline)
         if not baseline.is_absolute():
             baseline = ROOT / baseline

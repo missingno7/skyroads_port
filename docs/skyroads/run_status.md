@@ -232,6 +232,35 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+17) — 🕹️ THE WINDOW: `play_native --level N --window` plays SkyRoads natively
+
+The interactive native player is wired:
+
+- **`skyroads/native/frame.py`** — the complete per-frame render as one
+  function (`render_native_frame` / `compose_frame`): params (0C98, 40/40) →
+  `[0E28..0E36]` → rebuild-only background-bank copy → `composite_mode0`
+  (display-list build) → tile passes + ship-row tile → post-steps (rotation +
+  mask copy). **Verified 0-residual on BOTH captures** (steady + full-rebuild),
+  post-step DGROUP fields matching. `ship_sprites` (`39D4`) is ported but NOT
+  called on the off-screen path: its VM writes are delta-stable no-ops on both
+  captures, and its erase pair's exact `34AE(1)` mode-1 gating is undecoded —
+  calling it unconditionally diverges (273 B). Wire it with the direct-VGA
+  path once `34AE(1)` is decoded.
+- **`play_native --level N --window`** — a real pygame window (via
+  `dos_re.display.Display`): arrows = steer/accelerate, space = jump, ESC
+  quits. Per frame: keys → the sim axes, one `NativeGameplayDriver` tick
+  (auto-respawn at boundaries), one `render_native_frame`, present the 320×138
+  viewport through the level DAC at 35 fps. Headless smoke test
+  (`SDL_VIDEODRIVER=dummy --window-frames 40`) runs clean; a moving frame
+  (tick 60, ship at 0x1194) renders correctly.
+- **v1 caveats (honest):** world graphics banks + palette come from a full
+  baseline snapshot (`--window-baseline`, default `artifacts/frame_2d1f/snap92`
+  = level 14's world) — playing a level from another world shows this world's
+  tile art until the WORLD.LZS graphics loader is native; the palette is the
+  snapshot DAC (native palette generation from the fade target = follow-up);
+  the dashboard/HUD rows are blacked (the HUD path isn't in the frame fn yet);
+  no audio.
+
 ## 2026-07-12 (latest+16) — the FULL-REBUILD frame is byte-exact too; FIRST NATIVE PNG rendered
 
 Extended the frame proof to the FULL-REBUILD case and produced the first
