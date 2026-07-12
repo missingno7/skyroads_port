@@ -24,11 +24,15 @@ an earlier session against `TREKDAT.LZS`/`MUZAX.LZS`/`INTRO.LZS`). `ROADS.LZS`
 turns out to use a simpler per-entry header than those files' self-modifying-
 code-patched widths: the three width bytes (`width_len`, `width_dist_long`,
 `width_dist_short`, in that order) sit as plain bytes at the very start of
-each entry's `road[]` data, right after the palette. **Verified 31/31**:
-every one of `ROADS.LZS`'s 31 levels decompresses to EXACTLY the length the
-directory records (the strongest available check without a live VM oracle
-capture of the in-memory road array, which this session didn't pursue further
-— see the caveat on `read_level_road` below).
+each entry's `road[]` data, right after the palette. **Verified 31/31 by
+length** (every one of `ROADS.LZS`'s 31 levels decompresses to EXACTLY the
+length the directory records) AND **byte-exact against the live VM** (2026-
+07-12): drove the real game to a level-start, captured its full memory, and
+found `read_level_road`'s natively decompressed output present VERBATIM in
+the VM's own memory — gate-8/fuel-225/oxygen-111 (== index 14, a 3096-byte
+road). So the DECODE is now proven against the original game, not just
+self-consistent. See `tests/test_roads_archive.py`'s
+`test_decompressed_road_matches_what_the_vm_loads_into_memory`.
 
 **Verified 3/3 against real live-VM captures** (not a lift of one ASM routine,
 so `boundary` below names the real consumer instead of a single lifted
@@ -128,12 +132,12 @@ def read_level_palette(data: bytes, index: int) -> bytes:
 
 def read_level_road(data: bytes, index: int) -> bytes:
     """The level's decompressed road-geometry array: an `UINT16LE[]`, seven
-    values per line (per ModdingWiki's "SkyRoads level format" bit layout --
-    not independently re-verified against a live VM capture this session, so
-    treat the DECODE as verified (31/31 real `ROADS.LZS` entries decompress
-    to exactly their directory-recorded length, using the project's own
-    already-VM-verified `skyroads.codecs.lzs` codec) but the FIELD MEANINGS
-    within each value as sourced from ModdingWiki, not re-derived from ASM.
+    values per line (per ModdingWiki's "SkyRoads level format" bit layout).
+    The DECODE is verified byte-exact against the live VM (the decompressed
+    bytes appear verbatim in the game's own memory at level-start, 2026-07-12
+    — see the module docstring) as well as 31/31 by length; the FIELD
+    MEANINGS within each UINT16LE value, however, are sourced from
+    ModdingWiki, not re-derived from ASM.
 
     `road[]`'s own tiny per-entry header -- three raw bytes, `(width_len,
     width_dist_long, width_dist_short)` in that order -- sits right after the

@@ -4,6 +4,46 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — native road-geometry decode is now VM-verified byte-exact — "load a level" is proven end-to-end, VM-free
+
+Closed the one honest caveat left in the level-loading chain. `read_level_
+road` (`roads_archive.py`) already decompressed all 31 levels' geometry to
+the right LENGTH using the project's own LZS codec, but the decompressed
+BYTES had never been checked against what the game actually loads — the
+docstring flagged this explicitly ("not pursued this session").
+
+Did it now, with the session's standard technique: drove the real VM
+(pure ASM oracle, no hooks) through the level-start demo
+(`demo_skyroads_20260711_202740`) to the first gameplay sub-step, captured
+its full 1 MB memory plus the level's `(gravity,fuel,oxygen)` header, mapped
+that header to its `ROADS.LZS` directory index via `read_level_header`, and
+searched the VM's memory for `read_level_road(index)`'s natively decompressed
+output. **Found byte-exact**: the gate-8/fuel-225/oxygen-111 level (== index
+14, a 3096-byte road array) decompresses natively to bytes present VERBATIM
+in the VM's own memory. So the LZS decode isn't just self-consistent — it
+reproduces the original game's in-memory road geometry exactly.
+
+Landed as `tests/test_roads_archive.py::test_decompressed_road_matches_
+what_the_vm_loads_into_memory` (a live-oracle test gated on the EXE + demo,
+following `test_play_native.py`'s pattern; ~1.5 s since the demo is short).
+Updated `roads_archive.py`'s docstring and `read_level_road`'s caveat from
+"length-verified only" to "byte-exact against the live VM."
+
+**What this means for the user's `play_native.py --level 8.1` goal**: the
+"LOAD a level" half is now genuinely complete and VM-proven, VM-free —
+native code reads any of the 31 levels' `(gravity,fuel,oxygen)` AND their
+full decompressed road geometry straight from `assets/ROADS.LZS`, both
+byte-exact against the original. Combined with `apply_level_init` +
+`NativeGameplayDriver` (both already recovered/verified), the remaining gap
+to real interactive `--level N.M` play is now purely: (1) seed a
+`NativeGameState` from a native level-load instead of a VM capture (wiring,
+not new RE — the road geometry needs writing into the same DGROUP offsets
+the VM holds it at, `~0x17E0C` region, which the capture located); (2) the
+level-index → planet.road mapping for the CLI (the directory order isn't
+obviously planet-major — index 14 = gate-8/225/111, not "planet 5 road 3");
+(3) the renderer + real-time I/O loop (the big one, still unbuilt). "Load"
+and "play the simulation" are done and proven; "render it interactively"
+remains the frontier.
 ## 2026-07-12 — systematic lifting toward "load, start, play a level": 39D4 landed; re-discovered 3A96 was already recovered (intro_anim_unpack); 3A3F still open; generalized the lifter's runaway-guard tooling
 
 User redirected from renderer-assembly (previous entry) to continuing
