@@ -4,6 +4,47 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — mapped the LIVE gameplay render composition: every pixel-writing primitive is now recovered
+
+Followed the present pipeline (previous entry) one step upstream to find what
+fills `present_rect`'s source buffer, and it reframes the render picture.
+
+**`present_rect`'s source (seg `0x19a1`) is filled by `1010:0F62` =
+`stencil_blit`** — an ALREADY-recovered routine (`skyroads/recovered/blit.py`,
+its VM hook in `hooks.py`). Traced it: `stencil_blit` writes to
+`ES = ds:[AF2A] = 0x19a1` and reads its source from a far-pointer arg. In
+gameplay it's called compositing several source segments (`0x221a`/`0x2232`/
+`0x224b` sprite/object bitmaps + DGROUP `0x1686`) into `0x19a1`. So the LIVE
+gameplay frame is composited by `stencil_blit` into `0x19a1`, then flushed to
+VGA by `present_rect` — NOT via the `34AE`→`0x8116` composite path I'd been
+treating as the gameplay road (that `34AE`-composite, 686/686, is a real,
+verified render but a SEPARATE off-screen pass, likely a different mode/menu,
+not the live gameplay present).
+
+**Consequence — every pixel-writing render PRIMITIVE is now a recovered,
+VM-verified pure function:**
+
+| primitive | addr | what | status |
+|---|---|---|---|
+| `render_classify` | `356B` | road-record → dispatch fields | 80/80 |
+| `dispatch_variant_a/_b` | `364F/36F3` | fields → column call list | 633/640 |
+| `road_column_strip` | `38BF` | draw one road column | full-mem-diff |
+| `stencil_blit` | `0F62` | stencil a sprite/object into the frame buffer | recovered (hooked) |
+| `masked_blit` | `41A0` | one color-keyed scanline → dest | 19/20 |
+| `present_rect` | `4201` | flush a rows×width rect → VGA | 12/12 |
+| `34AE` composite | `34AE` | off-screen road compositor (separate pass) | 686/686 |
+
+**So the render subsystem's remaining work is entirely COMPOSITION mapping +
+assembly, not primitive recovery**: pin down the exact live-frame buffer flow
+(which compositor writes which region of `0x19a1`, in what order, per frame —
+`stencil_blit` for sprites/objects, and where the perspective ROAD columns
+land relative to it), then thread the recovered primitives over a
+`NativeGameImage` and diff the VGA output against the VM (the `frontend_timeline`
+harness is built for this). That's real work, but it's wiring verified pieces
+in the right order, with zero new routines left to reverse-engineer on the
+road-render path. This session took the renderer from "individually-verified
+islands" to "every primitive recovered, the live present pipeline
+(`stencil_blit` → `0x19a1` → `present_rect` → VGA) identified."
 ## 2026-07-12 — RECOVERED the road-present scanline loop (`1010:4201`), 12/12 — the render→screen present pipeline is now complete end to end
 
 Found and recovered the piece that drives the road onto the actual screen.
