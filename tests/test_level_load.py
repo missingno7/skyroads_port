@@ -56,11 +56,36 @@ def test_decode_level_out_of_range() -> None:
         decode_level_files(99, game_root=ASSETS)
 
 
-def test_native_level_load_fails_loud_not_silent() -> None:
-    """Until the placement is recovered, native_level_load must FAIL LOUD (never
-    silently seed a wrong/empty geometry) — and only after a successful native
-    file decode."""
+def test_native_level_load_places_geometry() -> None:
+    """native_level_load reproduces the loader `1010:5614`'s DGROUP writes: road[]
+    at 0x162C (over a cleared 0x1B58 region), gravity/fuel/oxygen scalars, and the
+    216-byte palette — all at their recovered, VM-verified offsets."""
     state = NativeGameState()
-    with pytest.raises(NotImplementedError) as exc:
-        native_level_load(state, 3, game_root=ASSETS)
-    assert "placement" in str(exc.value).lower()
+    d = native_level_load(state, 14, game_root=ASSETS)
+    assert isinstance(d, DecodedLevel) and d.index == 14
+    # road[] decoded into 0x162C, padded with zeros to the 0x1B58 clear region.
+    assert bytes(state.data[0x162C:0x162C + len(d.road)]) == d.road
+    assert all(b == 0 for b in state.data[0x162C + len(d.road):0x162C + 0x1B58])
+    # per-level scalars at their fixed offsets
+    assert state.rw(0x4562) == d.gravity
+    assert state.rw(0x54A2) == d.fuel
+    assert state.rw(0x4566) == d.oxygen
+    # palette
+    assert bytes(state.data[0x41C2:0x41C2 + len(d.palette)]) == d.palette
+
+
+def test_native_level_load_clears_stale_geometry() -> None:
+    """The 5D07 memset clears the whole 0x1B58 region first, so a load over a
+    dirty state cannot leak the previous level's longer road tail."""
+    state = NativeGameState()
+    # dirty the region past where a short level's road ends
+    for i in range(0x1B58):
+        state.data[0x162C + i] = 0xEE
+    d = native_level_load(state, 0, game_root=ASSETS)  # a shorter level
+    assert all(b == 0 for b in state.data[0x162C + len(d.road):0x162C + 0x1B58])
+
+
+def test_native_level_load_all_levels() -> None:
+    """Every level places without overflowing the 0x1B58 region."""
+    for lv in range(31):
+        native_level_load(NativeGameState(), lv, game_root=ASSETS)

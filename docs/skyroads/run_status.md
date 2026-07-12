@@ -232,6 +232,47 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+7) — BREAKTHROUGH: native VM-free level GEOMETRY load recovered + VM-verified; `native_level_load` implemented
+
+Disassembling the geometry loader `1010:5614` (churn-immune) gave the complete,
+simple algorithm — and it collapses the whole milestone-1 mystery:
+
+```
+5614: memset(0x162C, 0, 0x1B58)                 ; 5D07 clear
+      open(file); lseek(handle, level*4, 0)     ; 4-byte-per-level directory
+      read u16 data_offset; read u16 data_size  ; 5F7D
+      lseek(handle, data_offset, 0)
+      read gravity->[4562]; fuel->[54A2]; oxygen->[4566]   ; 6576 x3
+      read 216-byte palette -> [41C2]           ; 6595
+      LZS-decode road[] (data_size B) -> [0x162C]          ; 66E6
+      close
+```
+
+**The sim's "perspective table" at `0x162C` is simply `road[]` from `ROADS.LZS`**
+(LZS-decoded). There is NO separate `WORLD` perspective decode for the SIM —
+`WORLD*.LZS` is render-graphics only. So the entire level GEOMETRY seed comes
+from `ROADS.LZS[level]`, which `roads_archive` ALREADY decodes byte-exact; the
+loader just PLACES it at fixed offsets.
+
+**Placement VERIFIED byte-exact vs the VM** (the level-select demo loads level
+14): `[4562]==gravity(8)`, `[54A2]==fuel(225)`, `[4566]==oxygen(111)`,
+`road[]@0x162C` and `palette@0x41C2` all match `roads_archive` exactly.
+
+**Implemented `native_level_load(state, level, game_root)`** in
+`skyroads/native/level_load.py` — reproduces `5614`'s DGROUP writes (memset clear
++ road[]→0x162C + gravity/fuel/oxygen + palette), 100% VM-free, `[asm 5614]`-
+annotated. 7 tests (incl. the level-14 VM-verified placement, the memset
+stale-clear, and all-31-levels), lint + layer audit clean. This corrects the
+many earlier entries that treated `0x162C` as a computed/`WORLD`-loaded
+perspective LUT: it is road data, straight from ROADS.LZS.
+
+**Remaining for `play_native --level N` (end-to-end):** the native sim also reads
+level-INDEPENDENT DGROUP constants (clip tables `0x4C..0xE3`, shape `0xBA7`,
+etc.) that a fresh `NativeGameState` lacks — those are static EXE data-segment
+init, captured once (level-independent) as a baseline the geometry load overlays.
+Wire `play_native --level N` = baseline DGROUP + `native_level_load(N)` +
+`apply_level_init` → native driver; verify vs the VM cold-run.
+
 ## 2026-07-12 (latest+6) — LOADER ROUTINES PINNED (from disassembly, churn-immune): 0x55C0 orchestrator + 5C77/5FB5/5D07
 
 Switched from write-tracing to reading the loader's CODE (bp-frame walk at the

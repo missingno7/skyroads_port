@@ -17,20 +17,24 @@ What the native SIM actually reads per level (see docs/skyroads/run_status.md):
   * the road-cell geometry (derived from `ROADS.LZS[level]` `road[]`),
   * per-level scalars — gravity (via the jump-level gate), fuel, oxygen.
 
-STATUS (honest): the FILE-DECODE half is recovered and VM-free today —
-`ROADS.LZS[level]` decompresses byte-exact (`roads_archive`, verified vs the VM),
-and the recovered `codecs/lzs` handles the `WORLD*.LZS` LZS payloads. The
-DGROUP-PLACEMENT half (road[]→cells, the `WORLD` perspective sub-block →
-`0x162C`, the exact scalar offsets + level→world map) is produced by the game's
-loader (`1010:4B8E` + the `0x6C2E` file wrapper + `6712` decode + `5D18`/`5F95`
-copies), which is entangled at RUNTIME with the loading-screen render — so it
-cannot be cleanly isolated by write-tracing. It is being recovered by LIFTING
-that loader family (liftgen census: 10/10 liftable, ~215 insts) + a native
-file-read shim, exactly as pre2 recovered its `3ed6`. Until that lands,
-:func:`native_level_load` fails loud at the placement boundary.
+STATUS: RECOVERED + VM-verified. The loader `1010:5614` was disassembled
+(churn-immune, from `gameplay_f640`) and its DGROUP writes reproduced here;
+verified byte-exact against the VM (the level-select demo loads level 14 — its
+`[4562]`/`[54A2]`/`[4566]`, `road[]@0x162C` and `palette@0x41C2` all match
+`roads_archive`). KEY finding: the sim's "perspective table" at `0x162C` is
+simply `road[]` from `ROADS.LZS` (LZS-decoded) — there is NO separate `WORLD`
+perspective decode for the SIM; `WORLD*.LZS` is render-graphics only. So the
+whole sim geometry seed comes from `ROADS.LZS[level]`, which `roads_archive`
+already decodes byte-exact — this module just places it.
 
-[asm 1010:4B8E level-load orchestrator; 1010:6712 lzs_decode_loop; ROADS.LZS +
- WORLD<n>.LZS on disk]
+Loader shape (`1010:5614`, verified): memset `[0x162C..+0x1B58]` (`5D07`); seek a
+4-byte-per-level directory (`5CA6` lseek to `level*4`, `5F7D` read offset+size);
+read 3 scalars (`6576` → gravity `[4562]`, fuel `[54A2]`, oxygen `[4566]`); read
+the 216-byte palette (`6595` → `[41C2]`); LZS-decode `road[]` into `0x162C`
+(`66E6`). File I/O (`5C77` open / `5F7D` read / `5C11` close) is C-lib stdio,
+replaced here by the native :func:`read_game_file` shim.
+
+[asm 1010:5614 geometry loader; 1010:66E6 LZS decode; ROADS.LZS on disk]
 """
 from __future__ import annotations
 
@@ -85,24 +89,44 @@ def decode_level_files(level: int, *, game_root: str | Path) -> DecodedLevel:
     )
 
 
-def native_level_load(state, level: int, *, game_root: str | Path):
-    """Populate ``state`` (a :class:`~skyroads.native.state.NativeGameState`)
-    with level ``level``'s geometry seed, VM-free, then hand off to the driver's
-    ``apply_level_init`` (player state) at the call site.
+# DGROUP placement of the level geometry, recovered from the loader `1010:5614`
+# (disassembled from gameplay_f640; churn-immune) and VERIFIED byte-exact against
+# the VM (the level-select demo loads level 14: [4562]==gravity, [54A2]==fuel,
+# [4566]==oxygen, road[]@0x162C and palette@0x41C2 all match roads_archive).
+_PERSP_OFF = 0x162C       # road[] (the sim's "perspective"/geometry) — [asm 5614: call 66E6(0x162C, size)]
+_PERSP_CLEAR = 0x1B58     # region cleared before the road decode — [asm 5614: call 5D07(0x162C, 0, 0x1B58)]
+_GRAVITY_OFF = 0x4562     # jump-level gate / gravity — [asm 5614: 6576 -> [4562]]
+_FUEL_OFF = 0x54A2        # [asm 5614: 6576 -> [54A2]]
+_OXYGEN_OFF = 0x4566      # [asm 5614: 6576 -> [4566]]
+_PALETTE_OFF = 0x41C2     # 216-byte level palette — [asm 5614: call 6595(0x41C2, 0xD8)]
 
-    Recovered so far: the file decode (:func:`decode_level_files`). NOT yet
-    recovered: the loader's DGROUP PLACEMENT (road[]→cells, WORLD perspective →
-    `0x162C`, scalar offsets, level→world map) — being lifted from the `4B8E`
-    loader family. Fails loud here rather than seed a wrong/empty geometry that
-    would make the sim silently diverge.
+
+def native_level_load(state, level: int, *, game_root: str | Path) -> DecodedLevel:
+    """Populate ``state`` (a :class:`~skyroads.native.state.NativeGameState`)
+    with level ``level``'s geometry seed, 100% VM-free, and return the decode.
+    The caller then runs ``apply_level_init`` (player state) to reach a playable
+    cold start — see ``scripts/play_native.py``.
+
+    Reproduces the loader `1010:5614`'s DGROUP writes (verified byte-exact vs the
+    VM): clear `[0x162C..+0x1B58]`, LZS-decode `road[]` into `0x162C`, and store
+    the per-level scalars (gravity/fuel/oxygen) + the 216-byte palette at their
+    fixed offsets. (The `WORLD*.LZS` tile-bitmap banks are render-only and NOT
+    part of this sim contract — see the module docstring.)
     """
     decoded = decode_level_files(level, game_root=game_root)  # native, verified
-    raise NotImplementedError(
-        "native DGROUP placement for the level geometry is not recovered yet "
-        "(0x162C perspective LUT, road-cell array, per-level scalars). The file "
-        "decode is done (see the returned DecodedLevel); the placement is being "
-        "recovered by lifting the 4B8E loader family (see "
-        "docs/skyroads/run_status.md, task #21). "
-        f"decoded level {decoded.index}: gravity={decoded.gravity:#06x} "
-        f"road={len(decoded.road)}B palette={len(decoded.palette)}B"
-    )
+    d = state.data
+
+    # [asm 5614: 5D07 memset(0x162C, 0, 0x1B58)] clear the region, then decode road[] in.
+    for i in range(_PERSP_CLEAR):
+        d[(_PERSP_OFF + i) & 0xFFFF] = 0
+    if len(decoded.road) > _PERSP_CLEAR:
+        raise ValueError(
+            f"level {level} road[] ({len(decoded.road)}B) exceeds the "
+            f"0x{_PERSP_CLEAR:X}-byte region at 0x{_PERSP_OFF:X}")
+    d[_PERSP_OFF:_PERSP_OFF + len(decoded.road)] = decoded.road   # [asm 5614: 66E6 LZS-decode -> 0x162C]
+
+    state.ww(_GRAVITY_OFF, decoded.gravity)                       # [asm 5614: 6576 -> [4562]]
+    state.ww(_FUEL_OFF, decoded.fuel)                            # [asm 5614: 6576 -> [54A2]]
+    state.ww(_OXYGEN_OFF, decoded.oxygen)                        # [asm 5614: 6576 -> [4566]]
+    d[_PALETTE_OFF:_PALETTE_OFF + len(decoded.palette)] = decoded.palette  # [asm 5614: 6595 -> 0x41C2]
+    return decoded
