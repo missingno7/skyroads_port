@@ -1,24 +1,26 @@
 """The complete native gameplay FRAME — every stage pure recovered Python.
 
-Composes the proven pieces in `2D1F`'s exact order (see run_status.md
-2026-07-12, byte-exact on both captured frames — steady AND full-rebuild):
+Composes the proven pieces in `2D1F`'s exact order (call-boundary capture of
+demo_e2e frame 571, 2026-07-13 — see run_status.md):
 
     compute_render_params (0C98, 40/40)        -- sim state -> 8 params + skip
       -> params stored to [0E28..0E36]         -- 2D1F prologue
-      -> rebuild only: background bank copy    -- 34AE(0) full-rebuild path
-      -> composite_mode0 (34AE mode 0)         -- display-list build/maintain
+      -> run_34ae(ax=0) + 39D4                 -- COMPOSITE: bg->offscreen
+         (rebuild copy / delta gating / variant-A columns, then ship blit)
       -> render_tile_passes (+ ship-row tile)  -- rasterize road + ship tile
-      -> ship_sprites (39D4)                   -- erase/redraw ship sprite
+      -> run_34ae(ax=1) + 39D4                 -- PRESENT: offscreen->VGA A000
+         (variant-B columns blit the road band to the screen + ship to VGA)
       -> post_frame                            -- rotation + mask copy
 
-[asm 1010:2D1F frame driver; 39D4 sprite dispatcher; 2E43-2E6B post-steps]
+[asm 1010:2D1F frame driver; 34AE two-mode render; 39D4 sprite dispatcher;
+2E43-2E6B post-steps]
 """
 from __future__ import annotations
 
 from typing import Optional
 
 from skyroads.native.image import NativeGameImage
-from skyroads.native.render_frame import composite_mode0
+from skyroads.native.render_frame import run_34ae
 from skyroads.native.render_params import RenderDecision, compute_render_params
 from skyroads.native.tile_dispatch import render_tile_passes
 from skyroads.recovered.present import sprite_blit
@@ -57,20 +59,16 @@ def post_frame(img: NativeGameImage, dg: int) -> None:
 
 def compose_frame(img: NativeGameImage, dg: int, params, *, rebuild: bool = False) -> None:
     """Render one frame from explicit params (already-verified 8-tuple in
-    `[0E28..0E36]` order) — the capture-verified pipeline."""
+    `[0E28..0E36]` order) — the capture-verified pipeline.
+
+    ``rebuild=True`` forces `[0E32]` != 0, which routes BOTH `34AE` calls
+    through their full-copy path (bg -> offscreen, then offscreen -> VGA)."""
     p = list(params)
     if rebuild:
         p[5] = 1
     for k, v in enumerate(p):
         img.ww(dg, 0x0E28 + 2 * k, v)
-    if rebuild:
-        src = img.rw(dg, BACKGROUND_SRC)
-        dest = p[7] & 0xFFFF
-        img.data[(dest << 4):(dest << 4) + BACKGROUND_LEN] = \
-            img.data[(src << 4):(src << 4) + BACKGROUND_LEN]
-    setup, _count = composite_mode0(img, dg)
-    img.ww(dg, 0x0E66, setup.seg_src)            # 34AE stores these; 39D4 reads them
-    img.ww(dg, 0x0E68, setup.seg_dst)
+    run_34ae(img, dg, 0, ship_sprites)           # composite: bg -> offscreen
 
     def _ship_row(_ctx) -> None:
         tile_rasterize(img.rb, img.wb,
@@ -78,13 +76,7 @@ def compose_frame(img: NativeGameImage, dg: int, params, *, rebuild: bool = Fals
                        lambda o, v: img.ww(dg, o, v), dg)
 
     render_tile_passes(img, dg, on_ship_row=_ship_row)
-    # NOT calling ship_sprites here: on the off-screen path ([0E68] != A000)
-    # its VM writes are delta-stable no-ops on BOTH captured frames (steady +
-    # rebuild verify 0-residual without it), and the erase pair's exact
-    # trigger conditions live in 34AE(1)'s not-yet-decoded mode-1 gating —
-    # calling it unconditionally DIVERGES (273 bytes on the steady capture).
-    # It becomes relevant on the direct-VGA path; wire it once 34AE(1) is
-    # decoded. (See run_status.md 2026-07-12 windowed-player entry.)
+    run_34ae(img, dg, 1, ship_sprites)           # present: offscreen -> VGA
     post_frame(img, dg)
 
 

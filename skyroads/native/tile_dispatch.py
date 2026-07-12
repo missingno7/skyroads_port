@@ -255,4 +255,11 @@ def render_tile_passes(
         ctx.bp = (ctx.bp - 0x16) & 0xFFFF
         e44 -= 1
         if e44 == 0:                                             # [asm 2E33]
+            # The ASM keeps these loop scratches in DGROUP; persist their
+            # final values so the post-frame DGROUP is byte-identical
+            # ([0E40] = backward-RLE ptr after the last pass; [0E48] pass
+            # counter; [0E4A] ship-row rerun counter -- all end at 2/2).
+            img.ww(dg, 0x0E40, 0x3190)
+            img.ww(dg, 0x0E48, 0x2)
+            img.ww(dg, 0x0E4A, 0x2)
             return

@@ -291,10 +291,12 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
                          f"state.json) at {baseline_dir}")
     img = NativeGameImage(bytearray(mem_bin.read_bytes()))
     palette = [tuple(e) for e in _json.loads(state_json.read_text())["dos"]["vga_palette"]]
-    # the real cockpit/dashboard art (VGA rows 138..199 of the baseline screen).
-    # Its GAUGES stay at their captured values until the HUD gauge renderer
-    # (4526/44BE glyphs + the dial/bar draws + the 4563 rect flush) is ported.
-    dashboard = bytes(img.data[0xA0000 + 138 * 320: 0xA0000 + 64000])
+    # The frame is presented straight from the image's VGA plane (0xA0000):
+    # `34AE(ax=1)` (the in-frame present pass, now native) keeps rows 0..137
+    # (the road band + ship) live, and rows 138..199 keep the baseline
+    # snapshot's cockpit art. The GAUGES stay at their captured values until
+    # the HUD gauge renderer (4526/44BE glyphs + dial/bar draws + the 4563
+    # rect flush) is ported.
 
     # VM-free level geometry over the baseline DGROUP.
     dg_base = DATA_SEG << 4
@@ -327,7 +329,6 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
 
     disp = Display((960, 720), title=f"SkyRoads native -- level {level}")
     clock = pygame.time.Clock()
-    dest = img.rw(DATA_SEG, 0x5478)          # the off-screen frame buffer segment
     first = True
     frames = 0
     running = True
@@ -359,8 +360,7 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
         render_native_frame(img, DATA_SEG, offscreen=1, rebuild=first)
         first = False
 
-        base = dest << 4
-        frame = bytes(img.data[base:base + 320 * 138]) + dashboard
+        frame = bytes(img.data[0xA0000:0xA0000 + 64000])   # the live VGA plane
         rgb = bytearray(320 * 200 * 3)
         for i in range(320 * 200):            # viewport rows + the cockpit dashboard
             r, g, b = palette[frame[i]]

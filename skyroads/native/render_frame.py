@@ -1,4 +1,13 @@
-"""Native mode-0 road-render frame — assembling the recovered renderer pieces.
+"""Native `1010:34AE` road render — assembling the recovered renderer pieces.
+
+:func:`run_34ae` is the COMPLETE function (decoded 2026-07-13 from the proven
+lift, all 28 blocks): both modes (``ax == 0`` composite bg->offscreen with
+dispatch variant A; ``ax != 0`` PRESENT offscreen->VGA ``0xA000`` with variant
+B), all four bodies (`[0E32]` full copy / delta==0 nothing / delta>=8 band
+copy / the column loop), each ending in a `39D4` ship-sprite call. Verified
+full-1MB byte-exact inside `compose_frame` on four captures plus a 6-frame
+chain (see run_status.md). The remainder of this module is the older mode-0
+subset (:func:`composite_mode0` etc.), kept for its tests and tooling:
 
 The off-screen COMPOSITE pass of `1010:34AE` (``mode == 0``), assembled over a
 :class:`~skyroads.native.image.NativeGameImage` from the individually-recovered
@@ -43,7 +52,8 @@ from typing import Callable, List, NamedTuple, Tuple
 
 from skyroads.native.image import NativeGameImage
 from skyroads.recovered.render_classify import ColumnClass, render_classify
-from skyroads.recovered.render_dispatch import dispatch_variant_a
+from skyroads.recovered.render_dispatch import (dispatch_variant_a,
+                                                dispatch_variant_b)
 from skyroads.recovered.road_column import road_column_strip
 
 #: `1010:34AE` block-12: record base = ([0E2A]>>3)*0xE + PERSPECTIVE_TABLE_BASE
@@ -103,6 +113,102 @@ def mode0_column_calls(img: NativeGameImage, ds: int) -> List[ColumnCall]:
                                      c.e56, c.e58, c.e5a):
             calls.append(ColumnCall(ax, c.e44, c.e46, c.e48))
     return calls
+
+
+def run_34ae(img: NativeGameImage, ds: int, ax: int,
+             ship_sprites: Callable[[NativeGameImage, int], None]) -> int:
+    """The COMPLETE `1010:34AE` (all 28 blocks of the proven lift, decoded
+    2026-07-13 -- see run_status.md), both modes:
+
+    * ``ax == 0`` (composite): src = background `[5170]`, dst = off-screen
+      `[0E36]`, dispatch = variant A (`364F`).
+    * ``ax != 0`` (PRESENT): src = off-screen `[0E36]`, dst = VGA ``0xA000``,
+      dispatch = variant B (`36F3`). This pass is what puts the road band on
+      the actual screen -- the stage the earlier "mode-1" entries chased.
+
+    Then ONE of four bodies, keyed on `[0E32]` and ``delta = [0E2A]-[0E6A]``:
+    full 44160-byte copy (`[0E32]` != 0, the rebuild/full-present path);
+    nothing (``delta == 0``); rows-32..137 copy (``delta >= 8``, unsigned);
+    or the 10-row x 4-col x 2-pass column loop (``1 <= delta < 8``).
+    Every path ends by calling `39D4` (``ship_sprites``) against the segments
+    this mode selected -- EXCEPT the `[003C] == 0` bail-out, which skips it.
+
+    Returns the number of road_column_strip calls made (0 on non-loop paths).
+    """
+    if img.rw(ds, 0x003C) == 0:                       # bb0->bb24: plain ret
+        return 0
+    if ax == 0:                                       # bb2: composite mode
+        img.ww(ds, 0x0E66, img.rw(ds, 0x5170))
+        img.ww(ds, 0x0E68, img.rw(ds, 0x0E36))
+        img.ww(ds, 0x0E42, 0x364F)
+        variant_b = False
+    else:                                             # bb3: present mode
+        img.ww(ds, 0x0E66, img.rw(ds, 0x0E36))
+        img.ww(ds, 0x0E68, 0xA000)
+        img.ww(ds, 0x0E42, 0x36F3)
+        variant_b = True
+    src = img.rw(ds, 0x0E66)
+    dst = img.rw(ds, 0x0E68)
+
+    def _copy(byte_off: int, nbytes: int) -> None:    # bb25/27: rep movsw
+        s0 = (src << 4) + byte_off
+        d0 = (dst << 4) + byte_off
+        img.data[d0:d0 + nbytes] = img.data[s0:s0 + nbytes]
+
+    if img.rw(ds, 0x0E32) != 0:                       # bb4->bb25->bb26: full
+        _copy(0x0000, 0x5640 * 2)                     # 44160 B from offset 0
+        ship_sprites(img, ds)                         # bb23
+        return 0
+    delta = (img.rw(ds, 0x0E2A) - img.rw(ds, 0x0E6A)) & 0xFFFF
+    if delta == 0:                                    # bb6->bb23: nothing new
+        ship_sprites(img, ds)
+        return 0
+    if delta >= 8:                                    # bb8->bb25: band copy
+        _copy(0x2800, 0x4240 * 2)                     # rows 32..137
+        ship_sprites(img, ds)
+        return 0
+
+    # bb10-22: the column loop (1 <= delta < 8).
+    e2a = img.rw(ds, 0x0E2A)
+    e6a = img.rw(ds, 0x0E6A)
+    e64 = 0x30 if (e2a >> 3) == (e6a >> 3) else 0
+    img.ww(ds, 0x0E64, e64)
+    seg_prev = img.rw(ds, (BUFFER_SEG_TABLE + 2 * (e6a & 7)) & 0xFFFF)
+    seg_cur = img.rw(ds, (BUFFER_SEG_TABLE + 2 * (e2a & 7)) & 0xFFFF)
+    img.ww(ds, 0x0E62, seg_prev)
+    img.ww(ds, 0x0E60, seg_cur)
+    record_base = ((e2a >> 3) * RECORD_STEP + PERSPECTIVE_TABLE_BASE
+                   + RECORD_BASE_BIAS) & 0xFFFF
+    rb_dgroup: Callable[[int], int] = lambda off: img.rb(ds, off)
+    n = 0
+    for c in render_classify(rb_dgroup, record_base):
+        # The ASM stores every loop/classification field to DGROUP as it goes;
+        # persist them so the post-frame DGROUP is byte-identical.
+        img.ww(ds, 0x0E44, c.e44); img.ww(ds, 0x0E46, c.e46)
+        img.ww(ds, 0x0E48, c.e48); img.ww(ds, 0x0E4C, c.e4c)
+        img.ww(ds, 0x0E4E, c.e4e); img.ww(ds, 0x0E50, c.e50)
+        img.ww(ds, 0x0E52, c.e52); img.ww(ds, 0x0E54, c.e54)
+        img.ww(ds, 0x0E56, c.e56); img.ww(ds, 0x0E58, c.e58)
+        img.ww(ds, 0x0E5A, c.e5a); img.ww(ds, 0x0E5C, c.e5c)
+        img.ww(ds, 0x0E5E, c.e5e)
+        if variant_b:
+            codes = dispatch_variant_b(c.e44, c.e46, c.e4e, c.e50, c.e52,
+                                       c.e54, c.e56, c.e58, c.e5a, c.e5c, c.e5e)
+        else:
+            codes = dispatch_variant_a(c.e44, c.e46, c.e4e, c.e50, c.e52,
+                                       c.e54, c.e56, c.e58, c.e5a)
+        for code in codes:
+            road_column_strip(img.rb, img.rw, img.ww, code, ds, c.e44, c.e46,
+                              c.e48, e64, seg_prev, seg_cur, src, dst)
+            n += 1
+    # ASM loop-exit values: [0E48] xors back to 0, [0E46] increments past 4,
+    # [0E44]/[0E4C] step once more before the exit compare.
+    img.ww(ds, 0x0E48, 0x0)
+    img.ww(ds, 0x0E46, 0x5)
+    img.ww(ds, 0x0E44, 0x1)
+    img.ww(ds, 0x0E4C, (record_base - 10 * RECORD_STEP) & 0xFFFF)
+    ship_sprites(img, ds)                             # bb23
+    return n
 
 
 def composite_mode0(img: NativeGameImage, ds: int) -> Tuple[FrameSetup, int]:

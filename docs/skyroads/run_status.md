@@ -4,6 +4,77 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-13 — GHOSTING SOLVED: `34AE` fully decoded (both modes), `39D4` placed, whole `2D1F` frame full-1MB byte-exact on 4 captures + a 6-frame chain; `play_native` presents the live VGA plane
+
+The ghosting hunt ended in a chain of corrections that produced the strongest
+renderer proof yet. In order:
+
+**1. The "2D1F runs twice per game frame" observation was a CAPTURE ARTIFACT.**
+The chain capture triggered on `ip == 2D1F` at every CPU step; when a
+`ConsoleInputWouldBlock` unwound the frame loop exactly at the entry
+instruction, the resume re-fired the trigger — duplicating each entry with an
+IDENTICAL 1MB pre (`pre4 == pre5` bytewise proved it). One 2D1F call per frame.
+Every "divergence" in the earlier chain test was me diffing my POST against the
+SAME call's PRE (= my own net writes). There was never a lockstep divergence.
+The re-capture with in/out state tracking (`artifacts/frame_chain2`) shows
+frames 569..574, one call each.
+
+**2. The real gap: my "byte-exact" frame compose was only verified on the
+OFF-SCREEN dest.** A full-1MB diff on the block capture (frame 571) showed
+2,848 missing bytes at `0xA2B1E..0xA8F9D` — **VGA rows ~34..114, the road
+band, written directly to the screen inside 2D1F**. A call-boundary re-capture
+(`phase_events.json`) gave the definitive frame structure:
+
+    2D1F: params -> 34AE(ax=0) [composite, ends in 39D4 #1]
+          -> 11-row tile loop (+325B ship row)
+          -> 34AE(ax=1) [PRESENT, ends in 39D4 #2] -> post-steps
+
+**3. `34AE` fully decoded from its proven lift (all 28 blocks) — supersedes
+every earlier mode-1 entry, including the "mode-1 never draws per-column /
+the real present is 41A0" conclusion** (that sampling happened to hit
+`delta == 0` frames; `41A0` is a separate general blit used elsewhere):
+- mode select: `ax==0` -> src=bg `[5170]`, dst=offscreen `[0E36]`, dispatch
+  variant A (`364F`); `ax!=0` -> src=offscreen, dst=`0xA000`, dispatch
+  variant B (`36F3`). So the PRESENT is per-column via `road_column_strip`.
+- four bodies keyed on `[0E32]` and `delta = [0E2A]-[0E6A]` (unsigned):
+  `[0E32]!=0` -> full 44,160-B copy (the rebuild bg-copy AND the full present);
+  `delta==0` -> nothing; `delta>=8` -> rows-32..137 band copy (`si=0x2800`,
+  `cx=0x4240` words); `1<=delta<8` -> the 10-row x 4-col x 2-pass column loop
+  (classification inline = `render_classify`, verified 80/80 previously).
+- EVERY path ends `call 39D4` — except the `[003C]==0` bail, which skips it.
+
+**4. `39D4` (lift confirmed) = exactly the existing `ship_sprites` port**:
+erase pair unconditional, draw pair iff `[0E68]==0xA000`. Its earlier "273-byte
+divergence when called unconditionally" was a placement error — it runs at the
+END OF EACH `34AE`, against the segments that mode selected (into offscreen
+after mode 0, onto VGA after mode 1), not once per frame.
+
+**Implementation**: `render_frame.run_34ae(img, ds, ax, ship_sprites)` (full
+lifted control flow, persists the ASM's loop/classification DGROUP fields);
+`frame.compose_frame` now runs `run_34ae(0)` -> tile loop -> `run_34ae(1)` ->
+post; `tile_dispatch.render_tile_passes` persists its `[0E40]/[0E48]/[0E4A]`
+final scratch. The rebuild path no longer special-cases the bg copy —
+`[0E32]!=0` routes both 34AE calls through their full-copy paths natively.
+
+**Verification (the strong part)**: full-1MB residual vs the VM post, on ALL
+FOUR single-frame captures (steady / rebuild / moving / block) = **0** outside
+the dead stack slop (SS==DGROUP, ~19 bytes below final SP). Then a 6-frame
+consecutive chain (frames 569..574, resyncing only DGROUP sim state per frame,
+carrying MY dest + display lists + VGA across all 6): non-DGROUP residual = 0
+except VGA rows 162..190 — the dashboard GAUGE area, written by the HUD
+updater between frames (outside 2D1F, not this pipeline's job). **The road
+band (rows 0..137) is byte-exact across the whole chain.**
+
+**Player fix**: `play_native --level N` now presents the image's live VGA
+plane (`0xA0000`, all 200 rows) instead of the offscreen dest — rows 0..137
+maintained natively by the present pass (ship now visible, zero ghosting:
+`artifacts/frames/native_present_t200.png`), rows 138+ keep the baseline
+cockpit art until the HUD gauge renderer is ported. 365 tests pass.
+
+Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
+WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
+startup constants (milestone 2).
+
 ## 2026-07-12 (latest+3) — MILESTONE PIVOT: play any level VM-lessly by index (no demo/snapshot). Plan pinned; `4B8E` re-verified as the level-init oracle
 
 User set the next north star: `play_native --level N` must play any level
