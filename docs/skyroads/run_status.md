@@ -232,6 +232,36 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+16) — the FULL-REBUILD frame is byte-exact too; FIRST NATIVE PNG rendered
+
+Extended the frame proof to the FULL-REBUILD case and produced the first
+visible native frame:
+
+- **Full-redraw capture** (`artifacts/frame_2d1f_first`, the FIRST gameplay
+  `2D1F` at frame 48): 96,410 writes, dominated by `34AE` (88K). Analysis:
+  on rebuild (`params[5]` — previously named `zero` — is **1**, a full-rebuild
+  flag) `34AE` mode-0 copies the **44,160-byte background bank**
+  (`[5170]`=0x7176 → dest, = the 320×138 nebula backdrop) and initializes the
+  VGA pages (~28KB to A000..A6FFF); `2e43` = the post-loop mask copy (956B);
+  `2dd9`-attributed DGROUP writes are the loop counters.
+- **Native compose of the full-rebuild frame: 0/65536 residual.** background
+  copy + `composite_mode0` (display-list build) + `render_tile_passes` +
+  `tile_rasterize` == the VM's post-frame byte-for-byte — on BOTH captures
+  (steady frame 90 and rebuild frame 48).
+- **First native PNG** (`artifacts/frames/native_frame.png`): the composed
+  frame rendered through the level's real DAC — nebula, road, SHIP sprite,
+  all from pure recovered Python. (Gotcha: the DAC at frame 48 is mid
+  level-select→gameplay FADE — black; render with the settled palette from a
+  frame-92 snapshot. The bottom rows of the off-screen buffer are scratch —
+  the dashboard lives on the real VGA screen via the HUD path.)
+- `composite_mode0`'s role is now precisely understood: **the display-list
+  build/maintenance pass** (mode 0), including the background copy on rebuild;
+  the tile passes then rasterize the strips to pixels each frame.
+
+Remaining for the WINDOW: assemble `native/frame.py` (params → mode-0 +
+background-on-rebuild → tile passes → ship row → `34AE(1)`/`39D4` ship sprite
+→ post-steps) and wrap window+keyboard around the native sim.
+
 ## 2026-07-12 (latest+15) — 🎯 THE FIRST FULLY-NATIVE GAMEPLAY FRAME IS BYTE-EXACT (65536/65536)
 
 Promoted the ship-row tile chain (`skyroads/recovered/tile_raster.py`:
