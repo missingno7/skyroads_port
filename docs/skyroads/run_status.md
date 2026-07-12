@@ -232,6 +232,40 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+8) — roads_archive road-length BUG fixed (−222); ship-not-move is a PRE-EXISTING native-sim issue, NOT the loader
+
+Two findings while pushing `native_level_load` end-to-end:
+
+**BUG FIXED — `roads_archive.read_level_road` truncated every road by 222 bytes.**
+It used `road_len = directory_length − LEVEL_HEADER_LEN`, but the loader `1010:5614`
+passes the directory length DIRECTLY to the LZS decode (`66E6(0x162C, size)`). The
+222-byte header is uncompressed and precedes the compressed road, so it shifts the
+INPUT offset (`road_offset`) only — it must NOT be subtracted from the decompressed
+out_size. Verified vs the VM: level 14's directory length=3318 decodes exactly 3318
+bytes into `0x162C`, matching memory. The old 3096 was a valid PREFIX, which hid the
+bug behind prefix-only checks (incl. the old test, which asserted `== length − 222`
+despite its name saying "the exact directory length"). Fixed + test corrected;
+31/31 decode cleanly, live-VM oracle still matches. `native_level_load` now places
+the full 3318-byte road.
+
+**Ship-not-move on level 14 is PRE-EXISTING, not `native_level_load`.** Wiring
+`native_level_load(14)` end-to-end, the ship didn't advance (`ship_pos` stuck at 0).
+Isolated it: the driver does NOT advance a level-14 seed even when that seed is
+CAPTURED FROM THE VM (not reconstructed), and the existing
+`play_native --cold --demo <level-select-demo>` (which seeds level 14 from the VM at
+frame 79, gate 8) ALSO fails — `did not reach a transition within 2000 ticks,
+ship_pos=0x0` — while `--cold --demo <demo_e2e>` completes its level in 57 ticks.
+So the native cold-run is LEVEL/seed-specific: it advances demo_e2e's level but not
+the level-14 seed, independent of how the seed was produced. `native_level_load`'s
+geometry is verified byte-exact; this is a separate native-sim discrepancy (task
+#18's "--cold plays whole levels" is really "plays the demo_e2e level"). Likely the
+level-select seed is captured too early / in a not-yet-advancing state (a "waiting
+to start" gate, or road-scroll/af-state the substep needs), OR the sim mishandles
+this level's start. NEXT: diff a VM level-14 seed that the VM ITSELF advances (drive
+the VM forward in that level and confirm ship_pos increments) against the frame-79
+seed to find the state that unblocks forward motion; then native `--level N` = that
++ `native_level_load`.
+
 ## 2026-07-12 (latest+7) — BREAKTHROUGH: native VM-free level GEOMETRY load recovered + VM-verified; `native_level_load` implemented
 
 Disassembling the geometry loader `1010:5614` (churn-immune) gave the complete,
