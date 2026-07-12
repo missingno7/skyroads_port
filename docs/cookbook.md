@@ -147,22 +147,31 @@ instruction count. Worked examples of the full pipeline (pre-framework, still
 the richest reference): `pre2/native/game_tick_demo.py`,
 `pre2_port/scripts/verify_finish_demo.py`, `scripts/verify_native_tick_demo.py`.
 
-**Proving the native FRONT END equals the VM — the screens with no game tick.**
-→ *Front-end timeline harness* — **a framework engine**: `dos_re/frontend_timeline.py`
-(`capture` + `collapse` + `diff_sequence` + `diff_pixels`; usage skeleton in
-dos_re's `docs/agent_toolbox.md` §12b). The tick demo captures none of the intro
-/ title / menu / attract / map / tally — they run with no tick — so those flows
-ship verified against nothing and drift (a screen shown in the wrong ORDER, a
-dropped fade, a screen before/after the wrong transition). Capture a per-present-frame
-`(logical-screen, RGB-digest)` timeline from the VM and from the native front end,
-then diff by **sequence** (screen order + per-run frame count — catches the wrong-order
-class) and opt-in **pixels** (per-frame RGB, byte-exact — catches cadence bugs a
-single golden-frame test misses, e.g. a native screen that jumps to the settled image
-and drops the VM's multi-frame fade-in). Same oracle trick as the tick demo: capture
-the VM's per-frame sampled input and *inject* it into native (no synthetic keystrokes);
-needs a **cold-start demo** so the native cold-boot entry aligns. Worked adapters:
-`pre2_port/scripts/probe_frontend_timeline.py` (VM ground-truth prober — run on any
-demo), `scripts/frontend_capture.py`, `scripts/verify_native_frontend.py`.
+**Proving the native FRONT END behaves like the original — the screens with no game tick.**
+→ *The FOUR-GATE front-end proof* — **a framework engine**: `dos_re/frontend_timeline.py`
+(usage skeleton in dos_re's `docs/agent_toolbox.md` §12b). The tick demo captures
+none of the intro / title / menu / attract / map / tally — they run with no tick —
+so those flows ship verified against nothing and drift (a screen shown in the wrong
+ORDER, an attract demo entered instead of the recorded selection, a wall screen
+after the level load instead of before). A per-frame pixel diff is the WRONG proof
+(the VM recording and the native scene generator share no frame clock); the proof is
+the flow's discrete structure: **[1] screen ORDER** (`capture`/`collapse`/
+`filter_runs`/`diff_sequence`), **[2] a DECISION-STATE witness byte-compared at
+every screen transition** (`pack_fields`/`diff_fields` — chosen level/mode,
+live-vs-attract input source, lives, password state), **[3] gameplay-entry state
+byte-identical outside an OWNED byte set** (`diff_offsets` — sound-driver data /
+load-layout / scene scratch a VM-less product legitimately owns differently), and
+**[4] that owned set proven INERT** (`spread_beyond` — dual-replay the recorded
+gameplay ticks from both entry states; no tick may diverge outside the owned set).
+Input honesty: capture the raw key-flag window the VM's front end sampled per frame
+(include EVERYTHING the flow reads — menu key flags can live below the scancode
+table) and feed it to native CAUSALLY per screen (`input_segments`/`SegmentedInput`),
+so presses land on the same screen at the same relative moment. Needs a
+**cold-start demo**; seed the candidate from the FRONT-END entry state (boot
+constants), not a level-jump bootstrap. Worked end-to-end (all four gates green on a
+real cold-start demo; gate 2 caught a menu-entry fresh-start block on its first run):
+`pre2_port/scripts/verify_native_frontend.py`, plus `probe_frontend_timeline.py`
+(ground-truth prober — run on any demo) and `frontend_capture.py`.
 
 **A divergence appears 10 minutes into a demo.**
 → *Suffix repro*: `InputDemoPlayback.write_suffix` (already in the core)
