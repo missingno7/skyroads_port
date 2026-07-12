@@ -104,6 +104,26 @@ decompression; what's missing is a native WORLD*.LZS container loader (CMAP
 palette + LZS payload → blocks A/B/C at DGROUP `0x54B0`/`0x162C`/seg `0x7176`),
 the level→world mapping, and placing it all over a `NativeGameState`.
 
+**QUANTIFIED "what's missing" (diffed two levels' gameplay DGROUP: the
+`gameplay_f640` snapshot vs the level-load demo at its 40th gameplay sub-step):**
+level-dependent DGROUP = **17,614 bytes across 19 regions**, dominated by static
+level tables that native level-init must produce:
+
+| region | bytes | what |
+|---|---|---|
+| `0x5494..0x7201` | 7533 | block-A descriptors / cell array |
+| `0x34a8..0x429a` | 3570 | staging / render tables |
+| `0x1630..0x231c` | 3308 | perspective/render tables (block B, incl. `0x162C`) |
+| `0x1291..0x1601`,`0x0ed4..0x1242` | ~1758 | more render tables |
+| smaller (`0xaf1e`,`0x9330`,`0x0bd2`,`0x9612`,`0x4558`…) | ~1400 | HUD/physics/scalars |
+
+The ~14 KB of big regions are the block A/B/C tables — LZS-loaded from the level
+files (`6712` writes them), so native level-init = decompress + place them.
+CAVEAT: the two captures are at DIFFERENT gameplay frames, so the small
+physics/scroll/HUD regions are DYNAMIC state (ship pos/vel, scroll cursor, input),
+NOT level-load data — `apply_level_init` already owns those. To isolate pure
+static level data, diff two levels at the SAME (cold-start) frame.
+
 **Clean next dig (replaces the confounded file-byte search):** instrument the LZS
 decoder `6712` during the REAL level-load and record (input-file-bytes →
 output-DGROUP-offset) pairs — a definitive file→DGROUP map. Then mirror pre2's
