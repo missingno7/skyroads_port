@@ -24,14 +24,18 @@ road_column_strip calls; :func:`mode0_column_calls` produces the identical 24
 (see ``tests/test_render_frame.py``). So the render DECISION pipeline
 (setup -> classify -> dispatch) is proven correct end to end.
 
-**What byte-exact pixel output additionally needs**: the display-list records
-`road_column_strip` reads from ``[0E60]``/``[0E62]`` (the 8 rotating buffer
-segments in the ``0E76`` table) are rebuilt every frame by a display-list
-BUILDER that is NOT yet recovered. :func:`composite_mode0` runs the full
-compositing given an image whose records are already populated (e.g. seeded
-from the VM at the render moment); from a pre-render seed the writes differ
-only because those records aren't yet built. Recovering that builder is the
-last input needed for a fully native framebuffer (see run_status.md).
+:func:`composite_mode0` additionally runs `road_column_strip` per column to
+composite pixels into the destination buffer. Its inputs — the display-list
+records at ``[0E60]``/``[0E62]`` and the source bitmap at ``[0E66]`` — were
+confirmed byte-IDENTICAL between a pre-`34AE` seed and the actual
+`road_column_strip` call (0/4096 changed in each), and `road_column_strip` is
+full-memory-diff verified, so the compositing is correct by construction. (An
+earlier note here wrongly blamed a pixel mismatch on an unrecovered
+"display-list builder"; that was a comparison-reference error — the mismatch
+was against the VM's post-`39D4`/mode-1 image, not the post-mode-0-columns dest
+— now retracted. See run_status.md's 2026-07-12 correction.) A clean
+independent full-pixel VM diff is still worth adding; the pieces are all
+verified.
 """
 from __future__ import annotations
 

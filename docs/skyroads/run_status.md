@@ -4,6 +4,50 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — CORRECTION: there is NO "display-list builder" gap for the off-screen road pass — the records are already present; my pixel mismatch was a wrong comparison reference
+
+The previous entry ("ASSEMBLED the native mode-0 render pipeline") claimed the
+`composite_mode0` pixel mismatch (24/24 calls right, but wrong pixel values)
+was due to a "display-list BUILDER not yet recovered" leaving stale records in
+the seed. **That was wrong, and I'm retracting it.**
+
+Checked it directly: diffed the source segments `road_column_strip` reads —
+`seg_src` (`0x7176`), the two record buffers (`0x2B12`/`0x311B`), and the dest
+(`0x8116`) — between the before-`34AE` seed and the actual `road_column_strip`
+call. **0 / 4096 bytes changed in every one of them.** So the records and
+source bitmap in my pre-render seed are IDENTICAL to what the VM composites
+from — there is no stale-data / unrecovered-builder problem for this pass at
+all. (The buffers ARE rebuilt as the ship advances, but not between
+before-`34AE` and the compositor within a frame, which is all that matters
+here.)
+
+**The real cause of the 337/343 pixel mismatch was a comparison-reference
+error in my verification script**: it diffed my mode-0 composite output
+against the VM's FULL after-`34AE` image — which also contains the `39D4`
+finalize sprites (drawn into the same `0x8116` buffer AFTER the road columns)
+and the subsequent mode-1 pass. So most "mismatches" were just `39D4`/mode-1
+writes my mode-0-only composite legitimately doesn't make. With identical
+inputs, identical args (24/24), a full-memory-diff-verified `road_column_strip`,
+and `NativeGameImage`'s addressing confirmed byte-identical to
+`road_column_strip`'s own test harness, **`composite_mode0` is correct by
+construction** — same inputs + same verified function = same output.
+
+**CONFIRMED independently, byte-exact.** Got the clean full-pixel VM diff by
+capturing the VM's dest at the `39D4`-finalize entry (keeping `34AE` as its
+lift for speed, and using `39D4`'s entry as the exact "after all 24 columns,
+before the finalize sprites" point — reliable, unlike the earlier
+force-ASM attempt). `composite_mode0` reproduces **686/686 written bytes
+exactly** against the VM. So the mode-0 road pixels are proven byte-for-byte,
+not just correct-by-construction. Landed
+`tests/test_render_composite.py` (the 686/686 pixel match) + a compact fixture
+(`render_composite_trace.json`: 1030 seed bytes -> 686 expected writes).
+
+**Net**: the native mode-0 road-render pipeline is assembled AND its actual
+composited PIXELS match the original game byte-for-byte (686/686) — the
+renderer's real lockstep milestone, not blocked on any unrecovered builder.
+The genuinely-remaining renderer item is the separate mode-1 VGA-flush pass
+(which copies this off-screen buffer to the screen); once ported, a fully
+native frame would drive the VGA display.
 ## 2026-07-12 — ASSEMBLED the native mode-0 render pipeline — reproduces the VM's EXACT 24-call road_column_strip sequence
 
 Composed the recovered renderer pieces into `skyroads/native/render_frame.py`
