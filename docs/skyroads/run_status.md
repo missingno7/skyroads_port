@@ -4,6 +4,72 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 (latest+3) — MILESTONE PIVOT: play any level VM-lessly by index (no demo/snapshot). Plan pinned; `4B8E` re-verified as the level-init oracle
+
+User set the next north star: `play_native --level N` must play any level
+**VM-lessly** with only a level index — no demo, no snapshot. (Then, later: full
+cold-start with intro/menu.) See memory `native-milestone-sequence`.
+
+**Where the VM dependency actually is.** `scripts/play_native.py` already plays
+gameplay 100% natively, but it seeds a 64 KB DGROUP image from the VM (even
+`--cold` reuses that image for level GEOMETRY). The one level-dependent thing
+the native sim reads that we cannot yet produce natively is the **`0x162C`
+perspective table** (`04C0` reads it; 360/724 bytes differ level-to-level). That
+table is built by **`4B8E`** (the level-load routine) from the decoded
+`road[]` — NOT loaded as data.
+
+**Reconciled a docs contradiction.** `level_format.md` claimed the `0x162C`
+projection LUT is "precomputed data shipped in `WORLD*.LZS` block B, not
+computed." That is WRONG for the region the sim reads: `4B8E` does a `rep stosb`
+CLEAR of `[0x162C..+0x1B58]` then `rep movsb` FILLS it from road-derived
+`0x32xx/0x33xx` buffers (staged by `4331` into `0x31A8`). If it were loaded
+world data it would be identical for levels sharing a world, but levels 16 and
+17 differ in 360/724 bytes — so it's computed per-level from `road[]`.
+(`level_format.md` is right that tile bitmaps `0x7176` and descriptors `0x54B0`
+are loaded data; only the `0x162C` claim was wrong.)
+
+**`4B8E` re-verified this turn as a working level-init oracle.** From the
+positioned snapshot `artifacts/snap_before_4b8e` (at `1010:2C58`, just before the
+level-load call): liftgen LIFTABLE (57 insts, 13 blocks, 7 direct calls);
+liftverify **PASS byte-exact on the real level-load path** (3/13 blocks — one
+call = one path). The `4331` "did not return within 20M steps" exception is on an
+OFF-path invocation (the lift feeds `4331` bad state on an uncovered branch); on
+the real level-load path `4331` returns in ~30k steps and the whole thing
+verifies. So the lift correctly reproduces level-load — but it is HYBRID (7
+`emulate_call`s into ASM), not pure native.
+
+**`4B8E`'s call tree to port for a pure-native `--level N`:**
+
+```
+4B8E  (enter 0xC; the level-load orchestrator)
+├─ 5D07   (setup; pushes 0x300,0,0x31A8 staging)
+├─ 3F20
+├─ 4B43  x2   (into local bufs bp-6 / bp-12)
+├─ 4331  x2   ← the road[]→0x31A8 staging data-transform (~30k-step bounded loop)
+├─ 3F3B
+└─ 6006
+     then: rep stosb clear 0x162C; rep movsb fills from 0x32xx/0x33xx -> 0x162C
+```
+
+**Plan (milestone 1), concrete:**
+1. Native level-file load: `ROADS.LZS` road[]+params (✓ `roads_archive`, byte-exact)
+   and any `WORLD*.LZS` blocks the transform consumes (✓ `codecs/lzs`).
+2. Port `4331` (bounded data-transform loop) to pure Python — the heart of
+   road[]→staging; use the verified `4B8E` lift as the oracle.
+3. Port `4B8E`'s road→`0x162C` fill (clear + the `rep movsb`s) and the other
+   callees it needs on the level-load path.
+4. Native `level_init(N)` → DGROUP image with a correct `0x162C` (+ 9600 road
+   cells, params); verify byte-exact vs the VM's post-load DGROUP over the
+   regions the sim reads, for several levels.
+5. Wire `scripts/play_native.py --level N` to use it (no demo/snapshot), then
+   play natively (existing `run_cold` path).
+
+This is the same lindis→liftgen→liftverify→port workflow that just landed the
+render tree; the target is liftable, verified on its real path, and has a
+positioned snapshot to iterate on.
+
+---
+
 ## 2026-07-12 (latest+2) — render DRIVER `1010:2D1F` LIFTED and oracle-verified — every render node now recovered
 
 Lifted the last unrecovered render node — the top-level driver at `0x2D1F`
