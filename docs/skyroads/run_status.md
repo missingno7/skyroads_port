@@ -274,6 +274,31 @@ honor. Fixing that makes BOTH the existing `--cold` (on any level) and native
 `--level N` advance. This is squarely in the recovered sim (dynamics/classify), not
 the loader.
 
+**RESOLVED the "start-delay": forward motion is INPUT-DRIVEN, not automatic.**
+`[0x9330]` speed is written by `1010:08E6` = `(up|ul|ur) − (dn|dl|dr)` read from
+the keyboard-flag row (`[0BD2] bit 0x80` = UP/accelerate, etc.) — exactly what
+`recovered/controls.decode_keyboard` reproduces. The VM ship starts moving at
+frame 85 because the DEMO PRESSES UP then; before that, speed=0 and the ship is
+parked. So there is NO automatic forward motion: the ship only advances while
+accelerate is held. This CORRECTS task #18's "--cold plays with idle input" claim
+— `--cold` on demo_e2e only worked because its seed (frame 566) had the up-key
+already HELD in `[0BD2]`, and the idle driver kept that key state; the level-14
+seed (frame 79) is pre-press, so it parks. The native driver's `tick()` uses
+`view.speed` (`native_gameplay_substep`, `advance_ship(pos, view.speed)`).
+
+**Two remaining gaps for native `--level N` (both now pinned):**
+1. **Input**: hold accelerate — set `view.speed=1` (or `[0BD2]|=0x80`) each tick.
+   With `view.speed=1`, native level 14 now RUNS (frame_ctr advances) instead of
+   parking forever.
+2. **Collision reads unset level state → crash.** With accelerate held, native
+   level 14 reaches `game_state=3` (crash) at frame_ctr 108 with ship_pos still 0
+   — the ship "crashes" immediately because collision reads level-dependent DGROUP
+   `native_level_load` does NOT set (the `0x54B0` block-A cell array, still the
+   baseline's). This is the SEPARATE loader `native_level_load` doesn't cover yet
+   (the block-A cells written by a different loader than `5614`). NEXT: recover the
+   `0x54B0` block-A cell loader (same disassembly method), place it, then native
+   `--level N` = `native_level_load` + block-A + held-accelerate → should play.
+
 **Transition pinned to frame 84→86** (ship_pos 0 → 0xE1). DGROUP fields that flip
 exactly when motion starts (candidates for the speed-onset/go mechanism):
 - `0x9330`: **0 → 1** — the SPEED byte (its onset from zero).
