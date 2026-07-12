@@ -4,6 +4,50 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — RECOVERED the render-classification loop (render_classify), 80/80 — the classify→dispatch pipeline is now complete and VM-verified
+
+Landed the piece the previous entry spec'd: `skyroads/recovered/
+render_classify.py::render_classify`, the triple-nested loop inside `34AE`
+(`1010:356B-3627`) that produces the per-column dispatch inputs. Ported from
+`34AE`'s PROVEN lift (not re-derived from ASM — the exact code an earlier
+hand-attempt mis-transcribed 3×) and **matched a real VM capture 80/80 on the
+first try**.
+
+**Cleared the capture blocker that stalled this** (worth recording, it was a
+real trap): the ground-truth harness kept seeing ZERO hits at `34AE`'s
+classification call-site `1010:35F8` even though dispatch (`364F`/`36F3`) ran
+19,040×. Reading the return address at dispatch entry resolved it —
+`ret=0x35FC` (38,080×), i.e. dispatch IS called from `35F8`, but **`34AE` runs
+as its installed LIFT**, so the whole classification loop executes in Python
+and the interpreter's step-hook only ever sees the `0x34AE` entry, never the
+body. (This is the same "`0x35FC` never observed" mystery flagged during the
+dispatch recovery — now fully explained: it's the lift, not a harness bug.)
+Fix: trigger the capture on the dispatch TARGETS (`364F`/`36F3`, which ARE
+reached via `emulate_call`), delimited by `34AE` entries.
+
+**The capture confirmed the loop model exactly**: one full `34AE` invocation
+(variant A, `record_base=0x16B8`, from `demo_e2e_20260710_132930`) makes
+**80 dispatch calls = 10 outer (e44 11→2, e4c -= 0xE each) × 4 middle
+(e46 1→4) × 2 inner (e48 0/1)**. `render_classify` reproduces every one of
+the 13 classification fields of every call byte-exact.
+
+Landed `tests/test_render_classify.py` (the 80/80 fixture match, the
+loop-structure asserts, AND an end-to-end test chaining `render_classify` →
+`dispatch_variant_a` so the classify→dispatch pipeline is proven to compose)
++ a compact 154-byte fixture (`render_classify_trace.json`, the touched
+`0x162C-0x16C5` record window + `BA7`). Layer audit clean (VM-free).
+
+**Renderer state now**: the column-render decision chain is COMPLETE and each
+stage VM-verified —
+`render_classify` (this) → `dispatch_variant_a`/`_b` (recovered) →
+`road_column_strip` (recovered, full-memory-diff verified) → `39D4` finalize
+(lifted+installed). What remains for an actual native FRAMEBUFFER: the outer
+`34AE` framing around this chain (mode/segment setup, the delta-based
+fast-copy/no-op paths, the flush to VGA — all decoded in the 34AE entry, not
+yet assembled over `NativeGameImage`), and the display-list BUILDER that
+populates the road records `render_classify` reads (the `0x162C` region, whose
+per-level content is the `4B8E` transform tracked in the sim-start entries).
+But the hardest, most error-prone middle — the classification — is now done.
 ## 2026-07-12 — fully decoded 34AE's render-CLASSIFICATION loop (the dispatch-input producer) + captured its static tables — the renderer's next port, spec'd precisely
 
 Toward assembling a native renderer, isolated the one un-ported piece
