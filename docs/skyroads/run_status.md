@@ -4,6 +4,62 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 (latest+1) — per-frame render CALL TREE mapped; only the top-level driver (~`0x2Exx`) is unrecovered
+
+Traced one steady gameplay frame (frame 950 of demo_e2e) to get the actual
+per-frame draw sequence and the caller of each primitive (return-address at call
+entry). This turns "we have all the primitives" into a concrete assembly plan.
+
+**Frame-950 draw order (93 primitive calls, collapsed):**
+
+```
+34ae_composite  es=a000 ds=1686 x1     ; composite pass, direct to VGA
+road_column     es=a000 ds=1686 x1
+road_column     es=8116 ds=1686 x15    ; road cols into off-screen scratch 0x8116
+sprite_blit     es=8116 ds=7176 x2     ; sprites built in 0x8116 (src 0x7176)
+34ae_composite  es=8396 ds=311b x1     ; composite into 2nd scratch 0x8396
+road_column     es=8396 ds=1686 x1
+road_column     es=a000 ds=1686 x55    ; the MAIN road, straight to VGA
+sprite_blit     es=a000 ds=8116 x4     ; the ship: 0x8116 scratch -> VGA
+stencil_blit    es=224b ds=1686 x1     ; HUD glyph
+present_rect    es=19a1 ds=1686 x1     ; HUD compose into 0x19a1
+masked_blit     es=19a1 ds=1686 x1
+masked_blit     es=a000 ds=1686 x10    ; HUD/dashboard flush to VGA
+```
+
+(No `6099` in a steady gameplay frame — it's a level-start background blit that
+persists underneath.)
+
+**Call tree (who calls whom), from return addresses:**
+
+```
+render driver  ~0x2Exx   (calls 34ae at 0x2e43; also 39D4 + HUD present)
+├─ 34ae composite        LIFTED (lifted_1010_34ae.py)
+│   └─ dispatch 0x366a-0x374f   -> road_column_strip (38BF)   pure ✅
+├─ 39D4 HUD/sprite finalize     LIFTED (lifted_1010_39d4.py)
+│   └─ sprite_blit (3A22)        pure ✅  (last 2 of 4 calls gated on VGA target)
+└─ HUD present: stencil_blit (0F62) pure ✅, present_rect (4201) pure ✅,
+                masked_blit (41A0) pure ✅
+```
+
+**So EVERY node in the render call tree is recovered EXCEPT the single
+top-level driver routine at ~`0x2Exx`** (the one that sequences 34ae, the
+scratch-buffer road passes, 39D4, and the HUD present, and also does some HUD
+compositing itself — it's among the writers to 0x19a1: 0x2dd9/0x2e7c/0x2ea1/
+0x2eba). Its exact entry IP is not yet pinned (0x2e43 is the `call 34ae` site
+inside it).
+
+**Assembly plan (task #22), now concrete:** identify + lift the ~`0x2Exx`
+render driver (liftgen-liftable like 34ae/39D4), then a native visible frame is
+`driver(native_sim_state)` over a 320×200 framebuffer, verified pixel-exact vs
+VM via `frontend_timeline`. Composition itself carries no new correctness risk:
+every leaf is already byte-exact given VM inputs (sprite_blit 10/10, road_column
+full-mem-diff, masked_blit 19/20, present_rect 12/12, 34ae composite 686/686) —
+the only remaining unknown is the driver's own param derivation, which lifting
+resolves.
+
+---
+
 ## 2026-07-12 (latest) — `sprite_blit` recovered as a pure fn; `6099` identified; render-primitive set COMPLETE
 
 Two closing steps on the render map from the entry below.
