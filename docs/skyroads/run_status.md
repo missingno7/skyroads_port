@@ -232,6 +232,44 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+13) — tile-dispatch fully decoded; every piece of the live frame is Python-portable
+
+Continued dissecting the captured live frame. LINDIS GOTCHA resolved first: its
+`[bx+NNN]` displacements print in DECIMAL — so `2D1F`'s dispatch is
+`call ss:[bx+0x0BAF]` (not 2991) and its display-list DS comes from
+`[0x0E76 + (e2a&7)*2]` (not 3702) — i.e. the KNOWN `0x0E76` rotating buffer
+table, and a tile-handler table at `0x0BAF` (right after the `0xBA7` shape
+table). From the captured image:
+
+- **`[0BAF]` tile-handler table (indexed by road-record `[bp+1]&0xF` = tile
+  type):** type 0→`2E6C`, 1→`3059`, 2→`2EBB`, 3→`2EFD`, 4→`2F58`, 5→`2FCC`,
+  6..15→`3AC9` (default/no-op).
+- **Function pointers:** `[0E38]=34A7` (= `34AE` with ax=0 — the mode-0
+  COMPOSITE runs FIRST inside `2D1F`, so `composite_mode0` IS part of the live
+  frame after all); `[0E3A]=3153`/`[0E3C]=3190` (rle fwd/bwd — `[0E40]` selects
+  per pass `[0E48]`); `[0E3E]=325B` (tile_rasterizer, the row-4 special).
+- **Handler anatomy (type 0, `2E6C`, fully read):** `al = record[bp]&0xF`
+  (tile id); 0 → nothing; else write it into the DISPLAY-LIST SLOT
+  (`si = ds:[di]`, `ds:[si] = al`) and `call [0E40]` to rasterize; then
+  neighbor checks — `record[bp ± 2]` (pass-dependent) empty → edge tile
+  `id+0x1E`, `record[bp-0xE]` (row above) empty → edge tile `id+0x0F`, each
+  also rasterized. Types 2/3 (`2EBB`/`2EFD`) call `2E6C` then add block
+  top/side pieces via slots `ds:[di+4]`/`ds:[di+6]` (hi-nibble block type,
+  default tile `0x3D`), gated on `[bp-13]`/`[bp+1]` neighbor fields.
+- **The `[0E40]` rasterizers (`3153`/`3190`) are ALREADY full Python** — the
+  hooks' bodies are pure logic (RLE decode: per-run `ctrl` back-step + fill
+  word runs + 0x140 row stride, `si` walks the display-list record), no ASM.
+  Promotable to `recovered/` pure fns exactly like `sprite_blit` was.
+
+**Task #22 remaining is now a bounded porting list, zero unknowns:**
+1. Promote `rle_sprite_forward`/`backward` (+ `tile_rasterizer 325B`,
+   `occluded_column_blit 3283`) hook bodies to pure fns.
+2. Port the `2D1F` loop (11×(2×4) record walk, exact bp/di stepping from the
+   disasm) + the 6 tile handlers + `31D1` into `native/tile_dispatch.py`.
+3. Verify against `artifacts/frame_2d1f` (pure frame vs post-image dest — the
+   18-net-byte delta first, then more captures incl. full redraws).
+4. Window + keyboard shell.
+
 ## 2026-07-12 (latest+12) — live-frame anatomy: 2D1F draws via 4 ALREADY-RECOVERED rasterizers, delta-rendered
 
 Captured a real gameplay `2D1F` call (frame 90, params
