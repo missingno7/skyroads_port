@@ -4,6 +4,38 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — scoped what a FULLY-native level-start still needs: level-load builds ~15 KB of derived DGROUP state, not just a few fields
+
+With native level LOAD proven byte-exact (previous entry), measured exactly
+what stands between that and a fully-native level START (seeding a
+`NativeGameState` without any VM). Full-memory-diffed DGROUP across the
+menu→gameplay transition in the level-start demo: **15,254 DGROUP bytes
+change** (1,864 runs, 207 of them ≥16 bytes), overwhelmingly one contiguous
+~5 KB structured block at `[0x6C40-0x71E1]` plus scattered smaller fields
+(around `0xAF..`/`0xB8..`).
+
+**Interpretation**: the level-load sequence doesn't just write
+`(gravity,fuel,oxygen)` + the raw road array — it builds a large DERIVED
+state from the raw `ROADS.LZS` entry (the `0x6C40` block is almost certainly
+the expanded per-segment road/perspective geometry the gameplay sub-step and
+renderer actually read, distinct from both the raw `UINT16LE[] road` and the
+compressed file bytes). The raw road array itself lands in a separately
+allocated buffer (found byte-exact at physical `~0x17E0C`, OUTSIDE DGROUP —
+which is why it's not in this DGROUP-relative diff).
+
+**Honest scope statement**: `apply_level_init` (already recovered) covers the
+fixed respawn/gravity fields, and `read_level_header`/`read_level_road`
+(byte-exact, previous entry) cover the raw asset data — but a genuinely
+VM-free `--level N` start ALSO needs the raw→derived transform that produces
+that ~15 KB of DGROUP state. That transform is a real, bounded, recoverable
+subsystem (its inputs are now fully in hand — the verified raw road array —
+and its output is exactly measurable via this diff), but it is NOT "just
+wiring": it's the next substantial RE target on the load path. Until it's
+recovered, `play_native.py` still seeds the full DGROUP from a one-time VM
+boot (the current, honest hybrid). The gameplay simulation and the asset
+load are both proven VM-free; this derived-geometry build is the specific,
+now-precisely-scoped remaining piece of "load a level" from scratch.
+
 ## 2026-07-12 — native road-geometry decode is now VM-verified byte-exact — "load a level" is proven end-to-end, VM-free
 
 Closed the one honest caveat left in the level-loading chain. `read_level_
