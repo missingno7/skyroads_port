@@ -68,8 +68,56 @@ This is the same lindis→liftgen→liftverify→port workflow that just landed 
 render tree; the target is liftable, verified on its real path, and has a
 positioned snapshot to iterate on.
 
+## 2026-07-12 (latest+4) — DIG (per user): two big corrections — `0x162C` is LZS-LOADED not computed; `4331` is a palette fade not sim-staging. Native level-init = LZS-decompress-and-place
+
+Digging against the demos (user pointed at pre2_port for inspiration) overturned
+two things I had wrong, and simplifies milestone 1.
+
+**CORRECTION 1 — `0x162C` perspective table is LZS-DECOMPRESSED level data, NOT
+computed.** Traced writers to `0x162C..0x18FF` during the level-load demo
+(`demo_skyroads_20260711_202740`): the only writers are **`0x6712` =
+`lzs_decode_loop`** and `0x5d18` (a copy), 724 bytes at frame 45. `0x6712` is the
+SAME LZS decoder already proven byte-exact for `road[]`. So the perspective LUT
+is shipped in a level file (WORLD*.LZS block B, per `level_format.md` — which was
+RIGHT) and decompressed in, not built by `4B8E`/`34AE`. **Retract** the earlier
+"`4B8E` clears+fills `0x162C`" and "`34AE` builds `0x162C` from staging" claims.
+
+**CORRECTION 2 — `4331` is a PALETTE CROSS-FADE (render side-effect), not the
+road→staging transform.** Full disasm (`43F4`-`4458`): its inner loop is a linear
+blend `dst[i] = src1[i] + (src2[i]-src1[i])*pct/100` reading the tile bank
+(`7176:0`), then it calls `6168` (`palette_upload`) each step and loops the blend
+`pct` 0→100. That's a visual fade, exactly the render side-effect pre2's rule
+says to keep OUT of the DGROUP sim contract. **Retract** "`4331` stages road data
+into `0x31A8`."
+
+**CORRECTION 3 — my `4B8E` oracle caught the WRONG call.** The `4B8E` I captured
+(frame 46, args `[0x5174,...]`) has `0x162C` all-zeros in its post-state, and
+even the confirmed gameplay snapshot `gameplay_f640` has `0x162C..0x18FF` mostly
+zero (35/724 nonzero) — the LUT is SPARSE, which also confounds byte-matching it
+to files. So `artifacts/oracle_4b8e` is not the level-load witness I need.
+
+**Net: milestone 1 is a LZS-DECOMPRESS-AND-PLACE job (pre2's
+`native_level_load_dgroup` pattern), not a computed-transform port.** The
+level-dependent sim seed (perspective LUT, road cells, params) is all level-file
+data. The recovered `codecs/lzs` (byte-exact) + `roads_archive` already do the
+decompression; what's missing is a native WORLD*.LZS container loader (CMAP
+palette + LZS payload → blocks A/B/C at DGROUP `0x54B0`/`0x162C`/seg `0x7176`),
+the level→world mapping, and placing it all over a `NativeGameState`.
+
+**Clean next dig (replaces the confounded file-byte search):** instrument the LZS
+decoder `6712` during the REAL level-load and record (input-file-bytes →
+output-DGROUP-offset) pairs — a definitive file→DGROUP map. Then mirror pre2's
+`probe_native_level_load`: run the real loader to capture the post-DGROUP witness
+at the RIGHT point (the actual gameplay-start, not a stray `4B8E`), build
+`skyroads/native/level_load.py` to reproduce it, assert byte-exact.
+
+---
+
 **CAPTURED THE `4B8E` ORACLE + shrank the target (following pre2_port's
 `native/level_load.py` + probe blueprint — see memory `pre2-native-load-blueprint`).**
+> SUPERSEDED by the entry above: the captured `4B8E` was not the level-load
+> witness (its `0x162C` is zero), and `4B8E`/`34AE` do NOT build `0x162C` — it's
+> LZS-loaded. Kept for the audit trail.
 Ran real `4B8E` from the level-load demo `demo_skyroads_20260711_202740`
 (args `[0x5174,0,0x24,0xa]`, caller `0x5374`) and diffed DGROUP before/after:
 
