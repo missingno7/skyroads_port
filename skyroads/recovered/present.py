@@ -85,3 +85,42 @@ def masked_blit(
     for _ in range(bottom_count):
         wb(dest_seg, di, rb(srcA_seg, di))
         di = (di + 1) & 0xFFFF
+
+
+#: VGA mode-13h scanline stride (bytes per row) — the dest cursor advances by
+#: this per presented row (`1010:426A`).
+VGA_SCANLINE = 0x140
+
+
+@oracle_link(
+    boundary="1010:4201",
+    contract="present_rect(rb, wb, dest_seg, srcA_seg, srcB_seg, dest_off, rows, "
+             "width, thresh_lo, thresh_hi): present a rows x width rectangle from "
+             "source B onto the destination, one scanline per row via masked_blit "
+             "(top=bottom=0, total=width). Per row: dest cursor advances by "
+             "VGA_SCANLINE (0x140), source-B cursor advances by width. This is "
+             "34AE's off-screen road buffer -> VGA scanline flush (the row-loop "
+             "path of 1010:4201; the [003C]==0 fast-VGA branch to 1010:3D18 is a "
+             "separate path not modelled here).",
+    status="ASM_MATCHED",  # full-memory-diff verified over real 1010:4201 row-loop calls
+    merge_target="skyroads.native.present (future)",
+)
+def present_rect(
+    rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
+    dest_seg: int, srcA_seg: int, srcB_seg: int,
+    dest_off: int, rows: int, width: int,
+    thresh_lo: int, thresh_hi: int,
+) -> None:
+    """Reproduce `1010:4201`'s scanline present loop: blit ``rows`` scanlines of
+    ``width`` color-keyed pixels from ``srcB_seg`` onto ``dest_seg`` starting at
+    ``dest_off``, calling :func:`masked_blit` per row. The destination cursor
+    steps by :data:`VGA_SCANLINE` each row; the source-B cursor steps by
+    ``width``."""
+    dst = dest_off & 0xFFFF
+    src = 0
+    for _ in range(rows):
+        masked_blit(rb, wb, dest_seg, srcA_seg, srcB_seg, dst, src,
+                    top_count=0, bottom_count=0, total=width,
+                    thresh_lo=thresh_lo, thresh_hi=thresh_hi)
+        dst = (dst + VGA_SCANLINE) & 0xFFFF
+        src = (src + width) & 0xFFFF

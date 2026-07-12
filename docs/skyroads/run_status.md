@@ -4,6 +4,42 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — RECOVERED the road-present scanline loop (`1010:4201`), 12/12 — the render→screen present pipeline is now complete end to end
+
+Found and recovered the piece that drives the road onto the actual screen.
+Traced what writes VGA (`0xA000`) in gameplay: it's **~569 small `41A0`
+masked-blit calls per window, all from one caller** (`1010:4201`). So the road
+isn't one big blit — it's presented SCANLINE BY SCANLINE. Disassembled `4201`:
+it reads a 4-field descriptor `{srcB_seg, dest_off, rows, width}` and loops
+`rows` times calling `41A0` (`masked_blit`), advancing the dest cursor by
+`0x140` (a VGA scanline) and the source cursor by `width` each row — a
+`rows x width` color-keyed rectangle flush.
+
+Ported it to `skyroads/recovered/present.py::present_rect` and verified by
+FULL-MEMORY DIFF against real `4201` row-loop invocations: **12/12 calls
+reproduce every VGA byte written, byte-exact** (the initial "mismatch" was
+purely the timer ISR's counter bytes at `0x220f0-0x2210b`, written because a
+`4201` call spans hundreds of steps so many ticks fire — comparing only the
+destination VGA segment isolates `present_rect`'s output). Landed
+`tests/test_present_rect.py` (the 12/12 fixture match + a cursor-stride test)
+and a compact fixture. Layer audit + lint clean.
+
+**The full road render→screen pipeline is now recovered and every stage
+VM-verified:**
+
+    34AE mode-0 setup + render_classify + dispatch + road_column_strip
+        -> off-screen road buffer   (686/686, byte-exact)
+    present_rect (1010:4201 row loop)
+        -> masked_blit (1010:41A0) per scanline
+        -> VGA                       (12/12 rows, 19/20 blits, byte-exact)
+
+Every PRIMITIVE from the road records to the pixels on screen is now a
+verified pure function. What remains to run a full native VISIBLE frame is
+pure ASSEMBLY (thread `34AE`-composite → `present_rect` over a
+`NativeGameImage` with the real descriptor + threshold fields, then diff the
+VGA framebuffer against the VM — the new `frontend_timeline` harness is built
+for exactly this), plus the `[003C]==0` fast-VGA path (`1010:3D18`) `4201`
+takes in the non-gameplay case, which is a separate, smaller follow-up.
 ## 2026-07-12 — RECOVERED the screen-present masked blit (`1010:41A0`), verified byte-exact — the presentation piece
 
 Ported `1010:41A0` (the screen present found in the prior entry) to a pure
