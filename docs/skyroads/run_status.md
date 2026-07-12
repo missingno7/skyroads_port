@@ -28,11 +28,19 @@ compute an iteration count (`100 * ds:[1600] / param`, clamped ≤ 100); set a
 destination pointer to the `0x31A8` staging buffer; then loop reading from
 two source segments (params at `bp+4`/`bp+6`) and writing processed data
 into `0x31A8`. That's road-data PREPARATION (computation), not I/O. The
-"didn't return in 20M steps" is the emulated-call STEP BUDGET being hit by a
-high-iteration-count run of this loop under emulation — the same
-high-iteration-loop class the `--max-iterations` tooling (added earlier this
-session) exists for, NOT a genuine hang. So `4B8E`+`4331` are recoverable
-computation; my "I/O entanglement" read was wrong and is retracted here.
+"didn't return in 20M steps" is NOT a genuine hang — my "I/O entanglement"
+read was wrong and is retracted here.
+
+**Measured `4331`'s real cost to pin this down precisely**: instrumented the
+live VM and it returns in **~30,266 steps** — a modest bounded loop, ~660×
+UNDER the 20M budget. So the lift failure isn't "4331 is inherently huge";
+it means the emitted `4B8E` lift feeds `4331` the WRONG inputs on the branch
+that calls it (a garbage loop-bound or source pointer → a runaway that would
+terminate correctly with the right state). Since that call lives in one of
+the 10 blocks the single real sample did NOT cover, it's an untested-path
+lift bug, not a property of the function. So `4B8E`+`4331` are recoverable
+bounded computation; full recovery needs debugging the lift's state setup on
+the `4331`-calling path (or hand-porting from the now-disassembled blocks).
 
 **Honest state**: `4B8E` is confirmed the right target and is
 computation-not-I/O, its lift verifies on the real path, and a positioned
