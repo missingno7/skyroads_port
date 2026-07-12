@@ -232,6 +232,37 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+20) — HUD gauge system fully decoded: one updater (`12F8`), three DAT widget banks, the `0F8C` widget drawer
+
+The live-gauge machinery is now completely mapped (the port is a bounded
+transcription + the same write-log verification used for the tile dispatch):
+
+- **`0F8C(widget_far_ptr, flag)` — the widget drawer** (per-frame HUD writes
+  in gameplay are ONLY this): widget = 4-byte header (`dest_off` word into the
+  compose buffer `[AF2A]`, `w`, `h`) + stencil data; draws via `stencil_blit`
+  (pure ✓, template/other colours `0x5C..0x5F` by `flag`, or 0/5/8 in the
+  `[003C]==0` modes), then presents the rect via `4201` (pure ✓) to `A000`
+  (and `A200` when page-flipping). Steady-frame observed widgets:
+  fuel cells `221a:xxxx` (= FUL_DISP.DAT, 7×4), oxygen cells `2232:xxxx`
+  (= OXY_DISP.DAT, 7×4), speed cells `224b:xxxx` (= SPEED.DAT, 5×8) — the
+  boot-loaded DAT files ARE the widget stencil banks.
+- **`12F8` — the per-frame HUD updater** (called from the main loop, enter
+  0x10): (1) lamp blink flag `di` from `([1600]/9)` remainder >4;
+  (2) SPEED dial: `new = clamp((ship_pos − [AF2E:AF30]) / 0x141, ≤0x22)`,
+  cached at `[41BE]`; walks cells between cache and new, per cell
+  `0F8C([54A4:54A6] + word[0x4572 + cell*2], flag = cell<=bound)`;
+  (3) OXYGEN bar: `new = ([B13C]+0xBB7)/0xBB8` clamp 10, cache `[456C]`,
+  cells via base `[5474:...]` + table `word[0x95F8 + cell*2]`;
+  (4) `game_state==5` + lamp-flag edge → a digit-pair draw `1282(0xA0,0xA1,
+  7,7,colors)` + sfx trigger `03C2(3)`; (5) FUEL bar: `([5494]+0xBB7)/0xBB8`
+  clamp 10, same cell walk (tail at `14B0+`); helpers `1191`/`11D3`/`1282`
+  (cell compare/draw/pair).
+- Port plan (next focused turn): transcribe `12F8` + helpers into
+  `skyroads/native/hud.py` over the pure `stencil_blit`/`present_rect`,
+  verify with the same VM write-log capture (widget-draw sequence + A000
+  bytes), wire into the window per frame (present A000 rows live instead of
+  the frozen dashboard copy).
+
 ## 2026-07-12 (latest+19) — 🧭 the COCKPIT in the window; HUD text/flush drivers decoded
 
 The window now presents the full 320×200 game screen: the composed native
