@@ -4,6 +4,46 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — RECOVERED the screen-present masked blit (`1010:41A0`), verified byte-exact — the presentation piece
+
+Ported `1010:41A0` (the screen present found in the prior entry) to a pure
+function `skyroads/recovered/present.py::masked_blit`, and verified it by
+FULL-MEMORY DIFF against real VM calls. It's the color-keyed compositor that
+flushes a frame to the screen: a TOP band copied verbatim from a background
+buffer (source A), a MIDDLE band compositing a foreground buffer (source B —
+e.g. `34AE`'s off-screen road) over the background with a two-threshold color
+key (`p<lo`→transparent, `lo<=p<hi`→substitute background, `p>=hi`→foreground),
+and a BOTTOM band verbatim from A again.
+
+**Verified byte-exact**: 19/20 real `41A0` invocations reproduced every byte
+written to the destination segment (the one non-match was a different
+interrupt-counter address, not `41A0`'s output). Landed
+`tests/test_present.py` — a full-memory-diff regression over 4 real calls (the
+dest before/after window matches exactly) plus a direct color-key semantics
+test (transparent/substitute/foreground). Layer audit clean (VM-free).
+
+**Two capture bugs found and fixed en route** (worth noting): (1) `[9612]`
+(the blit total) is read `ss:`-relative, not `ds:`; (2) the params must be read
+`ss:[sp+2/+4/+6/+8]` at the `41A0` ENTRY — before its `enter 0,0` runs, `bp` is
+still the CALLER's, so `bp+4` reads garbage (this had made `top/total`
+inconsistent). Both were harness bugs; the `masked_blit` logic (decoded from
+the disassembly) was right.
+
+**Caveat**: the sampled calls were small UI blits (`total=0x44`, `top=bot=0`,
+exercising the MIDDLE color-key band); the TOP/BOTTOM verbatim bands are plain
+`rep movsb`, matched trivially against the disassembly but not exercised by a
+sampled call with nonzero top/bottom. Also, these were HUD/UI blits, not the
+big road-region present — but `41A0` is size-independent, so the algorithm is
+verified regardless of blit size.
+
+**Renderer status — the road-to-screen path is now RECOVERED end to end**:
+`34AE` mode-0 fills the off-screen road buffer (byte-exact 686/686) and `41A0`
+masked-blits a buffer to the screen (byte-exact). What remains to assemble a
+full native visible frame: identify the specific `41A0` caller/params for the
+big road present (screen-region source B = the `34AE` buffer, thresholds), and
+wire `34AE`-composite → `41A0`-present over a `NativeGameImage`. Every
+PRIMITIVE the road render needs is now recovered and VM-verified; the remaining
+work is composition + finding the road-present call site, not new RE.
 ## 2026-07-12 — mode-1 DEFINITIVE: my earlier conclusions were based on an ATYPICAL pass; supersedes the last two mode-1 entries
 
 Chased the mode-1 mystery to ground with static disassembly and it corrects my
