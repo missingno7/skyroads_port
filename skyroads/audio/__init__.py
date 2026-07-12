@@ -14,3 +14,15 @@ Boundary architecture (mirrors `pre2_port/pre2/audio/`):
     music's notes/patches, like pre2's enhanced backend plays the original
     tracker data through a modern mixer.
 """
+
+
+#: The VM live-viewer's AdLib/OPL + Sound Blaster PCM sink (formerly the
+#: ``skyroads/audio.py`` MODULE this package superseded) now lives in
+#: :mod:`skyroads.audio.sink`; re-exported lazily so ``from skyroads.audio
+#: import SkyroadsAudioSink`` keeps working without dragging pygame into the
+#: pure events/decoder consumers.
+def __getattr__(name):
+    if name == "SkyroadsAudioSink":
+        from skyroads.audio.sink import SkyroadsAudioSink
+        return SkyroadsAudioSink
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
