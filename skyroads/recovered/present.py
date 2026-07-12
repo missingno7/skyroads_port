@@ -1,12 +1,20 @@
-"""SkyRoads screen-present masked blit — `1010:41A0`.
+"""SkyRoads screen-present masked blits — `1010:41A0` (`masked_blit`),
+`1010:4201` (`present_rect`), and `1010:3A22` (`sprite_blit`).
 
-The routine that puts a composited frame onto the screen: a general
-masked/color-keyed blit that copies a BACKGROUND buffer (source A) verbatim in a
-top and bottom band, and in the middle band composites a foreground buffer
-(source B — e.g. the off-screen road buffer `34AE` fills) over the background
-with a two-threshold color key. This is what actually flushes the road to VGA
-each frame (found 2026-07-12 by tracing what writes `0xA000`; see run_status.md
--- it is NOT `34AE` "mode-1", which only fills the off-screen buffer).
+General masked/color-keyed blits that put composited pixels onto the screen.
+`masked_blit` copies a BACKGROUND buffer (source A) verbatim in a top and bottom
+band, and in the middle band composites a foreground buffer (source B) over the
+background with a two-threshold color key.
+
+ROLE CORRECTION (2026-07-12, see run_status.md): `masked_blit`/`present_rect`
+are the **HUD/dashboard** present path, NOT the gameplay road. A definitive
+`write_watchers` scan of VGA (`0xA000`) over steady-gameplay frames shows the
+road and ship draw DIRECTLY to VGA via `road_column_strip` (`1010:38BF`,
+`recovered/road_column.py`) and `sprite_blit` (`1010:3A22`, below);
+`masked_blit` (`1010:41f1`) contributes only ~2.4 KB/100 frames — the small
+dashboard widgets, not the full-screen road. The functions here remain
+byte-exact against their real ASM calls (19/20 and 12/12); only the earlier
+"this flushes the road" framing was wrong.
 
 Decoded from the disassembly (`1010:41A0-4200`):
 
@@ -124,3 +132,48 @@ def present_rect(
                     thresh_lo=thresh_lo, thresh_hi=thresh_hi)
         dst = (dst + VGA_SCANLINE) & 0xFFFF
         src = (src + width) & 0xFFFF
+
+
+#: sprite_blit fixed geometry (baked into the routine, not passed in):
+#: a 29-column-wide masked flip; the source/dest advance 320 (0x140) bytes per
+#: row (0x1D consumed in the inner loop + 0x123 added after), the mask is packed
+#: 29 bytes/row with no padding.
+SPRITE_BLIT_WIDTH = 0x1D
+_SPRITE_BLIT_ROW_SKIP = 0x0123  # 0x1D + 0x123 == 0x140 (one screen row)
+
+
+@oracle_link(
+    boundary="1010:3A22",
+    contract="sprite_blit(rb, wb, dest_seg, src_seg, mask_seg, src_off, "
+             "mask_off, rows): a 29-wide masked flip of a sprite/overlay onto "
+             "the visible buffer. For each of `rows` rows: the dest cursor di "
+             "starts at the CURRENT source offset si (dest and source share "
+             "row*0x140+col, different segments); for the 29 columns copy "
+             "src[si] -> dest[di] ONLY where mask[bx]==2 (opaque), advancing "
+             "si/di/bx by 1 each; after the row si += 0x123 (so si advances a "
+             "full 0x140 screen row) while the packed mask bx just continues "
+             "(29 bytes/row, no padding). This is the gameplay ship/object "
+             "compositor that draws DIRECTLY to VGA (see run_status.md).",
+    status="ASM_MATCHED",  # full-memory-diff verified over real 1010:3A22 calls
+    merge_target="skyroads.native.present (future)",
+)
+def sprite_blit(
+    rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
+    dest_seg: int, src_seg: int, mask_seg: int,
+    src_off: int, mask_off: int, rows: int,
+) -> None:
+    """Reproduce `1010:3A22`'s masked sprite flip. Copies from ``src_seg`` to
+    ``dest_seg`` at the SAME offset (dest cursor resets to the source cursor at
+    the top of every row), gated by a packed ``mask_seg`` table where a byte of
+    ``2`` means opaque. Width is a fixed 29 columns; ``rows`` rows are drawn."""
+    si = src_off & 0xFFFF
+    bx = mask_off & 0xFFFF
+    for _ in range(rows):
+        di = si
+        for _ in range(SPRITE_BLIT_WIDTH):
+            if rb(mask_seg, bx) == 0x02:
+                wb(dest_seg, di, rb(src_seg, si))
+            si = (si + 1) & 0xFFFF
+            di = (di + 1) & 0xFFFF
+            bx = (bx + 1) & 0xFFFF
+        si = (si + _SPRITE_BLIT_ROW_SKIP) & 0xFFFF
