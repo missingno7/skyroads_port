@@ -232,6 +232,36 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-13 — ghosting cornered: sim is EXACT; trails start when the composite's columns fire (block approach)
+
+Systematic elimination (all offline against the level-14 demo):
+
+- **The native sim is NOT drifting**: from the same seed, my driver's
+  `[9618]`/ship_pos match the VM's substeps BIT-FOR-BIT (native t8/t9 ==
+  VM f92/f93). The earlier "6.7x rate" read was wrong — `[9618]` grows
+  QUADRATICALLY by design (it accumulates ship_pos) in both. af1c/af2c stay
+  constant (0x8000/0x2800) while driving; the demo's wedge NEVER moves after
+  the first draw (the only dirty-cache miss in 160 frames is the initial
+  cache fill at frame 78; note the cache check must be instrumented at 0C98
+  ENTRY — 0C98 updates the cache before calling 2D1F).
+- **The renderer is clean through rotation crossings while the road is
+  empty**: ghost_t60 (rotations 3→5, composite columns = 0) is pixel-perfect.
+- **Trails begin exactly when `composite_mode0`'s road_column_strip calls
+  START FIRING** (tick 144+, counts 2/6/10 as BLOCKS approach; histogram
+  0×144, then 2/6/10). ghost_t199 shows the wedge trails.
+- Checked and ruled out: records a/b ordering (hook uses [0E62] then [0E60];
+  my setup passes prev([0E62-equiv]) then cur ✓ same), e64 passed explicitly ✓.
+
+**Remaining suspects (next capture decides):** (a) the `34AE(1)` MODE-1 pass
+`2D1F` makes at its end (my compose skips it) — likely the restore/present
+companion whose absence shows once columns write pixel runs; (b) the live
+column pixel-run writes themselves (di derivation from live e44/e46/e64 in
+sequence). DECISIVE NEXT STEP: in demo_e2e (blocks early), capture consecutive
+live `2D1F` pre/post pairs across a block approach where in-frame 38BF writes
+occur, and lockstep my compose per frame — first divergent write names the fix.
+Also fixed understanding: `[9618]` = the forward-scroll accumulator (quadratic),
+`lateral_col=[0E2A]` advances ~1 rotation step/9 ticks at speed 1.
+
 ## 2026-07-12 (latest+21) — ghosting investigation: single/consecutive frames are VM-exact; the drift is param-change erase
 
 User reports from the native window: (a) GHOSTING on the background, (b) no
