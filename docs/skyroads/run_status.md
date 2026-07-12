@@ -232,6 +232,38 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+6) — LOADER ROUTINES PINNED (from disassembly, churn-immune): 0x55C0 orchestrator + 5C77/5FB5/5D07
+
+Switched from write-tracing to reading the loader's CODE (bp-frame walk at the
+`0x162C` write → its caller region, then lindis from `gameplay_f640` where the
+`0x5xxx`/`0x6xxx` load code is NOT overlaid). The geometry loader is now mapped
+to exact routines:
+
+- **`0x5614`** — per-block init: `call 5D07(dst=0x162C, val=0, count=0x1B58)`
+  = **memset** clearing the 7000-byte perspective region, then `5C77(0x0E08)` +
+  decode. (This is the "clear [0x162C..+0x1B58]" from the earlier entry — it is
+  `5D07`, a memset, NOT a `rep stosb` in `4B8E`.)
+- **`0x55C0`** — the level-FILE loader orchestrator: `5C77(0x0E00)` **opens** a
+  file (handle → `ds:[41AC]`, the documented `_LZS_FILE_HANDLE`), `5FB5(...)`
+  **reads+LZS-decodes**, `5C11` **closes**. Returns to `0x2C61`.
+- **`5C77`** = file open (arg = a filename/descriptor pointer, e.g. `0x7D64`);
+  **`5FB5`→`5F7D`** = the LZS read/decode driver (→ `6712`); **`5D07`** = memset;
+  **`5C11`** = close. The `5F*` family are thin wrappers over C-library stdio
+  (`INT 21h` at `5FCC` kbhit / `5FD4` putchar / `5FEB` getch) — i.e. the
+  file/console I/O layer, which is exactly where the **native file-read shim**
+  substitutes (no VM DOS).
+
+**So the native loader reimplements a small, pinned set:** `5C77` open → native
+file open; `5FB5`/`5F7D` decode driver → native LZS decode (`codecs/lzs`, already
+recovered) reading the file bytes; `5D07` memset; the `0x55C0`/`0x5614`
+orchestration (which block → which dest, e.g. `0x162C`). All are in the
+liftable census (`5D07`/`5F95` etc.) or thin I/O wrappers. This is the concrete
+spec for finishing `native_level_load`'s placement — reimplement these routines
+(most are trivial: memset, open, close; the substance is `5F7D`'s decode-driver
+loop + the `0x55C0`/`0x5614` block→dest mapping), fed by the file shim, verified
+byte-exact vs a VM witness. NOTE `0x6308 = call main(0x01B8)` (crt0), so the load
+sits inside `main`'s call tree — reachable and disassemblable, not overlaid.
+
 ## 2026-07-12 (latest+5) — native `level_load.py` scaffold landed; perspective-placement chain traced; write-tracing hits its limit (→ lift)
 
 - **Landed `skyroads/native/level_load.py`** (pre2-style, committed): the
