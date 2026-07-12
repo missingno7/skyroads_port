@@ -74,6 +74,17 @@ the 2026-07-12 leaf-lift census). **Recovering `1010:41A0` is the concrete,
 bounded remaining piece for native presentation** — it + the byte-exact mode-0
 composite = the road on the actual VGA screen, VM-free. This supersedes every
 mode-1 entry below; there is no "mode-1 variant-B" pass to recover.
+
+**Refinement**: `41A0` is a GENERAL masked-blit PRIMITIVE, not solely the road
+present — called with varied params (`bp+4`=dest off, `bp+6`=src-B off,
+`bp+8`=top verbatim count, `bp+10`=bottom verbatim count) for different blits (a
+sampled gameplay call was degenerate: `bp+8=0`, `[9612]=4`, 6 bytes changed, no
+VGA write). So recovery is two bounded steps: port the masked-blit LOGIC (top
+verbatim | middle color-keyed src-B-over-src-A | bottom verbatim — already
+decoded above; verify by full-memory-diff over several real calls, the
+`road_column_strip` pattern), then find the specific road-present caller
+(screen-sized params writing the road region to VGA).
+
 ## 2026-07-12 — mode-1 sharpened: it DOES run 80 variant-B dispatches / 74 rcs (same loop shape as mode-0), but its classification fields are NOT at [0E44]…
 
 Follow-up that pins the mode-1 mystery precisely. Instrumented a real mode-1
