@@ -4,6 +4,62 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — fully decoded 34AE's render-CLASSIFICATION loop (the dispatch-input producer) + captured its static tables — the renderer's next port, spec'd precisely
+
+Toward assembling a native renderer, isolated the one un-ported piece
+between the road-segment records and the already-recovered dispatch/
+compositor: **34AE's render-classification loop** (`1010:356B-3627`, blocks
+15-22 of the proven lift). Read it directly from the proven lift and worked
+out the complete algorithm — a TRIPLE-nested loop, one `call [0E42]`
+(dispatch) per innermost iteration:
+
+    e4c = record_base                       ; road-segment record pointer
+    for e44 in 11 down to 1:                 ; outer; e4c -= 0xE each pass
+      for e46 in 1..4:                       ; middle
+        for e48 in (0, 1):                   ; inner toggle (xor [0E48],1)
+          col = (4 - e46) if e48 != 1 else (e46 + 2)   ; block 16 = neg path
+          bx  = e4c + 2*col
+          si  = 2 - 4*e48
+          e56 = mem[bx]      & 0xF           e5c = mem[bx]      >> 4
+          e58 = mem[bx-0xE]  & 0xF           e5e = mem[bx-0xE]  >> 4
+          e5a = mem[bx+si]   & 0xF
+          e4e = BA7[ mem[bx+1]     & 7 ]
+          e50 = BA7[ mem[bx-0xD]   & 7 ]
+          e52 = BA7[ mem[bx+si+1]  & 7 ]
+          e54 = BA7[ mem[bx+si-0xD]& 7 ]
+          call [0E42]                         ; -> dispatch_variant_a/_b (recovered)
+    call 39D4                                 ; finalize (lifted+installed)
+
+Two subtleties confirmed against the lift (the class that bit the earlier
+`road_frame.py` draft): the `[0E48]-1` and `[0E44]-1`/`[0E46]-4` ops are
+`cmp` (flag-only), not stores; the two `neg` ops (`f7d8`/`f7de`, interpreter
+fallbacks in the lift) are what make `col` and `si` their signed forms above.
+
+**Captured the two static tables** this loop and 34AE need, from a live
+gameplay frame:
+- `ds:[0BA7]` shape-reduction table = **`[1,2,3,3,4,4,1,1]`** (8 bytes, a
+  genuine compile-time constant — bakeable into the port).
+- `ds:[0E76]` = 8 words `[0x2b12,0x311b,0x3766,0x3dd4,0x4459,0x4b02,0x518c,
+  0x57fe]` — but these are RUNTIME-ALLOCATED buffer segments (session-
+  specific), NOT constants; a native renderer allocates its own.
+
+**Verification approach identified** (not yet run to completion): the port
+is a pure function `(rb, ds_seg, record_base) -> list of (e44..e5e) tuples,
+one per dispatch call`, checkable against a VM capture of those fields at
+each `1010:35F8`. Note: this must be captured from a GAMEPLAY demo where the
+classification path actually runs — the short `demo_skyroads_20260711_202740`
+clip's 34AE calls all took the early-exit/fast-copy path (0 dispatch calls
+hit), so the e2e/gameplay demos are the right oracle source (they're what
+`test_render_dispatch`'s own fixtures came from).
+
+**Status**: the render-classification algorithm is now precisely and
+correctly spec'd from the proven lift (the hard part), and its inputs
+(tables, record layout) are in hand. The remaining work is the careful port
++ verification against a gameplay-demo capture — deliberately NOT rushed at
+the tail of a long session given this exact code's history of subtle
+transcription errors. This is the concrete, well-scoped next renderer step:
+`render_classify` → (recovered) dispatch → (recovered) `road_column_strip` →
+(lifted) `39D4` would then be a COMPLETE native column-render pass.
 ## 2026-07-12 — censused the level-start call graph and lifted 3 more leaf helpers; found the auto-lifter's first DIVERGENCE (59CF) — verifier caught it
 
 Back to "keep hooking and lifting the load/start/play path." Censused every
