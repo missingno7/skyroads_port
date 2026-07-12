@@ -1,10 +1,10 @@
 """Native, VM-free level loading (`skyroads.native.level_load`).
 
-The file-decode half is recovered today: `decode_level_files` reads and
-decompresses any of ROADS.LZS's 31 levels with no VM (reusing the VM-verified
-`roads_archive`). The DGROUP-placement half is loader-lift-pending, so
-`native_level_load` fails loud — this test pins both the working decode and that
-honest boundary.
+`decode_level_files` reads and decompresses any of ROADS.LZS's 31 levels with no
+VM (reusing the VM-verified `roads_archive`); `native_level_load` places the
+geometry seed at its recovered, VM-verified DGROUP offsets. The final test plays
+a natively-loaded level and checks it advances on the golden trajectory that was
+verified byte-for-byte against the VM (2026-07-12).
 """
 from __future__ import annotations
 
@@ -14,10 +14,15 @@ import pytest
 
 from skyroads.native.level_load import (DecodedLevel, decode_level_files,
                                         native_level_load, read_game_file)
-from skyroads.native.state import NativeGameState
+from skyroads.native.state import NativeGameState, DATA_SEG
 from skyroads.recovered import roads_archive
 
-ASSETS = Path(__file__).resolve().parents[1] / "assets"
+ROOT = Path(__file__).resolve().parents[1]
+ASSETS = ROOT / "assets"
+#: a level-independent constants baseline (a captured gameplay DGROUP); the sim's
+#: level-independent constants (clip/shape tables) are computed at startup, so a
+#: fresh state lacks them. Gitignored; the play test skips without it.
+BASELINE = ROOT / "artifacts" / "snapshots" / "gameplay_f640" / "memory_1mb.bin"
 
 pytestmark = pytest.mark.skipif(
     not (ASSETS / "ROADS.LZS").exists(), reason="game assets not present")
@@ -89,3 +94,36 @@ def test_native_level_load_all_levels() -> None:
     """Every level places without overflowing the 0x1B58 region."""
     for lv in range(31):
         native_level_load(NativeGameState(), lv, game_root=ASSETS)
+
+
+@pytest.mark.skipif(not BASELINE.exists(), reason="constants baseline snapshot not present")
+def test_native_loaded_level_plays_the_vm_golden_trajectory() -> None:
+    """MILESTONE 1: a level loaded purely from ROADS.LZS by index, over a
+    level-independent constants baseline, plays IDENTICALLY to the VM. Holding
+    accelerate, the ship advances +75/tick on the exact trajectory captured from
+    the original game for level 14 (0x4B,0x96,0xE1,…) and crashes into the same
+    obstacle at frame_ctr 108 (game_state=3) — verified byte-for-byte against a
+    VM-captured level-14 seed (see run_status.md 2026-07-12)."""
+    from skyroads.native.loop import NativeGameplayDriver, apply_level_init
+    from skyroads.bridge.dgroup_view import GameView
+
+    dg = BASELINE.read_bytes()[(DATA_SEG << 4):(DATA_SEG << 4) + 0x10000]
+    state = NativeGameState(bytearray(dg))
+    native_level_load(state, 14, game_root=ASSETS)      # VM-free load by index
+    gate = state.rw(0x4562)
+    view = GameView(state)
+    scratch = apply_level_init(view, gate)
+    driver = NativeGameplayDriver(view, gate, scratch)
+
+    trajectory = []
+    outcome = None
+    for _ in range(400):
+        view.speed = 1                                  # hold accelerate
+        outcome = driver.tick()
+        trajectory.append(view.ship_pos)
+        if outcome.transitioned:
+            break
+
+    assert trajectory[:5] == [0x4B, 0x96, 0xE1, 0x12C, 0x177]   # +75/tick, VM-exact
+    assert outcome is not None and outcome.transitioned
+    assert "game_state=3" in outcome.reason and "frame_ctr=108" in outcome.reason
