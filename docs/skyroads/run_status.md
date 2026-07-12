@@ -4,6 +4,38 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — CORRECTION: the "~15 KB derived transform" is mostly just more LZS decompression (already-recovered codec), not a novel unrecovered subsystem
+
+The previous entry ("scoped what a FULLY-native level-start still needs")
+called the `[0x6C40-0x71E1]` DGROUP block "a large DERIVED state... a real,
+bounded, recoverable subsystem... the next substantial RE target." That
+OVERSTATED it. Traced which code actually writes that region during
+menu→gameplay: **every write comes from `1010:6712`** — the LZS
+decompressor's own main loop (`skyroads/codecs/lzs.py`, already recovered and
+verified). So the biggest chunk of the 15 KB isn't a novel transform at all;
+it's another asset run through the codec this project ALREADY has.
+
+Confirmed it's a DIFFERENT asset, not the road array: captured
+`DGROUP[0x6C40..0x71E1]` at gameplay start (1442 bytes, begins
+`23 00 43 00 53 00 73 00 ...`) and it does NOT contain the level's
+decompressed road geometry (`read_level_road(14)`, which lives in its own
+buffer at `~0x17E0C`, matched byte-exact two entries ago). It's some other
+LZS-compressed resource decompressed into a DGROUP working area — most
+likely world/tile graphics (`WORLD5.LZS` opens at level-load alongside
+`ROADS.LZS`, per the file-open trace), i.e. RENDER data, not gameplay-
+simulation state.
+
+**Honest corrected scope**: "load a level" on the DATA side is closer to done
+than the previous entry implied — it's the already-recovered LZS codec
+applied to a few more inputs (road array ✓ byte-exact; the other blocks are
+the same codec, source files identified), NOT an unrecovered per-segment
+geometry-build subsystem. What a fully-native SIMULATION start actually needs
+is the SUBSET of that 15 KB the gameplay sub-step reads (not all of it — much
+is render-only graphics), which is a smaller, more targeted question than
+"reproduce the whole diff." The genuinely-unbuilt large piece remains the
+RENDERER (consuming those graphics blocks), not a mysterious geometry
+transform. Retracting the "substantial new RE target" framing — it was wrong.
+
 ## 2026-07-12 — scoped what a FULLY-native level-start still needs: level-load builds ~15 KB of derived DGROUP state, not just a few fields
 
 With native level LOAD proven byte-exact (previous entry), measured exactly
