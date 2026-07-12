@@ -150,11 +150,36 @@ real WORLD4 decode to record exact (decompressed-source-offset →
 DGROUP-dest-offset, length) tuples — the definitive placement map — rather than
 guessing block layout.
 
-**Clean next dig (replaces the confounded file-byte search):** instrument the LZS
-decoder `6712` (and the `5D18` copy) during the REAL level-load and record
-(decompressed-source-offset → output-DGROUP-offset, length) tuples — the
-definitive block-placement map. Then mirror pre2's probe and build
-`skyroads/native/level_load.py`. Then mirror pre2's
+**PLACEMENT MAP CAPTURED — resolves the open question.** Instrumented the WORLD4
+decode (load window only, before the first gameplay sub-step, filtered to the
+load routines `6712`/`5f95`/`5d18`/`4052`/`5ce0`). WORLD4 is **NOT one
+55,222-byte LZS stream** — it is **multiple LZS SUB-BLOCKS**, each `6712`-decoded
+directly to its own destination:
+
+| WORLD4 sub-block | LZS-decoded to | size |
+|---|---|---|
+| tile bitmaps (block C) | segment `0x7176` | `0xAC80` = 44160 B |
+| 2nd graphics bank | segment `0x7c3e` (right after block C) | `0x4D80` = 19840 B |
+| staging tables | DGROUP `0x31A8` | `0x1000`+`0xA6D` ≈ 6765 B |
+| palette (256×3) | via `5D18` to DGROUP `0x31A8`+ | `0x300` = 768 B |
+
+The compressed sub-blocks are read from the file into DGROUP input buffers
+(`si=0xb91a`, `0x0ca5`) first, then `6712` decodes each to its dest; `5f95`/
+`5d18`/`4052` are the copy/setup around it. **This is why the earlier
+`decompress(payload, 55222)` verbatim-search failed** — I decoded ONE monolithic
+stream, but WORLD*.LZS is a directory of several compressed sub-streams to
+DIFFERENT segments (bitmaps → `0x7176`, graphics → `0x7c3e`, staging/perspective/
+descriptors → DGROUP). The perspective LUT (`0x162C`, 724 B) and block-A
+descriptors (`0x54B0`) are the smaller sub-blocks (fragmented under the 64 B
+run filter here).
+
+**Native `level_load.py` spec is now concrete:** parse WORLD*.LZS's sub-block
+directory (per-block compressed offset/size + destination), LZS-decode each to
+its segment/DGROUP dest (reusing `codecs/lzs`), + `ROADS.LZS[level]` cells/params
+(`roads_archive`). Remaining detail: the sub-block DIRECTORY format inside
+WORLD*.LZS (where the per-sub-block offsets/sizes/dests are encoded — the
+`0x77xx`/`0x0Cxx` read pointers suggest a small header the loader walks). Then
+mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM. Then mirror pre2's
 `probe_native_level_load`: run the real loader to capture the post-DGROUP witness
 at the RIGHT point (the actual gameplay-start, not a stray `4B8E`), build
 `skyroads/native/level_load.py` to reproduce it, assert byte-exact.
