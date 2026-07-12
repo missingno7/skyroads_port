@@ -261,6 +261,40 @@ table). From the captured image:
   word runs + 0x140 row stride, `si` walks the display-list record), no ASM.
   Promotable to `recovered/` pure fns exactly like `sprite_blit` was.
 
+**COMPLETE handler decode (this turn — the full material for the port):**
+- `31D1` = SKIP one RLE strip without drawing: `si += 3` (past the 3-byte
+  header), then `si += 3` per control triplet until `0xFF`, `si += 1`. So
+  display-list SLOTS hold sequences of strips; `call [0E40]` rasterizes one and
+  leaves `si` at the next — handlers chain draw/skip calls to select which
+  strips of a slot appear.
+- Handlers PATCH a strip's first byte (`ds:[si] = tile_id`) before rasterizing
+  — the fill-colour index IS the tile appearance, chosen per frame.
+- Neighbor fields: `[bp-13]` = row-above record's type byte (`bp-0xE+1`),
+  `[bp+1±…]` = adjacent column's type via `bx = 2 − 4*[0E48]` (mirror-pass
+  dependent side). `[bp-14]` = row-above height nibble.
+- **Type 0 (`2E6C`)**: height nibble → slot`[di]` strip patched+drawn; empty
+  side-neighbor → `id+0x1E` drawn (else `31D1` skip); empty row-above →
+  `id+0x0F` drawn.
+- **Type 2 (`2EBB`)**: base; row-above `<2` → slot`[di+6]` drawn; slot`[di+4]`
+  patched hi-nibble (0 → `0x3D`) + drawn; side `<2` → extra draw.
+- **Type 3 (`2EFD`)**: base; row-above `<2` → slot`[di+2]` := `0x41` drawn;
+  slot`[di+4]` hi-nibble/0x3D + drawn; side `<2` → draw; row-above `<2` →
+  slot`[di+6]` skip, draw, draw.
+- **Type 4 (`2F58`)**: base; row-above `<2` → slot`[di+6]` draw; slot`[di+4]`
+  skip; side `<2` → draw; slot`[di+10]` hi-nibble/0x3D + draw; side `<4` →
+  draw else skip; row-above `<4` → draw.
+- **Type 5 (`2FCC`)**: base; row-above `<2` → slot`[di+2]` := `0x41` draw;
+  slot`[di+4]` skip; side `<2` → draw; row-above `<2` → slot`[di+6]` skip,
+  draw, draw; slot`[di+10]` hi-nibble/0x3D + draw; side `<4` → draw else skip;
+  row-above `<4` → draw.
+- **Type 1 (`3059`)**: base; row-above `<1` → slot`[di+2]` := `0x43` draw;
+  slot`[di+8]` → SIX consecutive draws; row-above `<1` → two more.
+- **`3AC9`** = plain `ret` (types 6–15 draw nothing).
+
+Landed this turn: **`skyroads/recovered/rle_sprite.py`** — the RLE pair promoted
+to pure functions (from the differential-verified hook bodies), + semantics
+tests (3), lint + audit clean (34 pure files).
+
 **Task #22 remaining is now a bounded porting list, zero unknowns:**
 1. Promote `rle_sprite_forward`/`backward` (+ `tile_rasterizer 325B`,
    `occluded_column_blit 3283`) hook bodies to pure fns.
