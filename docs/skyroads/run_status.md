@@ -52,7 +52,29 @@ warrants a pixel-level validation via the frame-verifier / `frontend_timeline`
 first (rather than "the suite still passes", which mostly checks game state, not
 pixels). The lift is proven against the ASM oracle and ready; installation +
 pixel-diff is the next step, followed by driving it from native sim state for
-the first visible native frame (task #22).
+the first visible native frame (task #22). NOTE: `liftverify` already diffs FULL
+machine state (incl. VGA memory) at the hook continuation, so the 7/7 byte-exact
+result already proves pixel-exactness on those 7 frames — the frame render is
+correct; the open item is coverage breadth, not correctness.
+
+**Rendered a real target frame.** `render_frame.py` on the frame-640 gameplay
+snapshot (pure-ASM render, no lifts) produces a correct SkyRoads gameplay image
+— cockpit dashboard (GRAV-O METER / SPEED / FUEL / JUMP-O MASTER), nebula/
+starfield background, ship on the road, explosion (`artifacts/frames/`,
+gitignored). This is the exact image the recovered render tree targets.
+
+**Next node UP the chain — the render orchestrator at `~0x0Exx`.** `2D1F` is
+called from `0x0EC4` (i.e. a routine in the low `0x0Exx` region) with 8 params;
+at frame 950 they were `[0E28..0E36] = 0,3,1,0x30b4,0,0x7530,0,0x26de`. This
+caller computes `2D1F`'s params from sim state and orchestrates the road
+(`2D1F`) + sprites (`39D4`) + HUD present per frame. Recovering it (and
+whatever feeds IT, up toward the main loop) is what "native rendering" needs:
+the render tree below `2D1F` is fully recovered, but its INPUT state
+(perspective tables, sprite buffers, palette, the 8 params) is populated by
+this caller chain, which still runs in the VM. The path to a fully-native
+frame is to keep lifting up this chain (each level is a bounded liftgen/
+liftverify cycle, exactly like `2D1F`), OR to render over the native sim's
+already-VM-exact memory image once the sim populates that render state.
 
 ---
 
