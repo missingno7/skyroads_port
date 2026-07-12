@@ -4,6 +4,44 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — censused the level-start call graph and lifted 3 more leaf helpers; found the auto-lifter's first DIVERGENCE (59CF) — verifier caught it
+
+Back to "keep hooking and lifting the load/start/play path." Censused every
+near-call target on the level-start demo: **83 distinct call targets, 72 not
+yet hooked**; ran `liftgen` on the top 15 by call count — **all 15 liftable**.
+Emitted + `liftverify`'d the call-free LEAVES (cleanest to install, no hook
+dependencies):
+
+- **1010:5D80** — `DX:AX <<= CL` (32-bit shift-left helper). ORACLE_PASSING,
+  **3/3 blocks (full coverage)**.
+- **1010:0BE9** — projection helper `si = ((param/128) - 0x5F) / 46` (same
+  perspective-row family as `04C0`). ORACLE_PASSING, 6/8 blocks.
+- **1010:0BAF** — bounds/clamp on two params (`cmp` vs `0xFE9D`/`0x2800`).
+  ORACLE_PASSING, 7/10 blocks.
+
+All three installed in `skyroads/hooks.py` + `skyroads/lifted/manifest.json`;
+the full suite stays green. They're scaffolding (unrefactored lifts), not
+recovered islands yet — flagged as such at the install site.
+
+**Notable finding — the automatic lifter is NOT infallible.** `1010:59CF`
+(28 insts) emitted a lift that `liftverify` caught **DIVERGING** from the ASM
+oracle (a real `AX` register mismatch at continuation `1010:5975`, after 93
+steps). This is the first observed auto-lift divergence this project has hit —
+so it was NOT installed, and its emitted file was deleted. Two takeaways: (1)
+`liftverify`'s differential check earns its keep — a blindly-installed lift
+here would have been a silent bug; (2) lifts must be verified, never trusted
+on emission alone (the metrics-honesty rule already said this; now there's a
+concrete counterexample). Worth a future look at WHY `59CF` diverges (likely
+a decoder edge case or an operand the emitter mistranscribes) — a minimized
+repro would be a good `dos_re` lifter bug report.
+
+**Four other hot leaves** (`41A0`×359, `5892`×134, `417E`×41, `59EF`×29 calls
+in the demo) are `NOT_REACHED` by `liftverify` from either the gameplay or the
+level-start snapshot — they fire inside `4B8E`'s one-shot load or the
+per-frame render loop, which a plain drive-forward (no demo input, no frame
+cadence) doesn't re-trigger. Verifying them needs a snapshot/harness that
+actually re-enters those paths — deferred, not a defect. Their lifts weren't
+kept (unverified).
 ## 2026-07-12 — started the 4B8E road→perspective transform: lift verifies byte-exact on the real path; its 4331 callee is a DATA-TRANSFORM loop, not I/O (correcting a same-turn misread)
 
 Began attacking the one transform native `--level N` sim-start still needs

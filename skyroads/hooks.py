@@ -2262,3 +2262,29 @@ registry.replace(CODE_SEG, 0x186B, "lifted_road_stepper_186B")(_lifted_186b)
 # byte-exact.
 from skyroads.lifted.lifted_1010_39d4 import lifted_1010_39d4 as _lifted_39d4  # noqa: E402
 registry.replace(CODE_SEG, 0x39D4, "lifted_hud_blit_finalize_39D4")(_lifted_39d4)
+
+# --- 2026-07-12 leaf-function lifts (movement/projection math helpers) ---------
+# Surfaced by censusing unhooked call targets on the level-start path (72 of 83
+# distinct targets were unhooked; the top 15 by call count are all liftable).
+# These three are small, call-free math LEAVES verified ORACLE_PASSING by
+# liftverify. Partial block coverage is noted per hook -- but the strict
+# auto-continuation verifier re-checks EVERY call against the ASM oracle at
+# runtime (it's exactly what caught 1010:59CF diverging in the same batch, which
+# was therefore NOT installed), so an unproven branch cannot silently diverge
+# with the verifier active. Scaffolding, not refactored islands yet.
+
+# 1010:5D80 -- DX:AX <<= CL, a 32-bit shift-left-by-count helper (xor ch,ch;
+# jcxz; loop: shl ax,1/rcl dx,1). Verified 3/3 blocks (FULL coverage), 3 calls.
+from skyroads.lifted.lifted_1010_5d80 import lifted_1010_5d80 as _lifted_5d80  # noqa: E402
+registry.replace(CODE_SEG, 0x5D80, "lifted_shl32_5D80")(_lifted_5d80)
+
+# 1010:0BE9 -- a projection helper: si = ((ss:[bp+4] / 128) - 0x5F) / 46, then
+# branches on its sign (perspective-row math, same family as 04C0). Verified
+# ORACLE_PASSING, 6/8 blocks, 2 calls.
+from skyroads.lifted.lifted_1010_0be9 import lifted_1010_0be9 as _lifted_0be9  # noqa: E402
+registry.replace(CODE_SEG, 0x0BE9, "lifted_project_row_0BE9")(_lifted_0be9)
+
+# 1010:0BAF -- a bounds/clamp predicate on two 16-bit params (cmp ss:[bp+4] vs
+# 0xFE9D, ss:[bp+6] vs 0x2800). Verified ORACLE_PASSING, 7/10 blocks, 1 call.
+from skyroads.lifted.lifted_1010_0baf import lifted_1010_0baf as _lifted_0baf  # noqa: E402
+registry.replace(CODE_SEG, 0x0BAF, "lifted_bounds_check_0BAF")(_lifted_0baf)
