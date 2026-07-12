@@ -232,6 +232,30 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+19) — 🧭 the COCKPIT in the window; HUD text/flush drivers decoded
+
+The window now presents the full 320×200 game screen: the composed native
+viewport (rows 0–137) + the REAL dashboard art (baseline VGA rows 138–199 —
+GRAV-O METER / SPEED-FUEL dial / JUMP-O MASTER). Gauge VALUES stay at their
+captured state until the gauge renderer is ported.
+
+HUD decode notes (the material for that port):
+- **`4526(dest, ?, str_ptr, x)`** — draws a 0-terminated glyph-id STRING, one
+  `44BE(dest, ?, glyph_id, x)` per character, advancing dest by 8 px (the
+  "500"/"IDLE" readouts; the main loop calls it with strings at `0xD3A`/`0xD42`).
+- **`4563(x, y, w)`** — the HUD rect flush: `[0BF6] = y*320+x`, `[0BFA] = w*8`,
+  EGA regs via `3C9A` (no-op when `[003C]!=0`), then the RECOVERED `4201`
+  present path (param block at `0x0BF4`).
+- **Aliasing correction:** the earlier "0x19a1 HUD-buffer writers"
+  (`0x1949/0x1965/0x197d/0x19dc`) are the MOVEMENT resolver's DGROUP writes
+  (`add [9618]`, `add [AF1C]`, `add [AF2C]`) seen through segment overlap
+  (0x19A1<<4 lands inside DGROUP) — not HUD code at all.
+- The true per-frame HUD cost is tiny: 179 B/10 frames flushed via
+  `masked_blit`, digits via `stencil_blit` (both pure ✓). Remaining port:
+  `44BE` (glyph -> stencil_blit call), the gauge/dial/bar draws, and the
+  per-frame HUD update driver, feeding sim values (speed `[9330]`, fuel
+  `[5494]`, oxygen `[B13C]`).
+
 ## 2026-07-12 (latest+18) — 🎵 NATIVE MUSIC: the modern audio layer (pre2's model), playing in the window
 
 Per the user's direction ("pure modern sound and music layer, like pre2_port"),
