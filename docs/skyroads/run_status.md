@@ -4,7 +4,62 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 (later) — DEFINITIVE VGA-writer map; SUPERSEDES the two `0x19a1`/`present_rect`-as-road-path entries below
+
+The two entries below concluded the gameplay road reaches the screen via
+`stencil_blit → 0x19a1 → present_rect → VGA`. **That is wrong, and I'm
+retracting it.** It came from a byte-write-only writer scan (missed word/string
+writes) over an unrepresentative frame window (a palette fade). A proper scan —
+using `Memory.write_watchers` (catches every write path) over the VGA segment
+`0xA000` across the whole demo, then narrowed to confirmed steady-gameplay
+frames — gives the real map:
+
+**Who writes VGA (`0xA000`) during steady gameplay (frames 900–1000):**
+
+| writer | bytes/100f | routine | status |
+|---|---|---|---|
+| `1010:38bf` | 107 676 | `road_column_strip` | ✅ pure (`recovered/road_column.py`) |
+| `1010:6099` | 64 000 (=1 screen, once) | full-screen background/dashboard blit | ⬜ not recovered |
+| `1010:3a22` | 39 622 | `sprite_blit` (ship + objects) | ◐ VM hook only, no pure fn yet |
+| `1010:41f1` | 2 411 | `masked_blit` (in `41A0`, HUD) | ✅ pure (`recovered/present.py`) |
+
+**Corrected model:** the gameplay ROAD and SHIP are drawn **directly to VGA**
+by `road_column_strip` (38BF) and `sprite_blit` (3A22) — there is NO `0x19a1`
+intermediate and NO `present_rect` on the road path. `0x19a1` + `present_rect`
++ `stencil_blit` are the **HUD/dashboard** path (the tiny 5–16 px rects seen in
+the `present_rect` fixtures — those are dashboard widgets, not road). `6099`
+draws a full-screen background/dashboard image occasionally (once per ~level
+start: exactly 64000 bytes = one 320×200 screen in a 100-frame window, ~8.8
+screens across the whole demo), and it persists across frames underneath the
+road. Everything in `recovered/present.py` (`masked_blit`/`present_rect`,
+verified 19/20 and 12/12) is still correct and still used — just for the HUD,
+not the road.
+
+**What this means for a native visible gameplay frame** — the per-frame present
+is `road_column_strip` + `sprite_blit` + `masked_blit`, all writing straight to
+VGA. Recovery status of that set:
+- `road_column_strip` (38BF): pure ✅; its inputs `render_classify` (80/80) +
+  `dispatch_variant_a/_b` are recovered too.
+- `masked_blit` (41A0): pure ✅.
+- `sprite_blit` (3A22): a well-understood VM hook (`hooks.py`, detailed 29×24
+  column-major stencil-limited compositor) but not yet a pure `recovered/` fn —
+  **promotion/lift, not fresh reversing.**
+- `6099` background blit: the one genuinely-unrecovered gameplay VGA writer;
+  a full-screen image copy, mechanically simple, needs a short recovery pass.
+
+So a native visible gameplay frame needs: (1) promote `sprite_blit` to a pure
+fn, (2) recover the `6099` background blit, (3) orchestrate
+background→road→sprites→HUD over a 320×200 VGA framebuffer fed by the
+already-VM-exact native sim state, (4) diff vs VM via `frontend_timeline`.
+No large ensemble of unknown compositors — the earlier worry was an artifact
+of watching the wrong (fade) frames.
+
+---
+
 ## 2026-07-12 — mapped the LIVE gameplay render composition: every pixel-writing primitive is now recovered
+
+> SUPERSEDED by the entry above — the "live gameplay present" described here is
+> actually the HUD/dashboard path, not the road. Kept for the audit trail.
 
 Followed the present pipeline (previous entry) one step upstream to find what
 fills `present_rect`'s source buffer, and it reframes the render picture.
