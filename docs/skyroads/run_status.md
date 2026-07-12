@@ -232,6 +232,33 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+15) — 🎯 THE FIRST FULLY-NATIVE GAMEPLAY FRAME IS BYTE-EXACT (65536/65536)
+
+Promoted the ship-row tile chain (`skyroads/recovered/tile_raster.py`:
+`tile_mask_build` 32C1 + the 29×24 masked blit + `tile_shade` 33FD, from the
+differential-verified hook bodies) and wired it into `render_tile_passes` as
+`on_ship_row`. Result on the captured live frame:
+
+- **Write sequence: 3553/3553 IDENTICAL** (road tiles + ship-row tile, exact
+  order/offset/value vs the VM's log).
+- **Final frame: 0 of 65536 bytes differ** from the VM's post-`2D1F`
+  destination window. The full native gameplay frame — road, edges, block
+  faces, ship-row tile, shading — is BYTE-EXACT against the original game,
+  produced entirely by pure recovered Python (`compute_render_params` →
+  `render_tile_passes` → rle pair + tile chain), no VM, no lifted-code
+  execution.
+- The `3a22` ship-sprite calls (the `34AE(1)`/`39D4` finalize) were
+  delta-stable rewrites on this frame (their 387 writes changed nothing), so
+  byte-equality holds without them; a FULL-REDRAW capture (first frame after a
+  dirty-cache miss on a fresh buffer) is the follow-up that will exercise them
+  + the mode-0 composite for completeness.
+
+`tests/test_tile_dispatch.py::test_full_native_frame_is_byte_exact` locks it
+in. Remaining for task #22: the frame post-steps (`[0E6A]=[0E2A]` rotation +
+`0E86→1243` mask copy — trivial), a full-redraw capture to exercise the
+composite/ship-sprite paths, PNG proof from a native `--level N` state, and
+the window+keyboard shell.
+
 ## 2026-07-12 (latest+14) — TILE DISPATCH PORTED + verified WRITE-FOR-WRITE (3166/3166): the native road frame renders
 
 Landed `skyroads/native/tile_dispatch.py` — the pure transcription of `2D1F`'s
