@@ -302,11 +302,27 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
     dg_base = DATA_SEG << 4
     st = NativeGameState(bytearray(img.data[dg_base:dg_base + 0x10000]))
     decoded = native_level_load(st, level, game_root=str(root / "assets"))
+
+    # VM-free per-level WORLD assets: background bank + palette + song.
+    from skyroads.native.world_load import (
+        CMAP_DAC_BASE, expand6, load_world_assets, native_song_load)
+    world = load_world_assets(level, game_root=str(root / "assets"))
+    song = native_song_load(st, level, game_root=str(root / "assets"))
     img.data[dg_base:dg_base + 0x10000] = st.data
+    bg_seg = img.rw(DATA_SEG, 0x5170)            # the background bank segment
+    img.data[(bg_seg << 4):(bg_seg << 4) + len(world.background)] = world.background
+    # Compose the gameplay DAC: ROADS' 72 level colours -> 0..71, the world
+    # CMAP's 38 -> 142..179; everything else (cockpit/ship) is level-fixed
+    # and comes from the baseline snapshot's DAC.
+    for i in range(72):
+        palette[i] = tuple(expand6(decoded.palette[3 * i + k]) for k in range(3))
+    for i in range(len(world.cmap) // 3):
+        palette[CMAP_DAC_BASE + i] = tuple(
+            expand6(world.cmap[3 * i + k]) for k in range(3))
     gate = st.rw(0x4562)
-    print(f"[window] level {level} loaded VM-free (road={len(decoded.road)}B, gate={gate:#06x}); "
-          f"graphics/palette from {baseline_dir.name} -- levels from another world "
-          f"show that world's tile art until the WORLD loader is native")
+    print(f"[window] level {level} loaded VM-free (road={len(decoded.road)}B, "
+          f"gate={gate:#06x}); world {level // 3} background+palette + song "
+          f"{song.index} ({len(song.data)}B, {song.n_instruments} patches) -- all native")
 
     view = GameView(img, base=dg_base)
     scratch = apply_level_init(view, gate)

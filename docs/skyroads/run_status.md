@@ -75,6 +75,52 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 — per-level assets NATIVE: world background + full palette + per-level MUSIC, all VM-verified; CORRECTS level_format.md's WORLD story
+
+**The "three blocks from WORLD*.LZS" in level_format.md was a misattribution.**
+Tracing every `66E6` LZS-decode call over the e2e demo shows the three
+level-load decompressions come from THREE FILES:
+
+1. **MUZAX.LZS -> `1686:54B0`** (loader `1010:57C4`, filename at DG `0x0E12`):
+   the per-world SONG. 6-byte directory entries ``{u16 offset,
+   u16 n_instruments, u16 size}`` — 10 songs, one per world. After the
+   decode, `1010:5A7D` sets `[3194]=0x54B0` (instrument base, 16-byte patch
+   records), `[3196]=[3198]=0x54B0+16*n_instr` (cursor+loop), `[31A6]=0`;
+   `[0BF2]` caches the song index. **Byte-exact**: song 4 == the level-14
+   snapshot's `54B0` region, 7506/7506.
+2. **ROADS.LZS -> `0x162C`** + scalars + 72-colour palette (already native).
+3. **WORLD<n>.LZS -> the `[5170]` background bank** (generic graphic loader
+   `1010:4084`): `"CMAP" + u8 colour-COUNT (114) + 342 palette bytes`, then
+   records ``[u32 scalar][u16 h=138][u16 w=320][3 LZS width bytes][stream]``.
+   Background pixels are +0x8E-biased (142 = the CMAP DAC base).
+   **41,770/44,160 byte-exact** vs the snapshot bank (rows 129..137 carry a
+   runtime road-horizon priming, redrawn per frame).
+
+**Palette (user caught a real bug here)**: first reading treated the CMAP u8
+as a byte length (38 colours) — wrong colours on every non-baseline world.
+It is a COLOUR count: 114 colours covering **DAC 142..255** (verified
+114/114 vs the snapshot DAC). Full gameplay DAC = ROADS' 72 -> 0..71 +
+CMAP's 114 -> 142..255 + level-fixed cockpit colours 72..141: composed
+natively it matches the level-14 snapshot **0/256**.
+
+**Level->world/song mapping**: `level // 3` for the 30 regular levels;
+level 30 (the DEMO.REC attract level — identified by road[] match 2800/2800
+against the e2e runtime) uses world 9 + song 6 (observed; no DGROUP table).
+
+**Display-list staleness is a non-issue**: transplanting level-14's 8 dl
+buffers into the e2e runtime's pre-state and rendering natively gives an
+IDENTICAL road band (0 diff) — the per-frame handler patches fully
+regenerate the visible window; there is no separate level-start strip
+bootstrap to recover.
+
+`skyroads/native/world_load.py` + `tests/test_world_load.py` (6 tests);
+`play_native --level N` now shows each level's own background/palette and
+plays its own song. Native renders of levels 2/20/30 match the real game's
+look (level 30 vs the e2e VM capture side-by-side). Open: a possible stale
+ship-shadow artifact when airborne (`tile_shade`'s idx>=5 early-out leaves
+`[0E70]` stale — the ASM does the same, so this may be faithful; needs a VM
+render differential on a jump to settle).
+
 ## 2026-07-13 — native gameplay SFX: `03C2` decoded + call sites VM-verified; SFX.SND bank parsed; wired into the sim loop and the windowed player
 
 **`1010:03C2(id)` decoded from a live disassembly** (the static snapshot had

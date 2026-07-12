@@ -1,0 +1,152 @@
+"""Native per-level WORLD graphics + MUZAX song loading (VM-free).
+
+Decoded 2026-07-13 by tracing the real loaders (see run_status.md). This
+CORRECTS `docs/skyroads/level_format.md`'s "three blocks from WORLD*.LZS"
+story: the three level-load decompressions come from THREE different files —
+
+* **MUZAX.LZS** (loader `1010:57C4`): the per-world SONG -> `DG:0x54B0`.
+  File = 6-byte directory entries ``{u16 offset, u16 n_instruments,
+  u16 decompressed_size}`` (count = first offset / 6 = 10, one per world),
+  then per-song LZS records (3 width bytes + bitstream, `66E6`-style).
+  After the decode, `1010:5A7D` points the music engine at it:
+  ``[3194] = 0x54B0`` (instrument base, 16-byte patch records),
+  ``[3196] = [3198] = 0x54B0 + 16*n_instruments`` (cursor + loop),
+  ``[31A6] = 0``. `[0BF2]` caches the loaded song index. Verified byte-exact:
+  song 4 (level 14's) decompresses 7506/7506 identical to the level-14
+  snapshot's `54B0` region, and its `[3194]` matches.
+* **ROADS.LZS** (loader `1010:5614`): road[] -> `0x162C` + scalars + the
+  72-colour level palette -> `[41C2]` (already native, `level_load.py`).
+* **WORLD<n>.LZS** (generic graphic loader `1010:4084`): the 320x138
+  BACKGROUND -> the bank at segment `[5170]`. File = ``"CMAP" + u8 count +
+  count x RGB6`` — the u8 at offset 4 is a COLOUR COUNT (0x72 = 114
+  colours = 342 bytes), not a byte length (an earlier reading as 114 BYTES
+  = 38 colours left DAC 180..255 unset and produced visibly wrong
+  background colours on non-baseline worlds — caught by the user, then
+  proven: the 114 colours match the level-14 snapshot's DAC 142..255
+  exactly, 114/114). Then graphic records: ``[u32 scalar][u16 h][u16 w]
+  [3 width bytes][LZS bitstream]`` (`4084`: reads a scalar via `6576`, an
+  8-byte descriptor whose ``[+4]*[+6]`` is the alloc size, then `66E6`).
+  Background pixels are stored palette-relative and biased by **+0x8E =
+  142**, the DAC base of the CMAP block.
+
+DAC layout during gameplay (verified against the level-14 snapshot's DAC,
+0/256 mismatches when composed natively): ROADS' 72 colours -> DAC 0..71;
+CMAP's 114 colours -> DAC 142..255 (both 6-bit VGA, expanded
+``(v<<2)|(v>>4)``); DAC 72..141 (cockpit/ship/HUD) is level-independent.
+Background match vs the snapshot: 41,770/44,160 — the differing 2,390
+bytes are all in rows 129..137, a runtime road-horizon priming stamped
+after load (redrawn by the road renderer every frame).
+"""
+from __future__ import annotations
+
+import struct
+from typing import List, NamedTuple
+
+from skyroads.codecs.lzs import LzsWidths, decompress_block
+from skyroads.native.level_load import read_game_file
+
+#: songs/worlds; level -> world/song index is ``level // 3`` for the 30
+#: regular levels. Level 30 (the attract/demo level, DEMO.REC) is special:
+#: the e2e demo runtime shows it uses WORLD9's graphics but SONG 6
+#: (`[0BF2]` == 6 with the world-9 background at `[5170]` -- observed, not
+#: derived from a table; no level->world table exists in DGROUP).
+LEVELS_PER_WORLD = 3
+
+
+def world_for_level(level: int) -> int:
+    return 9 if level == 30 else level // LEVELS_PER_WORLD
+
+
+def song_for_level(level: int) -> int:
+    return 6 if level == 30 else level // LEVELS_PER_WORLD
+#: the DAC index where the CMAP colours load — also the bias added to
+#: background pixels ([asm: the +0x8E offset observed on every pixel]).
+CMAP_DAC_BASE = 0x8E
+#: DGROUP offsets the song load touches ([asm 57C4/5A7D]).
+SONG_BASE = 0x54B0
+MUSIC_INSTR_BASE = 0x3194
+MUSIC_CURSOR = 0x3196
+MUSIC_LOOP = 0x3198
+MUSIC_FLAG = 0x31A6
+MUSIC_DELAY = 0x0C83
+SONG_CACHE = 0x0BF2
+
+BACKGROUND_W = 320
+BACKGROUND_H = 138
+
+
+class WorldAssets(NamedTuple):
+    """The per-world render assets a native player needs."""
+    cmap: bytes         # 342 B: 114 VGA 6-bit RGB triples -> DAC 142..255
+    background: bytes   # 44,160 B: 320x138, ALREADY +0x8E-biased DAC indices
+
+
+class Song(NamedTuple):
+    """One decompressed MUZAX song, ready to place at `0x54B0`."""
+    index: int
+    n_instruments: int  # 16-byte patch records at the start of ``data``
+    data: bytes         # instrument records + event stream
+    cursor: int         # initial [3196]/[3198]: SONG_BASE + 16*n_instruments
+
+
+def expand6(v: int) -> int:
+    """VGA 6-bit -> 8-bit DAC expansion, ``(v<<2)|(v>>4)``."""
+    return ((v << 2) | (v >> 4)) & 0xFF
+
+
+def load_world_assets(level: int, *, game_root) -> WorldAssets:
+    """Parse level ``level``'s world file: CMAP palette + the 320x138
+    background (decompressed and +0x8E-biased, exactly as the game banks it)."""
+    data = read_game_file(game_root, f"WORLD{world_for_level(level)}.LZS")
+    if data[:4] != b"CMAP":
+        raise ValueError("WORLD file does not start with CMAP")
+    n_colours = data[4]                              # u8 COLOUR count (= 114)
+    cmap = data[5:5 + 3 * n_colours]
+    # Find the background record: 8-byte descriptor ending in h=138, w=320
+    # ([asm 4084: alloc size = [si+4]*[si+6]]), then 3 LZS width bytes.
+    needle = struct.pack("<HH", BACKGROUND_H, BACKGROUND_W)
+    at = data.find(needle, 5 + 3 * n_colours)
+    if at < 0:
+        raise ValueError("background descriptor (138x320) not found")
+    widths_at = at + 4
+    widths = LzsWidths(data[widths_at], data[widths_at + 1], data[widths_at + 2])
+    raw = decompress_block(data[widths_at + 3:], widths,
+                           BACKGROUND_W * BACKGROUND_H)
+    biased = bytes((b + CMAP_DAC_BASE) & 0xFF for b in raw)
+    return WorldAssets(cmap=cmap, background=biased)
+
+
+def parse_muzax_directory(data: bytes) -> List[tuple]:
+    """The MUZAX.LZS 6-byte directory: ``(offset, n_instruments, size)``."""
+    first = struct.unpack_from("<H", data, 0)[0]
+    return [struct.unpack_from("<3H", data, 6 * i) for i in range(first // 6)]
+
+
+def load_song(index: int, *, game_root) -> Song:
+    """Decompress MUZAX song ``index`` (= the world number for gameplay).
+    Verified byte-exact vs the VM for song 4 (see module docstring)."""
+    data = read_game_file(game_root, "MUZAX.LZS")
+    entries = parse_muzax_directory(data)
+    off, n_instr, size = entries[index]
+    widths = LzsWidths(data[off], data[off + 1], data[off + 2])
+    song = decompress_block(data[off + 3:], widths, size)
+    return Song(index=index, n_instruments=n_instr, data=song,
+                cursor=(SONG_BASE + 16 * n_instr) & 0xFFFF)
+
+
+def native_song_load(state, level: int, *, game_root) -> Song:
+    """Place level ``level``'s song into ``state`` (a DGROUP-backed
+    NativeGameState) and point the music engine at it, reproducing
+    `57C4` + `5A7D`'s DGROUP writes: song bytes -> `0x54B0`, instrument
+    base `[3194]`, cursor/loop `[3196]/[3198]`, flag `[31A6]=0`, delay
+    `[0C83]=0`, song cache `[0BF2]`."""
+    song = load_song(song_for_level(level), game_root=game_root)
+    d = state.data
+    d[SONG_BASE:SONG_BASE + len(song.data)] = song.data
+    state.ww(MUSIC_INSTR_BASE, SONG_BASE)            # [asm 5A8D]
+    state.ww(MUSIC_CURSOR, song.cursor)              # [asm 5A84]
+    state.ww(MUSIC_LOOP, song.cursor)                # [asm 5A87]
+    d[MUSIC_FLAG] = 0                                # [asm 5A90]
+    d[MUSIC_DELAY] = 0
+    state.ww(SONG_CACHE, song.index)
+    return song
