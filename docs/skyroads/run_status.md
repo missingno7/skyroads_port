@@ -4,6 +4,40 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — mode-1 (VGA-flush) render attempt: my "same classify + variant B" model is WRONG (223 vs 74 calls) — backed out, needs a real investigation
+
+Attempted the second render pass (mode-1: the off-screen buffer → VGA flush).
+Captured a real mode-1 `34AE` pass: it makes **74** `road_column_strip` calls
+via `dispatch_variant_b` (variant B, source `[0E36]`=off-screen, dest
+`0xA000`=VGA), reusing the SAME `record_base=0x16B8` and records as mode-0. So
+the natural hypothesis was: mode-1 = the mode-0 pipeline with `dispatch_variant_b`
+and the VGA dest.
+
+**That hypothesis is wrong.** Wrote it (`composite_mode1`/`composite_frame`/
+`mode1_column_calls`) and tested against the captured 74-call sequence:
+`render_classify` + `dispatch_variant_b` over the same records produces **223**
+calls, not 74 — with long call-bursts (exactly the "third dispatch source"
+anomaly the `render_dispatch` recovery already flagged and EXCLUDED from its
+own fixtures). So mode-1 does NOT simply run `render_classify` → variant B; it
+either drives a different classification/record walk, or gates variant B's
+output differently, or the 74 calls come partly from a source other than this
+loop. (An end-to-end `composite_frame` run happened to emit 74 on one full
+image, but that was my code's own output on a different frame, not a confirmed
+VM match — the fixture-frame comparison, 223 vs 74, is the real signal.)
+
+**Backed it all out** — removed `composite_mode1`/`composite_frame`/
+`mode1_column_calls` and the mode-1 test/fixture, reverting `render_frame.py`
+to the committed byte-exact mode-0 version. Not shipping an unverified render
+path. The mode-0 renderer (686/686 pixels, committed) stands unaffected.
+
+**Mode-1 is a real open investigation**, not a quick "variant B swap":
+figure out where its 74 calls actually come from (is variant B gated by a
+different field set here? does the VGA pass walk fewer columns? is the
+`36F3`-reached dispatch partly from the unisolated third source?). Also, a
+fully byte-exact VGA frame separately needs the `39D4` sprite finalize ported
+(mode-1 reads the off-screen buffer AFTER mode-0's `39D4` sprites, and its own
+`39D4` draws sprites to VGA). These are the two remaining renderer items; the
+road-COMPOSITE core (mode-0) is done and byte-exact.
 ## 2026-07-12 — CORRECTION: there is NO "display-list builder" gap for the off-screen road pass — the records are already present; my pixel mismatch was a wrong comparison reference
 
 The previous entry ("ASSEMBLED the native mode-0 render pipeline") claimed the
