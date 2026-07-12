@@ -25,6 +25,19 @@
   "blocks_covered": 6,
   "note": ""
  },
+ "1010:2D1F": {
+  "entry": "1010:2D1F",
+  "module": "lifted_1010_2d1f.py",
+  "status": "ORACLE_PASSING",
+  "instructions": 107,
+  "blocks": 17,
+  "native_pct": 96.3,
+  "calls": 7,
+  "verified": 7,
+  "divergences": 0,
+  "blocks_covered": 16,
+  "note": ""
+ },
  "1010:39D4": {
   "entry": "1010:39D4",
   "module": "lifted_1010_39d4.py",

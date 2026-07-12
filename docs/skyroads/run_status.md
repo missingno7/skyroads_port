@@ -4,6 +4,58 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 (latest+2) — render DRIVER `1010:2D1F` LIFTED and oracle-verified — every render node now recovered
+
+Lifted the last unrecovered render node — the top-level driver at `0x2D1F`
+(pinned in the previous entry). The full workflow:
+
+1. **`lindis --live-demo`** the driver from live (correctly-overlaid) memory:
+   entry is `0x2D1F` with `enter 0,0`, takes **8 word params** (`bp+4..+18` →
+   `[0E28]..[0E36]`), then the `[003C]` fast-VGA-vs-scratch branch, record_base
+   setup (`bp = 0x162C + ([0E2A]>>3)*0xE + 0x62`, i.e. the `0x168E` road
+   perspective table), the classify/dispatch loop (`[0E44]` 11→…, `[0E48]`
+   0/1/2 — the same triple loop as recovered `render_classify`) calling
+   per-column draws via `call ss:[bx+2991]`, `call 34AE` finalize, and a mask
+   copy (`0E86`→`1243`, 478 words).
+2. **`liftgen`** refused on the COLD snapshot (`region-budget`, insts=4096) —
+   the code-overlay problem: cold bytes at `0x2D1F` are garbage. Fixed by
+   `write_snapshot` at gameplay frame 640 (`artifacts/snapshots/gameplay_f640`,
+   gitignored — regenerate by driving demo_e2e to frame 640). On that snapshot
+   liftgen reports **LIFTABLE** (107 insts, 17 blocks, 1 direct + 3 indirect
+   calls).
+3. **`liftverify`** (interrupt-gated → `--timer-irqs 1 --frame-steps 120000`
+   to advance frames): **PASS — 7 calls byte-exact vs the ASM oracle, 0
+   divergences, 16/17 blocks (96.3% native).** Emitted to
+   `skyroads/lifted/lifted_1010_2d1f.py`, recorded ORACLE_PASSING in the lift
+   manifest.
+
+**Coverage caveat (honest):** 16/17 blocks — one block was not reached in the
+gameplay window (likely the `[003C]==0` non-gameplay fast path or a rare
+classify branch). 7/7 byte-exact with zero divergence over real frames is
+strong, but that one path is unproven; full 17/17 needs a snapshot that
+exercises it.
+
+**Status of the render call tree — now fully recovered:**
+
+```
+render driver 0x2D1F     LIFTED ✅ (7/7 oracle, 16/17 blk)   <- this entry
+├─ 34ae composite        LIFTED ✅
+│   └─ dispatch -> road_column_strip (38BF)   pure ✅
+├─ 39D4 sprite/HUD final LIFTED ✅
+│   └─ sprite_blit (3A22)  pure ✅
+└─ HUD present: stencil_blit / present_rect / masked_blit   pure ✅
+```
+
+**NOT yet installed** into the VM hook registry (hooks.py): render correctness
+is not well-covered by the state-based test suite, so installing the driver lift
+warrants a pixel-level validation via the frame-verifier / `frontend_timeline`
+first (rather than "the suite still passes", which mostly checks game state, not
+pixels). The lift is proven against the ASM oracle and ready; installation +
+pixel-diff is the next step, followed by driving it from native sim state for
+the first visible native frame (task #22).
+
+---
+
 ## 2026-07-12 (latest+1) — per-frame render CALL TREE mapped; only the top-level driver (~`0x2Exx`) is unrecovered
 
 Traced one steady gameplay frame (frame 950 of demo_e2e) to get the actual
