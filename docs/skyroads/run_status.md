@@ -232,6 +232,29 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+11) — render orchestrator PORTED + verified 40/40: `native/render_params.py`
+
+Ported `1010:0C98` to the pure `compute_render_params(rw, ww, offscreen)`
+(`skyroads/native/render_params.py`): sim state → the road renderer's 8 params
+(`[0E28..0E36]` order), the `[0E1C..0E26]` dirty-cache maintenance, the
+A000/A200 page-flip dest select, and the sprite-frame index
+`si = (row_band(af1c)*3 + pitch)*3 + 14 + wobble` (or `air/3`, capped → hidden).
+Leaves ported inline: `0BAF` pitch selector (2 = diving/low, 1 = climbing),
+`0BE9` row band `clamp((af1c/0x80−0x5F) idiv 0x2E, 0..6)`, `0C26` cell classifier
+(04C0 word hi-nibble → `word[0xE4+hi*2]`, 0x100→0; fall → lo-nibble → 0x2800).
+Composed existing recoveries for the rest (`ship_fell_off`,
+`perspective_row_offset`). **Oracle: 40/40 real `0C98` invocations from the
+level-14 demo match — 8 params byte-equal + render/skip decisions agree.**
+Fixture + tests committed (the fixture's captured window never skipped, so the
+dirty-cache skip path is covered synthetically; the captured cases render
+off-screen — `[003C]!=0` in this demo's context — so the page-flip dest test
+skips until a VGA-page case is captured).
+
+**Remaining for the windowed native player (task #22):** feed these verified
+params into the pure render pipeline (`native/render_frame.py` over a 1MB
+native image seeded with the baseline graphics + the level palette `[41C2]`),
+then wrap a window + keyboard (key row `[0BD0..]`) around the native sim loop.
+
 ## 2026-07-12 (latest+10) — toward a WINDOWED native player: the render orchestrator `0x0C98` decoded; all its callees already recovered
 
 User tried `play_native --level 2` expecting a game window — it's the HEADLESS
