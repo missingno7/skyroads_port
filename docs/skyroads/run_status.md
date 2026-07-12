@@ -4,6 +4,45 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 (latest) — `sprite_blit` recovered as a pure fn; `6099` identified; render-primitive set COMPLETE
+
+Two closing steps on the render map from the entry below.
+
+**`sprite_blit` (`1010:3A22`) promoted to a pure verified function**
+(`recovered/present.py`). The 29-wide masked flip that composites the ship and
+road objects. Verified **10/10 byte-exact over full 64 KB dest segments**
+against the reference, across both call shapes (24- and 9-row) and both dest
+targets — including direct-to-VGA (`es=0xa000`). Fixture + test
+(`tests/test_sprite_blit.py`); full suite **344 passed**; layer audit clean
+(recovered/ stays VM-free).
+
+**`6099` identified — it's a block-copy screen flip, not a mystery compositor.**
+The earlier static byte-dump of `6099` was a stale code overlay (SKYROADS
+overlays its code segment, so static bytes ≠ what runs). A *live* capture at the
+moment `6099` writes VGA shows `f3 a4` (`rep movsb`) at `0x6097` then
+`cld; pop di/si/es/ds; ret`; the write-attributed ip `0x6099` is just the
+post-`rep` fall-through. Registers at the write: `es=0xa000`, `ds=0x7176`,
+`cx≈0x4d80`, `di=si` counting down. So **`6099` is a general `DS:SI → ES:DI`
+`rep movsb` block copy** — the off-screen-buffer(`0x7176`)→VGA flip. A plain
+`memcpy`; trivial to reproduce when assembling (no reverse-engineering left).
+
+**The gameplay VGA-writer inventory is now fully understood:**
+
+| writer | routine | recovery |
+|---|---|---|
+| `38bf` | `road_column_strip` (road) | ✅ pure |
+| `3a22` | `sprite_blit` (ship/objects) | ✅ pure |
+| `41f1` | `masked_blit` (HUD) | ✅ pure |
+| `34ae` | off-screen road composite | ✅ pure |
+| `6099` | buffer→VGA block-copy flip | ◐ trivial memcpy, identified |
+
+No unknown compositors remain on the gameplay present path. Remaining work for a
+first visible native frame is pure assembly: reproduce the `6099` flip, then
+orchestrate the draw order over a 320×200 framebuffer fed by the already-VM-exact
+native sim state, and diff vs VM via `frontend_timeline`.
+
+---
+
 ## 2026-07-12 (later) — DEFINITIVE VGA-writer map; SUPERSEDES the two `0x19a1`/`present_rect`-as-road-path entries below
 
 The two entries below concluded the gameplay road reaches the screen via
