@@ -252,8 +252,11 @@ next-step: it isn't required for play.
 **So milestone 1's core is done:** load ANY level by index from `ROADS.LZS`
 (VM-free, verified) → `native_level_load` places the geometry → the native sim
 plays it identically to the original. Remaining is PACKAGING, not recovery:
-- Wire `scripts/play_native.py --level N` (baseline + `native_level_load(N)` +
-  `apply_level_init` + play/replay-input).
+- ✅ WIRED `scripts/play_native.py --level N` — `python scripts/play_native.py
+  --level 14` loads level 14 from ROADS.LZS VM-free, plays it holding accelerate
+  (`+75/tick`, crashes at frame 108 into the first obstacle — expected without
+  steer/jump). No demo, no per-run VM boot. Test:
+  `tests/test_level_load.py::test_native_loaded_level_plays_the_vm_golden_trajectory`.
 - The level-INDEPENDENT sim constants (clip `0x4C..0xE3`, shape `0xBA7`, …) that a
   fresh state lacks are computed at startup, not static in the EXE. For milestone
   1 they're a fixed captured baseline (a small boot-constants asset — level
