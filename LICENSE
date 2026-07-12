@@ -22,7 +22,9 @@ SOFTWARE.
 
 ---
 
-Exception: the vendored nuked_opl3/ package (the Nuked-OPL3 emulator core and
-its Python binding) is licensed under LGPL-2.1-or-later — see
-nuked_opl3/LICENSE. It is an optional, self-contained component; the MIT
-license above applies to everything else in this repository.
+This license covers the porting methodology, prompts, and templates in this
+repository. The `dos_re/` submodule (framework) and its own `pynuked_opl3/`
+submodule (LGPL-2.1-or-later) carry their own licenses — see
+`dos_re/LICENSE` and `dos_re/pynuked_opl3/LICENSE`. Game code, assets, and
+executables you add here (in your adapter package and `assets/`) are governed
+by whatever terms apply to that game — never assumed to be MIT.

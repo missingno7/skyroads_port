@@ -19,7 +19,7 @@ Preconditions — do not start unless all hold:
    call it directly.
 3. **Keep children verifier-visible** where they remain hooked:
    `call_installed_hook_like_near_call`, and run
-   `tools/audit_hook_oracle.py` after.
+   `dos_re/tools/audit_hook_oracle.py` after.
 4. **Prove it standalone**: given state captured from a snapshot, the
    subsystem reproduces the oracle's output byte-exact *without stepping the
    VM* — as a committed test. Then demo-replay: zero new divergences with the

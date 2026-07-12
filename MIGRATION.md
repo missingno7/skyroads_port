@@ -1,5 +1,24 @@
 # MIGRATION.md — how this repo was extracted
 
+## The second split (2026-07-08): dos_re → dos_re + template_dos_port + pynuked_opl3
+
+The single `dos_re` repo described below (framework + porting methodology +
+vendored OPL3) was itself split three ways, to separate "the VM" from "the
+entry point for porting a game":
+
+| Went to | What moved | Why |
+|---|---|---|
+| **`template_dos_port`** (this repo; named `template_port` at first, renamed same day to disambiguate from an upcoming win16-ecosystem equivalent) | `START_HERE.md`, this file, `docs/{ai_porting_charter,lifecycle,methodology,pitfalls,cookbook,porting_new_game,enhancements,roadmap}.md`, `prompts/`, `examples/adapter_skeleton/` | These are the porting methodology and task rituals — an AI agent's operating manual for using the framework, not the framework itself. |
+| **`dos_re`** (kept, now a submodule here at `dos_re/`) | `dos_re/` package, `tests/`, `tools/`, `AGENTS.md`, `docs/{architecture,hooks_and_verification,demos_and_snapshots,state_mirrors,hardware_support,glossary}.md`, `examples/{minimal_adapter,tiny_frame_game}/` | The framework's own reference manual and contribution rules stay with the code they document; it remains standalone and reusable by any porting repo. |
+| **`pynuked_opl3`** (new repo, submodule of `dos_re` at `dos_re/pynuked_opl3/`; named `nuked_opl3` at first, renamed same day since it's the *Python* cffi wrapper, distinct from the Nuked-OPL3 C core it wraps) | `nuked_opl3/` (the vendored Nuked-OPL3 cffi binding) | Pulled out of `dos_re` so the OPL3 backend can be versioned and reused independently of any one framework fork; `dos_re` consumes it as a submodule at the same path, so existing imports and packaging were unaffected. |
+
+Plain file moves, not history-preserving splits (same approach as the original
+extraction below). This repo's own `pyproject.toml` sets
+`pythonpath = ["dos_re"]` because `dos_re/` here is the submodule's repo
+root, not the package itself (that's `dos_re/dos_re/`).
+
+## The first extraction (2026-07): pre2_port + overkill_port → dos_re
+
 This framework was extracted (2026-07) from two working game-port repositories:
 
 - **`pre2_port`** (Prehistorik 2) — *primary source of truth*: the newer,
@@ -106,6 +125,22 @@ is modeled and reference the oracle evidence).
   helpers, but they only serve a game viewer; left for adapters to copy from
   the source repos if wanted.
 
+## Later promotions into the framework (post-split provenance)
+
+Recorded as the roadmap's parameterize-and-promote items graduate (this is the
+ledger the roadmap points to):
+
+| Landed | dos_re module | Promoted from | Notes |
+|---|---|---|---|
+| 2026-07-11 | `dos_re/tick_demo.py` | pre2_port `pre2/native/game_tick_demo.py` + `scripts/verify_native_tick_demo.py` | The endgame equivalence engine, generalized: named u16 sidebands replace the hardcoded idle-timer channel; seams/masks/tick fn stay adapter-side. pre2 keeps its proven pre-framework pipeline unchanged. |
+| 2026-07-11 | `dos_re/coverage.py` | overkill_port `overkill/coverage.py` (generic core) | The measured native-% collector: ASM-equivalent accounting, cache-estimated unverified runs, loud UNMEASURED bucket. Overkill's regions/category rollups/Tk dashboard stay game-side. |
+| 2026-07-11 | `dos_re/overlay_menu.py` | pre2_port `scripts/overlay_menu.py` | Promoted verbatim (it was already game-import-free, pygame-injected); the docstring gained the tab accuracy taxonomy (presentation / Experimental quarantine / debug). pre2 now vendors it back byte-identical with a drift test (its APK ships no framework code). |
+| 2026-07-11 | `template_dos_port/scripts/overnight_loop.sh` + `examples/ledgers/overnight_goal.md` | overkill_port `scripts/overnight_loop.sh` + `docs/overkill/overnight_endgame_execution.md` | The unattended relaunch harness + goal-brief shape, generalized (template-side, not dos_re — it is methodology machinery). |
+
+New (not promotions, origin = this repo/dos_re directly): `dos_re/tools/check_doc_links.py`,
+`dos_re/tools/tick_demo_info.py`, `tick_demo.replay_to`/`TickDemo.suffix` (the
+divergence-repro pair, modeled on `InputDemoPlayback.write_suffix`).
+
 ## Known cleanup / TODO (honest list)
 
 1. **`dos_re/asm.py::_ega_next_scanline_di`** — generic *idiom*, Overkill-verified
@@ -155,7 +190,7 @@ is modeled and reference the oracle evidence).
 
 - Roland MPU-401, GUS, Covox: never modeled in either source repo.
 - OPL3-specific register features: the VM port model tracks OPL2-level state
-  (enough for detection + register capture); `nuked_opl3` synthesizes OPL3 but
+  (enough for detection + register capture); `pynuked_opl3` synthesizes OPL3 but
   nothing in the core exercises dual-register-set banks.
 - Joystick (INT 15h / port 201h): not modeled; neither game used it.
 - EGA write modes: 0 and 1 are implemented (plus read modes 0 and 1, including

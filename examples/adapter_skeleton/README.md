@@ -32,13 +32,13 @@ copies (see `docs/lifecycle.md`). Generate your recovered-islands manifest
 from the `@oracle_link` metadata:
 
 ```
-python tools/gen_island_manifest.py mygame.codecs mygame.recovered -o docs/recovered_islands.md
+python dos_re/tools/gen_island_manifest.py mygame.codecs mygame.recovered -o docs/recovered_islands.md
 ```
 
 Read `docs/porting_new_game.md` for the step-by-step bring-up checklist and
 `docs/ai_porting_charter.md` for the full method.
 
-Layering rules (enforce them with `tools/lint.py`-style checks from day one):
+Layering rules (enforce them with `dos_re/tools/lint.py`-style checks from day one):
 
 - `recovered/` and `codecs/` are pure: no `dos_re`, no segment:offset, no hooks.
 - `bridge/` may know memory layout but holds no gameplay decisions.

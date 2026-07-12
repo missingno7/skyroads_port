@@ -1,7 +1,7 @@
 # Roadmap
 
 The framework is a living organism: it grows when a real game needs it to,
-under the rules in [`AGENTS.md`](../AGENTS.md) (evidence-driven, stdlib-only
+under the rules in [`AGENTS.md`](../dos_re/AGENTS.md) (evidence-driven, stdlib-only
 core, no invention without an oracle). This file separates "next", "when a
 port needs it", and "long-term shape" so agents don't re-litigate scope every
 session. Items graduate off this list into `MIGRATION.md` when they land.
@@ -16,7 +16,7 @@ session. Items graduate off this list into `MIGRATION.md` when they land.
 - ~~Opt-in strict-ports mode~~ **Done**: unmodeled port reads are always
   recorded (`dos.unmodeled_port_reads`) and `dos.strict_ports = True` makes
   them fail loud (`UnmodeledPortRead`); the proven return-0 default is
-  unchanged. A broader `tools/` audit-fallbacks scan remains a nice-to-have
+  unchanged. A broader `dos_re/tools/` audit-fallbacks scan remains a nice-to-have
   (the manual ritual is `prompts/audit_no_silent_fallbacks.md`).
 - **Diagram pass** — the oracle loop and recovery-geography diagrams exist in
   ASCII; consider rendered versions if the docs ever get a site.
@@ -31,13 +31,28 @@ is the provenance record. The shortlist:
 
 - **Timing fast-forward** engine (closed-form wait collapsing; needs a
   per-game loop classification + clock model).
-- **Tick-demo equivalence harness** (seed + per-tick keys + state digest).
-- **Coverage-telemetry classifier** (the generic engine inside
-  `overkill/coverage.py`, island taxonomy parameterized).
+- ~~Tick-demo equivalence harness~~ **Done** (`dos_re/tick_demo.py`):
+  `TickDemo` (seed + per-tick consumed keys + gameplay digests + named u16
+  sidebands), `masked_digest`, `record_ticks` (seam-address recorder with the
+  consumption-point refine pattern), `verify_ticks` — generalized from
+  pre2_port's `game_tick_demo.py`. The adapter supplies the seams, the
+  ownership mask, and the tick function; dos_re's `agent_toolbox.md` §12 is
+  the usage skeleton.
+- ~~Coverage-telemetry classifier~~ **Done** (`dos_re/coverage.py`): the
+  generic collector engine from `overkill/coverage.py` — verifier-measured
+  ASM-equivalent accounting, cache-estimated unverified runs, loud
+  UNMEASURED bucket, `bounded_original` oracle spans, per-island report; the
+  adapter supplies only the address→island classifier. Overkill's regions /
+  category rollups / Tk dashboard stay game-side.
 - **Headless verification driver** (pluggable runtime factory).
 - **Probe harness + walk-shadow cache** (delta-encoded per-frame state cache).
-- **Runtime-code staticization registry** (`RuntimeCodeSlot`/variant guards —
-  the signature-guard primitives already live in `dos_re/hooks.py`).
+- ~~Runtime-code staticization registry~~ **Done** (`dos_re/runtime_code.py`):
+  `RuntimeCodeSlot`/`RuntimeCodeVariant`/`RuntimeCodeStaticization`, variant
+  identification against caller-supplied slot tables, the staticization-ready
+  gate, and an opt-in write tracer for discovering installers — generalized
+  from Overkill's own `overkill/runtime_code.py` (a materially richer
+  mechanism than the flat `self_disable_if_patched`/`code_matches` guards
+  already in `dos_re/hooks.py`, which stay as the simpler single-variant case).
 - **Report generator / progress dashboard** (hooks by status, demo pass rate,
   interpreted-vs-native %, maturity counts, divergence list — the
   `source_port_status.py` pattern).
@@ -47,6 +62,13 @@ is the provenance record. The shortlist:
   documented discipline (charter §6) + the adapter's input-wait registry;
   promote a shared `BoundaryClock` type if a second game's drivers start
   drifting despite the docs.
+- ~~In-game overlay settings menu~~ **Done** (`dos_re/overlay_menu.py`):
+  promoted from pre2_port — pygame-injected, items-as-data closures, modal
+  determinism firewall, and the tab accuracy taxonomy (presentation /
+  Experimental quarantine / debug-gated cheats) in its docstring. Playbook:
+  [`post_endgame.md`](post_endgame.md).
+- **Two-snapshot interpolation presenter** (`pre2/bridge/frame_capture.py`
+  pattern) — gated on a SECOND port reaching Stage 6.
 
 ## Longer-term shape
 

@@ -10,7 +10,7 @@ frame verification passes — nothing recovered yet.
    `create_game_runtime` with the real EXE path and command tail.
 3. Boot. When the interpreter fails loud on an opcode/interrupt/port, that is
    the work: trace the exact instruction, implement the *observed* behaviour
-   in the core (rules in `AGENTS.md`), add a `tests/test_core.py`-style case.
+   in the core (rules in `dos_re/AGENTS.md`), add a `tests/test_core.py`-style case.
    Log every such extension in your run_status ledger.
 4. If the EXE is packed: run the unpacker once, `write_snapshot` past it,
    record the packer + frontier in the ledger. Bootstrap is extraction, not
@@ -18,8 +18,8 @@ frame verification passes — nothing recovered yet.
 5. Decode the framebuffer to an image; deliver a scancode and prove the game's
    key table changed. Screenshot + memory evidence into the ledger.
 6. Find the timer wait, retrace wait, and present routine
-   (`tools/profile_hotspots.py` backward edges; `tools/lindis.py` to read
-   them). Stand up the frame verifier with a no-op candidate; it must match
+   (`dos_re/tools/profile_hotspots.py` backward edges; `dos_re/tools/lindis.py`
+   to read them). Stand up the frame verifier with a no-op candidate; it must match
    the oracle frame-for-frame before you hook anything.
 
 Constraints: no hooks yet, no recovered logic yet, no guessing what the game

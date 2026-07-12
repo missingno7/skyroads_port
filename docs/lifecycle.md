@@ -56,12 +56,12 @@ can look at). Both source ports started exactly here.
 Each replacement goes through the same loop (one routine, one verification,
 per slice): trace → snapshot fixture → thin hook over a pure rule → verify
 against the interpreted original — registers, flags, full memory, and for
-visual paths, frames. ([`hooks_and_verification.md`](hooks_and_verification.md).)
+visual paths, frames. ([`hooks_and_verification.md`](../dos_re/docs/hooks_and_verification.md).)
 
 **Start the island ledger on the first island.** Every recovered function
 carries `@oracle_link(boundary, contract, status, merge_target)`
 (`dos_re.islands`), and the manifest is *generated* from the code
-(`tools/gen_island_manifest.py` + a drift test), never hand-maintained. The
+(`dos_re/tools/gen_island_manifest.py` + a drift test), never hand-maintained. The
 Prehistorik 2 port was steered by this ledger (~100+ islands at the end); the
 `merge_target` field is what keeps Stage 3 honest — every island declares,
 from birth, which larger subsystem it will dissolve into.
@@ -79,7 +79,7 @@ the memory. (Charter Phase 1.)
 
 A pile of low-level hooks is scaffolding, not the goal. As neighbouring
 islands are proven, the glue between them (tails, helpers, per-row scan steps
-— `glue` in the [hook taxonomy](hooks_and_verification.md#hook-roles-and-lifetimes-dos_rehook_taxonomypy))
+— `glue` in the [hook taxonomy](../dos_re/docs/hooks_and_verification.md#hook-roles-and-lifetimes-dos_rehook_taxonomypy))
 collapses into single native chains, and verified behaviour is lifted into
 higher-level representations: objects instead of slot bytes, render states,
 level data, input state, audio command streams, animation state, game rules.
@@ -147,7 +147,7 @@ verification needs it, but gameplay code reads it through human-named views
 (`player.x`, `slot.sprite`), so readable code and byte-exact comparability
 coexist. Offsets are quarantined in one bridge module; the "clean"
 representation and the "verifiable" representation are the same bytes.
-([`state_mirrors.md`](state_mirrors.md).) The mirror **verifies** the native
+([`state_mirrors.md`](../dos_re/docs/state_mirrors.md).) The mirror **verifies** the native
 game; it does not **power** it — with verification off, no VM starts and no
 projection runs.
 

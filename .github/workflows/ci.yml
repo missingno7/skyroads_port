@@ -26,6 +26,8 @@ jobs:
         run: python tools/lint.py
       - name: Undefined-name guard
         run: python tools/check_undefined_names.py skyroads
+      - name: Doc links resolve
+        run: python dos_re/tools/check_doc_links.py . --exclude dos_re
       - name: Test suite
         run: python -m pytest tests -q -n auto
       - name: End-to-end example (oracle -> hook -> verify -> snapshot)

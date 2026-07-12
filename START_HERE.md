@@ -68,7 +68,7 @@ Proven over months of autonomous recovery on the source ports:
 4. **Never weaken an oracle or test to make a change pass.** Fix the code to
    match the original, or revert.
 5. **Fail loud, never fake.** An unrecovered path raises a
-   [`HybridGap`](dos_re/gaps.py); it never silently falls back to ASM or to a
+   [`HybridGap`](dos_re/dos_re/gaps.py); it never silently falls back to ASM or to a
    plausible guess.
 6. **Check for existing mechanisms before building.** The framework and your
    own adapter likely already have the tool (the module map in

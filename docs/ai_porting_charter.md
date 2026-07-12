@@ -88,10 +88,10 @@ video layout, or data formats. Key modules:
     instead of calling the handler directly (this is how verification wraps
     every hook). `hook_verifier_passthrough` exempts addresses (e.g. UI pacing
     wrappers) from being verified.
-  - `coverage_telemetry` — hook points for interpreted-vs-hooked step counting
-    (your headline progress metric, see §10). NOTE: the CPU only *calls* an
-    adapter-supplied collector object; the framework ships no implementation —
-    you build it (porting guide step 8).
+  - `coverage_telemetry` — hook points for the measured native-% metric
+    (see §10). The collector is `dos_re.coverage.CoverageCollector`; your
+    adapter supplies only the address→island classifier (porting guide
+    step 8).
   - `trace_enabled` / `trace` — per-instruction disassembly+state capture.
   - `instruction_count`, `addr() -> (cs,ip)`.
 - **`memory.py` — `Memory`.** Flat image + segment helpers (`rb/rw/wb/ww`,

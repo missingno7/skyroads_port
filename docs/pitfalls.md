@@ -48,7 +48,7 @@ hook's Python function directly, making the child a shared black box inside
 the parent's verify transaction. → `--verify-hooks` passed while the child was
 wrong. → *Route child boundaries through
 `call_installed_hook_like_near_call` / `jump_installed_hook_boundary`;
-`tools/audit_hook_oracle.py` enforces it statically.*
+`dos_re/tools/audit_hook_oracle.py` enforces it statically.*
 
 ## Verification
 
@@ -135,7 +135,7 @@ byte guard → explicit Python. Never keep "Python-level self-modifying code".*
 at small leaf hooks; effort went into micro-optimizing them. → The real cost
 was interpreted *outer driver loops* crossing the VM/hook boundary thousands
 of times — invisible to leaf-frequency counts. → *Profile control-flow
-patterns (backward edges, boundary crossings — `tools/profile_hotspots.py`
+patterns (backward edges, boundary crossings — `dos_re/tools/profile_hotspots.py`
 reports both) before optimizing anything. And never trade byte-exactness for
 speed: a faster wrong replacement is a regression.*
 
@@ -145,8 +145,9 @@ speed: a faster wrong replacement is a regression.*
 `mem` imports crept into the recovered-logic layers. → The "portable" game
 logic became unmigratable to the native runtime. → *Automated layer audits run
 with the test suite from day one: recovered/ never imports dos_re/cpu/mem/
-hooks/offsets. `tools/audit_layers.py` is that audit, ready to point at your
-adapter's pure directories; `tools/lint.py` covers the framework side.*
+hooks/offsets. `dos_re/tools/audit_layers.py` is that audit, ready to point at
+your adapter's pure directories; `dos_re/tools/lint.py` covers the framework
+side.*
 
 **18. Two parallel state models.** [P2] A semantic frame model was built as a
 *parallel* representation next to the machine-level render state, each
@@ -154,7 +155,7 @@ maintained separately. → Two truths for palette/camera/HUD state that drifted
 apart. → *One canonical capture; the semantic/enhanced model is DERIVED from
 it, never maintained beside it.*
 
-## Working style (human or AI)
+## Working style (agent sessions)
 
 **19. Broad speculative changes.** [OK] Autonomous sessions occasionally
 attempted multi-subsystem refactors or "fixed" a divergence by weakening the
