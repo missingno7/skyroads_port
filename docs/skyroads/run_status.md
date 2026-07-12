@@ -49,6 +49,16 @@ compositing itself — it's among the writers to 0x19a1: 0x2dd9/0x2e7c/0x2ea1/
 0x2eba). Its exact entry IP is not yet pinned (0x2e43 is the `call 34ae` site
 inside it).
 
+**Driver location pinned to ~`0x2d1f`–`0x2e43+`.** A once-per-frame control
+flow enters the `0x2C00-0x2F80` region at `0x2d1f` and reaches the `call 34ae`
+at `0x2e43` (both hit exactly once/frame), so the driver body spans roughly
+`0x2d1f`→`0x2e43`+. The high-frequency entries in the same region — `0x2e7c`
+(×28), `0x2ea1` (×20), `0x2eba` (×14), `0x2ea6` (×8) — are small HUD pixel-plot
+helper routines (the per-pixel `0x19a1` writers), called in tight loops, NOT the
+driver. Next: `lindis --live-demo` to disassemble `0x2d1f`+ from live memory
+(code overlays make static disassembly unreliable — see the `lindis` fix), then
+`liftgen`/`liftverify` to lift it like 34ae/39D4.
+
 **Assembly plan (task #22), now concrete:** identify + lift the ~`0x2Exx`
 render driver (liftgen-liftable like 34ae/39D4), then a native visible frame is
 `driver(native_sim_state)` over a 320×200 framebuffer, verified pixel-exact vs
