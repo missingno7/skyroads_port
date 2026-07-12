@@ -4,6 +4,34 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — mode-1 sharpened: it DOES run 80 variant-B dispatches / 74 rcs (same loop shape as mode-0), but its classification fields are NOT at [0E44]…
+
+Follow-up that pins the mode-1 mystery precisely. Instrumented a real mode-1
+pass at each `dispatch_variant_b` (`36F3`) entry: the VM makes **80** variant-B
+dispatch calls producing **74** `road_column_strip` total — i.e. the SAME
+80-iteration loop shape as mode-0 (10×4×2), just yielding 74 columns instead of
+24. So mode-1 is NOT a wholly different structure; it walks the same triple loop.
+
+**But the classification fields it dispatches on are NOT at `[0E44]`/`[0E46]`/
+`[0E4E]`…`[0E5E]`.** Read those DGROUP offsets at each mode-1 `36F3` and they
+hold GARBAGE — `e44=280`, `e46=6656 (0x1A00)`, `e5e=0xFF00`, constant across
+consecutive dispatches (i.e. stale, not per-iteration). Feeding the VM's OWN
+captured-at-those-offsets fields into `dispatch_variant_b` matched its
+road_column_strip count only **16/80**. So during mode-1 the dispatch inputs
+live somewhere OTHER than the mode-0 classification fields — mode-1's
+classification loop writes a different field set (or `dispatch_variant_b` reads
+via different addresses in the mode-1 context), which is exactly why the
+"reuse mode-0's render_classify" model produced 223 instead of 74.
+
+**Precise open question for whoever finishes mode-1**: mode-1 runs the same
+80-iteration classify loop but its per-column fields are elsewhere — find where
+`36F3` actually reads its 11 inputs from in the mode-1 pass (the render_dispatch
+fixtures were captured by instrumenting the dispatch function's own read-site
+IPs, NOT by assuming `[0E44]…`, so the true source addresses were never pinned
+to DGROUP offsets — that's the thread to pull). Once the mode-1 field source is
+known, `dispatch_variant_b` (already verified 633/640) should compose the same
+way mode-0 did. This is a bounded RE task now, not an open-ended one.
+
 ## 2026-07-12 — mode-1 (VGA-flush) render attempt: my "same classify + variant B" model is WRONG (223 vs 74 calls) — backed out, needs a real investigation
 
 Attempted the second render pass (mode-1: the off-screen buffer → VGA flush).
