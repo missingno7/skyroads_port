@@ -75,6 +75,38 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 — MILESTONE-2 GROUNDWORK: the complete cold-boot manifest (every file load, dest buffer, and the computed-table site), traced from a real cold EXE start
+
+User goal set: continue until the native port cold-starts with intro + menus +
+everything (task #24). First step: a full boot manifest from the 2617-frame
+cold demo (demo_cold_20260711_201855), DOS-level INT21 tracing + computed-table
+write watchers from step 0:
+
+**Frame 0 (C runtime)**: DGROUP BSS zeroed (incl. the table regions).
+**Frame 8**: the startup tables — clip tables `0x4C..0xE3` and the shape
+table `0xBA7..0xBAE` — are COMPUTED by code at **`1767:06B1`** (the second
+code segment, where ~97% of intro-phase execution lives). This is the
+"startup constants" gap the native player currently fills from snap92.
+**Frame 9**: `skyroads.cfg` -> `[4516]` (66 B); MUZAX song 0 (intro music);
+`oxy_disp.dat` -> cell table `[95F8]` (20 B) + stencil bank; `ful_disp.dat`
+-> `[5480]` + bank; `speed.dat` -> `[4572]` (68 B) + bank; `demo.rec` ->
+`[961E]` (6,398 B — the attract-mode input recording); `trekdat.lzs`
+(records via the `[31A8]` staging buffer); `intro.lzs`; `anim.lzs`.
+**Frame 11**: `intro.snd` -> `233B:0000` (32,100 B PCM).
+**Frame 113**: MUZAX song 2 (menu music); `mainmenu.lzs`; `intro.lzs` again.
+**Frame 205** (menu ready): `cars.lzs` -> `5E61:0000` (55,440 B ship bank);
+`dashbrd.lzs` -> `6BEA:0000` (22,720 B); `sfx.snd`; `gomenu.lzs` ->
+`7176:0000` (64,000 B level-select screen) + a 30-B record -> `8116:0000`.
+**Level start (frames 282/1327/2016...)**: MUZAX song -> `54B0`; ROADS
+palette -> `[41C2]` + road -> `[162C]`; WORLD<n> cmap (342 B) -> `[436C]` +
+background -> `7176:0000` — exactly the three-file story verified earlier
+(note: the world CMAP also lands in DGROUP at `[436C]`, the fade target).
+
+Segment layout is deterministic (same allocator sequence every boot), so a
+native boot can adopt the known segment map. Remaining for a snapshot-free
+boot: port `1767:06B1` (table computation), the EXE->DGROUP initial image
+(dos_re bootstrap_lzexe for the unpack), and the DAT/TREKDAT placements.
+
 ## 2026-07-13 — per-level assets NATIVE: world background + full palette + per-level MUSIC, all VM-verified; CORRECTS level_format.md's WORLD story
 
 **The "three blocks from WORLD*.LZS" in level_format.md was a misattribution.**
