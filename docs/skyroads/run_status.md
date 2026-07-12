@@ -274,6 +274,23 @@ honor. Fixing that makes BOTH the existing `--cold` (on any level) and native
 `--level N` advance. This is squarely in the recovered sim (dynamics/classify), not
 the loader.
 
+**Transition pinned to frame 84→86** (ship_pos 0 → 0xE1). DGROUP fields that flip
+exactly when motion starts (candidates for the speed-onset/go mechanism):
+- `0x9330`: **0 → 1** — the SPEED byte (its onset from zero).
+- `0xaf1e`: **1 → 0** — a flag/high-word of the af1c vertical state clearing.
+- `0x0e1c` / `0x9618`: **0 → 0x01C2** — a velocity/step delta appearing (identical
+  value at both spots — the forward step per sub-step).
+- `0x1600`: 07 → 0A (tick counter); `0xb13c`: 74FF → 74EA (a fast counter).
+
+So the native sub-step, from a PRE-MOVE seed, never sets `[0x9330]` speed / the
+`0x01C2` step delta / clears `[0xaf1e]` — it parks. `--verify` on this demo
+confirms it: "0 lockstep runs, all ended on a boundary" (the native driver diverges
+immediately from the frame-79 seed rather than running gameplay sub-steps). demo_e2e
+works because its seed is already past this onset. NEXT: find what drives `[0x9330]`
+0→1 / the `0x01C2` step in the VM around frame 85 (a speed-ramp or a go-gate the
+recovered `dynamics`/`classify` sub-step omits), and honor it — that unblocks both
+`--cold` on any level and native `--level N`.
+
 ## 2026-07-12 (latest+7) — BREAKTHROUGH: native VM-free level GEOMETRY load recovered + VM-verified; `native_level_load` implemented
 
 Disassembling the geometry loader `1010:5614` (churn-immune) gave the complete,
