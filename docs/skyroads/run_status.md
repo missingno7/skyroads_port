@@ -68,8 +68,34 @@ This is the same lindis→liftgen→liftverify→port workflow that just landed 
 render tree; the target is liftable, verified on its real path, and has a
 positioned snapshot to iterate on.
 
-**`4331` disassembled + structurally decoded (this turn, static from
-`snap_before_4b8e` — its code is NOT overlaid, so plain lindis works):**
+**CAPTURED THE `4B8E` ORACLE + shrank the target (following pre2_port's
+`native/level_load.py` + probe blueprint — see memory `pre2-native-load-blueprint`).**
+Ran real `4B8E` from the level-load demo `demo_skyroads_20260711_202740`
+(args `[0x5174,0,0x24,0xa]`, caller `0x5374`) and diffed DGROUP before/after:
+
+| region `4B8E` writes | bytes | note |
+|---|---|---|
+| `0x3196..0x3424` | 654 | **the road→staging output** (`0x32xx/0x33xx`, via `4331`→`0x31A8`) |
+| `0x347b..0x3496` | 27 | staging tail |
+| `0x0c83`,`0x1600`,`0xb8a1`,`0xb8c0` | ~63 | scalars / HUD |
+| **`0x162C..0x18FF`** | **0** | **`4B8E` does NOT build the perspective table!** |
+
+So the model refines: **`4B8E` produces the `0x3196..0x3424` STAGING from `road[]`;
+the already-LIFTED `34AE` builds `0x162C` from that staging** (its `rep movsb`
+reads `0x3285/0x3302/0x33E6/0x33F0`, all inside this region). The native
+level-init target is therefore small and bounded — **port `4B8E`'s road[]→
+`0x3196..0x3424` staging (~654 B)**, then the lifted `34AE` gives `0x162C` for
+free. Oracle saved to `artifacts/oracle_4b8e/{pre,post}_dgroup.bin` (gitignored)
+for byte-exact verification of the native port, pre2-probe style.
+
+IMPORTANT: `4B8E` has TWO callers — `0x2C58` (the `snap_before_4b8e` resume;
+`4331` runs AWAY there, garbage pre-state) and `0x5374` (the real demo
+level-start; `4331` returns in ~30k steps). Capture/verify against the LIVE demo
+call, NOT the bare snapshot resume. (This corrects the earlier note that
+`snap_before_4b8e` is a good oracle for `4B8E` — it is not.)
+
+**`4331` disassembled + structurally decoded (static from `snap_before_4b8e`
+— its code is NOT overlaid, so plain lindis works):**
 - `enter 0x16,0`; `[003C]==0` → the `0x4344` path (gameplay), else `0x4455`.
 - `ds:[1600]=0`; iteration percent `bp-4 = (ss:[bp+8] ? 100*ds:[1600]/ss:[bp+8]
   : 100)`, clamped ≤100 (with a `ds:[54A0]` gate).
