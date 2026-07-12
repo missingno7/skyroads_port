@@ -232,6 +232,38 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+21) — ghosting investigation: single/consecutive frames are VM-exact; the drift is param-change erase
+
+User reports from the native window: (a) GHOSTING on the background, (b) no
+SFX, (c) same background/music on every level, (d) asked whether music uses
+Nuked OPL. Answers/status:
+
+- (d) NO OPL emulation in native: music = the recovered sequencer's events →
+  the modern synth (`skyroads/audio/`). Only the VM viewer uses pynuked.
+- (c) Correct — per-level WORLD graphics/palette + MUZAX song loading are the
+  known v1 gaps (baseline snapshot assets); queued.
+- (b) Correct — SFX not yet mapped (SkyRoads SFX are SB PCM per
+  `audio/sink.py`; the trigger `03C2(id)` was spotted in the HUD updater).
+  Native SFX = load SFX.SND samples + play on the trigger points; queued.
+- (a) GHOSTING: reproduced offline (200-tick native run → road-wedge trails,
+  `artifacts/frames/ghost_t199.png`). Pinned what it is NOT: a fast-moving VM
+  frame (frame 118) composes 0-residual, and a CONSECUTIVE-frame lockstep
+  (compose frame N from VM pre-N, diff vs VM pre-N+1) matches display lists +
+  all key DGROUP fields exactly, with only 24 dest bytes differing (rows 96–98
+  = the ship area, shades 73 vs 74/75 — a small between-frames ship touch-up,
+  likely the 39D4 pair or ship animation, NOT the wedge trails). CONCLUSION:
+  the eraser I'm missing only fires when the wedge PARAMETERS change (af1c/
+  af2c bounce, steer) — in the captured pair the dirty-cache values were
+  identical so nothing needed erasing. NEXT (the decisive capture): a VM
+  frame pair bracketing a wedge MOVE (level-start bounce frames ~84-90, where
+  af2c changes per frame) — diff will show exactly which routine restores the
+  previous wedge (suspect: the 34AE mode-0 column pass, whose road_column
+  strips may repaint sky/background bands, and/or the gated ship_sprites
+  erase); then port it and the trails disappear.
+
+Also this turn: full suite re-run after the audio-shadowing fix: **365 passed,
+1 skipped** — regression-clean.
+
 ## 2026-07-12 (latest+20) — HUD gauge system fully decoded: one updater (`12F8`), three DAT widget banks, the `0F8C` widget drawer
 
 The live-gauge machinery is now completely mapped (the port is a bounded
