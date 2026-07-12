@@ -4,6 +4,47 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — started the 4B8E road→perspective transform: lift verifies byte-exact on the real path; its 4331 callee is a DATA-TRANSFORM loop, not I/O (correcting a same-turn misread)
+
+Began attacking the one transform native `--level N` sim-start still needs
+(previous entry): `4B8E`'s road[]→`0x162C`-perspective build. Concrete
+progress:
+
+- **Captured a positioned snapshot** (`artifacts/snap_before_4b8e`) at
+  `1010:2C58`, the instant before the level-load `4B8E` call — so `liftverify`
+  can reach the one-shot function it otherwise can't (all existing demo
+  snapshots resume AFTER level-load). Reusable for any future level-load RE.
+- **`liftgen`: `4B8E` is liftable** (57 insts, 13 blocks, 7 direct calls).
+- **`liftverify`: the lift is byte-exact on the real level-load call**
+  (`PASS`, 1 sample, 3/13 blocks — PARTIAL, since one call takes one path
+  through the branch tree; the taken path IS the level-load path).
+
+**Correction, same turn**: I first read `liftverify`'s "emulated call to
+`1010:4331` did not return within 20,000,000 steps" as `4B8E` being
+"entangled with file I/O / an environment wait." Disassembling `4331`
+(`tools/lindis.py --live-demo`-style, from the positioned snapshot)
+DISPROVES that — `4331` is a pure **data-transform loop**: `enter 0x16,0`;
+compute an iteration count (`100 * ds:[1600] / param`, clamped ≤ 100); set a
+destination pointer to the `0x31A8` staging buffer; then loop reading from
+two source segments (params at `bp+4`/`bp+6`) and writing processed data
+into `0x31A8`. That's road-data PREPARATION (computation), not I/O. The
+"didn't return in 20M steps" is the emulated-call STEP BUDGET being hit by a
+high-iteration-count run of this loop under emulation — the same
+high-iteration-loop class the `--max-iterations` tooling (added earlier this
+session) exists for, NOT a genuine hang. So `4B8E`+`4331` are recoverable
+computation; my "I/O entanglement" read was wrong and is retracted here.
+
+**Honest state**: `4B8E` is confirmed the right target and is
+computation-not-I/O, its lift verifies on the real path, and a positioned
+snapshot to iterate on it now exists. What remains is the substantive part —
+raising the emulated-call budget (or the lift's iteration guard) to get FULL
+`4B8E` coverage, then disentangling the specific road→`0x162C` sub-computation
+(the `rep movsb` copies from `0x32xx`/`0x33xx`, fed by `4331`'s `0x31A8`
+staging) from `4B8E`'s render/VGA setup blocks, and porting THAT as the
+native level-load transform. Real, multi-step, but now with the target
+liftable-and-verified-on-its-real-path and the tooling/snapshot in place —
+not the "entangled with unrecoverable environment I/O" dead-end I briefly and
+wrongly called it.
 ## 2026-07-12 — CORRECTION to the previous entry: it's the PERSPECTIVE table (0x162C) that's level-dependent, not the clip tables — and that pins the exact native-load transform still needed
 
 The previous entry ("perspective tables are level-INDEPENDENT") was WRONG,
