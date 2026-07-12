@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: recursive   # need dos_re/pynuked_opl3 (nested) for doc-links + OPL tests
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
