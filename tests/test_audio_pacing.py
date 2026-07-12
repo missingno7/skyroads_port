@@ -11,8 +11,12 @@ than real time).
 """
 from __future__ import annotations
 
-import numpy as np
 import pytest
+
+# numpy is an optional dependency (skyroads.audio imports it lazily for SFX
+# resampling); skip this module cleanly when it's absent, matching
+# tests/test_sb_pcm_audio.py.
+np = pytest.importorskip("numpy")
 
 from skyroads.audio import SkyroadsAudioSink
 
