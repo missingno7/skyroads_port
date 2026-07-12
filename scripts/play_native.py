@@ -299,6 +299,20 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
     driver = NativeGameplayDriver(view, gate, scratch)
 
     pygame.init()
+    # native music: the recovered OPL sequencer -> semantic events -> modern synth
+    music_engine = music_decoder = music_synth = None
+    try:
+        from skyroads.recovered.music import Engine as _MusicEngine
+        from skyroads.audio.opl_events import OplEventDecoder
+        from skyroads.audio.synth import ModernSynth
+        music_synth = ModernSynth()
+        music_engine = _MusicEngine(lambda o: img.rb(DATA_SEG, o),
+                                    lambda o: img.rw(DATA_SEG, o))
+        music_decoder = OplEventDecoder()
+        print("[window] music: recovered sequencer -> modern synth (native)")
+    except Exception as e:                       # noqa: BLE001 -- no audio device etc.
+        print(f"[window] music disabled ({e})")
+
     disp = Display((960, 720), title=f"SkyRoads native -- level {level}")
     clock = pygame.time.Clock()
     dest = img.rw(DATA_SEG, 0x5478)          # the off-screen frame buffer segment
@@ -316,6 +330,16 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
                       - (1 if keys[pygame.K_LEFT] else 0)) & 0xFFFF
         view.jump = 1 if keys[pygame.K_SPACE] else 0
         view.elapsed_ticks = (view.elapsed_ticks + 2) & 0xFFFF   # the 70Hz tick pace
+        if music_engine is not None:
+            try:
+                for _ in range(2):                       # the ISR services 5A55 per tick
+                    writes = music_engine.run_tick()
+                    for off, b in music_engine.ovl.items():
+                        img.wb(DATA_SEG, off, b)         # commit the tick's state
+                    music_synth.handle(music_decoder.feed(writes))
+            except Exception as e:                       # noqa: BLE001
+                print(f"[window] music stopped ({e})")
+                music_engine = None
 
         outcome = driver.tick()
         if outcome.transitioned:

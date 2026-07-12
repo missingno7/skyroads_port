@@ -232,6 +232,39 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   verify byte-exact vs a VM witness), NOT a one-trace win. The sim + full render
   tree are done/verified; this loader is the last milestone-1 gap.
 
+## 2026-07-12 (latest+18) — 🎵 NATIVE MUSIC: the modern audio layer (pre2's model), playing in the window
+
+Per the user's direction ("pure modern sound and music layer, like pre2_port"),
+built `skyroads/audio/` mirroring `pre2/audio/`'s boundary architecture:
+
+- **`events.py`** — semantic events (`NoteOn(channel, freq_hz, FmPatch,
+  volume)`, `NoteOff`, `PitchBend`, `SetVolume`, `DrumHit`); no OPL registers
+  or DGROUP offsets cross the boundary; events carry their full timbre
+  snapshot so backends need neither the VM nor the game files.
+- **`opl_events.py`** — the decoder from the RECOVERED music engine's exact
+  OPL write stream (`recovered/music.Engine`, byte-exact over 12,882 verified
+  ticks) to those events: key-on edges → NoteOn with fnum/block decoded to Hz
+  (`fnum·49716/2^(20−block)`), key-offs, in-key volume/pitch changes, rhythm
+  drum-bit rises. Live over the level-14 song: 1200 ticks → 43 NoteOns at
+  perfectly musical frequencies (195.7–880 Hz, median 220 Hz = A3), 38
+  NoteOffs, 10 drum hits.
+- **`synth.py`** — the MODERN backend (pre2's "enhanced" role): each NoteOn
+  rendered as a float 2-op FM-flavoured voice at 44.1 kHz using the FmPatch as
+  timbre hints (op multiples → mod ratio, mod level → index, connection bit →
+  additive vs FM, attack nibble → envelope), cached + looped via pygame.mixer;
+  NoteOff fades; drums are shaped-noise one-shots. Deliberately NOT an OPL
+  emulation. Frontend ring (lazy numpy/pygame).
+- **Wired into the window**: 2 engine ticks per 35fps frame (the ISR's 70 Hz),
+  engine `ovl` committed to the image, events → synth. Headless smoke test
+  (dummy video+audio) clean.
+
+Tests: pure decoder units (440 Hz keyon math, drum-edge semantics) + the live
+1200-tick musical-sanity test (gated on the snapshot). v1 caveats: SetVolume
+adjusts the live channel but PitchBend doesn't re-pitch a sounding voice yet
+(slides re-trigger on the next NoteOn); gameplay SFX (crash/jump — likely the
+same engine via separate triggers) not yet mapped; per-level song loading
+(MUZAX.LZS native parse) pending — the window plays the baseline's loaded song.
+
 ## 2026-07-12 (latest+17) — 🕹️ THE WINDOW: `play_native --level N --window` plays SkyRoads natively
 
 The interactive native player is wired:
