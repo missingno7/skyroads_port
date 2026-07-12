@@ -291,6 +291,10 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
                          f"state.json) at {baseline_dir}")
     img = NativeGameImage(bytearray(mem_bin.read_bytes()))
     palette = [tuple(e) for e in _json.loads(state_json.read_text())["dos"]["vga_palette"]]
+    # the real cockpit/dashboard art (VGA rows 138..199 of the baseline screen).
+    # Its GAUGES stay at their captured values until the HUD gauge renderer
+    # (4526/44BE glyphs + the dial/bar draws + the 4563 rect flush) is ported.
+    dashboard = bytes(img.data[0xA0000 + 138 * 320: 0xA0000 + 64000])
 
     # VM-free level geometry over the baseline DGROUP.
     dg_base = DATA_SEG << 4
@@ -356,9 +360,9 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
         first = False
 
         base = dest << 4
-        frame = img.data[base:base + 64000]
+        frame = bytes(img.data[base:base + 320 * 138]) + dashboard
         rgb = bytearray(320 * 200 * 3)
-        for i in range(320 * 138):            # viewport rows; dashboard area stays black
+        for i in range(320 * 200):            # viewport rows + the cockpit dashboard
             r, g, b = palette[frame[i]]
             j = i * 3
             rgb[j] = r; rgb[j + 1] = g; rgb[j + 2] = b
