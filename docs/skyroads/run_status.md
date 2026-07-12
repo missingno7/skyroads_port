@@ -4,6 +4,48 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — scoping native arbitrary-level sim-start: perspective tables are level-INDEPENDENT, per-level DGROUP delta is mostly render buffers (good news, but wiring needs care)
+
+Investigated whether a fully-native `--level N` SIMULATION start (no VM) is
+tractable, by measuring what's actually level-dependent. Two useful findings:
+
+**1. The projection/perspective tables are level-independent.** Diffed full
+DGROUP between two different levels' first gameplay frame (index 16
+gate-8/200/180 vs index 17 gate-7/175/60, from the multi-level cold demo):
+5,078 bytes differ, but the perspective-table region (`~0x162C-0x1900`, which
+`renderer.perspective_row_offset` and the collision predicate
+`road_object_visible` index into) is nearly IDENTICAL — only ~19 bytes
+differ. So the projection geometry is a fixed, capture-once table reused for
+every level, not something a native loader must rebuild per level.
+
+**2. The big per-level delta is render buffers, not sim state.** The 5 KB of
+per-level difference concentrates in `[0x5500-0x60A0]` — the same
+`0x5170`/`0x5473`-region 34AE uses as its off-screen render SOURCE (per the
+34AE decode two entries back), i.e. the composed road IMAGE, not
+gameplay-simulation state. Combined with finding 1, this strongly suggests
+the SIM-relevant per-level state is small (the road array + a handful of
+fields), with the bulk of level-load being render-only.
+
+**Honest blocker on nailing it down precisely**: tried to instrument exactly
+which DGROUP offsets `native_gameplay_substep` READS (to enumerate the
+minimal sim state a native `--level N` must provide) by wrapping the
+`NativeGameState` backend — but got 0 reads, because the sub-step's
+collision predicate (`collision.make_visible` → `road_object_visible`) and
+`GameView` reach the underlying `bytearray`/`.data` directly through
+`state_view.coerce_backend`, bypassing a naive rb/rw wrapper. Enumerating the
+read-set cleanly needs instrumenting at the `state_view` layer (or a
+copy-on-read shadow buffer), not monkeypatching — deferred rather than
+bodged.
+
+**Net**: native arbitrary-level sim-start looks genuinely TRACTABLE (fixed
+projection tables + small per-level sim state + already-byte-exact road
+load), but actually wiring `--level N` to start any level's simulation VM-free
+needs (a) the sim read-set enumerated properly at the `state_view` layer,
+then (b) writing level N's road array into whatever representation those
+reads target. That's deliberate work, not a quick patch — scoped here, not
+rushed. The current honest state stands: `play_native.py` cold-starts the
+level a demo seeds; a true by-index native start is the next real step, now
+with its feasibility established and its one plumbing obstacle named.
 ## 2026-07-12 — CORRECTION: the "~15 KB derived transform" is mostly just more LZS decompression (already-recovered codec), not a novel unrecovered subsystem
 
 The previous entry ("scoped what a FULLY-native level-start still needs")
