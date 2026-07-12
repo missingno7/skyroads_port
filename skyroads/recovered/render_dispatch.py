@@ -39,6 +39,15 @@ for `road_column_strip`) — not chased down further; see run_status.md. So a
 possible SILENT side effect on `[0E42]` or elsewhere, beyond the
 `road_column_strip` calls these functions already document, is an open,
 undischarged question, not one this docstring can currently rule out.
+
+**Out-of-range caveat (2026-07-12)**: verified only for the NORMAL
+classification range (fields 0..~4, the reduced nibbles the render loop
+produces). On a `34AE` pass observed with LARGE out-of-range field values
+(``e50=1568`` etc. — an atypical/non-road render), `dispatch_variant_b`'s
+output diverged from the ASM (16/80). Those values never occur in normal
+gameplay classification, so this doesn't affect the 633/640 result, but the
+transcription is NOT guaranteed for out-of-range inputs. See run_status.md's
+"mode-1 DEFINITIVE" entry.
 """
 from __future__ import annotations
 

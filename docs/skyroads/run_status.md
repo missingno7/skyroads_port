@@ -4,6 +4,45 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — mode-1 DEFINITIVE: my earlier conclusions were based on an ATYPICAL pass; supersedes the last two mode-1 entries
+
+Chased the mode-1 mystery to ground with static disassembly and it corrects my
+own last two entries (which flip-flopped). The confirmed facts:
+
+1. **Variant B (`36F3`) reads its classification inputs from the SAME DGROUP
+   offsets as variant A** — statically disassembled both: `364F` reads
+   `[0E4E]/[0E50]/[0E56]/[0E58]/[0E5A]`; `36F3` reads
+   `[0E46]/[0E4E]/[0E50]/[0E54]/[0E56]/[0E58]/[0E5A]`. So my prior entry's claim
+   that "mode-1's fields are NOT at `[0E44]…`" was WRONG — they're at the
+   standard offsets; mode-1 uses the same field mechanism as mode-0. (My
+   confusion came from reading `[0E44]`/`[0E46]` specifically, which dispatch
+   barely uses, plus the atypical values below.)
+
+2. **The specific mode-1 pass I captured was ATYPICAL.** Re-analyzed its
+   80 dispatches: ALL 80 had LARGE field values (`e50=1568`, `e56=1315`, etc.),
+   NONE were the small reduced nibbles (0-4) a normal road classification
+   produces. So it was not a normal gameplay road render — likely a
+   menu/transition/other `34AE` use that happened to have a stale gameplay-
+   looking `record_base`. So my "223 vs 74, model is wrong" conclusion was
+   built on a bad sample, NOT a disproof of the "same classify + variant B"
+   model.
+
+3. **A real, separate finding**: on those LARGE (out-of-normal-range) field
+   values, my `dispatch_variant_b` transcription diverges from the ASM
+   (matched 16/80). But such values never occur in normal gameplay
+   classification (always 0-4), so this does NOT affect the verified 633/640 —
+   it's an untested out-of-range regime, worth a note in `render_dispatch.py`
+   but not a gameplay bug.
+
+**Accurate open state for mode-1**: the "mode-0 pipeline with `dispatch_variant_b`
++ VGA dest" model is NEITHER proven NOR disproven — I never captured a clean
+NORMAL-gameplay mode-1 pass (small fields) to test it against; the e2e demo's
+mode-1 passes I sampled were the atypical all-large-field kind. Completing
+mode-1 needs (a) capturing a genuine gameplay road-render mode-1 (small
+classification fields) and testing the model there, and (b) the `39D4` sprite
+finalize for full VGA pixels. The mode-0 renderer (byte-exact, 686/686) is
+entirely unaffected by all of this. This entry supersedes the two mode-1
+entries below — read this one.
 ## 2026-07-12 — mode-1 sharpened: it DOES run 80 variant-B dispatches / 74 rcs (same loop shape as mode-0), but its classification fields are NOT at [0E44]…
 
 Follow-up that pins the mode-1 mystery precisely. Instrumented a real mode-1
