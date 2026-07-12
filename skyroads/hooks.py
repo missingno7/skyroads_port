@@ -2263,6 +2263,22 @@ registry.replace(CODE_SEG, 0x186B, "lifted_road_stepper_186B")(_lifted_186b)
 from skyroads.lifted.lifted_1010_39d4 import lifted_1010_39d4 as _lifted_39d4  # noqa: E402
 registry.replace(CODE_SEG, 0x39D4, "lifted_hud_blit_finalize_39D4")(_lifted_39d4)
 
+# 1010:2D1F -- the top-level per-frame ROAD RENDER DRIVER: takes 8 params
+# (bp+4..+18 -> [0E28..0E36]), sets up record_base from the 0x168E road
+# perspective table, runs the classify/dispatch loop (the same triple loop as
+# recovered render_classify) calling per-column road draws via ss:[bx+2991],
+# calls 34AE to finalize, and copies the occlusion mask (0E86->1243). This is
+# the last unrecovered node in the per-frame render call tree (34AE/39D4 already
+# lifted; road_column/sprite_blit/masked_blit/present_rect/stencil_blit pure).
+# Lifted 2026-07-12 via lindis --live-demo -> liftgen -> liftverify from a
+# gameplay-frame-640 snapshot (the cold snapshot has code-overlay garbage here).
+# liftverify: ORACLE_PASSING, 7/7 byte-exact vs ASM (full machine state incl.
+# VGA), 16/17 blocks (the [003C]==0 non-gameplay branch not exercised in the
+# gameplay window). Additionally pixel-validated in situ: 190/190 gameplay
+# frames (571-760) produce byte-IDENTICAL VGA with vs without this lift.
+from skyroads.lifted.lifted_1010_2d1f import lifted_1010_2d1f as _lifted_2d1f  # noqa: E402
+registry.replace(CODE_SEG, 0x2D1F, "lifted_road_render_driver_2D1F")(_lifted_2d1f)
+
 # --- 2026-07-12 leaf-function lifts (movement/projection math helpers) ---------
 # Surfaced by censusing unhooked call targets on the level-start path (72 of 83
 # distinct targets were unhooked; the top 15 by call count are all liftable).

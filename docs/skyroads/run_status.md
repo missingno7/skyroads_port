@@ -46,16 +46,16 @@ render driver 0x2D1F     LIFTED ✅ (7/7 oracle, 16/17 blk)   <- this entry
 └─ HUD present: stencil_blit / present_rect / masked_blit   pure ✅
 ```
 
-**NOT yet installed** into the VM hook registry (hooks.py): render correctness
-is not well-covered by the state-based test suite, so installing the driver lift
-warrants a pixel-level validation via the frame-verifier / `frontend_timeline`
-first (rather than "the suite still passes", which mostly checks game state, not
-pixels). The lift is proven against the ASM oracle and ready; installation +
-pixel-diff is the next step, followed by driving it from native sim state for
-the first visible native frame (task #22). NOTE: `liftverify` already diffs FULL
-machine state (incl. VGA memory) at the hook continuation, so the 7/7 byte-exact
-result already proves pixel-exactness on those 7 frames — the frame render is
-correct; the open item is coverage breadth, not correctness.
+**INSTALLED and pixel-validated (2026-07-12).** Before wiring `2D1F` into
+`hooks.py`, ran a direct in-situ pixel diff: played demo_e2e with vs without the
+`2D1F` lift (all else ASM) and hashed the VGA framebuffer (`0xA000`, 64000 bytes)
+every gameplay frame — **190/190 frames (571-760) byte-IDENTICAL.** That, plus
+`liftverify`'s full-machine-state proof, retires the "render correctness isn't
+covered by the state suite" concern. Installed at `hooks.py`
+(`registry.replace(CODE_SEG, 0x2D1F, "lifted_road_render_driver_2D1F")`); the
+**full suite still passes 344/344** with it live. So the entire per-frame render
+call tree below the `~0x0Exx` orchestrator now runs as recovered/lifted code
+inside the game, not original ASM.
 
 **Rendered a real target frame.** `render_frame.py` on the frame-640 gameplay
 snapshot (pure-ASM render, no lifts) produces a correct SkyRoads gameplay image
