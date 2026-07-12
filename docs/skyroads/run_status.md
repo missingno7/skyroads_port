@@ -201,7 +201,19 @@ mirror pre2's `probe_native_level_load` to assert byte-exact vs the VM.
   liftgen/liftverify workflow, feeding it a native file-read shim — rather than
   reconstructing the container format from raw bytes. That reuses the exact
   machinery that just landed the render tree, and inherits the format knowledge
-  from the ASM instead of re-deriving it. Then mirror pre2's
+  from the ASM instead of re-deriving it.
+- **LIFTABILITY CENSUS (confirms the pivot is tractable):** liftgen on the
+  loader family from the gameplay snapshot → **10/10 LIFTABLE (~215 insts):**
+  `4B8E`(57), `6712`(39, LZS decode, 3 calls), `4B43`(29, 3 calls), `4052`(25),
+  `3F3B`(20), `5D07`(12), `3F20`(11), `6006`(11), `5F95`(11). None do INT
+  directly — the file I/O is isolated in a separate open/read wrapper (the
+  `0x6C2E`/`0x6C72` chain seen in the open's stack), which is where the single
+  **native file-read shim** attaches. So milestone 1 = lift this ~215-inst family
+  (same size class as the already-landed `2D1F`) + a file shim + assemble, all on
+  the proven workflow. Loader nesting/entry (from the WORLD4-open stack walk):
+  `…→0x53BB→…→0x6C2E (open+read wrapper)→6712 (decode)`; callers of `5F95`/`5D18`
+  read as bp-frame offsets (not raw sp), so use the stack-walk chain, not the
+  top-of-stack, to trace them. Then mirror pre2's
 `probe_native_level_load`: run the real loader to capture the post-DGROUP witness
 at the RIGHT point (the actual gameplay-start, not a stray `4B8E`), build
 `skyroads/native/level_load.py` to reproduce it, assert byte-exact.
