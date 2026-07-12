@@ -75,6 +75,43 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 — native gameplay SFX: `03C2` decoded + call sites VM-verified; SFX.SND bank parsed; wired into the sim loop and the windowed player
+
+**`1010:03C2(id)` decoded from a live disassembly** (the static snapshot had
+overlay garbage at that region; `tools/lindis.py --live-demo` reached it at
+frame 611): stamps `[AF38]=[1600]`, bails if `[451A]!=0` (mute); SB path
+(`[0CB6]!=0`): the SFX bank sits at segment `[4560]`, addressed through its
+u16 offset directory — for effect `id`, `start=offsets[id]`,
+`len=offsets[id+1]-offsets[id]`; the FIRST byte is the SB DSP TIME CONSTANT
+(rate = 1e6/(256-tc)), the remaining `len-1` bytes are the unsigned-8 PCM DMA
+block (`5B76`). PC-speaker fallback points `[0BD0]` at `[0x162+id*2]`.
+`1010:0476` = "channel busy": `[1600] < [AF38]+8` (8-tick debounce), consulted
+only by the landing trigger. Cross-check vs the earlier SB-DMA capture:
+effect 1 = tc 131 / 8000 Hz / 5153 B = the recurring gameplay effect. ✓
+
+**The gameplay id map, VM-VERIFIED** by capturing every `03C2` call over the
+collision demo (5 calls total): id 1 ret `249E` (bounce landing, decay branch
+`2470-249E`: game_state 0, bounce<0, above kill threshold, not grounded, not
+busy); id 0 ret `27EA` (wall-CRASH thud at `27E7`, on flagging
+`[456A]`/`[456E]`); id 2 ret `2763` (bump slip inside `26EC`). The `2828`
+id-2 (blocked-repeat thump) is distance-gated (`[9618:961A] >
+tgt_lateral-ship_pos`) and didn't fire in the demo; implemented per the ASM.
+Corrected two earlier notes: the run_status "action 0xC -> 03C2(0)" call is
+menu/level-select context (no gameplay touch-down sound exists), and the
+FRONTAL crash (game_state=3, the golden-trajectory one) plays nothing from
+the substep — its explosion SFX site is elsewhere (settle-window subsystem,
+still open).
+
+**Implementation**: `skyroads/native/sfx.py` (bank parser + id map);
+`native_gameplay_substep(..., sfx=)` emits at the three verified sites with
+the ASM's exact conditions (including the `0476` debounce via
+`[AF38]`/`[1600]`, which the emitter only touches when a callback is
+installed — lockstep verification is unaffected, proven by a same-crash-tick
+test); `NativeGameplayDriver(on_sfx=)`; `play_native --level N` loads
+SFX.SND, resamples each effect to the mixer rate, and plays on trigger.
+Jump-scenario test: landings emit id 1 at ticks 41/50 (debounce respected).
+`tests/test_native_sfx.py` (3 tests) + suite green.
+
 ## 2026-07-12 (latest+3) — MILESTONE PIVOT: play any level VM-lessly by index (no demo/snapshot). Plan pinned; `4B8E` re-verified as the level-init oracle
 
 User set the next north star: `play_native --level N` must play any level

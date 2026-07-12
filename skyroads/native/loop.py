@@ -188,8 +188,26 @@ def native_gameplay_frame(view: GameView) -> None:
     )
 
 
+def _emit_sfx(view: GameView, sfx, sfx_id: int) -> None:
+    """The `1010:03C2` entry side effect + callback: stamp `[AF38] = [1600]`
+    (the `0476` busy window's reference) and hand the id to the caller's
+    player. With no callback installed this is a strict no-op (including the
+    stamp), so lockstep verification against the VM is unaffected; the ASM
+    itself stamps on every call."""
+    if sfx is not None:
+        view.unknown_af38 = view.elapsed_ticks
+        sfx(sfx_id)
+
+
+def _sfx_busy(view: GameView) -> bool:
+    """`1010:0476` (SB path): non-zero while `[1600] < [AF38] + 8` -- an
+    8-tick debounce since the last `03C2` trigger of ANY id."""
+    return (view.elapsed_ticks & 0xFFFF) < ((view.unknown_af38 + 8) & 0xFFFF)
+
+
 def native_gameplay_substep(
     view: GameView, scratch: GameplayScratch, *, allow_unmodelled_effect: bool = False,
+    sfx=None,
 ) -> GameplayScratch:
     """Run ONE gameplay sub-step (`1010:2324-2AE2`) on ``view`` in place, the
     full assembly of every recovered island in ASM spine order, and return the
@@ -263,6 +281,21 @@ def native_gameplay_substep(
     # (the out-of-bounds death check 23CA-2421 falls through while game_state==0)
 
     # 2. bounce-decay gate (2421-24BA) -- uses the PRIOR sub-step's tgt_af2c/bp24
+    # The decay branch's landing SFX (2470-249E): plays 03C2(1) when the decay
+    # path is reached (af2c off-target, no 5496-zero, bounce above the kill
+    # threshold, not grounded), game_state == 0, bounce is downward, and the
+    # `0476` 8-tick debounce window is clear.
+    if sfx is not None:
+        _b = view.bounce
+        _bs = _b - 0x10000 if _b & 0x8000 else _b
+        _thr = ((0x104 * (view.jump_level_gate & 0xFFFF)) & 0xFFFF) // 8
+        if ((view.af2c & 0xFFFF) != (scratch.tgt_af2c & 0xFFFF)
+                and not ((view.unknown_5496 & 0xFFFF) != 0
+                         and (scratch.bp24 & 0xFFFF) < 2)
+                and abs(_bs) >= _thr
+                and view.grounded == 0 and view.game_state == 0
+                and _bs < 0 and not _sfx_busy(view)):
+            _emit_sfx(view, sfx, 1)                  # bounce landing: 03C2(1)
     view.bounce = gate_bounce_decay(
         view.bounce, view.af2c, scratch.tgt_af2c, view.unknown_5496,
         scratch.bp24, view.jump_level_gate, view.grounded)
@@ -299,9 +332,21 @@ def native_gameplay_substep(
     # 6. collision response (26EC-2A24), in spine order
     new_af1c, tgt_lateral = lateral_wall_bump(
         visible, view.lateral, tgt.tgt_lateral, view.af1c, tgt.tgt_af1c, view.af2c)
+    if new_af1c != view.af1c or tgt_lateral != tgt.tgt_lateral:
+        _emit_sfx(view, sfx, 2)                      # wall bump: 03C2(2)
     view.af1c = new_af1c
     crash = resolve_lateral_crash(
         view.lateral, tgt_lateral, view.ship_pos, view.grounded, view.game_state)
+    # The crash handler's SFX (27A3-2828, VM-verified on a collision demo):
+    # a real flagged crash calls 03C2(0) at 27E7; a lateral block that does
+    # NOT flag (pre-0x0E38 or already flagged) runs the 2800 distance check
+    # and thumps 03C2(2) when lateral has outrun (tgt_lateral - ship_pos).
+    if (view.lateral & 0xFFFFFFFF) != (tgt_lateral & 0xFFFFFFFF):
+        if crash.crashed:
+            _emit_sfx(view, sfx, 0)                  # crash thud: 03C2(0)
+        elif ((view.lateral & 0xFFFFFFFF)
+              > ((tgt_lateral - view.ship_pos) & 0xFFFFFFFF)):
+            _emit_sfx(view, sfx, 2)                  # repeat thump: 03C2(2)
     view.ship_pos, view.grounded, view.game_state = (
         crash.ship_pos, crash.f456a, crash.game_state)
     accel, c5496, pos = af1c_contact_fixup(
@@ -425,12 +470,16 @@ class NativeGameplayDriver:
     """
 
     def __init__(self, view: GameView, jump_level_gate: int,
-                scratch: "GameplayScratch | None" = None):
+                scratch: "GameplayScratch | None" = None, on_sfx=None):
         self.view = view
         self.jump_level_gate = jump_level_gate
         self.scratch = scratch if scratch is not None else apply_level_init(view, jump_level_gate)
         self.ticks = 0
         self.transitions = 0
+        #: optional callable(sfx_id) -- receives the `03C2` triggers the sim
+        #: fires (0 touch-down / 1 bounce landing / 2 bump+crash); see
+        #: `skyroads.native.sfx` for the id map and the SFX.SND bank loader.
+        self.on_sfx = on_sfx
 
     def tick(self) -> TickOutcome:
         """Advance one gameplay sub-step, transparently driving through any
@@ -440,7 +489,8 @@ class NativeGameplayDriver:
         self.ticks += 1
         try:
             self.scratch = native_gameplay_substep(
-                self.view, self.scratch, allow_unmodelled_effect=True)
+                self.view, self.scratch, allow_unmodelled_effect=True,
+                sfx=self.on_sfx)
             return TickOutcome(False, "")
         except (LevelEndTransition, FallDeathTransition) as exc:
             self.scratch = apply_level_init(self.view, self.jump_level_gate)

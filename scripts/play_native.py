@@ -326,6 +326,29 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
         print("[window] music: recovered sequencer -> modern synth (native)")
     except Exception as e:                       # noqa: BLE001 -- no audio device etc.
         print(f"[window] music disabled ({e})")
+    # native SFX: the SFX.SND PCM bank, played on the sim's 03C2 trigger points
+    # (the synth inits the mixer with its preferred rate; we resample to match)
+    try:
+        import numpy as _np
+        from skyroads.native.sfx import load_sfx_bank
+        if pygame.mixer.get_init() is None:
+            pygame.mixer.init()
+        mix_rate, _sz, mix_ch = pygame.mixer.get_init()
+        sounds = []
+        for eff in load_sfx_bank(root / "assets" / "SFX.SND"):
+            u8 = _np.frombuffer(eff.pcm, dtype=_np.uint8).astype(_np.float32)
+            mono = (u8 - 128.0) / 128.0
+            n_out = max(1, int(len(mono) * mix_rate / eff.rate))
+            res = _np.interp(_np.linspace(0, len(mono) - 1, n_out),
+                             _np.arange(len(mono)), mono)
+            s16 = (res * 32000).astype(_np.int16)
+            if mix_ch > 1:
+                s16 = _np.repeat(s16[:, None], mix_ch, axis=1)
+            sounds.append(pygame.sndarray.make_sound(_np.ascontiguousarray(s16)))
+        driver.on_sfx = lambda i: sounds[i].play() if i < len(sounds) else None
+        print(f"[window] SFX: {len(sounds)} PCM effects from SFX.SND (native)")
+    except Exception as e:                       # noqa: BLE001 -- no audio device etc.
+        print(f"[window] SFX disabled ({e})")
 
     disp = Display((960, 720), title=f"SkyRoads native -- level {level}")
     clock = pygame.time.Clock()
