@@ -4,6 +4,45 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-12 — ASSEMBLED the native mode-0 render pipeline — reproduces the VM's EXACT 24-call road_column_strip sequence
+
+Composed the recovered renderer pieces into `skyroads/native/render_frame.py`
+and verified the assembly against the VM. `mode0_column_calls(img, ds)` runs,
+over a `NativeGameImage`, the full mode-0 (off-screen composite) decision
+pipeline in `34AE`'s own order:
+
+    compute_mode0_setup (34AE blocks 2-12, 6/6) -> render_classify (80/80)
+      -> dispatch_variant_a -> [road_column_strip calls]
+
+**Result: it reproduces the VM's road_column_strip call sequence EXACTLY.**
+For a real mode-0 pass (demo_e2e_20260710_132930) the VM made **24**
+road_column_strip calls; the native pipeline produces the **identical 24**
+`(ax, e44, e46, e48)` tuples, with identical per-pass `e60/e62/e64/e66/e68`
+(setup `record_base=0x16B8`, `seg_records 0x311B/0x2B12`, `seg_src 0x7176`,
+`seg_dst 0x8116` — all matched). So the render DECISION pipeline — which
+columns to draw, with what descriptor, in what order — is now proven correct
+end to end, from raw road records to the compositor call list. Landed
+`tests/test_render_frame.py` (the setup formulas + the 24/24 call-sequence
+match) + a compact 186-byte fixture. Layer audit clean (32 files, VM-free).
+
+**The one remaining input for byte-exact PIXELS** (found by running the full
+`composite_mode0` and diffing writes — 24/24 calls right, but pixel values
+off): `road_column_strip` reads the per-column display-list RECORDS from the
+`[0E60]`/`[0E62]` segments (the 8 rotating buffers in the `0E76` table), and
+those are rebuilt EVERY frame by a display-list BUILDER that is **not yet
+recovered**. Seeding a `NativeGameImage` from BEFORE `34AE` holds the previous
+frame's records, so the composite differs; `road_column_strip` itself is
+correct (full-mem-diff verified) and `composite_mode0` is byte-exact when the
+records are already populated. So the renderer's last missing piece is now
+pinned to exactly ONE routine: the display-list builder that fills those
+buffers. Everything downstream of it (classify -> dispatch -> composite ->
+39D4 finalize) is recovered and verified.
+
+**Renderer status**: the entire mode-0 road-render pipeline is assembled and
+its decision logic VM-verified. Remaining: (1) recover the display-list
+builder (the single input for byte-exact pixels); (2) the mode-1 VGA-flush
+pass (separate, still-open, see prior entry). With (1), a native frame would
+produce a byte-exact off-screen road framebuffer.
 ## 2026-07-12 — 34AE setup (blocks 0-12) decoded + verified 6/6 for the mode-0 composite pass; mode-1 (VGA flush) setup is a separate, still-open path
 
 Continuing the renderer assembly (after landing `render_classify`), decoded
