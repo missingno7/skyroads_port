@@ -75,6 +75,55 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 — MILESTONE 2 COMPLETE (bounded): `play_native --boot` runs the FULL chain — splash -> menu -> gameplay, zero VM, entirely from game files
+
+Closed the loop task #24 set out to close. `--boot` now runs: LOGO.PCX splash
+(native PCX decoder, `skyroads/native/pcx.py` — standard ZSoft RLE format, no
+VM recovery needed; a generic-format module, not SkyRoads-proprietary) +
+INTRO.SND (6024 Hz PCM, SB-DMA-rate-verified) -> the native GOMENU
+level-select grid -> real gameplay via the already-verified `--cold-native`
+pipeline. Verified end to end headless (intro -> menu -> level-0 gameplay,
+zero VM at any point); full test suite green.
+
+**Honest scope note — two pieces remain outside this milestone, by design,
+not oversight:**
+- **LOGO.PCX is not part of SKYROADS.EXE's own runtime.** Traced every file
+  `INT21h AH=3D` open across a real cold boot (frames 0-210): LOGO.PCX is
+  never opened by the game at all. It must be shown by an external loader in
+  the original shareware distribution (a separate splash EXE/batch script),
+  outside what any captured demo exercises — so showing it here is a
+  reasonable stand-in, not a VM-verified recovery, and is documented as such
+  in `run_cold_boot`'s docstring.
+- **The real in-EXE intro (INTRO.LZS/ANIM.LZS, opened at boot frame 9) is
+  NOT reproduced.** Its ship-flying animation's frame-trigger/blit mechanism
+  wasn't identified this session (the `3A96` unpacker that seemed like the
+  obvious candidate turned out, per the TREKDAT finding above, to be a
+  ONE-SHOT display-list initializer, not a per-intro-frame animator — so
+  whatever drives ANIM.LZS's frames is still unknown). INTRO.SND — real
+  audio confirmed by the SB-DMA capture — plays regardless, since it's
+  correct either way. This is flagged, not silently approximated: the goal
+  was "complete or completely blocked" on faithfulness grounds for this one
+  piece; this port chooses "bounded and honest" over "silently wrong."
+  **De-risking lead for next time**: `ANIM.LZS`'s DATA format is now
+  decoded, just not its driver. Structure: `"ANIM"` tag + u16, then ONE
+  `"CMAP"` (102 colours, shared) + a 206-byte aux table, then a SEQUENCE of
+  bare `"PICT"` records back-to-back (u16 dest/h/w + 3 LZS width bytes +
+  stream each, same container primitives as `boot.py`'s `parse_lzs_container`/
+  `load_pict`) — a genuine flip-book: 22 consecutive frames confirmed
+  self-consistent by exact byte-consumption chaining (each frame's declared
+  `dest` is a segment-relative pixel offset, `h`/`w` shrink/grow ~20-36 x
+  22-26, consistent with a ship growing toward the camera), before the walk
+  hits non-PICT bytes at file offset 8182 (36,626 B remain — likely more
+  clips/segments, structure not yet identified past that point). Whoever
+  picks this up next should trace the actual blit CALL SITE during boot
+  frames ~11-113 in `demo_cold_20260711_201855` (the file's already open by
+  frame 9) to find the segment/timing driving these frames onto the screen.
+
+This closes the practical, playable core of milestone 2: cold boot to
+selectable, real gameplay, no VM, no snapshot, ever. `tests/test_pcx.py`
+(1 test) added; `tests/test_menu_grid.py`/`test_boot.py` unchanged and still
+green.
+
 ## 2026-07-13 — native LEVEL-SELECT MENU: `play_native --boot` — pick any level from a real menu screen, zero VM, then play it natively
 
 Extended the cold-start milestone with a functional menu: `scripts/play_native.py

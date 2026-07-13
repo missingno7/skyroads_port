@@ -517,6 +517,62 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
         disp.draw_game(arr)
         disp.flip()
 
+    # ---- INTRO: the publisher splash (LOGO.PCX) + INTRO.SND. NOT part of
+    # SKYROADS.EXE's own runtime -- tracing real cold boots shows LOGO.PCX is
+    # never opened by the game at all (it's shown by an external loader in
+    # the original distribution), so this is a reasonable stand-in rather
+    # than a VM-verified recovery. The real in-EXE intro sequence loads
+    # INTRO.LZS/ANIM.LZS at boot frame 9 for a ship-flying animation this
+    # native port does NOT yet reproduce (its trigger/blit mechanism isn't
+    # recovered -- see run_status.md); INTRO.SND (6024 Hz PCM, SB-DMA-
+    # verified) plays here regardless, since it IS real game audio. --------
+    try:
+        from skyroads.native.pcx import load_pcx
+        logo = load_pcx(root / "assets" / "LOGO.PCX")
+        logo_frame = bytearray(320 * 200)
+        ox, oy = (320 - logo.width) // 2, (200 - logo.height) // 2
+        for y in range(logo.height):
+            row = logo.pixels[y * logo.width:(y + 1) * logo.width]
+            base = (oy + y) * 320 + ox
+            logo_frame[base:base + logo.width] = row
+        logo_rgb = to_rgb(bytes(logo_frame), logo.palette)
+        intro_sound = None
+        try:
+            snd = (root / "assets" / "INTRO.SND").read_bytes()
+            mono = (_np.frombuffer(snd, dtype=_np.uint8).astype(_np.float32) - 128.0) / 128.0
+            if pygame.mixer.get_init() is None:
+                pygame.mixer.init()
+            mix_rate, _sz, mix_ch = pygame.mixer.get_init()
+            n_out = max(1, int(len(mono) * mix_rate / 6024))
+            res = _np.interp(_np.linspace(0, len(mono) - 1, n_out), _np.arange(len(mono)), mono)
+            s16 = (res * 32000).astype(_np.int16)
+            if mix_ch > 1:
+                s16 = _np.repeat(s16[:, None], mix_ch, axis=1)
+            intro_sound = pygame.sndarray.make_sound(_np.ascontiguousarray(s16))
+        except Exception as e:                       # noqa: BLE001
+            print(f"[window] intro sound disabled ({e})")
+        played = False
+        intro_frames = 0
+        while intro_frames < 70:                     # ~2s at 35fps
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT:
+                    pygame.quit()
+                    return
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_ESCAPE] or keys[pygame.K_RETURN] or keys[pygame.K_SPACE]:
+                break
+            if intro_sound is not None and not played:
+                intro_sound.play()
+                played = True
+            present(logo_rgb)
+            clock.tick(35)
+            intro_frames += 1
+            if window_frames and intro_frames >= window_frames:
+                print(f"[window] --window-frames reached during the intro ({intro_frames}); advancing to the menu")
+                break
+    except Exception as e:                            # noqa: BLE001
+        print(f"[window] intro disabled ({e})")
+
     # ---- MENU: pick a level (native GOMENU background + a drawn highlight
     # box around the selected "Road N" line) ----
     selected = 0
@@ -876,9 +932,10 @@ def main() -> None:
                         "it independently reaches the same level-complete conclusion")
     p.add_argument("--max-ticks", type=int, default=2000, help="tick budget for --cold/--cold-verify")
     p.add_argument("--boot", action="store_true",
-                   help="MILESTONE 2, the full cold start: open on the native level-select screen "
-                        "(no --level needed) -- program+DGROUP+display-lists+menu all built from "
-                        "the game files alone; pick a level with left/right, enter/space to play")
+                   help="MILESTONE 2, the full cold start: LOGO.PCX splash + INTRO.SND, then the "
+                        "native level-select screen (no --level needed), then real gameplay -- "
+                        "program+DGROUP+display-lists+menu+level all built from the game files "
+                        "alone. Navigate the grid with arrows, enter/space to play")
     args = p.parse_args()
 
     if args.boot:
