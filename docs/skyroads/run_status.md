@@ -4,6 +4,38 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-13 (round 5) — HUD gauges not FILLED at level start (stale caches); finish + gauges re-verified correct
+
+User: oxygen/fuel gauges show only their empty outlines at level start (should
+be full). Root cause: the `12F8` gauge updater is a DELTA renderer keyed on a
+per-gauge "last-drawn" cache; the VM ZEROES those caches (`1010:2B62-2B68`, in
+the respawn/level-init flow) so the freshly-painted empty dashboard re-fills on
+the first frame. Native's `apply_level_init` didn't -- so a level entered with
+stale caches (e.g. the `--level N` baseline snapshot has oxy=fuel=10 already)
+had `new == cache` on frame 0 -> nothing drawn -> empty outlines. (`--boot`'s
+fresh boot image happened to have caches=0, hiding it there.) Found via a
+write-watcher on the cache offsets: `1010:2B62/2B65/2B68` write speed/oxy/fuel
+caches -> 0. Fix: zero the three caches in `apply_level_init`; verified the
+snapshot path now fills (oxy/fuel 10 -> outline was empty; after the reset the
+frame-0 `12F8` fills). `tests/test_native_driver.py::
+test_apply_level_init_zeroes_the_hud_gauge_caches`.
+
+Re-verified the other two reports against the VM and found them ALREADY
+correct:
+* **oxygen/fuel RENDERING** is byte-exact -- widget banks / cell tables /
+  `update_hud` all match the VM, and a direct VM-vs-native diff of the whole
+  gauge region was 0 px. The only bug was the fill-at-start (caches), above.
+* **level FINISH** is byte-exact: at `ship_pos == LEVEL_END` (0x2AAA)
+  game_state -> 2 and the ship RISES off the end (af2c 10357 -> 13197, grounded
+  ramps 3 -> 43), matching the e2e VM finish exactly. The ship rises into space
+  ("disappears"), it does not fall. The `finish_...085832` demo showed a
+  different state (ship stuck at 10771, short of LEVEL_END, height draining) --
+  a fall short of the line, not the finish.
+
+**Open:** the GRAV-O METER digit readout (`1010:6097` draws it) is not ported
+-- the VM shows a live number ("500"), native shows the dashboard's baked-in
+"00".
+
 ## 2026-07-13 (round 3) — crash explosion animates, gauge UNFILL, music tempo — all VM-PROVEN, each with a regression test
 
 Second round of user-reported play_native issues, with the standing directive

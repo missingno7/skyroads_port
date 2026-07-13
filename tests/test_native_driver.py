@@ -23,6 +23,26 @@ from skyroads.native.loop import NativeGameplayDriver
 from skyroads.native.state import NativeGameState
 
 
+def test_apply_level_init_zeroes_the_hud_gauge_caches() -> None:
+    """The respawn/level-init flow zeroes the speed/oxygen/fuel `12F8` gauge
+    caches (`1010:2B62-2B68`) so the freshly-painted (empty) dashboard re-fills
+    on the first frame. Without this, a level entered with stale caches (== the
+    new value, e.g. oxy/fuel already 10 in a baseline snapshot) draws nothing
+    and the gauges show only their empty outlines -- the 2026-07-13 user report.
+    """
+    from skyroads.native.loop import apply_level_init
+
+    view = GameView(NativeGameState())
+    # stale caches, as a mid-game snapshot / a just-finished prior level leaves.
+    view._backend.ww(0x41BE, 7)    # speed cache
+    view._backend.ww(0x456C, 10)   # oxygen cache (full)
+    view._backend.ww(0x960C, 10)   # fuel cache (full)
+    apply_level_init(view, jump_level_gate=8)
+    assert view._backend.rw(0x41BE) == 0, "speed gauge cache not reset"
+    assert view._backend.rw(0x456C) == 0, "oxygen gauge cache not reset"
+    assert view._backend.rw(0x960C) == 0, "fuel gauge cache not reset"
+
+
 def test_driver_never_crashes_from_an_empty_level() -> None:
     view = GameView(NativeGameState())
     driver = NativeGameplayDriver(view, jump_level_gate=8)

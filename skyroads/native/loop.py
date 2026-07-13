@@ -410,12 +410,22 @@ def native_gameplay_substep(
         bp24=bp24, tgt_af2c=new_tgt_af2c)
 
 
+#: The three HUD gauge "last-drawn" caches (speed/oxygen/fuel), zeroed by the
+#: respawn/level-init flow at `1010:2B62-2B68` so the freshly-drawn (empty)
+#: dashboard gets re-FILLED from scratch by the next `12F8` delta pass. Without
+#: this, a level entered with stale caches (== the new value) draws nothing and
+#: the gauges show only their empty outlines -- see `skyroads/native/hud.py`.
+_GAUGE_CACHES = (0x41BE, 0x456C, 0x960C)   # speed, oxygen, fuel [12F8 caches]
+
+
 def apply_level_init(view: GameView, jump_level_gate: int) -> GameplayScratch:
     """Apply the per-level init (`1010:1FD9-206C`) to ``view`` in place and
     return a fresh :class:`GameplayScratch`: the transition primitive a driver
     runs at the start of each level / after a respawn. Writes the fixed reset
     fields (:class:`~skyroads.recovered.player.RespawnState`) plus the per-level
-    gravity derived from ``jump_level_gate`` and clears ``ds:[516E]``.
+    gravity derived from ``jump_level_gate``, clears ``ds:[516E]``, and zeroes
+    the HUD gauge caches (the `2B62-2B68` reset in the same respawn flow) so the
+    gauges re-fill on the first frame of the new level.
 
     (The joystick-recenter side call at 1FDF, for control device 2, is not
     modelled -- keyboard play doesn't take it.)
@@ -434,6 +444,8 @@ def apply_level_init(view: GameView, jump_level_gate: int) -> GameplayScratch:
     view.frame_ctr = r.frame_ctr
     view.grounded = r.unknown_456a
     view.gravity = level_gravity(jump_level_gate)
+    for cache_off in _GAUGE_CACHES:              # 2B62-2B68: HUD gauge caches -> 0
+        view._backend.ww(cache_off, 0)
     return GameplayScratch(bp12=1)
 
 
