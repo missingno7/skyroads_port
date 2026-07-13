@@ -85,19 +85,6 @@ from skyroads.recovered.player import RespawnState, level_gravity  # noqa: E402
 LOOP_TOP_IP = 0x2324  # the gameplay sub-step's classification entry (1010:2324)
 INPUT_OFFS = [0x95F4, 0x547A, 0x9330, 0x1600, 0x95F6] + list(range(0x0BD0, 0x0BE0))
 
-#: Frames to hold the display frozen after a crash/finish/timeout transition
-#: before respawning -- a windowed-viewer presentation choice, NOT a claim of
-#: byte-exact VM animation timing (see NativeGameplayDriver's docstring).
-#: VM-measured on demo_skyroads_crash_20260713_085908: native_gameplay_substep
-#: already plays the settle-window RAMP natively (grounded 0->0x2A over
-#: ~34 frames, af2c animating -- should_run_gameplay's own SETTLE_WINDOW_MAX
-#: logic), so no extra work is needed there. What's genuinely missing is the
-#: gap AFTER should_run_gameplay finally exits: the real VM doesn't reset
-#: until 60 more frames later (grounded plateaus at frame 45, the VM's own
-#: game_state 3->0 reset lands at frame 105) -- a separate, not-yet-recovered
-#: transition-display subsystem this constant stands in for.
-TRANSITION_HOLD_FRAMES = 60
-
 #: The game's real frame + music timing, MEASURED from the VM (2026-07-13,
 #: demo_cold_20260711_201855, steady gameplay): the PIT channel-0 reload is
 #: 6628, so the timer runs at 1193182/6628 = 180 Hz, and the music ISR
@@ -109,27 +96,104 @@ TRANSITION_HOLD_FRAMES = 60
 GAME_FPS = 30
 MUSIC_TICKS_PER_FRAME = 6
 
-#: Palette fade-to-black transitions. The VM ramps each DAC 6-bit component
-#: toward black (~2 units/frame, so DARKER colours reach 0 FIRST -- a SUBTRACT
-#: fade, not a scale), over ~30 frames, on level start (fade IN) and on death/
-#: finish (fade OUT). VM-measured on demo_cold_20260711_201855 (~frames
-#: 1145-1200: colour 15's 6-bit value ramps 53->0->53). ``level`` runs 0
-#: (black) .. FADE_FULL (full); the 8-bit offset subtracted from every colour
-#: component is ``(FADE_FULL-level)*4``.
-FADE_FULL = 63
-FADE_STEP = 2          # 6-bit units per frame -> ~32 frames end-to-end
+#: Palette fade-to-black transitions (level start / death / finish). RECOVERED
+#: from the real routine, not guessed: `1010:4331` cross-fades two 256-entry
+#: RGB palette buffers over a caller-given duration; its hot inner loop
+#: (`1010:43A9`) is `skyroads.recovered.palette_fade.blend_byte` -- ALREADY
+#: VERIFIED (34,439 real hook calls, zero divergence, see symbol_ledger.md) --
+#: `out = b + trunc((a-b)*percent/100)`, i.e. `out == b` at `percent=0` and
+#: `out == a` at `percent=100`. A first pass here used an UN-VERIFIED guessed
+#: "subtract ~2 units/frame toward black" scheme instead of this already-
+#: recovered primitive -- wrong to ship without checking it against the
+#: oracle, caught and replaced 2026-07-13.
+#:
+#: Traced 14 real `4331` calls (demo_cold_20260711_201855, corrected for the
+#: `enter` prologue -- bp is the CALLER's frame until `4331+4`, a mistake this
+#: same trace caught on the first pass). Every full-palette (`count==256`)
+#: transition uses `duration=36` and, confirmed by dereferencing both struct
+#: pointers, one side is ALWAYS a genuine all-zero (black) 256x3 buffer and
+#: the other the real on-screen scene palette -- i.e. a real fade-to/from-
+#: black, not an assumption. Level start / death / finish is a PAIR: fade the
+#: old scene OUT to black, then fade the new scene IN from black. Timing
+#: measured directly (entry-CS:IP to return-CS:IP frame count, 7 independent
+#: instances, zero variance): a `duration=36` call always takes exactly
+#: **30 real displayed frames = 1.0s @ 30fps**, so `duration` ticks aren't
+#: needed -- the wall-clock length IS the verified fact.
+FADE_FRAMES = 30
+BLACK_PALETTE = [(0, 0, 0)] * 256
+
+#: A crash/finish/timeout transition holds for one fade-out + fade-in pair
+#: (2 x FADE_FRAMES) before the new state is playable -- see TransitionFader.
+#: VM-measured on demo_skyroads_crash_20260713_085908: native_gameplay_substep
+#: already plays the settle-window RAMP natively (grounded 0->0x2A over ~34
+#: frames, af2c animating -- should_run_gameplay's own SETTLE_WINDOW_MAX
+#: logic), so no extra work is needed there; TransitionFader covers the gap
+#: AFTER that: the real VM doesn't reset until ~60 more frames later (grounded
+#: plateaus at frame 45, the VM's own game_state 3->0 reset lands at frame
+#: 105) -- which is exactly one fade-out + fade-in pair.
 
 
-def fade_palette(base, level: int):
-    """Subtract-fade ``base`` (a 256-entry list of 8-bit RGB tuples) toward
-    black: ``level == FADE_FULL`` is full brightness, ``0`` is all black. Each
-    component has ``(FADE_FULL-level)*4`` subtracted (clamped at 0), matching
-    the VM's DAC ramp where darker colours reach black first."""
-    off = (FADE_FULL - level) * 4
-    if off <= 0:
-        return base
-    return [(r - off if r > off else 0, g - off if g > off else 0,
-             b - off if b > off else 0) for (r, g, b) in base]
+def fade_palette(start, end, percent: int):
+    """The VM's real cross-fade (`1010:4331`/`43A9`): blend ``start`` (256
+    RGB tuples, the palette at ``percent=0``) toward ``end`` (at
+    ``percent=100``), via the verified ``blend_byte`` per channel."""
+    from skyroads.recovered.palette_fade import blend_byte
+    percent = max(0, min(100, percent))
+    return [(blend_byte(e[0], s[0], percent), blend_byte(e[1], s[1], percent),
+             blend_byte(e[2], s[2], percent)) for s, e in zip(start, end)]
+
+
+class TransitionFader:
+    """Drives the VM's real fade-out-to-black / fade-in-from-black pair
+    around a scene switch (level start, crash/death/finish respawn).
+
+    VM-verified (demo_cold_20260711_201855, frames 278-316): gameplay stays
+    FROZEN through the ENTIRE fade-in, not just the fade-out -- af2c/ship_pos/
+    gravity are all still 0 at frame 314 and only go live at 316, exactly
+    FADE_FRAMES after the fade-in's own 4331 call starts. So a caller must
+    hold ticking (and any state switch) frozen for the whole ``active``
+    window, not just resume the instant the screen goes black.
+
+    Call :meth:`tick` once per rendered frame; :meth:`switch` fires exactly
+    once, at the black-screen midpoint, to perform the actual state change.
+    """
+
+    def __init__(self, switch):
+        self._switch = switch
+        self.remaining = 0
+
+    @property
+    def active(self) -> bool:
+        return self.remaining > 0
+
+    def start_out(self) -> None:
+        """Fade the CURRENT scene out to black, switch, fade the NEW scene
+        in -- the crash/death/finish respawn sequence."""
+        self.remaining = 2 * FADE_FRAMES
+
+    def start_in(self) -> None:
+        """Fade IN only -- initial level entry, where there is no prior
+        on-screen scene to fade out of (the caller applies the new state
+        BEFORE calling this; no mid-fade ``switch()`` fires)."""
+        self.remaining = FADE_FRAMES
+
+    def tick(self) -> None:
+        if self.remaining <= 0:
+            return
+        self.remaining -= 1
+        if self.remaining == FADE_FRAMES:          # the exact black-screen instant
+            self._switch()
+
+    def palette(self, current):
+        """The palette to render THIS frame, or ``None`` if no fade is
+        active (render ``current`` unmodified)."""
+        if self.remaining > FADE_FRAMES:
+            percent = round(100 * (2 * FADE_FRAMES - self.remaining) / FADE_FRAMES)
+            return fade_palette(current, BLACK_PALETTE, percent)
+        if 0 < self.remaining <= FADE_FRAMES:
+            percent = round(100 * (FADE_FRAMES - self.remaining) / FADE_FRAMES)
+            return fade_palette(BLACK_PALETTE, current, percent)
+        return None
 
 
 def choose_song(prev_di: "int | None" = None) -> "tuple[int, int]":
@@ -414,7 +478,7 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     view = GameView(img, base=dg_base)
     scratch = apply_level_init(view, gate)
     driver = NativeGameplayDriver(view, gate, scratch, auto_respawn=False)
-    settle_remaining = 0
+    fader = TransitionFader(switch=driver.respawn)
 
     pygame.init()
     # native music: the recovered OPL sequencer -> a REAL Nuked-OPL3 chip
@@ -471,7 +535,7 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     # (rows 129..137, which the road render rewrites) is re-overlaid per frame
     # -- the gauges are left to the byte-exact delta updater to fill AND unfill.
     paint_dashboard(img.data, SEG_DASHBRD)
-    fade_level, fade_target = 0, FADE_FULL       # fade IN from black on level start
+    fader.start_in()                              # frozen fade IN from black on level start
     while running and (max_frames <= 0 or frames < max_frames):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (
@@ -496,22 +560,15 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
                 print(f"[window] music stopped ({e})")
                 music_engine = None
 
-        if settle_remaining > 0:
-            settle_remaining -= 1
-            if settle_remaining == 0:
-                driver.respawn()
-                fade_level, fade_target = 0, FADE_FULL   # fade IN the respawned level
-                print("[window] settle window done -- respawned")
+        # Gameplay is FROZEN for the whole fade window (VM-verified -- see
+        # TransitionFader), not just while the screen is black.
+        if fader.active:
+            fader.tick()
         else:
             outcome = driver.tick()
             if outcome.transitioned:
-                print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- settling")
-                settle_remaining = TRANSITION_HOLD_FRAMES
-                fade_target = 0                          # fade OUT to black on death/finish
-        if fade_level < fade_target:
-            fade_level = min(fade_target, fade_level + FADE_STEP)
-        elif fade_level > fade_target:
-            fade_level = max(fade_target, fade_level - FADE_STEP)
+                print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- fading out")
+                fader.start_out()
         # Full road re-render EVERY frame (rebuild=True), not just the first.
         # The VM's delta/skip render paths (34AE: nothing on delta==0, the
         # column loop on 1<=delta<8) assume a persistent, always-correct road
@@ -527,7 +584,7 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
         update_hud(img, DATA_SEG, view.ship_pos)
 
         frame = bytes(img.data[0xA0000:0xA0000 + 64000])   # the live VGA plane
-        fpal = fade_palette(palette, fade_level)           # fade-to-black transitions
+        fpal = fader.palette(palette) or palette            # fade-to-black transitions
         rgb = bytearray(320 * 200 * 3)
         for i in range(320 * 200):            # viewport rows + the cockpit dashboard
             r, g, b = fpal[frame[i]]
@@ -780,6 +837,25 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     print(f"[window] level {selected} (world {selected // 3}, road {selected % 3 + 1}) "
           f"selected -- loading VM-free")
 
+    # Fade the menu OUT to black before loading gameplay -- VM-verified pair
+    # (see TransitionFader): the real menu->gameplay handoff is a fade-out of
+    # the CURRENT screen, then (invisibly, behind full black) the level loads,
+    # then a fade-in of the new scene. This is the menu-screen half only (no
+    # gameplay state to hold frozen yet); the gameplay fade-in follows once
+    # the level below is loaded.
+    menu_frame = bytearray(img.data[(menu_seg << 4):(menu_seg << 4) + 64000])
+    x0, y0, x1, y1 = level_box(selected)
+    for x in range(x0, x1):
+        menu_frame[y0 * 320 + x] = HIGHLIGHT_IDX
+        menu_frame[(y1 - 1) * 320 + x] = HIGHLIGHT_IDX
+    for y in range(y0, y1):
+        menu_frame[y * 320 + x0] = HIGHLIGHT_IDX
+        menu_frame[y * 320 + (x1 - 1)] = HIGHLIGHT_IDX
+    for f in range(FADE_FRAMES):
+        percent = round(100 * (f + 1) / FADE_FRAMES)
+        present(to_rgb(bytes(menu_frame), fade_palette(menu_palette, BLACK_PALETTE, percent)))
+        clock.tick(GAME_FPS)
+
     # ---- GAMEPLAY: identical to run_window's --cold-native path ----
     st = NativeGameState(bytearray(img.data[dg_base:dg_base + 0x10000]))
     apply_gameplay_segment_init(st.data)
@@ -802,7 +878,7 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     view = GameView(img, base=dg_base)
     scratch = apply_level_init(view, gate)
     driver = NativeGameplayDriver(view, gate, scratch, auto_respawn=False)
-    settle_remaining = 0
+    fader = TransitionFader(switch=driver.respawn)
 
     music_engine = music_synth = None
     try:
@@ -844,7 +920,7 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     gp_frames = 0
     running = True
     paint_dashboard(img.data, SEG_DASHBRD)       # full once; bezel-only per frame below
-    fade_level, fade_target = 0, FADE_FULL       # fade IN from black on level start
+    fader.start_in()                              # frozen fade IN from black on level start
     while running and (window_frames <= 0 or gp_frames < window_frames):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (
@@ -869,23 +945,15 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
                 print(f"[window] music stopped ({e})")
                 music_engine = None
 
-        if settle_remaining > 0:
-            settle_remaining -= 1
-            if settle_remaining == 0:
-                driver.respawn()
-                fade_level, fade_target = 0, FADE_FULL   # fade IN the respawned level
-                print("[window] settle window done -- respawned")
+        # Gameplay is FROZEN for the whole fade window (VM-verified -- see
+        # TransitionFader), not just while the screen is black.
+        if fader.active:
+            fader.tick()
         else:
             outcome = driver.tick()
             if outcome.transitioned:
-                print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- settling")
-                settle_remaining = TRANSITION_HOLD_FRAMES
-                fade_target = 0                          # fade OUT to black on death/finish
-        # ramp the fade toward its target (subtract fade, ~2 6-bit units/frame)
-        if fade_level < fade_target:
-            fade_level = min(fade_target, fade_level + FADE_STEP)
-        elif fade_level > fade_target:
-            fade_level = max(fade_target, fade_level - FADE_STEP)
+                print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- fading out")
+                fader.start_out()
         # Full road re-render every frame -- see the run_window() comment: the
         # delta/skip render paths leave stale edge terrain (edge ghosting), so
         # the windowed viewer always does a full render (~6 ms/frame).
@@ -893,7 +961,7 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
         paint_dashboard(img.data, SEG_DASHBRD, byte_count=DASHBOARD_BEZEL_OVERLAP)
         update_hud(img, DATA_SEG, view.ship_pos)
         present(to_rgb(bytes(img.data[0xA0000:0xA0000 + 64000]),
-                       fade_palette(palette, fade_level)))
+                       fader.palette(palette) or palette))
         clock.tick(GAME_FPS)
         gp_frames += 1
     pygame.quit()

@@ -4,6 +4,68 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-13 (round 7) — palette fade RECONSTRUCTED from the real routine (a prior guess was caught and replaced); menu scroll_pos->level mapping: new evidence, still open
+
+**User correction, taken seriously**: a first pass at the fade-to-black
+transition (round 6) used an UN-VERIFIED guessed "subtract ~2 units/frame"
+scheme, presented as "VM-measured" when it had only been eyeballed from one
+brightness curve -- never checked against the real algorithm. Caught before
+it could compound. Lesson applied for the rest of this round: hypotheses are
+fine, SHIPPING one without checking it against the oracle is not.
+
+**The real fade, reconstructed and verified:**
+- `docs/skyroads/blockers.md` already had an ASM-VERIFIED primitive sitting
+  unused: `skyroads.recovered.palette_fade.blend_byte` (`1010:43A9`, 34,439
+  real hook calls, zero divergence) -- linear interpolation `out = b +
+  trunc((a-b)*percent/100)`, NOT a subtract ramp. Should have been used from
+  the start.
+- Traced 14 real `1010:4331` (the outer fade driver) calls. First pass
+  mis-read the args (sampled `bp` at the function's raw entry, BEFORE its own
+  `enter 0x16,0` prologue runs -- so `bp` was still the CALLER's frame; the
+  same class of mistake `run_status.md` has flagged before, `0x4331+4` is
+  where the corrected frame starts). Re-traced correctly: every real
+  full-palette (`count==256`) fade has ONE side a genuine all-zero (black)
+  256x3 buffer and the OTHER the actual on-screen scene palette -- a real
+  fade to/from black, not an assumption.
+- Timed 7 independent instances precisely (entry-CS:IP to return-CS:IP frame
+  count): a `duration=36`-tick fade always takes exactly **30 real displayed
+  frames = 1.0s @ 30fps**, zero variance.
+- **Gameplay is frozen for the WHOLE fade window, not just while black**:
+  af2c/ship_pos/gravity all stay 0 through frame 314 of a fade that starts at
+  285 (30 frames later) and only go live at 316 -- confirmed on a real
+  level-start sequence.
+
+Replaced the guessed constants with `TransitionFader` (`scripts/play_native.
+py`), driven by the verified `blend_byte`: fade the old scene out to black
+(30 frames), switch state at the exact black-screen midpoint, fade the new
+scene in (30 frames), gameplay held frozen throughout. Wired into both
+gameplay loops for level start, crash/death, and finish; the menu screen also
+now fades out before the gameplay fade-in on confirm (previously an instant
+cut). `TRANSITION_HOLD_FRAMES` is now derived (`2 * FADE_FRAMES`) instead of
+an independently-guessed 60.
+
+**Menu scroll_pos -> level-index mapping: genuinely re-investigated, still
+open.** This is the OTHER known approximation the user flagged (`play_native.
+py`'s level-select UI steps a level index 0..29 directly instead of the
+ROM's real `scroll_pos`-driven selection -- already honestly disclosed in
+`run_cold_boot`'s docstring, unlike the fade). Attempted to finally resolve
+the historical "two real captures disagreed" mystery using
+`demo_cold_20260711_201855` (the only available demo that visits multiple
+levels). New, concrete finding: this demo's `[54A8]` (the level index driving
+ROADS.LZS loads) is written ONLY by `1010:0xdd` (init to 0) and `1010:0x17d`
+-- disassembled live: `ADD word [54A8], 1`, a PLAIN INCREMENT, called 9 times
+in sequence (1..9). This is a hardcoded ATTRACT-MODE auto-cycle through all
+10 worlds, completely independent of `scroll_pos` -- the demo never exercises
+the real interactive confirm path at all. This plausibly explains the
+historical disagreement (comparing `scroll_pos` against this unrelated
+counter in two different captures would never agree, because they encode
+unrelated things). **Still unresolved**: what the REAL interactive
+confirm-driven mapping is. Needs either a fresh capture of genuine arrow-key
+GOMENU navigation + confirm (ideally 2-3 different confirmed levels) or
+deeper static tracing of the post-`ACTION_ENTER_LEVEL_SELECT` code path --
+neither done this round. The level-select UI approximation stays as
+documented in `run_cold_boot`'s docstring until one of those lands.
+
 ## 2026-07-13 (round 6) — palette fade-to-black transitions; demo re-verified 99.1%
 
 **Fade transitions** (user: missing on death/level start). The VM ramps the DAC
