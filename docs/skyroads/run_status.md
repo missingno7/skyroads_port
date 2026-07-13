@@ -75,6 +75,42 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 — native LEVEL-SELECT MENU: `play_native --boot` — pick any level from a real menu screen, zero VM, then play it natively
+
+Extended the cold-start milestone with a functional menu: `scripts/play_native.py
+--boot` opens directly on the GOMENU.LZS level-select screen (no `--level`
+needed), lets the player navigate a 10-world x 3-road grid, and hands off
+into the already-verified `--cold-native` gameplay pipeline on confirm.
+
+**GOMENU decodes to the REAL menu screen** (not just a plain background):
+the 320x200 PICT already contains all 10 world names + their "Road 1/2/3"
+lines pre-rendered (`artifacts/frames/native_menu_gomenu.png`) — the 2-column
+x 5-row x 3-line layout confirms `world_for_level`'s `level // 3` convention
+visually. Its 212-colour CMAP maps directly to DAC 0..211, **verified
+212/212** against a live-captured menu-time DAC (`dos.vga_palette`); the
+background pixels are RAW (unbiased) at segment `7176:0000`, **63,970/64,000**
+exact against a real cold-boot capture (residual = the small 5x6 selection-
+icon PICT record this version doesn't draw).
+
+**Selection UI is an honest approximation, not a ROM recovery.** Two things
+remain genuinely unrecovered: the ROM's own on-screen cursor sprite, and the
+`scroll_pos`-to-level-index mapping (two real captures disagreed on what
+level a given `scroll_pos` selects — `dispatch_menu_action`'s scroll
+mechanics are ASM-matched, but that indirection isn't). So the menu instead:
+measures the grid's row/column pixel bands directly off the decoded
+background's own green "Road N" text (`WORLD_ROW_Y0`/`ROAD_SUB_Y`/`COL_X` in
+`play_native.py`), and draws a plain highlight rectangle around the selected
+line (arrow keys move it, enter/space confirms) — verified to land on real
+green text for all 30 levels (`tests/test_menu_grid.py`).
+
+Ran end to end headless: menu renders, navigates, confirms level 0, and
+transitions into real native gameplay — zero VM at any point. 3 new tests
+pass (grid geometry + green-pixel overlap for every level).
+
+Remaining for the full milestone: the intro sequence (LOGO.PCX + the
+`3A96`-driven ANIM.LZS animation + INTRO.SND) and sequencing intro -> menu
+-> gameplay as one continuous flow.
+
 ## 2026-07-13 — MILESTONE 2 CORE REACHED: gameplay renders from GAME FILES ALONE — zero VM, zero snapshot, at any level
 
 The TREKDAT record framing was traced live (`1010:00E6-017D`, boot frame 9)

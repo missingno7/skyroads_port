@@ -432,6 +432,236 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     print(f"[window] closed after {frames} frames")
 
 
+def run_cold_boot(root: Path, window_frames: int = 0) -> None:
+    """MILESTONE 2, the full cold start: open on the native LEVEL-SELECT
+    screen (GOMENU.LZS, VM-free), let the player pick a level, then hand off
+    into real gameplay -- zero VM, zero snapshot, at any point.
+
+    GOMENU's background + its own 212-colour CMAP are VM-verified byte-exact
+    (212/212 palette entries, 63,970/64,000 background pixels -- the residual
+    is the small 5x6 selection-icon PICT record this native version doesn't
+    draw yet). The background ALREADY contains the full menu -- 10 world
+    names in a 2x5 grid, each with its 3 "Road N" lines pre-rendered -- so
+    the level to play is picked by highlighting one of those 30 lines
+    directly (row/column geometry measured off the decoded image's own green
+    text pixels, not a ROM-recovered layout table).
+
+    What is NOT recovered: the ROM's own selection-cursor draw and the exact
+    `scroll_pos`-to-level-index mapping (dispatch_menu_action's scroll
+    mechanics are recovered and ASM-matched, but two different real captures
+    disagreed on what level index a given scroll_pos selects -- see
+    run_status.md -- so this menu does NOT reuse that indirection). Left/
+    right/up/down here directly step a level index 0..29, highlighted with a
+    plain drawn rectangle -- a UI affordance standing in for the ROM's own
+    cursor sprite, not a recovered asset.
+    """
+    import pygame
+    import numpy as _np
+
+    from skyroads.native.boot import (apply_gameplay_segment_init,
+                                      load_pict, native_boot_dac,
+                                      native_boot_image, parse_lzs_container)
+    from skyroads.native.frame import render_native_frame
+    from skyroads.native.image import NativeGameImage
+    from skyroads.native.level_load import native_level_load, read_game_file
+    from skyroads.native.loop import NativeGameplayDriver, apply_level_init
+    from skyroads.native.state import DATA_SEG, NativeGameState
+    from skyroads.native.world_load import (
+        CMAP_DAC_BASE, expand6, load_world_assets, native_song_load)
+    from dos_re.display import Display
+
+    img = NativeGameImage(native_boot_image(root / "assets"))
+    dg_base = DATA_SEG << 4
+
+    # the menu screen: GOMENU's background at 7176:0000 (VM-verified) + its
+    # own 212-colour palette occupying DAC 0..211 directly (VM-verified).
+    gomenu = read_game_file(root / "assets", "GOMENU.LZS")
+    cmap, _aux, pict_at, _dest, mh, mw = parse_lzs_container(gomenu)
+    _, menu_pixels = load_pict(gomenu, pict_at)
+    menu_seg = 0x7176
+    img.data[(menu_seg << 4):(menu_seg << 4) + len(menu_pixels)] = menu_pixels
+    HIGHLIGHT_IDX = 255                     # unused by GOMENU's 212 colours
+    menu_palette = [(0, 0, 0)] * 256
+    for i in range(len(cmap) // 3):
+        menu_palette[i] = tuple(expand6(cmap[3 * i + k]) for k in range(3))
+    menu_palette[HIGHLIGHT_IDX] = (255, 255, 0)
+
+    # 30 levels in a 2-column x 5-row x 3-road grid (measured off the
+    # decoded background's own green "Road N" text pixels -- see the
+    # function docstring's caveat: not a recovered ROM layout table).
+    WORLD_ROW_Y0 = (12, 51, 90, 129, 168)
+    ROAD_SUB_Y = ((0, 8), (10, 17), (19, 27))
+    COL_X = ((6, 112), (166, 272))
+
+    def level_box(level: int) -> "tuple[int, int, int, int]":
+        world, road = level // 3, level % 3
+        col, row = (0, world) if world < 5 else (1, world - 5)
+        y0, y1 = WORLD_ROW_Y0[row] + ROAD_SUB_Y[road][0], WORLD_ROW_Y0[row] + ROAD_SUB_Y[road][1]
+        x0, x1 = COL_X[col]
+        return x0, y0, x1, y1
+
+    pygame.init()
+    disp = Display((960, 720), title="SkyRoads native -- cold boot")
+    clock = pygame.time.Clock()
+
+    def to_rgb(frame: bytes, palette) -> bytes:
+        rgb = bytearray(320 * 200 * 3)
+        for i in range(320 * 200):
+            r, g, b = palette[frame[i]]
+            j = i * 3
+            rgb[j] = r; rgb[j + 1] = g; rgb[j + 2] = b
+        return bytes(rgb)
+
+    def present(rgb_bytes: bytes) -> None:
+        arr = _np.frombuffer(rgb_bytes, dtype=_np.uint8).reshape(200, 320, 3)
+        disp.draw_game(arr)
+        disp.flip()
+
+    # ---- MENU: pick a level (native GOMENU background + a drawn highlight
+    # box around the selected "Road N" line) ----
+    selected = 0
+    running = True
+    frames = 0
+    prev_left = prev_right = prev_up = prev_down = prev_confirm = False
+    while running:
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
+                pygame.quit()
+                print("[window] closed at menu")
+                return
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_ESCAPE]:
+            pygame.quit()
+            print("[window] closed at menu")
+            return
+        left, right = keys[pygame.K_LEFT], keys[pygame.K_RIGHT]
+        up, down = keys[pygame.K_UP], keys[pygame.K_DOWN]
+        confirm = keys[pygame.K_RETURN] or keys[pygame.K_SPACE]
+        world, road = selected // 3, selected % 3
+        if up and not prev_up:
+            road = (road - 1) % 3
+        if down and not prev_down:
+            road = (road + 1) % 3
+        if left and not prev_left:
+            world = (world - 1) % 10
+        if right and not prev_right:
+            world = (world + 1) % 10
+        selected = world * 3 + road
+        prev_left, prev_right, prev_up, prev_down = left, right, up, down
+        if confirm and not prev_confirm:
+            running = False
+        prev_confirm = confirm
+
+        frame = bytearray(img.data[(menu_seg << 4):(menu_seg << 4) + 64000])
+        x0, y0, x1, y1 = level_box(selected)
+        for x in range(x0, x1):
+            frame[y0 * 320 + x] = HIGHLIGHT_IDX
+            frame[(y1 - 1) * 320 + x] = HIGHLIGHT_IDX
+        for y in range(y0, y1):
+            frame[y * 320 + x0] = HIGHLIGHT_IDX
+            frame[y * 320 + (x1 - 1)] = HIGHLIGHT_IDX
+        present(to_rgb(bytes(frame), menu_palette))
+        clock.tick(35)
+        frames += 1
+        if window_frames and frames >= window_frames:
+            print(f"[window] --window-frames reached at the menu ({frames}); "
+                  f"auto-selecting level {selected}")
+            break
+
+    print(f"[window] level {selected} (world {selected // 3}, road {selected % 3 + 1}) "
+          f"selected -- loading VM-free")
+
+    # ---- GAMEPLAY: identical to run_window's --cold-native path ----
+    st = NativeGameState(bytearray(img.data[dg_base:dg_base + 0x10000]))
+    apply_gameplay_segment_init(st.data)
+    palette = native_boot_dac(root / "assets")
+    decoded = native_level_load(st, selected, game_root=str(root / "assets"))
+    world = load_world_assets(selected, game_root=str(root / "assets"))
+    song = native_song_load(st, selected, game_root=str(root / "assets"))
+    img.data[dg_base:dg_base + 0x10000] = st.data
+    bg_seg = img.rw(DATA_SEG, 0x5170)
+    img.data[(bg_seg << 4):(bg_seg << 4) + len(world.background)] = world.background
+    for i in range(72):
+        palette[i] = tuple(expand6(decoded.palette[3 * i + k]) for k in range(3))
+    for i in range(len(world.cmap) // 3):
+        palette[CMAP_DAC_BASE + i] = tuple(expand6(world.cmap[3 * i + k]) for k in range(3))
+    gate = st.rw(0x4562)
+    print(f"[window] level {selected} loaded VM-free (road={len(decoded.road)}B); "
+          f"world {selected // 3} + song {song.index} -- all native")
+
+    view = GameView(img, base=dg_base)
+    scratch = apply_level_init(view, gate)
+    driver = NativeGameplayDriver(view, gate, scratch)
+
+    music_engine = music_decoder = music_synth = None
+    try:
+        from skyroads.recovered.music import Engine as _MusicEngine
+        from skyroads.audio.opl_events import OplEventDecoder
+        from skyroads.audio.synth import ModernSynth
+        music_synth = ModernSynth()
+        music_engine = _MusicEngine(lambda o: img.rb(DATA_SEG, o),
+                                    lambda o: img.rw(DATA_SEG, o))
+        music_decoder = OplEventDecoder()
+    except Exception as e:                       # noqa: BLE001
+        print(f"[window] music disabled ({e})")
+    try:
+        import numpy as _np
+        from skyroads.native.sfx import load_sfx_bank
+        if pygame.mixer.get_init() is None:
+            pygame.mixer.init()
+        mix_rate, _sz, mix_ch = pygame.mixer.get_init()
+        sounds = []
+        for eff in load_sfx_bank(root / "assets" / "SFX.SND"):
+            u8 = _np.frombuffer(eff.pcm, dtype=_np.uint8).astype(_np.float32)
+            mono = (u8 - 128.0) / 128.0
+            n_out = max(1, int(len(mono) * mix_rate / eff.rate))
+            res = _np.interp(_np.linspace(0, len(mono) - 1, n_out),
+                             _np.arange(len(mono)), mono)
+            s16 = (res * 32000).astype(_np.int16)
+            if mix_ch > 1:
+                s16 = _np.repeat(s16[:, None], mix_ch, axis=1)
+            sounds.append(pygame.sndarray.make_sound(_np.ascontiguousarray(s16)))
+        driver.on_sfx = lambda i: sounds[i].play() if i < len(sounds) else None
+    except Exception as e:                       # noqa: BLE001
+        print(f"[window] SFX disabled ({e})")
+
+    first = True
+    gp_frames = 0
+    running = True
+    while running and (window_frames <= 0 or gp_frames < window_frames):
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT or (
+                    ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
+                running = False
+        keys = pygame.key.get_pressed()
+        view.speed = (1 if keys[pygame.K_UP] else 0) - (1 if keys[pygame.K_DOWN] else 0)
+        view.steer = ((1 if keys[pygame.K_RIGHT] else 0)
+                      - (1 if keys[pygame.K_LEFT] else 0)) & 0xFFFF
+        view.jump = 1 if keys[pygame.K_SPACE] else 0
+        view.elapsed_ticks = (view.elapsed_ticks + 2) & 0xFFFF
+        if music_engine is not None:
+            try:
+                for _ in range(2):
+                    writes = music_engine.run_tick()
+                    for off, b in music_engine.ovl.items():
+                        img.wb(DATA_SEG, off, b)
+                    music_synth.handle(music_decoder.feed(writes))
+            except Exception as e:                       # noqa: BLE001
+                print(f"[window] music stopped ({e})")
+                music_engine = None
+
+        outcome = driver.tick()
+        if outcome.transitioned:
+            print(f"[window] {outcome.reason} -- respawned")
+        render_native_frame(img, DATA_SEG, offscreen=1, rebuild=first)
+        first = False
+        present(to_rgb(bytes(img.data[0xA0000:0xA0000 + 64000]), palette))
+        clock.tick(35)
+        gp_frames += 1
+    pygame.quit()
+    print(f"[window] closed after {frames} menu frames + {gp_frames} gameplay frames")
+
+
 def run_cold_verify(root: Path, demo_path: Path, max_ticks: int = 2000) -> None:
     """The strongest form of the cold-run proof: reset the REAL VM (the
     unmodified original game) to the SAME cold level-start state, force zero
@@ -645,7 +875,15 @@ def main() -> None:
                    help="like --cold, but ALSO resets the real VM to the same cold state and confirms "
                         "it independently reaches the same level-complete conclusion")
     p.add_argument("--max-ticks", type=int, default=2000, help="tick budget for --cold/--cold-verify")
+    p.add_argument("--boot", action="store_true",
+                   help="MILESTONE 2, the full cold start: open on the native level-select screen "
+                        "(no --level needed) -- program+DGROUP+display-lists+menu all built from "
+                        "the game files alone; pick a level with left/right, enter/space to play")
     args = p.parse_args()
+
+    if args.boot:
+        run_cold_boot(ROOT, args.window_frames)
+        return
 
     if args.level is not None:
         if args.headless:                        # agent/CI: the sim-only run
