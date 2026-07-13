@@ -4,6 +4,255 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-13 (round 3) — crash explosion animates, gauge UNFILL, music tempo — all VM-PROVEN, each with a regression test
+
+Second round of user-reported play_native issues, with the standing directive
+"all of these should be caught by verification -- prove the correct values,
+never fiddle." Each fix is derived from and checked against the VM, and each
+gets a VM-oracle regression test (the earlier per-piece tests missed these
+because nothing verified the INTEGRATED behaviour).
+
+**1. Gauge ghost-on-unfill.** The previous round's `update_hud(force_full=True)`
+redrew cells `[0,new)` "on" every frame but never redrew the vacated cells on a
+DECREASE, so a dropping gauge left ghost segments. Root fix: use the VM-exact
+DELTA path (`flag=0` redraws vacated cells "off") and stop repainting the
+dashboard over the gauges -- `play_native` now paints the full dashboard ONCE
+and per frame only re-overlays the road-overlapping bezel strip (rows 129..137,
+`paint_dashboard(..., byte_count=DASHBOARD_BEZEL_OVERLAP)`); the gauges (rows
+138..199, never touched by the road render) are left to the delta updater.
+`force_full` removed. Verified: captured 2 real DECREASING `12F8` calls (speed
+29->28, fuel 10->9) into the fixture -- the unfill path is now byte-exact
+(`tests/test_hud.py`, 9 cases; the fill path was already verified, the unfill
+path was the gap).
+
+**2. Crash explosion frozen.** `native_gameplay_substep`'s gate had an extra
+`game_state in {0,3}` clause that exited on the FIRST crash frame
+(`game_state:=1`), so the settle window never ran and the viewer froze. The
+VM's real gate is `should_run_gameplay` ALONE -- its settle-window clause keeps
+the frame in the handler while `[456A]` (grounded) ramps 1..0x2A REGARDLESS of
+game_state, and the ship sprite `si = [456A]//3` cycles the explosion frames
+0..13 as it ramps. Relaxed both gates to `should_run_gameplay` alone; verified
+against demo_skyroads_20260710_213019 that the native frozen-ship path
+reproduces the settle window step-for-step (grounded 2->42 / af2c, then the
+transition past 0x2A) and that `si` animates 1..13 then hides. `play_native`
+runs the ramp via `driver.tick()` (animating), then holds the ~60-frame
+post-explosion freeze, then respawns. `tests/test_crash_settle.py` +
+`tests/test_native_loop_lockstep.py` updated (the whole-level run now ends at
+the level BOUNDARY rather than a native GAP, since native no longer raises
+exactly at game_state->2).
+
+**3. Music tempo (was ~2.6x too slow).** MEASURED from the VM: the game
+programs PIT channel 0 to reload 6628 -> 1193182/6628 = **180 Hz**, and the
+music ISR `1010:5A55` fires once per timer IRQ = **6 per displayed frame** ->
+the game runs at **30 fps** and the OPL sequencer ticks at **180 Hz**.
+`play_native` was rendering at 35 fps and ticking the sequencer 2x/frame = 70
+Hz (0.39x). Fixed: `GAME_FPS=30`, `MUSIC_TICKS_PER_FRAME=6` (both derived, not
+guessed). `tests/test_music_tempo.py` measures the VM's PIT reload + ISR
+cadence and asserts `GAME_FPS * MUSIC_TICKS_PER_FRAME == the VM timer Hz`.
+
+**4. Integrated render verification** (the meta-ask). `tests/test_render_
+parity.py` replays a demo and diffs the native full-frame render (`rebuild=
+True`, what play_native does) against the VM's VGA road band frame-by-frame,
+bounding the per-frame diff -- a fence that would have caught the ghosting/
+render regressions the per-piece tests missed.
+
+**Still open (documented):** the ship-SPRITE render has a small (~200-350 px)
+per-frame inaccuracy around the ship (off-by-one colours + a few missing/extra
+pixels) -- the render-parity fence tolerates it explicitly; and `[1600]`
+(elapsed-tick counter driving idle-wobble + SFX debounce) is still advanced
++2/frame, not yet matched to the VM's ~1/frame at 30 fps (secondary timing,
+not user-visible).
+
+## 2026-07-13 — play_native HUD gauges fill correctly + edge terrain ghosting fixed (both by rendering full each frame)
+
+Two user-reported `play_native` display bugs, both root-caused to the
+windowed viewer's per-frame draw order / render path.
+
+**HUD gauges "showing values but not filled".** `play_native` calls
+`paint_dashboard` EVERY frame (it must -- the cockpit frame's top rows
+129..137 overlap the road band the road render rewrites each frame, verified:
+the DASHBRD bank has 176..316 nonzero pixels/row there). But `update_hud`
+(the ported `12F8`) is a DELTA updater: it only redraws gauge cells that
+changed vs a cache. So each frame `paint_dashboard` wiped the gauge fills
+(gauges sit at rows 163..188, well below the road) and the delta redrew only
+the 0-or-1 changed cells -> the O2/fuel radial + speed dial showed empty.
+Fix: `update_hud(..., force_full=True)` treats the cache as 0 so every gauge
+is fully re-filled each frame (the VM-faithful delta path stays the default,
+still byte-exact in `tests/test_hud.py`). Verified by rendering: the O2/FUEL
+segments now fill magenta (were empty).
+
+**Left/right edge terrain ghosting.** Reproduced against
+`demo_skyroads_20260713_103107` (level 5) by rendering the native pipeline
+alongside the VM: stale teal terrain (colour 61/63) lingered at cols 0..9 /
+312..319 where the VM had black sky (0). Root cause: the VM's `34AE` render
+uses delta/skip paths (nothing on `delta==0`, a partial column loop on
+`1<=delta<8`) that assume a persistent, incrementally-maintained road band;
+in fact THIS demo is `delta==0` on all 542 renders (`[0E2A]`=`lateral_col` is
+constant -- the road never redraws, only the ship sprite moves). The native
+port's own accumulated offscreen/display-list state drifts under the skip
+path and leaves stale edge terrain standing. A full render each frame
+(`render_native_frame(rebuild=True)`: bg->offscreen + full tile raster)
+sidesteps the delta path entirely -- verified ghosting-free (edge diffs 0),
+and cheap (~6 ms/frame, well within the 35 fps budget). Both windowed loops
+in `play_native.py` now render full each frame.
+
+**Still open (documented, not hidden):** (a) the native `34AE` delta/skip
+render path has a real edge-staleness bug -- the full-render workaround
+avoids it but doesn't fix the path itself; (b) a small ship-SPRITE rendering
+inaccuracy remains even with a full render (~200 px near the ship: off-by-one
+colours + a few missing/extra pixels -- the "probable inaccuracies" the demo
+also exposes), not yet chased down.
+
+## 2026-07-13 — per-level MUSIC is RANDOM, not `level // 3`: fixed play_native playing the intro track on gameplay levels
+
+User report: `play_native` plays the intro music on early levels (world 0/1).
+Root cause: `song_for_level(level) = level // 3` was WRONG. The cold-boot
+trace already recorded MUZAX **song 0 = intro** track and **song 2 = menu**
+track, so `level // 3` handed world 0 the intro track and world 2 the menu
+track — exactly the symptom.
+
+Recovered the real selection by hooking the MUZAX loader `1010:57C4` over a
+multi-level cold session (`demo_cold_20260711_201855`) and matching each
+level's (gravity,fuel,oxygen) scalars back to a ROADS index: **levels 16 and
+17 — both world 5 — loaded DIFFERENT songs (8 then 7)**, and level 1 (world 0)
+loaded song 2. So song is not per-world at all. Disassembling the caller from
+live memory (return addr `0x2CC`) shows why — the per-level pick at
+`1010:0296-02C8` is RANDOM:
+
+    0296 mov ax,[4518] / call rand      ; PRNG -> ax
+    029F mov cx,9 / sub dx,dx / div cx  ; dx = rand % 9
+    02A6 mov di,dx                       ; di in 0..8
+    02A8 cmp di,[bp-6]; je -> di=(di+1)%9 ; no immediate repeat
+    02C3 mov ax,di / add ax,1            ; song index = di+1  (1..9)
+    02C8 push ax / call 57C4             ; load MUZAX song[ax]
+
+So the gameplay song is `(rand % 9) + 1` — a random track in **1..9**, never
+song 0 (intro), avoiding an immediate repeat. (This also re-contextualizes the
+old "song 4 == level-14 snapshot" and "level 30 → song 6" notes: those were
+byte-exact *loader* proofs / one-capture *observations* of a random pick, not
+a fixed level→song table.)
+
+Fix: `skyroads/native/world_load.py` gains `pick_gameplay_song(rand_value,
+prev)` (the ASM's `(rand%9)+1` + no-repeat rule; returns `(song_index, di)`)
+and `GAMEPLAY_SONG_COUNT=9`; `native_song_load` now takes an explicit
+`song_index` (the pure loader stays deterministic/testable — the random
+*policy* lives in the caller). `song_for_level` is removed (there is no such
+mapping). `scripts/play_native.py` picks a random gameplay track per level
+via a `choose_song()` helper feeding `random.randrange(0x10000)`. Verified:
+booting level 0 three times now loads songs 9/3/7 (was always song 0=intro).
+`tests/test_world_load.py` gains `test_pick_gameplay_song_reproduces_the_asm`;
+`world_for_level` (graphics, still `level//3`, verified byte-exact) is
+unchanged.
+
+## 2026-07-13 — fixed a real crash-thud SFX bug: slow/early wall crashes were playing a sound the real game keeps silent
+
+User report: `play_native` plays a crash sound on a slow-speed wall hit that
+the real game does not, reproduced in `demo_skyroads_20260713_095814`.
+
+Root cause was in `native_gameplay_substep`'s collision-response block
+(`skyroads/native/loop.py`): the `03C2(0)` "wall crash thud" was gated on
+`crash.crashed` (`LateralCrashResult.crashed`, from `resolve_lateral_crash`),
+which is `True` for EVERY lateral mismatch (ship_pos always resets to 0 on
+any wall hit) — not just the real ASM's "flagged" crash (past
+`CRASH_MILESTONE_POS`=`0x0E38` AND not already flagged, the one branch of
+`resolve_lateral_crash` that sets `[456A]`/`grounded` 0 -> nonzero). A fresh
+VM capture of the new demo confirmed it directly: at frame 26, the ship
+hits a wall at `ship_pos=2325` (below the 3640 milestone — "going slow" here
+means "hasn't yet travelled far enough into the level", not literal
+velocity) and the real `03C2` call log shows only a `2828`-return call (id 2,
+the distance-gated "blocked-repeat thump") — no `27EA` (id 0) call at all.
+The native code's `if crash.crashed:` fired id 0 unconditionally.
+
+This also let me correct a wrong claim from the 2026-07-13 SFX entry below:
+"the FRONTAL crash (game_state=3 ...) plays nothing from the substep". A
+fresh capture of the ORIGINAL collision demo
+(`demo_skyroads_20260710_213019`) with `game_state` logged at every `03C2`
+call shows BOTH `27EA` (id 0) calls firing on the grounded `0 -> nonzero`
+edge — one from `game_state==0`, one from `game_state==3` (the "frontal"
+case) — so id 0 does NOT depend on `game_state` at all, only on `grounded`
+having been `0` immediately before the call. That old note was simply wrong
+(likely a mischaracterization from an earlier, less-instrumented capture).
+
+Fix: capture `grounded_before = view.grounded` ahead of the
+`resolve_lateral_crash` call and gate `03C2(0)` on
+`grounded_before == 0 and crash.f456a != 0` (the real 0 -> nonzero flagging
+edge) instead of `crash.crashed`; everything else falls through to the
+existing distance-gated `03C2(2)` thump, matching the ASM exactly. Updated
+`skyroads/native/sfx.py`'s id map to describe the corrected, game_state-
+independent condition.
+
+## 2026-07-13 — HUD gauges + real Nuked-OPL3 music in `play_native`; crash/finish settle window
+
+Three fixes to `play_native`, all reported directly from testing the windowed
+player (not VM-derived bugs):
+
+**1. HUD dashboard/gauges.** `paint_dashboard` overlays the cockpit dashboard
+onto the live VGA plane (nonzero pixels only), fixing the missing top-of-HUD
+rows. `skyroads/native/hud.py` ports `1010:12F8`/`0F8C` (the speed/oxygen/fuel
+gauge updater + its widget-draw helper) to pure functions — verified against
+7 real VM calls, 6/7 exact VGA-byte match (the 7th differs only in the
+deliberately-unported fuel/oxygen digit-pair readout), gauge cache values
+7/7. Building the fixture also surfaced two LATENT `native_boot_image` bugs:
+`SEG_OXY_BANK`/`SEG_FUL_BANK` were swapped (verified by content match against
+the `.DAT` files, not just naming), and DGROUP was written LAST even though
+`SEG_OXY_BANK`/`SEG_FUL_BANK`/`SEG_SPEED_BANK`/`SEG_SFX_BANK` physically
+overlap DGROUP_SEG's 64KB window — silently zeroing all four banks every
+boot. Both were invisible before this session because nothing previously read
+that memory back out of the boot image.
+
+**2. Real Nuked-OPL3 music.** Swapped `ModernSynth`'s float-FM approximation
+for a real Nuked-OPL3 chip (`skyroads/audio/opl3_synth.py`, via the
+`pynuked_opl3` cffi binding), fed directly from `Engine.run_tick()`'s raw
+`(register, value)` writes — no decode-to-semantic-events step in between.
+`pynuked_opl3` is now this repo's OWN top-level submodule (previously only
+reachable through `dos_re`'s nested copy).
+
+**3. Crash/finish settle window.** `play_native --level N --window`/`--boot`
+previously called `NativeGameplayDriver`'s auto-respawn the INSTANT a
+transition fired, so crashing looked like nothing happened and finishing
+looked like the ship glitching back to the start. Traced both
+`demo_skyroads_crash_20260713_085908` and `demo_skyroads_finish_20260713_085832`
+(real VM) frame-by-frame to size the fix:
+
+- The crash demo shows the wall-crash does NOT flip `game_state` to 1 when
+  the ship had already resumed (`game_state` was already 3 from an earlier
+  landing) — `resolve_lateral_crash` only sets `game_state:=1` when it was
+  0. The only signal is `grounded` (`[456A]`) going nonzero and ramping; this
+  ramp (0 → `SETTLE_WINDOW_MAX`=0x2A over ~34 real frames, `af2c` animating)
+  is ALREADY played natively without any fix — `should_run_gameplay`'s own
+  settle-window logic (`orchestration.py`, landed 2026-07-11) keeps
+  `native_gameplay_substep` running through it.
+- What's genuinely missing: the gap AFTER `should_run_gameplay` finally
+  exits. `grounded` plateaus at frame 45 in the demo (the recovered
+  gameplay pipeline's boundary — `LevelEndTransition` fires here), but the
+  real VM's `game_state 3 -> 0` reset doesn't land until frame 105 — a
+  60-frame non-interactive hold this driver doesn't own (a separate,
+  not-yet-recovered transition-display subsystem).
+- The finish demo's captured window (176 frames, zero input) never actually
+  shows a `game_state -> 2` transition — `ship_pos` sits frozen at 10771 (151
+  short of `LEVEL_END`=0x2AAA) with `af2c` draining 10240 → 0 and
+  `game_state` pinned at 0 throughout, a different scenario than the
+  documented "reach `LEVEL_END`" finish path (which IS proven native-only via
+  `run_cold`'s zero-input runs reaching `game_state=2`). This demo couldn't
+  independently confirm a hold duration for the finish case.
+
+Added `NativeGameplayDriver(..., auto_respawn=False)`: on a transition it now
+holds a `TickOutcome` (extended with `kind` — `crash`/`finish`/
+`timeout_fuel`/`timeout_oxygen`/`fall`/`""`, classified from `game_state` AND
+`grounded` since `game_state` alone under-classifies the already-landed crash
+case above — and `game_state`, the pre-reset value) instead of respawning
+inline; an explicit `driver.respawn()` applies the deferred
+`apply_level_init`. Default `auto_respawn=True` is unchanged, so every
+existing headless/verify caller (`run_cold`, `run_offline`, the lockstep
+tests) is untouched. `play_native.py`'s two windowed gameplay loops now use
+`auto_respawn=False` and hold the frozen frame for `TRANSITION_HOLD_FRAMES`
+(60, from the crash demo's measured gap) before calling `respawn()` — not a
+byte-exact animation, an honest stand-in for the un-recovered transition
+display, same spirit as the existing settle-window non-goal documented on
+`NativeGameplayDriver`. `tests/test_native_driver.py::
+test_auto_respawn_false_holds_the_transition_until_respawn` covers the new
+hold/respawn contract.
+
 ## 2026-07-13 — GHOSTING SOLVED: `34AE` fully decoded (both modes), `39D4` placed, whole `2D1F` frame full-1MB byte-exact on 4 captures + a 6-frame chain; `play_native` presents the live VGA plane
 
 The ghosting hunt ended in a chain of corrections that produced the strongest
