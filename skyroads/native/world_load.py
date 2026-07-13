@@ -45,20 +45,43 @@ from typing import List, NamedTuple
 from skyroads.codecs.lzs import LzsWidths, decompress_block
 from skyroads.native.level_load import read_game_file
 
-#: songs/worlds; level -> world/song index is ``level // 3`` for the 30
-#: regular levels. Level 30 (the attract/demo level, DEMO.REC) is special:
-#: the e2e demo runtime shows it uses WORLD9's graphics but SONG 6
-#: (`[0BF2]` == 6 with the world-9 background at `[5170]` -- observed, not
-#: derived from a table; no level->world table exists in DGROUP).
+#: GRAPHICS are per-world: the background/palette a level shows is
+#: ``world_for_level(level) = level // 3`` (verified: WORLD<n>.LZS byte-exact).
+#: MUSIC is NOT -- see :func:`pick_gameplay_song`: the game picks a RANDOM
+#: track per level, so there is no level->song table (an earlier ``level // 3``
+#: song mapping was wrong -- it gave world 0 the intro track and world 2 the
+#: menu track; see run_status.md's 2026-07-13 random-music entry).
 LEVELS_PER_WORLD = 3
+
+#: MUZAX song 0 is the INTRO track and song 2 the MENU track (cold-boot trace).
+#: Gameplay never uses song 0; it draws from songs 1..9 -- nine tracks.
+GAMEPLAY_SONG_COUNT = 9
 
 
 def world_for_level(level: int) -> int:
     return 9 if level == 30 else level // LEVELS_PER_WORLD
 
 
-def song_for_level(level: int) -> int:
-    return 6 if level == 30 else level // LEVELS_PER_WORLD
+def pick_gameplay_song(rand_value: int, prev: "int | None" = None) -> "tuple[int, int]":
+    """Reproduce the per-level random song pick at ``1010:0296-02C8`` (decoded
+    from live bytes 2026-07-13, see run_status.md):
+
+        di = rand_value % 9            # 02A4  div cx (cx=9)
+        if di == prev: di = (di+1) % 9 # 02A8-02BE: no immediate repeat
+        song_index = di + 1            # 02C5  add ax,1  (songs 1..9)
+
+    The MUZAX index is ``di + 1``: songs 1..9 form the gameplay pool; song 0
+    (the intro track) is NEVER chosen for gameplay. ``rand_value`` is the
+    game's PRNG output (`call` at 02C, then ``div 9``); a native player
+    supplies any random 16-bit value. ``prev`` is the PREVIOUS pick's ``di``
+    (0..8, i.e. ``last_song_index - 1``), used only to avoid repeating the
+    immediately-previous track. Returns ``(song_index, di)`` so the caller
+    threads ``di`` back in as ``prev`` for the next level.
+    """
+    di = rand_value % GAMEPLAY_SONG_COUNT
+    if prev is not None and di == prev:
+        di = (di + 1) % GAMEPLAY_SONG_COUNT
+    return di + 1, di
 #: the DAC index where the CMAP colours load — also the bias added to
 #: background pixels ([asm: the +0x8E offset observed on every pixel]).
 CMAP_DAC_BASE = 0x8E
@@ -137,13 +160,17 @@ def load_song(index: int, *, game_root) -> Song:
                 cursor=(SONG_BASE + 16 * n_instr) & 0xFFFF)
 
 
-def native_song_load(state, level: int, *, game_root) -> Song:
-    """Place level ``level``'s song into ``state`` (a DGROUP-backed
+def native_song_load(state, song_index: int, *, game_root) -> Song:
+    """Place MUZAX song ``song_index`` into ``state`` (a DGROUP-backed
     NativeGameState) and point the music engine at it, reproducing
     `57C4` + `5A7D`'s DGROUP writes: song bytes -> `0x54B0`, instrument
     base `[3194]`, cursor/loop `[3196]/[3198]`, flag `[31A6]=0`, delay
-    `[0C83]=0`, song cache `[0BF2]`."""
-    song = load_song(song_for_level(level), game_root=game_root)
+    `[0C83]=0`, song cache `[0BF2]`.
+
+    ``song_index`` is an explicit MUZAX directory index (the real game picks
+    it randomly per level -- see :func:`pick_gameplay_song`); this loader is
+    deterministic given the index so callers/tests control the choice."""
+    song = load_song(song_index, game_root=game_root)
     d = state.data
     d[SONG_BASE:SONG_BASE + len(song.data)] = song.data
     state.ww(MUSIC_INSTR_BASE, SONG_BASE)            # [asm 5A8D]

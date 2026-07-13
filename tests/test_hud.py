@@ -4,9 +4,13 @@ see run_status.md and the module docstring for the full recovery trail).
 
 The fixture (`tests/fixtures/hud_gauge_calls.json`) holds, per call: the
 DGROUP fields `update_hud` reads, the three widget banks' first 4 KB, the
-three cell tables, and the REAL VM's resulting VGA byte diff (sparse). 6/7
-calls are VGA-exact; the 7th includes the (deliberately unported) fuel/
-oxygen digit-pair readout, so it's checked with that one region excluded.
+three cell tables, and the REAL VM's resulting VGA byte diff (sparse). Cases
+0..6 are the original increasing (fill) calls; case 0 includes the
+(deliberately unported) fuel/oxygen digit-pair readout so it's checked with
+that region excluded, the rest are VGA-exact. Cases 7..8 are DECREASING
+(unfill) calls -- speed 29->28 and fuel 10->9 -- captured 2026-07-13 to close
+the gap the user flagged (the fill path was verified but the unfill path
+was not; the delta `flag=0` "off" redraw is what unfills a gauge).
 """
 import json
 from pathlib import Path

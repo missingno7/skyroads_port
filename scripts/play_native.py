@@ -57,6 +57,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import random
 import sys
 from pathlib import Path
 
@@ -83,6 +84,40 @@ from skyroads.recovered.player import RespawnState, level_gravity  # noqa: E402
 
 LOOP_TOP_IP = 0x2324  # the gameplay sub-step's classification entry (1010:2324)
 INPUT_OFFS = [0x95F4, 0x547A, 0x9330, 0x1600, 0x95F6] + list(range(0x0BD0, 0x0BE0))
+
+#: Frames to hold the display frozen after a crash/finish/timeout transition
+#: before respawning -- a windowed-viewer presentation choice, NOT a claim of
+#: byte-exact VM animation timing (see NativeGameplayDriver's docstring).
+#: VM-measured on demo_skyroads_crash_20260713_085908: native_gameplay_substep
+#: already plays the settle-window RAMP natively (grounded 0->0x2A over
+#: ~34 frames, af2c animating -- should_run_gameplay's own SETTLE_WINDOW_MAX
+#: logic), so no extra work is needed there. What's genuinely missing is the
+#: gap AFTER should_run_gameplay finally exits: the real VM doesn't reset
+#: until 60 more frames later (grounded plateaus at frame 45, the VM's own
+#: game_state 3->0 reset lands at frame 105) -- a separate, not-yet-recovered
+#: transition-display subsystem this constant stands in for.
+TRANSITION_HOLD_FRAMES = 60
+
+#: The game's real frame + music timing, MEASURED from the VM (2026-07-13,
+#: demo_cold_20260711_201855, steady gameplay): the PIT channel-0 reload is
+#: 6628, so the timer runs at 1193182/6628 = 180 Hz, and the music ISR
+#: `1010:5A55` fires ONCE per timer IRQ -- 6 IRQs per displayed frame (the
+#: demo manifest's `timer_irqs_per_frame`), i.e. the game runs at 180/6 = 30
+#: fps and the OPL sequencer ticks at 180 Hz. So the viewer must render at 30
+#: fps and call `Engine.run_tick()` 6x per frame (was 35 fps x 2 = 70 Hz --
+#: 2.6x too slow, the "music plays slower than it should" the user heard).
+GAME_FPS = 30
+MUSIC_TICKS_PER_FRAME = 6
+
+
+def choose_song(prev_di: "int | None" = None) -> "tuple[int, int]":
+    """Pick a gameplay MUZAX song the way the real game does (a random track
+    in 1..9, never the intro track 0, no immediate repeat -- see
+    ``skyroads.native.world_load.pick_gameplay_song``). Returns
+    ``(song_index, di)``; thread ``di`` back in as ``prev_di`` on the next
+    level load."""
+    from skyroads.native.world_load import pick_gameplay_song
+    return pick_gameplay_song(random.randrange(0x10000), prev_di)
 
 
 def _bpw(m, ss, bp, o):
@@ -294,7 +329,8 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     import json as _json
     import pygame
 
-    from skyroads.native.boot import SEG_DASHBRD, paint_dashboard
+    from skyroads.native.boot import (DASHBOARD_BEZEL_OVERLAP, SEG_DASHBRD,
+                                      paint_dashboard)
     from skyroads.native.frame import render_native_frame
     from skyroads.native.hud import update_hud
     from skyroads.native.image import NativeGameImage
@@ -335,7 +371,8 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     from skyroads.native.world_load import (
         CMAP_DAC_BASE, expand6, load_world_assets, native_song_load)
     world = load_world_assets(level, game_root=str(root / "assets"))
-    song = native_song_load(st, level, game_root=str(root / "assets"))
+    song_index, _ = choose_song()                # random gameplay track (1..9)
+    song = native_song_load(st, song_index, game_root=str(root / "assets"))
     img.data[dg_base:dg_base + 0x10000] = st.data
     bg_seg = img.rw(DATA_SEG, 0x5170)            # the background bank segment
     img.data[(bg_seg << 4):(bg_seg << 4) + len(world.background)] = world.background
@@ -349,11 +386,13 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     gate = st.rw(0x4562)
     print(f"[window] level {level} loaded VM-free (road={len(decoded.road)}B, "
           f"gate={gate:#06x}); world {level // 3} background+palette + song "
-          f"{song.index} ({len(song.data)}B, {song.n_instruments} patches) -- all native")
+          f"{song.index} (random 1..9) ({len(song.data)}B, {song.n_instruments} "
+          f"patches) -- all native")
 
     view = GameView(img, base=dg_base)
     scratch = apply_level_init(view, gate)
-    driver = NativeGameplayDriver(view, gate, scratch)
+    driver = NativeGameplayDriver(view, gate, scratch, auto_respawn=False)
+    settle_remaining = 0
 
     pygame.init()
     # native music: the recovered OPL sequencer -> a REAL Nuked-OPL3 chip
@@ -363,7 +402,7 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     try:
         from skyroads.audio.opl3_synth import NativeOplSynth
         from skyroads.recovered.music import Engine as _MusicEngine
-        music_synth = NativeOplSynth(pygame, present_hz=35)
+        music_synth = NativeOplSynth(pygame, present_hz=GAME_FPS)
         if not music_synth.available:
             music_synth = None
         else:
@@ -401,10 +440,15 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
         print(f"[window] SFX disabled ({e})")
 
     disp = Display((960, 720), title=f"SkyRoads native -- level {level}")
+    disp.par = 1.2                               # 320x200 shown at 4:3 (non-square DOS pixels)
     clock = pygame.time.Clock()
-    first = True
     frames = 0
     running = True
+    # Paint the FULL dashboard once. Rows 138..199 (which hold the HUD gauges)
+    # are never touched by the road render, so from here only the bezel strip
+    # (rows 129..137, which the road render rewrites) is re-overlaid per frame
+    # -- the gauges are left to the byte-exact delta updater to fill AND unfill.
+    paint_dashboard(img.data, SEG_DASHBRD)
     while running and (max_frames <= 0 or frames < max_frames):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (
@@ -415,10 +459,10 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
         view.steer = ((1 if keys[pygame.K_RIGHT] else 0)
                       - (1 if keys[pygame.K_LEFT] else 0)) & 0xFFFF
         view.jump = 1 if keys[pygame.K_SPACE] else 0
-        view.elapsed_ticks = (view.elapsed_ticks + 2) & 0xFFFF   # the 70Hz tick pace
+        view.elapsed_ticks = (view.elapsed_ticks + 2) & 0xFFFF   # [1600] frame-tick counter (wobble/SFX debounce)
         if music_engine is not None:
             try:
-                for _ in range(2):                       # the ISR services 5A55 per tick
+                for _ in range(MUSIC_TICKS_PER_FRAME):     # 180 Hz = 6 ISR ticks / 30fps frame (VM-measured)
                     writes = music_engine.run_tick()
                     for off, b in music_engine.ovl.items():
                         img.wb(DATA_SEG, off, b)         # commit the tick's state
@@ -429,12 +473,28 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
                 print(f"[window] music stopped ({e})")
                 music_engine = None
 
-        outcome = driver.tick()
-        if outcome.transitioned:
-            print(f"[window] {outcome.reason} -- respawned")
-        render_native_frame(img, DATA_SEG, offscreen=1, rebuild=first)
-        first = False
-        paint_dashboard(img.data, SEG_DASHBRD)
+        if settle_remaining > 0:
+            settle_remaining -= 1
+            if settle_remaining == 0:
+                driver.respawn()
+                print("[window] settle window done -- respawned")
+        else:
+            outcome = driver.tick()
+            if outcome.transitioned:
+                print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- settling")
+                settle_remaining = TRANSITION_HOLD_FRAMES
+        # Full road re-render EVERY frame (rebuild=True), not just the first.
+        # The VM's delta/skip render paths (34AE: nothing on delta==0, the
+        # column loop on 1<=delta<8) assume a persistent, always-correct road
+        # band maintained incrementally; the native port's own accumulated
+        # offscreen/display-list state drifts under those paths and leaves
+        # STALE TERRAIN at the left/right screen edges (the "edge ghosting").
+        # A full render each frame (bg->offscreen + full tile raster) sidesteps
+        # that entirely and is cheap here (~6 ms/frame). See run_status.md's
+        # 2026-07-13 edge-ghosting entry; the delta-path bug itself is a known,
+        # documented open item, not silently hidden.
+        render_native_frame(img, DATA_SEG, offscreen=1, rebuild=True)
+        paint_dashboard(img.data, SEG_DASHBRD, byte_count=DASHBOARD_BEZEL_OVERLAP)
         update_hud(img, DATA_SEG, view.ship_pos)
 
         frame = bytes(img.data[0xA0000:0xA0000 + 64000])   # the live VGA plane
@@ -450,7 +510,7 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
             raise SystemExit("--window needs numpy (pip install numpy pygame)")
         disp.draw_game(arr)
         disp.flip()
-        clock.tick(35)
+        clock.tick(GAME_FPS)
         frames += 1
     pygame.quit()
     print(f"[window] closed after {frames} frames")
@@ -482,7 +542,8 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     import pygame
     import numpy as _np
 
-    from skyroads.native.boot import (SEG_DASHBRD, apply_gameplay_segment_init,
+    from skyroads.native.boot import (DASHBOARD_BEZEL_OVERLAP, SEG_DASHBRD,
+                                      apply_gameplay_segment_init,
                                       load_pict, native_boot_dac,
                                       native_boot_image, paint_dashboard,
                                       parse_lzs_container)
@@ -528,6 +589,7 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
 
     pygame.init()
     disp = Display((960, 720), title="SkyRoads native -- cold boot")
+    disp.par = 1.2                               # 320x200 shown at 4:3 (non-square DOS pixels)
     clock = pygame.time.Clock()
 
     def to_rgb(frame: bytes, palette) -> bytes:
@@ -678,7 +740,7 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
             frame[y * 320 + x0] = HIGHLIGHT_IDX
             frame[y * 320 + (x1 - 1)] = HIGHLIGHT_IDX
         present(to_rgb(bytes(frame), menu_palette))
-        clock.tick(35)
+        clock.tick(GAME_FPS)
         frames += 1
         if window_frames and frames >= window_frames:
             print(f"[window] --window-frames reached at the menu ({frames}); "
@@ -694,7 +756,8 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     palette = native_boot_dac(root / "assets")
     decoded = native_level_load(st, selected, game_root=str(root / "assets"))
     world = load_world_assets(selected, game_root=str(root / "assets"))
-    song = native_song_load(st, selected, game_root=str(root / "assets"))
+    song_index, _ = choose_song()                # random gameplay track (1..9)
+    song = native_song_load(st, song_index, game_root=str(root / "assets"))
     img.data[dg_base:dg_base + 0x10000] = st.data
     bg_seg = img.rw(DATA_SEG, 0x5170)
     img.data[(bg_seg << 4):(bg_seg << 4) + len(world.background)] = world.background
@@ -704,17 +767,18 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
         palette[CMAP_DAC_BASE + i] = tuple(expand6(world.cmap[3 * i + k]) for k in range(3))
     gate = st.rw(0x4562)
     print(f"[window] level {selected} loaded VM-free (road={len(decoded.road)}B); "
-          f"world {selected // 3} + song {song.index} -- all native")
+          f"world {selected // 3} + song {song.index} (random 1..9) -- all native")
 
     view = GameView(img, base=dg_base)
     scratch = apply_level_init(view, gate)
-    driver = NativeGameplayDriver(view, gate, scratch)
+    driver = NativeGameplayDriver(view, gate, scratch, auto_respawn=False)
+    settle_remaining = 0
 
     music_engine = music_synth = None
     try:
         from skyroads.audio.opl3_synth import NativeOplSynth
         from skyroads.recovered.music import Engine as _MusicEngine
-        music_synth = NativeOplSynth(pygame, present_hz=35)
+        music_synth = NativeOplSynth(pygame, present_hz=GAME_FPS)
         if not music_synth.available:
             music_synth = None
         else:
@@ -747,9 +811,9 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     except Exception as e:                       # noqa: BLE001
         print(f"[window] SFX disabled ({e})")
 
-    first = True
     gp_frames = 0
     running = True
+    paint_dashboard(img.data, SEG_DASHBRD)       # full once; bezel-only per frame below
     while running and (window_frames <= 0 or gp_frames < window_frames):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (
@@ -763,7 +827,7 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
         view.elapsed_ticks = (view.elapsed_ticks + 2) & 0xFFFF
         if music_engine is not None:
             try:
-                for _ in range(2):
+                for _ in range(MUSIC_TICKS_PER_FRAME):
                     writes = music_engine.run_tick()
                     for off, b in music_engine.ovl.items():
                         img.wb(DATA_SEG, off, b)
@@ -774,15 +838,24 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
                 print(f"[window] music stopped ({e})")
                 music_engine = None
 
-        outcome = driver.tick()
-        if outcome.transitioned:
-            print(f"[window] {outcome.reason} -- respawned")
-        render_native_frame(img, DATA_SEG, offscreen=1, rebuild=first)
-        first = False
-        paint_dashboard(img.data, SEG_DASHBRD)
+        if settle_remaining > 0:
+            settle_remaining -= 1
+            if settle_remaining == 0:
+                driver.respawn()
+                print("[window] settle window done -- respawned")
+        else:
+            outcome = driver.tick()
+            if outcome.transitioned:
+                print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- settling")
+                settle_remaining = TRANSITION_HOLD_FRAMES
+        # Full road re-render every frame -- see the run_window() comment: the
+        # delta/skip render paths leave stale edge terrain (edge ghosting), so
+        # the windowed viewer always does a full render (~6 ms/frame).
+        render_native_frame(img, DATA_SEG, offscreen=1, rebuild=True)
+        paint_dashboard(img.data, SEG_DASHBRD, byte_count=DASHBOARD_BEZEL_OVERLAP)
         update_hud(img, DATA_SEG, view.ship_pos)
         present(to_rgb(bytes(img.data[0xA0000:0xA0000 + 64000]), palette))
-        clock.tick(35)
+        clock.tick(GAME_FPS)
         gp_frames += 1
     pygame.quit()
     print(f"[window] closed after {frames} menu frames + {gp_frames} gameplay frames")

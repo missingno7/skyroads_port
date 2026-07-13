@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 
 from skyroads.native.world_load import (
-    BACKGROUND_H, BACKGROUND_W, CMAP_DAC_BASE, load_song, load_world_assets,
-    parse_muzax_directory, song_for_level, world_for_level)
+    BACKGROUND_H, BACKGROUND_W, CMAP_DAC_BASE, GAMEPLAY_SONG_COUNT, load_song,
+    load_world_assets, parse_muzax_directory, pick_gameplay_song, world_for_level)
 from skyroads.native.level_load import read_game_file
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -86,7 +86,34 @@ def test_composed_level14_palette_matches_real_dac():
     assert sum(1 for i in range(256) if mine[i] != tuple(dac[i])) == 0
 
 
-def test_level30_special_mapping():
-    assert world_for_level(30) == 9 and song_for_level(30) == 6
-    assert world_for_level(14) == 4 and song_for_level(14) == 4
-    assert world_for_level(0) == 0 and song_for_level(2) == 0
+def test_world_mapping_is_level_over_three():
+    # GRAPHICS are per-world (level // 3); the attract level 30 uses world 9.
+    assert world_for_level(30) == 9
+    assert world_for_level(14) == 4
+    assert world_for_level(0) == 0 and world_for_level(2) == 0
+
+
+def test_pick_gameplay_song_reproduces_the_asm():
+    """The per-level random pick at 1010:0296-02C8: song = (rand % 9) + 1,
+    always in 1..9 (never the intro track 0), and never an immediate repeat
+    of the previous pick. See run_status.md's 2026-07-13 random-music entry."""
+    # song = (rand % 9) + 1, di returned = rand % 9
+    for rand in range(0, 9):
+        song, di = pick_gameplay_song(rand, prev=None)
+        assert di == rand % GAMEPLAY_SONG_COUNT
+        assert song == di + 1
+        assert 1 <= song <= 9           # never song 0 (intro)
+    # wrap: rand 9 -> di 0 -> song 1
+    assert pick_gameplay_song(9, prev=None) == (1, 0)
+    # no-immediate-repeat: if the raw di equals prev, it bumps to (di+1) % 9
+    song, di = pick_gameplay_song(4, prev=4)   # 4 % 9 == 4 == prev -> di := 5
+    assert (song, di) == (6, 5)
+    song, di = pick_gameplay_song(8, prev=8)   # 8 == prev -> di := (8+1)%9 == 0
+    assert (song, di) == (1, 0)
+    # a raw di that differs from prev is left untouched
+    assert pick_gameplay_song(3, prev=5) == (4, 3)
+    # every possible pick is a valid gameplay track (1..9), for any prev
+    for rand in range(0, 100):
+        for prev in range(0, 9):
+            song, di = pick_gameplay_song(rand, prev=prev)
+            assert 1 <= song <= 9 and di != prev

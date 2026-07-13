@@ -1,0 +1,101 @@
+"""play_native's music tempo matches the VM, PROVEN from the VM's own timing.
+
+The OPL sequencer's tempo is set by how often `1010:5A55` (the music ISR) runs
+per second. That rate is the PIT channel-0 timer frequency: the game programs
+the PIT to a reload of 6628 -> 1193182/6628 = 180 Hz, and 5A55 fires once per
+timer IRQ. So the song must advance 180 `Engine.run_tick()` calls per second.
+
+play_native renders at ``GAME_FPS`` and calls ``run_tick`` ``MUSIC_TICKS_PER_
+FRAME`` times per frame, so its song rate is ``GAME_FPS * MUSIC_TICKS_PER_
+FRAME`` Hz. This test measures the VM's real timer rate + ISR cadence and
+asserts play_native reproduces it (regression for the 2026-07-13 "music plays
+slower than it should" bug, when it was 35 fps x 2 = 70 Hz -- 2.6x too slow).
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+EXE = ROOT / "assets" / "SKYROADS.EXE"
+DEMO = ROOT / "artifacts" / "demos" / "demo_cold_20260711_201855"
+
+pytestmark = pytest.mark.skipif(
+    not (EXE.exists() and DEMO.exists()),
+    reason="needs SKYROADS.EXE + the multi-level cold demo",
+)
+
+PIT_INPUT_HZ = 1193182.0
+
+
+def test_play_native_music_rate_matches_the_vm_timer() -> None:
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import play_native
+
+    import scripts.play as sp
+    from dos_re import player
+    from dos_re.cpu import CPU8086, HaltExecution
+    from dos_re.dos import ConsoleInputWouldBlock
+    from dos_re.input_demo import InputDemoPlayback
+    from dos_re.player import _use_real_console_input
+
+    frontend = sp.SkyroadsFrontend(ROOT)
+    args = player.build_arg_parser(frontend).parse_args(
+        ["--play-demo", str(DEMO), "--headless"])
+    pb = InputDemoPlayback.load(str(DEMO))
+    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
+    rt = frontend.load_snapshot_runtime(args, pb.snapshot_path())
+    args.install_replacements = False
+    frontend.apply_hook_mode(rt, args)
+    _use_real_console_input(rt)
+    mem = rt.mem if hasattr(rt, "mem") else rt.cpu.mem
+
+    isr = {"n": 0}
+    orig = CPU8086.step
+
+    def patched(self):
+        if self.s.cs == 0x1010 and self.s.ip == 0x5A55:
+            isr["n"] += 1
+        return orig(self)
+
+    CPU8086.step = patched
+    per_frame_isr = []
+    reloads = []
+    try:
+        frame = 0
+        while not pb.finished(frame) and frame <= 400:
+            before = isr["n"]
+            pb.apply_to_runtime(frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
+            try:
+                frontend.advance_frame(rt, args, frame)
+            except ConsoleInputWouldBlock:
+                pass
+            except HaltExecution:
+                break
+            per_frame_isr.append(isr["n"] - before)
+            reloads.append(rt.dos.pit_channel0_reload or 0x10000)
+            frame += 1
+    finally:
+        CPU8086.step = orig
+
+    # steady-state gameplay (skip the boot/menu warm-up)
+    ss_isr = per_frame_isr[250:400]
+    ss_reload = reloads[250:400]
+    assert ss_isr, "no steady-state frames captured"
+
+    # (1) The timer runs at 180 Hz (PIT reload 6628), and the music ISR fires
+    #     6x per displayed frame -> the game is 30 fps, the sequencer 180 Hz.
+    reload = max(set(ss_reload), key=ss_reload.count)
+    timer_hz = PIT_INPUT_HZ / reload
+    isr_per_frame = max(set(ss_isr), key=ss_isr.count)
+    assert abs(timer_hz - 180.0) < 1.0, f"VM timer {timer_hz:.1f} Hz (expected 180)"
+    assert isr_per_frame == 6, f"VM music ISR {isr_per_frame}x/frame (expected 6)"
+
+    # (2) play_native's song-advance rate reproduces that 180 Hz exactly.
+    native_hz = play_native.GAME_FPS * play_native.MUSIC_TICKS_PER_FRAME
+    assert native_hz == pytest.approx(timer_hz, abs=1.0), (
+        f"play_native music rate {native_hz} Hz "
+        f"(GAME_FPS={play_native.GAME_FPS} x MUSIC_TICKS_PER_FRAME="
+        f"{play_native.MUSIC_TICKS_PER_FRAME}) != VM {timer_hz:.1f} Hz")

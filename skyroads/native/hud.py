@@ -103,7 +103,11 @@ def hud_widget_draw(img, dg: int, widget_seg: int, widget_off: int, flag: int) -
 def _update_gauge(img, dg: int, new: int, cache_off: int,
                   widget_off_off: int, widget_seg_off: int, cell_table: int) -> None:
     """`1010:12F8`'s per-gauge delta walk: redraw only the cells between the
-    cached and new value, then update the cache."""
+    cached and new value, then update the cache. Increasing the value redraws
+    the newly-covered cells "on" (``flag=1``); DECREASING redraws the vacated
+    cells "off" (``flag=0``) -- the unfill path. Because it is a pure delta,
+    the caller must NOT repaint the dashboard over the gauge region between
+    frames, or the standing fill is lost (see :func:`update_hud`)."""
     cache = img.rw(dg, cache_off)
     if new == cache:
         return
@@ -119,10 +123,17 @@ def _update_gauge(img, dg: int, new: int, cache_off: int,
 
 
 def update_hud(img, dg: int, ship_pos: int) -> None:
-    """The always-visible HUD gauges: speed dial, oxygen bar, fuel bar.
-    Call once per rendered frame, after the road/background render (so the
-    dashboard's bezel doesn't need re-painting first) and after
-    `paint_dashboard` (the gauges sit ON the dashboard art)."""
+    """The always-visible HUD gauges: speed dial, oxygen bar, fuel bar. A pure
+    delta updater (`1010:12F8`): each frame it redraws ONLY the gauge cells
+    that changed since the last call -- filling on increase, unfilling on
+    decrease. Call once per rendered frame.
+
+    Because it is a delta, the dashboard must NOT be repainted over the gauge
+    region (rows 138..199) between frames -- ``play_native.py`` paints the full
+    dashboard once and thereafter only re-overlays the road-overlapping bezel
+    strip (``paint_dashboard(..., byte_count=DASHBOARD_BEZEL_OVERLAP)``), so the
+    gauges the VM maintains incrementally stay standing here too.
+    """
     anchor = (img.rw(dg, SPEED_ANCHOR) | (img.rw(dg, (SPEED_ANCHOR + 2) & 0xFFFF) << 16))
     speed_new = min((ship_pos - anchor) & 0xFFFFFFFF, 0xFFFFFFFF) // SPEED_DIVISOR
     speed_new = min(speed_new, SPEED_CLAMP)
