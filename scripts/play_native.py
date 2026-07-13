@@ -1,24 +1,32 @@
 """Play SKYROADS gameplay VM-FREE — the standalone native-port entry point.
 
-Following pre2_port's ``play_native.py`` model: seed real level data from the
-VM ONCE, then hand off to :class:`skyroads.native.loop.NativeGameplayDriver`
--- every subsequent tick is pure recovered Python, no VM/interpreter, no
-original binary. "The first step" (per the project's stated direction): play
-any level this way, verifiable against the original game; menu/intro/render
-are separate, later extensions of the same model, not needed for this to work
-today.
-
-Level selection today is "whichever demo/snapshot you seed from" -- true
-from-scratch native level loading (parsing SkyRoads' level file format) is
-not recovered yet, so this script always boots the ORIGINAL game briefly to
-reach real gameplay, exactly like ``scripts/play.py --play-demo ... --headless``
-would, and only THEN switches to the native driver. That boot is the one
-VM-touching step; everything after ``--native-from`` is decided is 100% native.
+Every tick is pure recovered Python -- no VM, no interpreter, no original
+binary running -- for the ENTIRE flow: intro splash, level-select menu, and
+gameplay at any level, all built from the shipped game files alone
+(``skyroads.native.boot.native_boot_image`` unpacks the EXE, primes DGROUP
+and the display-list buffers, and loads every asset bank natively; see
+``docs/skyroads/run_status.md``'s 2026-07-13 entries for the full recovery
+trail). Two things are an honest, documented stand-in rather than a VM
+recovery: the LOGO.PCX splash (SKYROADS.EXE itself never opens that file --
+it must come from an external loader in the original distribution) and the
+level-select highlight cursor (the ROM's own scroll-to-level-index mapping
+wasn't pinned down, so a plain drawn box stands in for it). Everything else
+-- gameplay sim, rendering, SFX, music, menu background/palette, level
+loading -- is VM-verified byte-exact where the docs say so.
 
 Usage:
-    # PLAY THE GAME (the default): open the native game window on any level --
-    # arrows steer/accelerate, space jumps, ESC quits. Sim, renderer and music
-    # are all pure recovered Python; the level loads from ROADS.LZS by index:
+    # THE FULL COLD START (milestone 2): splash -> native level-select menu
+    # -> gameplay, zero VM at any point. Arrows navigate the menu grid,
+    # enter/space confirms; in gameplay, arrows steer/accelerate, space jumps:
+    python scripts/play_native.py --boot
+
+    # Skip straight to one level's native gameplay window (no menu/intro),
+    # fully VM-free:
+    python scripts/play_native.py --level 2 --cold-native
+
+    # Same, but seeded from a captured baseline snapshot instead of building
+    # the boot image from files (legacy path, still useful for isolating a
+    # render/sim bug from a boot-image bug):
     python scripts/play_native.py --level 2
 
     # Agent/CI: the headless sim run of a level (no window; plays holding
