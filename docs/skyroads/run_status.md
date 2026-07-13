@@ -4,6 +4,31 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-13 (round 6) — palette fade-to-black transitions; demo re-verified 99.1%
+
+**Fade transitions** (user: missing on death/level start). The VM ramps the DAC
+palette to black and back at transitions -- a SUBTRACT fade (each 6-bit
+component -~2/frame, so darker colours reach 0 first), ~30 frames, VM-measured
+on demo_cold_20260711_201855 (colour 15's 6-bit value ramps 53->0->53 over
+frames ~1145-1200). Added `fade_palette()` + a `fade_level`/`fade_target` ramp
+to both `play_native` gameplay loops: fade IN from black on level start / after
+respawn, fade OUT to black when a transition (death/finish) begins its settle
+window. Verified the fade-in ramps 0 -> full over ~32 frames.
+
+**Demo verification** (user asked to check demo_skyroads_20260713_131407):
+native reproduces the VM 334/337 sub-steps byte-exact (99.1%). The one
+divergence is a jump at frame 407 where the VM runs `1010:1E48-1FD8` (a ~6-iter
+loop) that snaps `ship_pos` back and stores the delta into `[af2e]/[af30]` (the
+rare landing back-off `resolve_landing` consumes -- its contract's "1/224
+frames" case); native doesn't accumulate it, so `ship_pos`/`lateral`/`af1c` +
+`af2e`/`af30`/`f455a` diverge for a few frames. A narrow, documented jump-
+mechanic gap, not general drift.
+
+**Still open (from the user's round-6 list):** GRAV-O METER digit readout
+(`1010:6097`); red kill-platform explosion SFX (verify + fix); finish ->
+level-select menu (native respawns the same level); level-select screen
+inaccuracies.
+
 ## 2026-07-13 (round 5) — HUD gauges not FILLED at level start (stale caches); finish + gauges re-verified correct
 
 User: oxygen/fuel gauges show only their empty outlines at level start (should

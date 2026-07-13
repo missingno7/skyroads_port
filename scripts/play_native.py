@@ -109,6 +109,28 @@ TRANSITION_HOLD_FRAMES = 60
 GAME_FPS = 30
 MUSIC_TICKS_PER_FRAME = 6
 
+#: Palette fade-to-black transitions. The VM ramps each DAC 6-bit component
+#: toward black (~2 units/frame, so DARKER colours reach 0 FIRST -- a SUBTRACT
+#: fade, not a scale), over ~30 frames, on level start (fade IN) and on death/
+#: finish (fade OUT). VM-measured on demo_cold_20260711_201855 (~frames
+#: 1145-1200: colour 15's 6-bit value ramps 53->0->53). ``level`` runs 0
+#: (black) .. FADE_FULL (full); the 8-bit offset subtracted from every colour
+#: component is ``(FADE_FULL-level)*4``.
+FADE_FULL = 63
+FADE_STEP = 2          # 6-bit units per frame -> ~32 frames end-to-end
+
+
+def fade_palette(base, level: int):
+    """Subtract-fade ``base`` (a 256-entry list of 8-bit RGB tuples) toward
+    black: ``level == FADE_FULL`` is full brightness, ``0`` is all black. Each
+    component has ``(FADE_FULL-level)*4`` subtracted (clamped at 0), matching
+    the VM's DAC ramp where darker colours reach black first."""
+    off = (FADE_FULL - level) * 4
+    if off <= 0:
+        return base
+    return [(r - off if r > off else 0, g - off if g > off else 0,
+             b - off if b > off else 0) for (r, g, b) in base]
+
 
 def choose_song(prev_di: "int | None" = None) -> "tuple[int, int]":
     """Pick a gameplay MUZAX song the way the real game does (a random track
@@ -449,6 +471,7 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     # (rows 129..137, which the road render rewrites) is re-overlaid per frame
     # -- the gauges are left to the byte-exact delta updater to fill AND unfill.
     paint_dashboard(img.data, SEG_DASHBRD)
+    fade_level, fade_target = 0, FADE_FULL       # fade IN from black on level start
     while running and (max_frames <= 0 or frames < max_frames):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (
@@ -477,12 +500,18 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
             settle_remaining -= 1
             if settle_remaining == 0:
                 driver.respawn()
+                fade_level, fade_target = 0, FADE_FULL   # fade IN the respawned level
                 print("[window] settle window done -- respawned")
         else:
             outcome = driver.tick()
             if outcome.transitioned:
                 print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- settling")
                 settle_remaining = TRANSITION_HOLD_FRAMES
+                fade_target = 0                          # fade OUT to black on death/finish
+        if fade_level < fade_target:
+            fade_level = min(fade_target, fade_level + FADE_STEP)
+        elif fade_level > fade_target:
+            fade_level = max(fade_target, fade_level - FADE_STEP)
         # Full road re-render EVERY frame (rebuild=True), not just the first.
         # The VM's delta/skip render paths (34AE: nothing on delta==0, the
         # column loop on 1<=delta<8) assume a persistent, always-correct road
@@ -498,9 +527,10 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
         update_hud(img, DATA_SEG, view.ship_pos)
 
         frame = bytes(img.data[0xA0000:0xA0000 + 64000])   # the live VGA plane
+        fpal = fade_palette(palette, fade_level)           # fade-to-black transitions
         rgb = bytearray(320 * 200 * 3)
         for i in range(320 * 200):            # viewport rows + the cockpit dashboard
-            r, g, b = palette[frame[i]]
+            r, g, b = fpal[frame[i]]
             j = i * 3
             rgb[j] = r; rgb[j + 1] = g; rgb[j + 2] = b
         try:
@@ -814,6 +844,7 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     gp_frames = 0
     running = True
     paint_dashboard(img.data, SEG_DASHBRD)       # full once; bezel-only per frame below
+    fade_level, fade_target = 0, FADE_FULL       # fade IN from black on level start
     while running and (window_frames <= 0 or gp_frames < window_frames):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (
@@ -842,19 +873,27 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
             settle_remaining -= 1
             if settle_remaining == 0:
                 driver.respawn()
+                fade_level, fade_target = 0, FADE_FULL   # fade IN the respawned level
                 print("[window] settle window done -- respawned")
         else:
             outcome = driver.tick()
             if outcome.transitioned:
                 print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- settling")
                 settle_remaining = TRANSITION_HOLD_FRAMES
+                fade_target = 0                          # fade OUT to black on death/finish
+        # ramp the fade toward its target (subtract fade, ~2 6-bit units/frame)
+        if fade_level < fade_target:
+            fade_level = min(fade_target, fade_level + FADE_STEP)
+        elif fade_level > fade_target:
+            fade_level = max(fade_target, fade_level - FADE_STEP)
         # Full road re-render every frame -- see the run_window() comment: the
         # delta/skip render paths leave stale edge terrain (edge ghosting), so
         # the windowed viewer always does a full render (~6 ms/frame).
         render_native_frame(img, DATA_SEG, offscreen=1, rebuild=True)
         paint_dashboard(img.data, SEG_DASHBRD, byte_count=DASHBOARD_BEZEL_OVERLAP)
         update_hud(img, DATA_SEG, view.ship_pos)
-        present(to_rgb(bytes(img.data[0xA0000:0xA0000 + 64000]), palette))
+        present(to_rgb(bytes(img.data[0xA0000:0xA0000 + 64000]),
+                       fade_palette(palette, fade_level)))
         clock.tick(GAME_FPS)
         gp_frames += 1
     pygame.quit()
