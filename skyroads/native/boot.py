@@ -36,8 +36,11 @@ DEMO_REC_OFF = 0x961E
 SEG_DISPLAY_LISTS = (0x2B12, 0x311B, 0x3766, 0x3DD4, 0x4459,
                      0x4B02, 0x518C, 0x57FE)     # [0E76..] rotation buffers
 SEG_SFX_BANK = 0x233B         # [4560]; also intro.snd's buffer
-SEG_FUL_BANK = 0x221A         # FUL_DISP.DAT stencils
-SEG_OXY_BANK = 0x2232         # OXY_DISP.DAT stencils
+#: FIXED 2026-07-13 (were swapped): verified against the menu-time cold
+#: capture by content match, not just by name -- 0x221A holds OXY_DISP.DAT's
+#: bytes byte-exact (375/375), 0x2232 holds FUL_DISP.DAT's (387/387).
+SEG_OXY_BANK = 0x221A         # OXY_DISP.DAT stencils; [5476]
+SEG_FUL_BANK = 0x2232         # FUL_DISP.DAT stencils; [9610]
 SEG_SPEED_BANK = 0x224B       # SPEED.DAT stencils; [54A6]
 SEG_CARS_BANK = 0x5E61        # cars.lzs 55,440 B; [AF36]
 SEG_DASHBRD = 0x6BEA          # dashbrd.lzs 22,720 B
@@ -53,6 +56,8 @@ BOOT_POINTERS = {
     0x4514: 0x8118,           # present source B
     0x4560: SEG_SFX_BANK,
     0x54A6: SEG_SPEED_BANK,   # speed-dial widget bank
+    0x5476: SEG_OXY_BANK,     # oxygen-bar widget bank
+    0x9610: SEG_FUL_BANK,     # fuel-bar widget bank
     0x961C: 0xA000,           # present destination
     0xAF36: SEG_CARS_BANK,    # sprite/tile bitmap bank (hi)
 }
@@ -101,6 +106,32 @@ def native_boot_dgroup(game_root: "str | Path") -> bytearray:
     for off, val in BOOT_POINTERS.items():
         struct.pack_into("<H", dg, off, val)
     return dg
+
+
+#: DASHBRD.LZS's PICT `dest` field: an ABSOLUTE VGA byte offset (0xA140 =
+#: row 129 of the 320x200 plane) -- not a segment-relative offset. The
+#: dashboard is 71 rows x 320 = 22,720 bytes, reaching exactly the end of
+#: the VGA plane (129 + 71 == 200).
+DASHBOARD_VGA_OFFSET = 0xA140
+DASHBOARD_LEN = 22720
+
+
+def paint_dashboard(img_data: bytearray, dashboard_seg: int) -> None:
+    """Overlay the cockpit dashboard onto a live 1 MB image's VGA plane
+    (`img_data`, e.g. `NativeGameImage.data`), NONZERO PIXELS ONLY -- zero
+    is transparent, same convention as every other biased asset bank in
+    this module. Call this AFTER the per-frame road/background render: the
+    gameplay renderer's 138-row output (rows 0..137) overlaps the
+    dashboard's own top ~9 rows (129..137, its bezel), and only a masked
+    overlay reproduces the real windshield cutout -- painting dashboard
+    first would have it immediately overwritten; painting unmasked would
+    blank the visible road out from under the bezel."""
+    src_base = dashboard_seg << 4
+    dst_base = 0xA0000 + DASHBOARD_VGA_OFFSET
+    for i in range(DASHBOARD_LEN):
+        p = img_data[src_base + i]
+        if p:
+            img_data[dst_base + i] = p
 
 
 #: The gameplay DAC layout — each asset container's CMAP slots in
@@ -187,6 +218,24 @@ def native_boot_image(game_root: "str | Path") -> bytearray:
     img[LOAD_SEG << 4:(LOAD_SEG << 4) + len(prog)] = prog
     dg = native_boot_dgroup(root)
 
+    # cars.lzs -> the sprite/tile bitmap bank (2310x24; CMAP 20 colours ->
+    # [429A], aux -> [AF3C]); pixels biased into the CARS DAC window. Mutates
+    # `dg` (the CMAP/aux writes) -- must run BEFORE `dg` goes into `img`.
+    _, cars_pix = _load_graphic_bank(dg, read_game_file(root, "CARS.LZS"), 0x429A)
+    # dashbrd.lzs -> the cockpit art (71x320, dest 0xA140 = screen row 129;
+    # CMAP 50 colours -> [42D6]); biased into the DASHBRD DAC window.
+    _, dashbrd_pix = _load_graphic_bank(dg, read_game_file(root, "DASHBRD.LZS"), 0x42D6)
+
+    # DGROUP goes into the image FIRST (now that `dg` is fully built): several
+    # banks allocated just above it (OXY/FUL/SPEED/SFX -- all within ~0x1000
+    # paragraphs of DGROUP_SEG) physically overlap its 64 KB window, exactly
+    # like the real allocator's layout. Writing DGROUP before those `place()`
+    # calls lets their content correctly overlay on top (matching real
+    # memory); the old order wrote DGROUP last and silently zeroed all four
+    # banks -- latent until the HUD widget system started actually reading
+    # them (see run_status.md).
+    img[DGROUP_SEG << 4:(DGROUP_SEG << 4) + 0x10000] = dg
+
     def place(seg: int, data: bytes) -> None:
         img[seg << 4:(seg << 4) + len(data)] = data
 
@@ -195,15 +244,8 @@ def native_boot_image(game_root: "str | Path") -> bytearray:
     place(SEG_FUL_BANK, read_game_file(root, "FUL_DISP.DAT")[20:])
     place(SEG_SPEED_BANK, read_game_file(root, "SPEED.DAT")[68:])
     place(SEG_SFX_BANK, read_game_file(root, "SFX.SND"))
-
-    # cars.lzs -> the sprite/tile bitmap bank (2310x24; CMAP 20 colours ->
-    # [429A], aux -> [AF3C]); pixels biased into the CARS DAC window.
-    _, pix = _load_graphic_bank(dg, read_game_file(root, "CARS.LZS"), 0x429A)
-    place(SEG_CARS_BANK, bias_pixels(pix, DAC_CARS_BASE))
-    # dashbrd.lzs -> the cockpit art (71x320, dest 0xA140 = screen row 129;
-    # CMAP 50 colours -> [42D6]); biased into the DASHBRD DAC window.
-    _, pix = _load_graphic_bank(dg, read_game_file(root, "DASHBRD.LZS"), 0x42D6)
-    place(SEG_DASHBRD, bias_pixels(pix, DAC_DASHBRD_BASE))
+    place(SEG_CARS_BANK, bias_pixels(cars_pix, DAC_CARS_BASE))
+    place(SEG_DASHBRD, bias_pixels(dashbrd_pix, DAC_DASHBRD_BASE))
 
     # TREKDAT.LZS -> the 8 display-list strip buffers, then the recovered
     # `3A96` token expansion IN PLACE (the "intro anim unpacker" turned out
@@ -260,5 +302,4 @@ def native_boot_image(game_root: "str | Path") -> bytearray:
             lambda off, b_=base: img[b_ + off],
             lambda off, v, b_=base: img.__setitem__(b_ + off, v))
 
-    img[DGROUP_SEG << 4:(DGROUP_SEG << 4) + 0x10000] = dg
     return img
