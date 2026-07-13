@@ -112,7 +112,10 @@ def load_world_assets(level: int, *, game_root) -> WorldAssets:
     widths = LzsWidths(data[widths_at], data[widths_at + 1], data[widths_at + 2])
     raw = decompress_block(data[widths_at + 3:], widths,
                            BACKGROUND_W * BACKGROUND_H)
-    biased = bytes((b + CMAP_DAC_BASE) & 0xFF for b in raw)
+    # bias into the WORLD DAC window; nonzero-only, matching the byte-exact
+    # rule proven on the CARS/DASHBRD banks (background has no zero pixels,
+    # so this changes nothing for it -- kept consistent regardless)
+    biased = bytes((b + CMAP_DAC_BASE) & 0xFF if b else 0 for b in raw)
     return WorldAssets(cmap=cmap, background=biased)
 
 

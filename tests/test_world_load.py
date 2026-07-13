@@ -22,8 +22,11 @@ def test_all_ten_worlds_decode():
         assets = load_world_assets(w * 3, game_root=ASSETS)
         assert len(assets.cmap) == 342          # 114 colours x RGB6
         assert len(assets.background) == BACKGROUND_W * BACKGROUND_H
-        # biased indices must live in the CMAP DAC window (142..255)
-        assert min(assets.background) >= CMAP_DAC_BASE
+        # biased indices live in the CMAP DAC window (142..255); raw zero
+        # pixels stay 0 (the nonzero-bias rule proven byte-exact on the
+        # CARS/DASHBRD banks -- some worlds do contain raw zeros)
+        nz = [b for b in assets.background if b]
+        assert min(nz) >= CMAP_DAC_BASE
 
 
 @needs_assets

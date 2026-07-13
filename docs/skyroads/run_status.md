@@ -75,6 +75,36 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 — native boot builder + the GRAPHICS CONTAINER format + the complete DAC map; cars/dashbrd banks byte-exact from files alone
+
+`skyroads/native/boot.py`: the snapshot-free boot image. Key discoveries:
+
+**The graphics container format** (generalizing the WORLD finding — CARS,
+DASHBRD, WORLD, GOMENU all share it): ``"CMAP" + u8 colour-count + colours``,
+an aux table (-> `[AF3C]`), then ``"PICT" + u16 dest_off + u16 h + u16 w +
+3 LZS width bytes + stream`` (h*w decompressed bytes). Observed: CARS
+2310x24 = 55,440 (a 24-wide sprite strip); DASHBRD dest 0xA140 (= screen
+row 129), 71x320; GOMENU 200x320 = 64,000; WORLD 138x320. Other chunk tags
+(APAO/APCO/INMI/DHKI/XCGN/AHEL) are menu/anim data, still unparsed. (An
+earlier flat-layout guess produced garbage LZS widths whose decode crawled —
+the "PICT" tag search settled it; WORLD4's "descriptor" was PICT's tail.)
+
+**The complete gameplay DAC map**: each container's CMAP slots in
+sequentially — ROADS' 72 -> 0..71, CARS' 20 -> 72..91, DASHBRD's 50 ->
+92..141, WORLD's 114 -> 142..255. Bank pixels are stored palette-relative
+and biased into their window when banked, NONZERO PIXELS ONLY (0 =
+transparent). Proven byte-exact vs the menu-time cold capture: cars
+55,440/55,440 (+72), dashbrd 22,720/22,720 (+92).
+
+**Boot DGROUP**: EXE-unpacked init data + cfg -> `[4516]`, DAT cell tables
+(`[95F8]`/`[5480]`/`[4572]`), demo.rec -> `[961E]`, the display-list segment
+table `[0E76..]` + allocator pointer constants (deterministic layout,
+verified vs the capture). `GAMEPLAY_POINTERS` adds the level-start segment
+init (`[5478]`=8116 offscreen etc., from snap92). `native_boot_dac()` gives
+the level-independent palette part. `tests/test_boot.py` (4 tests).
+Note: sfx.snd's `233B` segment holds intro.snd at menu time — the SFX bank
+loads at level start; boot places SFX.SND there for gameplay use.
+
 ## 2026-07-13 — native EXE unpack: SKYROADS.EXE's CUSTOM packer stub recovered register-exact; the initial program image (incl. the startup tables) now builds from the file alone, verified 0-diff vs a real cold boot
 
 Milestone-2 boot chain, first big piece. Following the boot manifest's lead
