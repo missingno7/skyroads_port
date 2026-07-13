@@ -26,7 +26,14 @@ collision demo (demo_skyroads_20260710_213019: 5 calls -- 2x id 1 ret `249E`,
 ====  =========================================================
  id   trigger (return-ip of the captured call site)
 ====  =========================================================
- 0    wall CRASH thud (`27E7`, on flagging `[456A]`/`[456E]`); also the
+ 0    wall CRASH thud (`27E7`, on flagging `[456A]`) -- fires the instant
+      `resolve_lateral_crash` sets `[456A]` 0 -> nonzero (ship past
+      `CRASH_MILESTONE_POS`, not already flagged), REGARDLESS of
+      `[456E]`/game_state (2026-07-13: re-verified on
+      demo_skyroads_20260710_213019 -- one call fires from game_state 0,
+      one from game_state 3, both on the 0->nonzero grounded edge). A
+      pre-milestone or already-flagged lateral block does NOT fire this --
+      see `native_gameplay_substep`'s collision-response comment; also the
       level-select "enter" (menu action 0xC)
  1    bounce landing (`249B`, decay branch, gated by the 8-tick debounce);
       the recurring effect in the SB-DMA capture (tc=131, 8000 Hz, 5153 B)

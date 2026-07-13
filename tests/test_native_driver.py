@@ -49,6 +49,47 @@ def test_driver_transitions_are_well_formed() -> None:
     assert seen_transition
 
 
+def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
+    """A presentation layer (play_native.py's windowed viewer) needs to hold
+    the frozen frame on screen for a beat before respawning -- see
+    NativeGameplayDriver's docstring and docs/skyroads/run_status.md's
+    2026-07-13 crash/finish settle-window entry."""
+    view = GameView(NativeGameState())
+    driver = NativeGameplayDriver(view, jump_level_gate=9, auto_respawn=False)
+    outcome = None
+    ticks_to_transition = 0
+    for _ in range(2000):
+        outcome = driver.tick()
+        ticks_to_transition += 1
+        if outcome.transitioned:
+            break
+    assert outcome is not None and outcome.transitioned
+    # "" is a legitimate kind too -- e.g. the generic frame_ctr-budget exit
+    # (`should_run_gameplay`'s `frame_ctr < FRAME_CTR_GAMEPLAY_MAX` fallback,
+    # game_state==3 with grounded==0) isn't a crash/finish/timeout at all.
+    assert outcome.kind in ("crash", "finish", "timeout_fuel", "timeout_oxygen", "fall", "")
+    # game_state is NOT reset -- the transition is held, not auto-applied.
+    held_game_state = view.game_state
+    for _ in range(10):
+        held = driver.tick()
+        assert held == outcome              # the SAME outcome, not a new sub-step
+        assert view.game_state == held_game_state
+    assert driver.ticks == ticks_to_transition + 10
+
+    driver.respawn()
+    assert driver.pending is None
+    assert view.game_state == 0
+    assert view.af2c == 0x2800
+
+    # respawn() again with nothing pending is a harmless no-op.
+    driver.respawn()
+    assert view.game_state == 0
+
+    # tick() resumes normal (non-held) operation after respawn().
+    next_outcome = driver.tick()
+    assert next_outcome != outcome
+
+
 # ---- live-oracle: real level data + real recorded input, driven standalone --
 
 ROOT = Path(__file__).resolve().parents[1]

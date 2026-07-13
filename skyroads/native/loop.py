@@ -239,14 +239,18 @@ def native_gameplay_substep(
     for callers (like :class:`NativeGameplayDriver`) that need to keep running
     rather than stop on it. Never the default.
     """
-    # Run gameplay content only when (a) game_state is an in-level state (0
-    # active / 3 resume-frozen) AND (b) the frame gate (229D-22E9) says this
-    # frame runs the handler. States 1/2/4/5 are transition DISPLAYS (the
-    # level-complete "settle window" is one -- a frozen ship rising off the end)
-    # that this gameplay stepper doesn't own, so it stops at them; the frame
-    # gate additionally catches the game_state 3 -> settled-resume exit.
-    if view.game_state not in (0, 3) or not should_run_gameplay(
-            view.game_state, view.grounded, view.frame_ctr):
+    # The frame runs the gameplay sub-step iff the recovered orchestration gate
+    # `should_run_gameplay` (1010:229D-22E9) says so -- this is the VM's OWN
+    # decision and nothing more. Crucially its FIRST clause keeps the frame in
+    # the handler while the "settle window" counter `[456A]` (grounded) is in
+    # 1..0x2A REGARDLESS of game_state, so the crash/finish DISPLAY frames
+    # (game_state 1 / 2, ship frozen, the EXPLOSION sprite animating via
+    # si=grounded//3 as grounded ramps 2->42) run through this frozen-ship path
+    # too. An earlier version added an extra `game_state in {0,3}` guard here;
+    # that WRONGLY exited on the very first crash frame (game_state:=1) and so
+    # never played the explosion settle window -- 2026-07-13, verified against
+    # demo_skyroads_20260710_213019 (grounded 2->42 / si 0->13 over ~34 frames).
+    if not should_run_gameplay(view.game_state, view.grounded, view.frame_ctr):
         raise LevelEndTransition(
             f"transition: game_state={view.game_state} f456a={view.grounded} "
             f"frame_ctr={view.frame_ctr}")
@@ -335,14 +339,24 @@ def native_gameplay_substep(
     if new_af1c != view.af1c or tgt_lateral != tgt.tgt_lateral:
         _emit_sfx(view, sfx, 2)                      # wall bump: 03C2(2)
     view.af1c = new_af1c
+    grounded_before = view.grounded
     crash = resolve_lateral_crash(
         view.lateral, tgt_lateral, view.ship_pos, view.grounded, view.game_state)
-    # The crash handler's SFX (27A3-2828, VM-verified on a collision demo):
-    # a real flagged crash calls 03C2(0) at 27E7; a lateral block that does
-    # NOT flag (pre-0x0E38 or already flagged) runs the 2800 distance check
-    # and thumps 03C2(2) when lateral has outrun (tgt_lateral - ship_pos).
+    # The crash handler's SFX (27A3-2828, VM-verified 2026-07-13 on both the
+    # original collision demo AND demo_skyroads_20260713_095814, a slow-crash
+    # repro): a real flagged crash calls 03C2(0) at 27E7 -- but `crashed`
+    # (any lateral mismatch, ship_pos always resets to 0) is NOT the same as
+    # "flagged" (`resolve_lateral_crash`'s own `past_gate and f456a==0`
+    # branch, i.e. ds:[54AC] was already past CRASH_MILESTONE_POS AND
+    # grounded was still 0) -- using `crashed` alone fired the thud on EVERY
+    # wall hit, including a slow/early crash below the milestone position,
+    # which the real VM plays silently. Detect "flagged" the same way the
+    # ASM does: grounded went 0 -> nonzero this call. A lateral block that
+    # does NOT flag (pre-milestone or already flagged) instead runs the 2800
+    # distance check and thumps 03C2(2) when lateral has outrun
+    # (tgt_lateral - ship_pos).
     if (view.lateral & 0xFFFFFFFF) != (tgt_lateral & 0xFFFFFFFF):
-        if crash.crashed:
+        if grounded_before == 0 and crash.f456a != 0:
             _emit_sfx(view, sfx, 0)                  # crash thud: 03C2(0)
         elif ((view.lateral & 0xFFFFFFFF)
               > ((tgt_lateral - view.ship_pos) & 0xFFFFFFFF)):
@@ -383,9 +397,10 @@ def native_gameplay_substep(
 
     # If this step ended the level / triggered a transition, stop: the
     # transition (respawn / menu / level load) is a separate subsystem. Mirror
-    # the entry condition so we stop exactly when the VM leaves gameplay.
-    if view.game_state not in (0, 3) or not should_run_gameplay(
-            view.game_state, view.grounded, view.frame_ctr):
+    # the entry gate exactly (should_run_gameplay alone) so we stop only when
+    # the VM leaves the handler -- INCLUDING running out the settle window
+    # (grounded ramps past 0x2A after the explosion animation completes).
+    if not should_run_gameplay(view.game_state, view.grounded, view.frame_ctr):
         raise LevelEndTransition(
             f"step ended in a transition: game_state={view.game_state} "
             f"f456a={view.grounded} frame_ctr={view.frame_ctr}")
@@ -440,6 +455,44 @@ class TickOutcome(NamedTuple):
     """What one :meth:`NativeGameplayDriver.tick` call did."""
     transitioned: bool   # True if this tick crossed a boundary and re-inited
     reason: str          # "" for a normal sub-step; else the transition's cause
+    #: Coarse transition classification, "" for a normal sub-step. One of
+    #: "crash" / "finish" / "timeout_fuel" / "timeout_oxygen" / "fall". See
+    #: :func:`_classify_transition` -- ``game_state`` alone under-classifies a
+    #: crash from an already-landed ship (VM-verified: it stays 3, only
+    #: ``grounded`` ramps), so this also consults ``view.grounded``.
+    kind: str = ""
+    #: ``view.game_state`` at the moment of the transition (before any reset).
+    game_state: int = 0
+
+
+def _classify_transition(view: GameView, exc: Exception) -> str:
+    """Map a raised :class:`~skyroads.native.gaps.LevelEndTransition` /
+    :class:`~skyroads.native.gaps.FallDeathTransition` to a coarse,
+    caller-facing ``TickOutcome.kind``.
+
+    VM-traced 2026-07-13 (``demo_skyroads_crash_20260713_085908``): a wall
+    crash that happens AFTER the ship has already resumed (``game_state``
+    already ``3`` from a prior landing) does NOT flip ``game_state`` to ``1``
+    -- ``resolve_lateral_crash`` only sets it when ``game_state`` was ``0``.
+    The only observable signal in that case is ``grounded`` (``[456A]``)
+    going nonzero and ramping toward :data:`~skyroads.recovered.
+    orchestration.SETTLE_WINDOW_MAX`, so a crash from state 3 is detected via
+    ``grounded != 0`` instead of ``game_state``.
+    """
+    if isinstance(exc, FallDeathTransition):
+        return "fall"
+    gs = view.game_state & 0xFFFF
+    if gs == 1:
+        return "crash"
+    if gs == 2:
+        return "finish"
+    if gs == 4:
+        return "timeout_fuel"
+    if gs == 5:
+        return "timeout_oxygen"
+    if gs == 3 and (view.grounded & 0xFFFF) != 0:
+        return "crash"
+    return ""
 
 
 class NativeGameplayDriver:
@@ -454,11 +507,16 @@ class NativeGameplayDriver:
     Two things are deliberately NOT modelled byte-exact against the VM here
     (both out-of-scope for gameplay decision-making, not silent gaps):
 
-    * the level-complete/crash SETTLE WINDOW's exact multi-frame duration (the
-      frozen-ship "rising off the end" animation the VM shows for ~42 frames)
-      -- this driver transitions to the next level/respawn IMMEDIATELY on
-      detecting the boundary, since the window is non-interactive dead time
-      between real gameplay decisions, not gameplay itself;
+    * the post-explosion HOLD's exact multi-frame duration. The settle
+      window's EXPLOSION animation (grounded ramps, ``si`` cycles the
+      explosion sprites) IS run natively now -- ``native_gameplay_substep``
+      plays those frames (game_state 1/2 while grounded is in 1..0x2A) and only
+      raises the transition once grounded rolls past 0x2A. What this driver
+      still doesn't own byte-exact is the ~60-frame frozen HOLD the VM shows
+      after that before the reset -- by default (``auto_respawn=True``) it
+      respawns IMMEDIATELY on the boundary; pass ``auto_respawn=False`` for a
+      presentation layer that wants to hold the frozen frame first (see
+      ``respawn()``);
     * the rare ``1DFA`` effect sub-step (~0.7% of real sub-steps) -- handled
       via :func:`native_gameplay_substep`'s documented
       ``allow_unmodelled_effect`` fallback rather than stopping the loop.
@@ -470,7 +528,8 @@ class NativeGameplayDriver:
     """
 
     def __init__(self, view: GameView, jump_level_gate: int,
-                scratch: "GameplayScratch | None" = None, on_sfx=None):
+                scratch: "GameplayScratch | None" = None, on_sfx=None,
+                auto_respawn: bool = True):
         self.view = view
         self.jump_level_gate = jump_level_gate
         self.scratch = scratch if scratch is not None else apply_level_init(view, jump_level_gate)
@@ -480,6 +539,16 @@ class NativeGameplayDriver:
         #: fires (0 touch-down / 1 bounce landing / 2 bump+crash); see
         #: `skyroads.native.sfx` for the id map and the SFX.SND bank loader.
         self.on_sfx = on_sfx
+        #: False: defer the post-transition ``apply_level_init`` to an
+        #: explicit :meth:`respawn` call instead of running it inside
+        #: :meth:`tick`. Default True preserves the original (headless/
+        #: verify) behaviour every existing caller relies on.
+        self.auto_respawn = auto_respawn
+        #: the held :class:`TickOutcome` while a transition is awaiting an
+        #: explicit :meth:`respawn` (``auto_respawn=False`` only); ``tick()``
+        #: keeps returning this SAME outcome (without re-running the
+        #: sub-step, which would just re-raise) until ``respawn()`` clears it.
+        self.pending: "TickOutcome | None" = None
 
     def tick(self) -> TickOutcome:
         """Advance one gameplay sub-step, transparently driving through any
@@ -487,12 +556,28 @@ class NativeGameplayDriver:
         fields (``steer``/``jump``/``speed``/the key row/``elapsed_ticks``)
         before calling to drive with real input."""
         self.ticks += 1
+        if self.pending is not None:
+            return self.pending
         try:
             self.scratch = native_gameplay_substep(
                 self.view, self.scratch, allow_unmodelled_effect=True,
                 sfx=self.on_sfx)
-            return TickOutcome(False, "")
+            return TickOutcome(False, "", "", self.view.game_state)
         except (LevelEndTransition, FallDeathTransition) as exc:
-            self.scratch = apply_level_init(self.view, self.jump_level_gate)
             self.transitions += 1
-            return TickOutcome(True, str(exc))
+            outcome = TickOutcome(True, str(exc), _classify_transition(self.view, exc),
+                                  self.view.game_state)
+            if self.auto_respawn:
+                self.scratch = apply_level_init(self.view, self.jump_level_gate)
+            else:
+                self.pending = outcome
+            return outcome
+
+    def respawn(self) -> None:
+        """Clear a transition held by ``auto_respawn=False`` and apply the
+        per-level init, exactly what ``tick()`` does automatically when
+        ``auto_respawn=True``. A no-op if no transition is pending."""
+        if self.pending is None:
+            return
+        self.scratch = apply_level_init(self.view, self.jump_level_gate)
+        self.pending = None

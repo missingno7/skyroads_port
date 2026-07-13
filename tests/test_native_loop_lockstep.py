@@ -108,6 +108,17 @@ def test_native_loop_stays_in_lockstep_with_vm() -> None:
         for off in INPUT_OFFS:                    # inject VM input
             st.ww(off, m.rw(ds, off))
         if gs != 0:
+            # The VM left game_state 0 (level end / crash / resume). The native
+            # substep no longer RAISES exactly at that step -- with the VM-exact
+            # gate (should_run_gameplay alone) game_state 1/2 while the settle
+            # window counter [456A] is ramping is a "keep running" frame, so the
+            # clean run now ends at this boundary rather than on a native GAP.
+            # Record the whole-level streak here so it's still measured; this
+            # harness only feeds native game_state==0 frames, so it never runs
+            # the settle window itself (that's exercised by tests/test_native_
+            # driver.py's auto_respawn=False + the crash settle-window trace).
+            if ctx["streak"] > 0:
+                runs.append((ctx["streak"], "BOUNDARY"))
             ctx["nst"] = None
             return
         try:
@@ -147,10 +158,11 @@ def test_native_loop_stays_in_lockstep_with_vm() -> None:
     assert max_streak >= 50, f"longest lockstep run only {max_streak} steps ({runs})"
     assert total_in_sync >= 140, f"only {total_in_sync} total in-sync steps ({runs})"
 
-    # (2) Runs end cleanly -- the stepper DETECTS the boundaries it doesn't own
-    #     (level end, fall, 1DFA) and raises a typed gap rather than drifting.
-    #     A tiny residual ends on an un-modelled respawn/level-load transition
-    #     (game_state 3 -> respawn); bound it, don't allow general drift.
+    # (2) Runs end cleanly -- either the VM leaves game_state 0 at a level
+    #     boundary ("BOUNDARY") or the stepper DETECTS a boundary it doesn't own
+    #     and raises a typed gap ("GAP") -- rather than drifting. A tiny residual
+    #     ends on an un-modelled respawn/level-load transition (game_state 3 ->
+    #     respawn); bound it, don't allow general drift.
     assert len(field_breaks) <= 2, (
         f"native loop drifted on {len(field_breaks)} runs (only rare respawn "
         f"edges allowed): {field_breaks}")
