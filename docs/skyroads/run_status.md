@@ -75,6 +75,30 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 — the display-list buffers are TREKDAT.LZS data (boot-loaded, then 3A96-expanded) — the last unmapped cold-boot piece is now mapped
+
+The snapshot-free gameplay acid test hung: ZEROED display-list buffers make
+the RLE strip walks scan 64 KB for a 0xFF terminator. The buffers hold a
+pre-built structure (a strip-offset table at 0, then (ctrl,run,skip)-triplet
+strips) that is ESSENTIALLY STATIC — the menu-time capture's dl0 differs
+from deep-gameplay snap92 by only 14 bytes, and all 8 phase buffers are
+primed before any level loads. First-writer trace over boot frames 0..240:
+
+- `1010:6712` (the LZS decode main loop) writes 44,710 bytes into dl0 —
+  **the buffers are decompressed TREKDAT.LZS records**;
+- `1010:3A96` (the ALREADY-RECOVERED intro_anim_unpack — evidently a general
+  second-stage expander, not intro-specific) writes 65,531 bytes over the
+  same buffer at offset 0 — an in-place expansion pass;
+- both at frame 9, i.e. the boot-time `trekdat.lzs` load from the manifest.
+
+So nothing about the render state needs new recovery: the cold-boot dl
+priming = replay TREKDAT's records (skyroads/codecs/lzs.py) + the recovered
+`3A96` expansion into the 8 buffer segments. Remaining assembly for the
+snapshot-free gameplay milestone: the record->segment mapping + 3A96 call
+parameters (captureable from the same frame-9 window), then re-run the acid
+test (scratchpad/acid_native_boot.py — gameplay from `native_boot_image`,
+which already renders everything else from files alone).
+
 ## 2026-07-13 — native boot builder + the GRAPHICS CONTAINER format + the complete DAC map; cars/dashbrd banks byte-exact from files alone
 
 `skyroads/native/boot.py`: the snapshot-free boot image. Key discoveries:
