@@ -264,16 +264,21 @@ def run_level(root: Path, level: int, baseline_dir: Path, max_ticks: int = 4000)
     print(f"[level] no transition in {max_ticks} ticks (ship_pos={view.ship_pos:#x})")
 
 
-def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) -> None:
+def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
+              cold_native: bool = False) -> None:
     """THE WINDOW: play LEVEL interactively in a real window, 100% native.
 
     Per frame: pygame keys -> the sim's speed/steer/jump axes; one native sim
     tick (`NativeGameplayDriver`, which auto-respawns at crash/complete
     boundaries); one native render (`render_native_frame` -- the pipeline
     verified byte-exact against the VM on both captured frames); present the
-    composed viewport through the level's DAC. The baseline snapshot supplies
-    the world graphics banks + startup constants + palette; the level geometry
-    itself is loaded VM-free from ROADS.LZS by index.
+    composed viewport through the level's DAC.
+
+    ``cold_native=True`` (milestone 2): the ENTIRE 1 MB image -- program,
+    DGROUP, display-list buffers, palette -- is built from the game files
+    alone (`skyroads.native.boot.native_boot_image`), no VM, no snapshot.
+    Otherwise a captured baseline snapshot supplies those (the level
+    geometry itself is always loaded VM-free from ROADS.LZS by index).
     """
     import json as _json
     import pygame
@@ -281,26 +286,36 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
     from skyroads.native.frame import render_native_frame
     from skyroads.native.image import NativeGameImage
     from skyroads.native.level_load import native_level_load
-    from skyroads.native.state import NativeGameState, DATA_SEG
+    from skyroads.native.state import DATA_SEG, NativeGameState
     from dos_re.display import Display
 
-    mem_bin = baseline_dir / "memory_1mb.bin"
-    state_json = baseline_dir / "state.json"
-    if not mem_bin.exists() or not state_json.exists():
-        raise SystemExit(f"--window needs a full baseline snapshot (memory_1mb.bin + "
-                         f"state.json) at {baseline_dir}")
-    img = NativeGameImage(bytearray(mem_bin.read_bytes()))
-    palette = [tuple(e) for e in _json.loads(state_json.read_text())["dos"]["vga_palette"]]
+    if cold_native:
+        from skyroads.native.boot import (apply_gameplay_segment_init,
+                                          native_boot_dac, native_boot_image)
+        img = NativeGameImage(native_boot_image(root / "assets"))
+        palette = native_boot_dac(root / "assets")
+        dg_base = DATA_SEG << 4
+        st = NativeGameState(bytearray(img.data[dg_base:dg_base + 0x10000]))
+        apply_gameplay_segment_init(st.data)
+        print("[window] cold-native boot: program + DGROUP + display lists "
+              "built entirely from game files (no VM, no snapshot)")
+    else:
+        mem_bin = baseline_dir / "memory_1mb.bin"
+        state_json = baseline_dir / "state.json"
+        if not mem_bin.exists() or not state_json.exists():
+            raise SystemExit(f"--window needs a full baseline snapshot (memory_1mb.bin + "
+                             f"state.json) at {baseline_dir}")
+        img = NativeGameImage(bytearray(mem_bin.read_bytes()))
+        palette = [tuple(e) for e in _json.loads(state_json.read_text())["dos"]["vga_palette"]]
+        dg_base = DATA_SEG << 4
+        st = NativeGameState(bytearray(img.data[dg_base:dg_base + 0x10000]))
     # The frame is presented straight from the image's VGA plane (0xA0000):
     # `34AE(ax=1)` (the in-frame present pass, now native) keeps rows 0..137
-    # (the road band + ship) live, and rows 138..199 keep the baseline
-    # snapshot's cockpit art. The GAUGES stay at their captured values until
-    # the HUD gauge renderer (4526/44BE glyphs + dial/bar draws + the 4563
-    # rect flush) is ported.
+    # (the road band + ship) live, and rows 138..199 keep the cockpit art.
+    # The GAUGES stay at their captured values until the HUD gauge renderer
+    # (4526/44BE glyphs + dial/bar draws + the 4563 rect flush) is ported.
 
-    # VM-free level geometry over the baseline DGROUP.
-    dg_base = DATA_SEG << 4
-    st = NativeGameState(bytearray(img.data[dg_base:dg_base + 0x10000]))
+    # VM-free level geometry over the DGROUP.
     decoded = native_level_load(st, level, game_root=str(root / "assets"))
 
     # VM-free per-level WORLD assets: background bank + palette + song.
@@ -312,8 +327,7 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0) 
     bg_seg = img.rw(DATA_SEG, 0x5170)            # the background bank segment
     img.data[(bg_seg << 4):(bg_seg << 4) + len(world.background)] = world.background
     # Compose the gameplay DAC: ROADS' 72 level colours -> 0..71, the world
-    # CMAP's 38 -> 142..179; everything else (cockpit/ship) is level-fixed
-    # and comes from the baseline snapshot's DAC.
+    # CMAP's 114 -> 142..255; everything else (cockpit/ship) is level-fixed.
     for i in range(72):
         palette[i] = tuple(expand6(decoded.palette[3 * i + k]) for k in range(3))
     for i in range(len(world.cmap) // 3):
@@ -616,6 +630,10 @@ def main() -> None:
                         "banks + palette for --window. Default: %(default)s")
     p.add_argument("--window-frames", type=int, default=0,
                    help="auto-quit the window after N frames (0 = run until closed)")
+    p.add_argument("--cold-native", action="store_true",
+                   help="MILESTONE 2: with --level, build the ENTIRE 1 MB image (program, DGROUP, "
+                        "display-list buffers, palette) from the game files alone -- no VM, no "
+                        "snapshot at all (ignores --window-baseline)")
     p.add_argument("--extra-ticks", type=int, default=0,
                    help="keep ticking the native driver this many times past the demo's recorded input")
     p.add_argument("--verify", action="store_true",
@@ -640,7 +658,7 @@ def main() -> None:
         wb = Path(args.window_baseline)
         if not wb.is_absolute():
             wb = ROOT / wb
-        run_window(ROOT, args.level, wb, args.window_frames)
+        run_window(ROOT, args.level, wb, args.window_frames, cold_native=args.cold_native)
         return
 
     if not args.demo:

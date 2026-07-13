@@ -75,6 +75,50 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 — MILESTONE 2 CORE REACHED: gameplay renders from GAME FILES ALONE — zero VM, zero snapshot, at any level
+
+The TREKDAT record framing was traced live (`1010:00E6-017D`, boot frame 9)
+and is now VM-verified byte-exact end to end:
+
+- **Record header = two RAW words** `(A, B)`, read byte-aligned via the same
+  scalar reader ROADS/MUZAX use (NOT the LZS bitstream) — `size = B`,
+  `dest_off = A - B` (the position within the freshly allocated segment
+  where this record's payload lands — NOT offset 0, which is why the
+  earlier size-only guess silently corrupted the layout).
+- The loader ALSO stamps `dest_off` itself as a bookmark word at the
+  segment's own offset 0 (`1010:015E`) — separate from the decompressed
+  payload — which is exactly the "self-referential offset" `3A96` reads
+  back at the start of its own header-relocation step. Missing this one
+  write made `unpack_animation_segment` read `si0=0` instead of the real
+  bookmark, wander into zeroed memory, and hang forever hunting for an
+  `0xFF` terminator that was never there — the actual cause of the
+  earlier "hung acid test", not a logic bug in the (already VM-verified)
+  `3A96` port itself.
+- 3 LZS width bytes + the compressed stream follow; each record's exact
+  consumed-byte length (needed to locate the next record) comes from the
+  bit reader's own final position — the records are back-to-back in the
+  file with no separate length field.
+
+**Verified: all 8 display-list buffers reproduce the real cold boot's
+memory byte-exact — 524,288/524,288 bytes** (`tests/test_boot.py`'s new
+`test_display_list_buffers_byte_exact_vs_cold_boot`), and fast (0.18 s for
+all 8 segments' decompress + `3A96` expand).
+
+**`scripts/play_native.py --level N --cold-native`**: the entire 1 MB
+image — program (native EXE unpack), DGROUP, all 8 display-list buffers,
+the full palette — now builds from `assets/` alone via
+`skyroads.native.boot.native_boot_image`. Ran end to end: level 2 opens,
+loads VM-free, renders the road/ship/background/cockpit correctly, plays
+music and SFX — **no VM was ever instantiated**. 381 tests pass (full
+suite, +2 min for the exhaustive boot/EXE/world checks).
+
+This is the practical core of milestone 2 (play any level, fully cold,
+no VM). Remaining for the FULL milestone (intro + menus): the menu/level-
+select screen (GOMENU already decodes; needs the `12F8`/`0F8C` HUD-glyph
+draw + input loop wired as a game STATE, not just an asset) and the intro
+sequence (LOGO.PCX + `3A96`-driven ANIM.LZS animation + INTRO.SND, plus a
+state machine sequencing intro -> menu -> level-select -> gameplay).
+
 ## 2026-07-13 — the display-list buffers are TREKDAT.LZS data (boot-loaded, then 3A96-expanded) — the last unmapped cold-boot piece is now mapped
 
 The snapshot-free gameplay acid test hung: ZEROED display-list buffers make

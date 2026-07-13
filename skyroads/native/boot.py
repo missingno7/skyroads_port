@@ -205,5 +205,60 @@ def native_boot_image(game_root: "str | Path") -> bytearray:
     _, pix = _load_graphic_bank(dg, read_game_file(root, "DASHBRD.LZS"), 0x42D6)
     place(SEG_DASHBRD, bias_pixels(pix, DAC_DASHBRD_BASE))
 
+    # TREKDAT.LZS -> the 8 display-list strip buffers, then the recovered
+    # `3A96` token expansion IN PLACE (the "intro anim unpacker" turned out
+    # to be the strip expander: its 8 segments at [0E76] ARE these buffers).
+    # Record framing (traced live at 1010:00E6-017D, boot frame 9, VM-
+    # verified byte-exact against a pre-3A96 memory capture): each record's
+    # 4-byte header is TWO RAW WORDS (A, B) read byte-aligned (the same
+    # 6576 scalar reader ROADS/MUZAX use, not the LZS bitstream) --
+    # size = B, dest_off = A - B (the position within the freshly allocated
+    # segment where this record's data lands; NOT offset 0 -- 3A96's "self-
+    # referential offset" header word is this same dest_off, baked at
+    # compile time so it lines up with where the loader places the data).
+    # Then 3 LZS width bytes + the compressed stream, consumed length
+    # tracked via the bit reader's own position to locate the next record.
+    from skyroads.codecs.lzs import LzsWidths, _BitReader
+    from skyroads.recovered.intro_anim import unpack_animation_segment
+
+    def _decompress_tracked(payload: bytes, widths: LzsWidths, out_size: int):
+        r = _BitReader(payload)
+        out = bytearray()
+        while len(out) < out_size:
+            if r.get_bit() == 0:
+                d = r.get_bits(widths.width_dist_long) + 2
+            else:
+                if r.get_bit() == 1:
+                    out.append(r.get_bits(8))
+                    continue
+                d = r.get_bits(widths.width_dist_short) + (1 << widths.width_dist_long) + 2
+            length = r.get_bits(widths.width_len) + 2
+            src = len(out) - d
+            for _ in range(length):
+                out.append(out[src] if 0 <= src < len(out) else 0)
+                src += 1
+        consumed = r._pos - (1 if r._bits_left == 8 else 0)
+        return bytes(out), consumed
+
+    trek = read_game_file(root, "TREKDAT.LZS")
+    pos = 0
+    for seg in SEG_DISPLAY_LISTS:
+        a, b = struct.unpack_from("<2H", trek, pos)
+        size = b
+        dest_off = (a - b) & 0xFFFF
+        widths = LzsWidths(trek[pos + 4], trek[pos + 5], trek[pos + 6])
+        out, consumed = _decompress_tracked(trek[pos + 7:], widths, size)
+        base = seg << 4
+        # [asm 1010:015E] the loader also stamps dest_off itself as a word
+        # bookmark at the segment's offset 0 -- 3A96 reads it back as the
+        # "self-referential offset" of its own header-relocation step.
+        img[base] = dest_off & 0xFF
+        img[base + 1] = (dest_off >> 8) & 0xFF
+        img[base + dest_off:base + dest_off + size] = out
+        pos += 7 + consumed
+        unpack_animation_segment(
+            lambda off, b_=base: img[b_ + off],
+            lambda off, v, b_=base: img.__setitem__(b_ + off, v))
+
     img[DGROUP_SEG << 4:(DGROUP_SEG << 4) + 0x10000] = dg
     return img

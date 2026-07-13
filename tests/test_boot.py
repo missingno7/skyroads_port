@@ -5,7 +5,7 @@ import pytest
 
 from skyroads.native.boot import (
     DAC_CARS_BASE, DAC_DASHBRD_BASE, SEG_CARS_BANK, SEG_DASHBRD,
-    native_boot_dac, native_boot_dgroup, native_boot_image,
+    SEG_DISPLAY_LISTS, native_boot_dac, native_boot_dgroup, native_boot_image,
     parse_lzs_container)
 from skyroads.native.level_load import read_game_file
 
@@ -52,6 +52,21 @@ def test_dgroup_pointers_match_cold_boot():
         mine = struct.unpack_from("<H", bytes(dg), off)[0]
         vm = struct.unpack_from("<H", menu, DG + off)[0]
         assert mine == vm, hex(off)
+
+
+@needs_assets
+@needs_menu
+def test_display_list_buffers_byte_exact_vs_cold_boot():
+    """TREKDAT.LZS record framing (two raw header words A,B -> size=B,
+    dest_off=A-B; the loader also stamps dest_off as a bookmark word at the
+    segment's own offset 0) + the recovered 3A96 expansion must reproduce
+    all 8 dl buffers byte-exact against a real cold boot."""
+    img = native_boot_image(ASSETS)
+    menu = MENU.read_bytes()
+    for seg in SEG_DISPLAY_LISTS:
+        a = bytes(img[seg << 4:(seg << 4) + 0x10000])
+        b = menu[seg << 4:(seg << 4) + 0x10000]
+        assert a == b, hex(seg)
 
 
 @needs_assets
