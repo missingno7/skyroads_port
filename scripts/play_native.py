@@ -61,8 +61,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "dos_re"))
+# ROOT inserted LAST (so it wins position 0): this repo's own top-level
+# submodules (pynuked_opl3/) must resolve ahead of dos_re's nested copy of
+# the same package -- see skyroads/audio/opl3_synth.py.
+sys.path.insert(0, str(ROOT))
 
 import scripts.play as sp  # noqa: E402
 from dos_re import player  # noqa: E402
@@ -291,7 +294,9 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     import json as _json
     import pygame
 
+    from skyroads.native.boot import SEG_DASHBRD, paint_dashboard
     from skyroads.native.frame import render_native_frame
+    from skyroads.native.hud import update_hud
     from skyroads.native.image import NativeGameImage
     from skyroads.native.level_load import native_level_load
     from skyroads.native.state import DATA_SEG, NativeGameState
@@ -351,17 +356,24 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     driver = NativeGameplayDriver(view, gate, scratch)
 
     pygame.init()
-    # native music: the recovered OPL sequencer -> semantic events -> modern synth
-    music_engine = music_decoder = music_synth = None
+    # native music: the recovered OPL sequencer -> a REAL Nuked-OPL3 chip
+    # (pynuked_opl3, this repo's own top-level submodule) -- raw register
+    # writes straight through, no semantic-event re-synthesis in between.
+    music_engine = music_synth = None
     try:
+        from skyroads.audio.opl3_synth import NativeOplSynth
         from skyroads.recovered.music import Engine as _MusicEngine
-        from skyroads.audio.opl_events import OplEventDecoder
-        from skyroads.audio.synth import ModernSynth
-        music_synth = ModernSynth()
-        music_engine = _MusicEngine(lambda o: img.rb(DATA_SEG, o),
-                                    lambda o: img.rw(DATA_SEG, o))
-        music_decoder = OplEventDecoder()
-        print("[window] music: recovered sequencer -> modern synth (native)")
+        music_synth = NativeOplSynth(pygame, present_hz=35)
+        if not music_synth.available:
+            music_synth = None
+        else:
+            music_engine = _MusicEngine(lambda o: img.rb(DATA_SEG, o),
+                                        lambda o: img.rw(DATA_SEG, o))
+            for reg, val in music_engine.reset_opl():     # one-time OPL/percussion init
+                music_synth.write(reg, val)
+            for off, b in music_engine.ovl.items():
+                img.wb(DATA_SEG, off, b)
+            print(f"[window] music: recovered sequencer -> {music_synth.backend_label}")
     except Exception as e:                       # noqa: BLE001 -- no audio device etc.
         print(f"[window] music disabled ({e})")
     # native SFX: the SFX.SND PCM bank, played on the sim's 03C2 trigger points
@@ -410,7 +422,9 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
                     writes = music_engine.run_tick()
                     for off, b in music_engine.ovl.items():
                         img.wb(DATA_SEG, off, b)         # commit the tick's state
-                    music_synth.handle(music_decoder.feed(writes))
+                    for reg, val in writes:
+                        music_synth.write(reg, val)
+                music_synth.pump()
             except Exception as e:                       # noqa: BLE001
                 print(f"[window] music stopped ({e})")
                 music_engine = None
@@ -420,6 +434,8 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
             print(f"[window] {outcome.reason} -- respawned")
         render_native_frame(img, DATA_SEG, offscreen=1, rebuild=first)
         first = False
+        paint_dashboard(img.data, SEG_DASHBRD)
+        update_hud(img, DATA_SEG, view.ship_pos)
 
         frame = bytes(img.data[0xA0000:0xA0000 + 64000])   # the live VGA plane
         rgb = bytearray(320 * 200 * 3)
@@ -466,10 +482,12 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     import pygame
     import numpy as _np
 
-    from skyroads.native.boot import (apply_gameplay_segment_init,
+    from skyroads.native.boot import (SEG_DASHBRD, apply_gameplay_segment_init,
                                       load_pict, native_boot_dac,
-                                      native_boot_image, parse_lzs_container)
+                                      native_boot_image, paint_dashboard,
+                                      parse_lzs_container)
     from skyroads.native.frame import render_native_frame
+    from skyroads.native.hud import update_hud
     from skyroads.native.image import NativeGameImage
     from skyroads.native.level_load import native_level_load, read_game_file
     from skyroads.native.loop import NativeGameplayDriver, apply_level_init
@@ -692,15 +710,20 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     scratch = apply_level_init(view, gate)
     driver = NativeGameplayDriver(view, gate, scratch)
 
-    music_engine = music_decoder = music_synth = None
+    music_engine = music_synth = None
     try:
+        from skyroads.audio.opl3_synth import NativeOplSynth
         from skyroads.recovered.music import Engine as _MusicEngine
-        from skyroads.audio.opl_events import OplEventDecoder
-        from skyroads.audio.synth import ModernSynth
-        music_synth = ModernSynth()
-        music_engine = _MusicEngine(lambda o: img.rb(DATA_SEG, o),
-                                    lambda o: img.rw(DATA_SEG, o))
-        music_decoder = OplEventDecoder()
+        music_synth = NativeOplSynth(pygame, present_hz=35)
+        if not music_synth.available:
+            music_synth = None
+        else:
+            music_engine = _MusicEngine(lambda o: img.rb(DATA_SEG, o),
+                                        lambda o: img.rw(DATA_SEG, o))
+            for reg, val in music_engine.reset_opl():     # one-time OPL/percussion init
+                music_synth.write(reg, val)
+            for off, b in music_engine.ovl.items():
+                img.wb(DATA_SEG, off, b)
     except Exception as e:                       # noqa: BLE001
         print(f"[window] music disabled ({e})")
     try:
@@ -744,7 +767,9 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
                     writes = music_engine.run_tick()
                     for off, b in music_engine.ovl.items():
                         img.wb(DATA_SEG, off, b)
-                    music_synth.handle(music_decoder.feed(writes))
+                    for reg, val in writes:
+                        music_synth.write(reg, val)
+                music_synth.pump()
             except Exception as e:                       # noqa: BLE001
                 print(f"[window] music stopped ({e})")
                 music_engine = None
@@ -754,6 +779,8 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
             print(f"[window] {outcome.reason} -- respawned")
         render_native_frame(img, DATA_SEG, offscreen=1, rebuild=first)
         first = False
+        paint_dashboard(img.data, SEG_DASHBRD)
+        update_hud(img, DATA_SEG, view.ship_pos)
         present(to_rgb(bytes(img.data[0xA0000:0xA0000 + 64000]), palette))
         clock.tick(35)
         gp_frames += 1
