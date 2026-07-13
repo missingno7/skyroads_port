@@ -8,15 +8,14 @@ several frames, renders the native pipeline (``render_native_frame(rebuild=
 True)`` -- exactly what ``play_native`` does now) from the VM's own live DGROUP
 and diffs the resulting VGA road band against the VM's.
 
-The road band must match within a small bound -- a strict full-frame
-regression fence. The residual is a known, documented ship-SPRITE inaccuracy
-of a few hundred pixels around the ship (which also drifts into the edge
-columns when the ship flies near them), not terrain. The edge TERRAIN
-ghosting the user reported lived only in the delta/skip render path;
-``play_native`` sidesteps it by rendering full (`rebuild=True`) every frame,
-which this test exercises, so a full render is ghosting-free by construction
--- the fence here guards the full-render path from geometry/sprite
-regressions.
+The native full-frame render (`rebuild=True`, what play_native does) must be
+BYTE-EXACT to the VM's own road band. This held after the 2026-07-13
+screen_row fix (the ship was drawing one row too low in offscreen mode --
+`screen_row` used `af2c_eff` instead of raw `af2c`; see render_params.py):
+the per-frame diff went from ~200-350 px around the ship to ZERO. The edge
+TERRAIN ghosting the user first reported lived only in the delta/skip render
+path, which play_native sidesteps by rendering full every frame -- so a full
+render is ghosting-free AND (now) pixel-exact.
 """
 from __future__ import annotations
 
@@ -35,11 +34,10 @@ pytestmark = pytest.mark.skipif(
 
 ROAD_BAND_ROWS = 131          # rows 0..130 (the sky + road band, above the dashboard)
 CHECK_FRAMES = {90, 140, 200}
-#: generous fence: the real per-frame residual is ~200-350 px around the ship
-#: (a documented ship-sprite inaccuracy). A gross render regression (edge
-#: ghosting via the delta path was 900+; wrong geometry, missing columns) blows
-#: well past this; the full-render path sits comfortably under it.
-MAX_ROAD_BAND_DIFFS = 600
+#: BYTE-EXACT: the native full render reproduces the VM's road band exactly
+#: (0 diffs on every checked frame after the screen_row fix). A tiny non-zero
+#: tolerance would only hide a regression, so this is 0.
+MAX_ROAD_BAND_DIFFS = 0
 
 
 def test_native_full_render_matches_vm_no_edge_ghosting() -> None:

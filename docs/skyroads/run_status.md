@@ -56,12 +56,24 @@ True`, what play_native does) against the VM's VGA road band frame-by-frame,
 bounding the per-frame diff -- a fence that would have caught the ghosting/
 render regressions the per-piece tests missed.
 
-**Still open (documented):** the ship-SPRITE render has a small (~200-350 px)
-per-frame inaccuracy around the ship (off-by-one colours + a few missing/extra
-pixels) -- the render-parity fence tolerates it explicitly; and `[1600]`
-(elapsed-tick counter driving idle-wobble + SFX debounce) is still advanced
-+2/frame, not yet matched to the VM's ~1/frame at 30 fps (secondary timing,
-not user-visible).
+**Ship-sprite inaccuracy -- FIXED (2026-07-13, round 4).** The ~200-350 px
+per-frame residual around the ship was a single off-by-one: in OFFSCREEN mode
+(the path play_native uses) `compute_render_params` computed `screen_row` from
+`af2c_eff` (af2c - 0x80) instead of raw `af2c`, so the ship-row projection
+(`tile_rasterize`'s `[0E6C] = (0x9D-[0E2C])*0x140 + [0E28] - 0x6E`) placed the
+ship exactly one row (0x140) too low. The 0x80 subtraction feeds only the
+dirty-cache slot, not the projection. Root-caused by a write-watcher (the ship
+draw offsets `[0E6C]/[0E70]` and mask `[0E86]` are all written by `1010:325B`,
+`tile_rasterize`) then a single-frame VM diff: native `[0E6C]` was consistently
++0x140 vs the VM. Fixed `screen_row = af2c // 0x80`; the full render is now
+BYTE-EXACT to the VM (0 road-band diffs on every checked frame, was 219-253).
+The fixture only caught the fill path because it was captured with
+`offscreen=0` (where af2c_eff == af2c). `tests/test_render_parity.py` now
+asserts 0 diffs.
+
+**Still open (documented):** `[1600]` (elapsed-tick counter driving idle-wobble
++ SFX debounce) is still advanced +2/frame, not yet matched to the VM's
+~1/frame at 30 fps (secondary timing, not user-visible).
 
 ## 2026-07-13 — play_native HUD gauges fill correctly + edge terrain ghosting fixed (both by rendering full each frame)
 
