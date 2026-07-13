@@ -525,15 +525,23 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
         disp.draw_game(arr)
         disp.flip()
 
-    # ---- INTRO: the publisher splash (LOGO.PCX) + INTRO.SND. NOT part of
-    # SKYROADS.EXE's own runtime -- tracing real cold boots shows LOGO.PCX is
-    # never opened by the game at all (it's shown by an external loader in
-    # the original distribution), so this is a reasonable stand-in rather
-    # than a VM-verified recovery. The real in-EXE intro sequence loads
-    # INTRO.LZS/ANIM.LZS at boot frame 9 for a ship-flying animation this
-    # native port does NOT yet reproduce (its trigger/blit mechanism isn't
-    # recovered -- see run_status.md); INTRO.SND (6024 Hz PCM, SB-DMA-
-    # verified) plays here regardless, since it IS real game audio. --------
+    # ---- INTRO: the publisher splash (LOGO.PCX), then the real in-EXE
+    # ship/tunnel animation (ANIM.LZS), with INTRO.SND playing throughout.
+    #
+    # LOGO.PCX is NOT part of SKYROADS.EXE's own runtime -- tracing real cold
+    # boots shows the game never opens that file at all (it must come from
+    # an external loader in the original distribution), so this is a
+    # reasonable stand-in rather than a VM-verified recovery.
+    #
+    # ANIM.LZS IS real game data, decoded and VM-traced (see
+    # skyroads/native/anim.py's docstring + run_status.md): 221 dirty-
+    # rectangle tiles (a shared 102-colour CMAP + LZS-compressed pixel
+    # blocks, full-file-exact decode), revealed onto the VGA plane in file
+    # order at the exact per-tick pace observed driving a real cold boot
+    # blind (zero input). What's NOT recovered is the generic table-walk
+    # driver itself (only its OUTPUT is replayed) -- an honest, bounded gap,
+    # not a silent approximation. INTRO.SND (6024 Hz PCM, SB-DMA-rate-
+    # verified) plays underneath both phases, since it IS real game audio.
     try:
         from skyroads.native.pcx import load_pcx
         logo = load_pcx(root / "assets" / "LOGO.PCX")
@@ -544,6 +552,7 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
             base = (oy + y) * 320 + ox
             logo_frame[base:base + logo.width] = row
         logo_rgb = to_rgb(bytes(logo_frame), logo.palette)
+
         intro_sound = None
         try:
             snd = (root / "assets" / "INTRO.SND").read_bytes()
@@ -559,16 +568,18 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
             intro_sound = pygame.sndarray.make_sound(_np.ascontiguousarray(s16))
         except Exception as e:                       # noqa: BLE001
             print(f"[window] intro sound disabled ({e})")
-        played = False
-        intro_frames = 0
-        while intro_frames < 70:                     # ~2s at 35fps
+
+        def wants_skip() -> bool:
             for ev in pygame.event.get():
                 if ev.type == pygame.QUIT:
                     pygame.quit()
-                    return
+                    raise SystemExit
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_ESCAPE] or keys[pygame.K_RETURN] or keys[pygame.K_SPACE]:
-                break
+            return bool(keys[pygame.K_ESCAPE] or keys[pygame.K_RETURN] or keys[pygame.K_SPACE])
+
+        played = False
+        intro_frames = 0
+        while intro_frames < 35 and not wants_skip():      # ~1s LOGO.PCX
             if intro_sound is not None and not played:
                 intro_sound.play()
                 played = True
@@ -576,8 +587,32 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
             clock.tick(35)
             intro_frames += 1
             if window_frames and intro_frames >= window_frames:
-                print(f"[window] --window-frames reached during the intro ({intro_frames}); advancing to the menu")
+                print(f"[window] --window-frames reached during the logo ({intro_frames}); advancing")
                 break
+
+        from skyroads.native.anim import iter_reveal_counts, load_anim, paint_tile
+        anim_cmap, anim_tiles = load_anim(root / "assets" / "ANIM.LZS")
+        anim_palette = [(0, 0, 0)] * 256
+        for i in range(len(anim_cmap) // 3):
+            anim_palette[i] = tuple(expand6(anim_cmap[3 * i + k]) for k in range(3))
+        canvas = bytearray(320 * 200)
+        idx = 0
+        for count in iter_reveal_counts(len(anim_tiles)):
+            if wants_skip():
+                break
+            for _ in range(count):
+                if idx >= len(anim_tiles):
+                    break
+                paint_tile(canvas, anim_tiles[idx])
+                idx += 1
+            present(to_rgb(bytes(canvas), anim_palette))
+            clock.tick(35)
+            intro_frames += 1
+            if window_frames and intro_frames >= window_frames:
+                print(f"[window] --window-frames reached during the anim ({intro_frames}); advancing to the menu")
+                break
+    except SystemExit:
+        return
     except Exception as e:                            # noqa: BLE001
         print(f"[window] intro disabled ({e})")
 

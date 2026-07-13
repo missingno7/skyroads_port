@@ -75,6 +75,52 @@ Remaining for task #23: gameplay SFX (SB PCM, trigger `03C2`), per-level
 WORLD/palette/MUZAX assets, live HUD gauges, PitchBend re-pitch, native
 startup constants (milestone 2).
 
+## 2026-07-13 (latest) — ANIM.LZS CRACKED: the real ship/tunnel intro animation now plays natively — the "honest gap" from the previous entry is closed
+
+Picked the documented lead back up and closed it. The blit routine is
+`1010:42AF`: given a DGROUP record `(src_seg, dest_off, h, w)`, it row-copies
+`h` rows of `w` bytes from `src_seg:0` onto VGA (`0xA000:dest_off`) via the
+C-runtime `_fmemmove` helper (`1010:6053`), `dest_off += 0x140` per row.
+Traced its entry live (stack param = the record pointer, read BEFORE `enter`
+runs — the first attempt misread `SI`, which isn't loaded from the param
+until after the prologue, and produced garbage; fixed by reading `ss:[sp+2]`
+instead) across a **blind cold boot** (`demo_cold_20260711_201855` replayed
+with EVERY recorded key dropped, since the demo's own first input — an ALT
+tap at frame 9 — turns out to skip the intro instantly, which is why earlier
+traces saw nothing between frames 10-90).
+
+**The full ANIM.LZS structure, decoded and file-exact**: `"ANIM"` tag + u16,
+one shared 102-colour CMAP, then 221 back-to-back tile records (small
+inter-tile gaps of 0/2/36 bytes, resynced by searching for the next `"PICT"`
+rather than assuming a fixed stride) — **221/221 tiles, 44,808/44,808 bytes,
+exact.** Compositing tiles in file order (not overwriting) shows this is
+genuinely a **dirty-rectangle ANIMATION**, not one static picture: early
+tiles paint a close-up ship (engine glow visible) on a checkered runway;
+later tiles progressively repaint the SAME screen region with a receding
+checkered-floor perspective as the "camera" flies through — matching the
+game's whole rendering philosophy of partial/delta updates, not full-screen
+redraws. `skyroads/native/anim.py`'s `load_anim`/`paint_tile`.
+
+**Pacing**: the per-tick reveal-count sequence (22, 27, 14, 11, 8, 7, 4, 4,
+3, 2, 2, ... settling into a steady 1-2-3 repeat) was captured directly from
+the blind trace and baked in as `REVEAL_PACE` — a faithful REPLAY of one real
+run, not a rederived general timing rule (the driver LOOP itself — whatever
+walks the table and decides how many tiles fit per tick — wasn't isolated).
+Flagged honestly in the module docstring rather than presented as more than
+it is.
+
+**Wired into `play_native --boot`**: LOGO.PCX splash (~1s) -> the real
+ANIM.LZS animation (ship -> tunnel, INTRO.SND playing throughout) -> the
+native GOMENU menu -> gameplay. Verified end to end headless; visual spot
+checks at ticks 3/10/30/60/81 show a clean, recognizable ship-to-tunnel
+reveal (`artifacts/frames/native_anim_tick*.png`). `tests/test_anim.py`
+(3 tests: full-file parse, pacing covers every tile, paint stays in bounds).
+
+This closes the one remaining honest gap from the previous milestone entry.
+The only intentional stand-in left is LOGO.PCX itself (confirmed not part of
+SKYROADS.EXE's own runtime) and the menu's UI-drawn selection cursor
+(ROM's own scroll-to-level mapping still unrecovered, per that entry).
+
 ## 2026-07-13 — MILESTONE 2 COMPLETE (bounded): `play_native --boot` runs the FULL chain — splash -> menu -> gameplay, zero VM, entirely from game files
 
 Closed the loop task #24 set out to close. `--boot` now runs: LOGO.PCX splash
