@@ -30,9 +30,9 @@ CORPUS = ROOT / "skyroads" / "recovered"
 #: the standalone corpus's expected recovered-function count (every
 #: runtime-reachable IR function). Bump deliberately when the census changes.
 EXPECTED_FUNCTIONS = 182
-#: the currently recorded cold-start frontier the runner fails loud at (the
-#: --observed trace does not yet cover this early-startup path).
-RECORDED_FRONTIER = "5FEA"
+#: the boundary head the CPU-free cold boot reaches (C startup + intro
+#: decompression + first frame render, all with no CPU).
+FIRST_FRAME_BOUNDARY = "434A"
 
 
 def _run(*args, **kw):
@@ -60,9 +60,9 @@ def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
     assert lint.returncode == 0, lint.stdout + lint.stderr
     assert "PASS" in lint.stdout
 
-    # 4. the runner boots from 61F3 (no CPU) and fails loud at the recorded
-    #    frontier -- a DETERMINISTIC stop point, not a hang or a silent pass.
+    # 4. the runner cold-boots from 61F3 with NO CPU / NO interpreter and runs
+    #    the whole C startup + intro decompression to the first frame boundary.
     play = _run("scripts/play_cpuless.py", "--headless", timeout=600)
-    assert play.returncode == 3, (play.stdout + play.stderr)[-2000:]
-    assert "HARD-WALL FRONTIER" in play.stdout
-    assert RECORDED_FRONTIER in play.stdout
+    assert play.returncode == 0, (play.stdout + play.stderr)[-2000:]
+    assert "REACHED FIRST FRAME BOUNDARY" in play.stdout
+    assert FIRST_FRAME_BOUNDARY in play.stdout

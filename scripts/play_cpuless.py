@@ -74,7 +74,21 @@ def _load_boot():
     mem.data[:len(img)] = img
     manifest = json.loads((BOOT_DIR / "manifest.json").read_text(encoding="utf-8")) \
         if (BOOT_DIR / "manifest.json").exists() else {}
-    return mem, state["cpu"], manifest
+    return mem, state["cpu"], state.get("dos", {}), manifest
+
+
+class _RtShim:
+    """Minimal (mem, dos) view so the CPU-free _restore_dos_state can apply the
+    snapshot's device + memory-arena state onto our standalone runtime."""
+    def __init__(self, dos, mem):
+        import types
+        self.dos = dos
+        self.program = types.SimpleNamespace(memory=mem)
+
+
+def _vga_nonzero(mem) -> int:
+    base = 0xA000 * 16
+    return sum(1 for b in mem.data[base:base + 64000] if b)
 
 
 def run(frames: int, rebuild: bool) -> int:
@@ -87,32 +101,43 @@ def run(frames: int, rebuild: bool) -> int:
     from dos_re.lift.platform import (CPUlessPlatformRuntime,
                                       UnsupportedPlatformEffect)
     from dos_re.dos import DOSMachine
+    from dos_re.snapshot_headless import _restore_dos_state   # runtime CPU-free
     from skyroads.recovered.func_1010_61f3 import func_1010_61f3
     try:
         from skyroads.recovered._dyncall import UnknownDispatchTarget
     except Exception:                       # noqa: BLE001
         UnknownDispatchTarget = ()
 
-    mem, regs0, boot_manifest = _load_boot()
+    mem, regs0, dos_meta, boot_manifest = _load_boot()
     poisoned = boot_manifest.get("code_bytes_present_after")
     if poisoned is not None:
         print(f"Recovered code present in boot image: {poisoned} bytes "
               f"(0 = severed from the original EXE)")
 
     dos = DOSMachine(ROOT)
+    # Restore the snapshot's DOS/device + memory-arena state (allocations,
+    # next_alloc_segment, video/PIT/OPL/EGA). Without this the C-runtime heap
+    # allocation (int 21/48h) fails against a fresh arena and the startup takes
+    # its out-of-memory error path -- the real reason the cold boot diverged.
+    _restore_dos_state(_RtShim(dos, mem), dos_meta)
     rt = CPUlessPlatformRuntime(mem, game_root=ROOT, dos=dos)
 
     #: SYNCHRONOUS frame scheduler seam.  A boundary head is a plat.boundary
     #: call from INSIDE the running recovered program; this callback IS the
-    #: per-frame loop.  The full driver (timer IRQs through the recovered
-    #: HANDLERS, input replay, VGA capture) lands with the cold-start capture;
-    #: today the cold boot fails loud before the first boundary, so this counts
-    #: passes and returns the bundle unchanged.
-    state = {"frames": 0, "boundaries": 0}
+    #: per-frame loop.  Reaching the FIRST boundary means the whole cold boot --
+    #: C startup + intro decompression + first frame render -- ran CPU-free.
+    #: (Ticking MULTIPLE frames needs timer-IRQ delivery through the recovered
+    #: HANDLERS; that scheduler is the next piece.)
+    state = {"boundaries": 0}
+    limit = frames or 1
 
     def boundary_cb(head_cs, head_ip, resume_ip, regs, cost):
         state["boundaries"] += 1
-        if frames and state["frames"] >= frames:
+        if state["boundaries"] == 1:
+            print(f"[cpuless] REACHED FIRST FRAME BOUNDARY {head_cs:04X}:"
+                  f"{head_ip:04X} -- cold boot ran CPU-free to a rendered frame "
+                  f"(VGA nonzero px={_vga_nonzero(mem)})")
+        if state["boundaries"] >= limit:
             raise _Done()
         return regs, regs.get("_flags_in", 2), 0
     rt.boundary_cb = boundary_cb
@@ -128,8 +153,8 @@ def run(frames: int, rebuild: bool) -> int:
               f"{state['boundaries']} boundary pass(es)")
         return 0
     except _Done:
-        print(f"[cpuless] reached the {frames}-frame limit "
-              f"({state['boundaries']} boundary passes)")
+        print(f"[cpuless] stopped at the {limit}-frame-boundary limit "
+              f"({state['boundaries']} boundary passes) -- no CPU, no interpreter")
         return 0
     except (UnsupportedPlatformEffect, *([UnknownDispatchTarget]
                                          if UnknownDispatchTarget else [])) as e:
