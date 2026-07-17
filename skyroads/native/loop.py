@@ -415,7 +415,7 @@ def native_gameplay_substep(
 #: dashboard gets re-FILLED from scratch by the next `12F8` delta pass. Without
 #: this, a level entered with stale caches (== the new value) draws nothing and
 #: the gauges show only their empty outlines -- see `skyroads/native/hud.py`.
-_GAUGE_CACHES = (0x41BE, 0x456C, 0x960C)   # speed, oxygen, fuel [12F8 caches]
+_GAUGE_CACHES = (0x41BE, 0x456C, 0x960C, 0x455C)  # speed, oxygen, fuel [12F8], progress-bar column
 
 
 def apply_level_init(view: GameView, jump_level_gate: int) -> GameplayScratch:

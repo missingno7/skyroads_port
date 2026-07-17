@@ -99,6 +99,11 @@ _GRAVITY_OFF = 0x4562     # jump-level gate / gravity — [asm 5614: 6576 -> [45
 _FUEL_OFF = 0x54A2        # [asm 5614: 6576 -> [54A2]]
 _OXYGEN_OFF = 0x4566      # [asm 5614: 6576 -> [4566]]
 _PALETTE_OFF = 0x41C2     # 216-byte level palette — [asm 5614: call 6595(0x41C2, 0xD8)]
+_LENGTH_OFF = 0x41C0      # level length in road ROWS (7 UINT16 = 14 bytes each);
+#                           the progress-bar denominator. `1010:5614` decodes the
+#                           road and returns len(road)//14 (VM-verified: the demo
+#                           level's 770-byte road -> 55, matching ds:[41C0]).
+_ROAD_ROW_BYTES = 14
 
 
 def native_level_load(state, level: int, *, game_root: str | Path) -> DecodedLevel:
@@ -129,4 +134,5 @@ def native_level_load(state, level: int, *, game_root: str | Path) -> DecodedLev
     state.ww(_FUEL_OFF, decoded.fuel)                            # [asm 5614: 6576 -> [54A2]]
     state.ww(_OXYGEN_OFF, decoded.oxygen)                        # [asm 5614: 6576 -> [4566]]
     d[_PALETTE_OFF:_PALETTE_OFF + len(decoded.palette)] = decoded.palette  # [asm 5614: 6595 -> 0x41C2]
+    state.ww(_LENGTH_OFF, len(decoded.road) // _ROAD_ROW_BYTES)   # [asm 5614 -> [41C0]]
     return decoded
