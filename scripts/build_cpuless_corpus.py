@@ -67,6 +67,11 @@ IMPORT_BASE = "skyroads.recovered"
 #: Interior addresses whose containing function must stay lifted (they need the
 #: frame scheduler; a monolithic CPUless body cannot yield to it). See module docstring.
 EXCLUDE_FILES = (CODEMAP / "boundary_heads.txt", CODEMAP / "snapshot_entries.txt")
+#: Per-site dynamic-dispatch targets (scripts/find_dispatch_evidence.py). Gates
+#: the recovered DISPATCH registry CLOSED: a dispatcher whose target stays lifted
+#: (a resume point, say) is itself refused, so no promoted `_dyn` call can resolve
+#: into an empty registry slot. Regenerated each build.
+DYN_EVIDENCE = CODEMAP / "dispatch_evidence.json"
 
 
 def ensure_lifted_corpus(clean: bool) -> None:
@@ -95,11 +100,16 @@ def build() -> int:
         'not hand-edit. Reserved slot per skyroads/__init__.py."""\n',
         encoding="utf-8")
 
+    # per-site dispatch evidence, regenerated from the IR + images each build
+    subprocess.run([sys.executable, str(ROOT / "scripts/find_dispatch_evidence.py"),
+                    "--out", str(DYN_EVIDENCE)], check=True)
+
     cmd = [sys.executable, str(ROOT / "dos_re/tools/cpuless_promote.py"),
            "--ir", str(CODEMAP / "recovery_ir.json"),
            "--recovered-dir", str(RECOVERED_DIR),
            "--adapter-dir", str(CPULESS_DIR),
-           "--import-base", IMPORT_BASE]
+           "--import-base", IMPORT_BASE,
+           "--dyn-evidence", str(DYN_EVIDENCE)]
     for f in EXCLUDE_FILES:
         cmd += ["--exclude", f"@{f}"]
     cmd += ["--apply"]
