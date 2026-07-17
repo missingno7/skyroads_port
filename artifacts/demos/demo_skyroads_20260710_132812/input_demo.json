@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "status": "complete",
+  "created_at": "2026-07-10T13:28:12",
+  "stopped_at": "2026-07-10T13:28:26",
+  "snapshot": "snapshot",
+  "metadata": {
+    "game": "skyroads",
+    "exe": "SKYROADS.EXE",
+    "command_tail": "",
+    "steps_per_frame": 30000,
+    "timer_irqs_per_frame": 6
+  },
+  "start_boundary": 0,
+  "end_boundary": 326,
+  "event_count": 22,
+  "events": [
+    {
+      "boundary": 33,
+      "seq": 0,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 34,
+      "seq": 1,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 141,
+      "seq": 2,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 145,
+      "seq": 3,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 151,
+      "seq": 4,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 155,
+      "seq": 5,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 159,
+      "seq": 6,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 163,
+      "seq": 7,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 165,
+      "seq": 8,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 170,
+      "seq": 9,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 175,
+      "seq": 10,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 179,
+      "seq": 11,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 183,
+      "seq": 12,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 189,
+      "seq": 13,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 194,
+      "seq": 14,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 198,
+      "seq": 15,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 209,
+      "seq": 16,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 210,
+      "seq": 17,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 287,
+      "seq": 18,
+      "kind": "scan",
+      "value": 72
+    },
+    {
+      "boundary": 294,
+      "seq": 19,
+      "kind": "scan",
+      "value": 57
+    },
+    {
+      "boundary": 296,
+      "seq": 20,
+      "kind": "scan",
+      "value": 185
+    },
+    {
+      "boundary": 301,
+      "seq": 21,
+      "kind": "scan",
+      "value": 200
+    }
+  ]
+}

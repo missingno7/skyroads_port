@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "status": "complete",
+  "created_at": "2026-07-11T20:27:40",
+  "stopped_at": "2026-07-11T20:27:47",
+  "snapshot": "snapshot",
+  "metadata": {
+    "game": "skyroads",
+    "exe": "SKYROADS.EXE",
+    "command_tail": "",
+    "steps_per_frame": 48000,
+    "timer_irqs_per_frame": 6
+  },
+  "start_boundary": 0,
+  "end_boundary": 156,
+  "event_count": 4,
+  "events": [
+    {
+      "boundary": 15,
+      "seq": 0,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 17,
+      "seq": 1,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 85,
+      "seq": 2,
+      "kind": "scan",
+      "value": 72
+    },
+    {
+      "boundary": 144,
+      "seq": 3,
+      "kind": "scan",
+      "value": 200
+    }
+  ]
+}

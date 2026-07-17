@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "status": "complete",
+  "created_at": "2026-07-13T10:11:26",
+  "stopped_at": "2026-07-13T10:11:27",
+  "snapshot": "snapshot",
+  "metadata": {
+    "game": "skyroads",
+    "exe": "SKYROADS.EXE",
+    "command_tail": "",
+    "steps_per_frame": 48000,
+    "timer_irqs_per_frame": 6
+  },
+  "start_boundary": 0,
+  "end_boundary": 27,
+  "event_count": 0,
+  "events": []
+}
