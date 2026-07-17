@@ -1,33 +1,80 @@
-# What's missing for a complete VM-less SkyRoads port (2026-07-10)
+# The VM-less SkyRoads port
 
-## Where we are: a hybrid, not a port
+## Where we are: DONE (2026-07-17)
 
-Today SkyRoads runs as **interpreted 8086 ASM inside the dos_re VM**, with ~17
-recovered routines installed as hooks that replace the hottest code. It is a
-*hybrid*: the recovered "islands" are correct and verified, but 99%+ of the game
-still executes as the original binary under the interpreter, and dos_re still
-provides all the DOS/BIOS/hardware services.
+SkyRoads runs with **no SKYROADS.EXE and no interpreter**. Every instruction
+executed is generated Python from the recovery IR; the original code bytes in
+the boot image are ZEROED (24,092 of them, 0 remaining); the interpreter is
+poisoned, so a fall back to running the binary is not something the runtime
+could do if it tried. `python scripts/play_vmless.py` plays the game.
 
-A **complete VM-less port** means the opposite end state: every routine the game
-executes runs as recovered native code, calling a thin host layer for I/O, with
-**no interpreter and no original binary** — and the ASM oracle retired.
+    Boot source: generated data-only boot image (memory_1mb.bin + state.json)
+    Original EXE required at runtime: no (sha256 ...consumed at BUILD time only)
+    Recovered code poisoned: 24092 bytes in 60 runs; code bytes still present: 0
+    Interpreter fallback: forbidden (wall poison armed)
+    EXE-independence wall: HOLDS
 
-## The coverage gap, measured
+### The evidence
 
-Replaying the full cold-start E2E demo (menu → level select → play → die → exit
-→ another level → quit) and counting what actually runs:
+`scripts/verify_vmless_demo.py` replays every recorded demo through the
+generated corpus with the interpreter poisoned, against the pure-ASM oracle,
+and diffs the VGA plane AND the DAC palette every frame:
 
-| Metric | Value |
+| | |
 |---|---|
-| Distinct functions executed (near-call targets) | **131** |
-| …of those currently recovered | ~**17** (~13%) |
-| Code-segment 256-byte pages touched | **98 / ~176** (~55%) |
-| DOS `INT 21h` calls made | 929,386 (input poll, getch, file load, exit) |
-| BIOS `INT 16h` calls | 6 |
+| demos | **34 of 35 PASS**, 0 skipped |
+| frames, plane + palette identical | **22,132** |
+| cold boots (EXE-free, from the data-only image) | 5 — 1552 / 1720 / 2157 / 2617 / 2839 frames |
+| corpus | 182 modules, 914 dispatch points |
+| interpreter fallbacks (`interp_one`) in the corpus | **0** — every instruction has a native form |
 
-The ~17 recovered routines are the **render + math hot path** — the hardest and
-most performance-critical part. The other ~114 functions (the majority by count)
-are still interpreted.
+The one failure is a known 1-frame fade phase at intro frame 1115 (task #54):
+the values track byte-exact either side of it, and it is the harness's frame
+cut, not the lift. Both machines are saved on divergence (`dos_re.crash`), so
+it resumes at the fault rather than replaying to it.
+
+The front-end is included and proven: `demo_cold_20260713_213510` walks intro
+-> menu -> controls -> help -> level select -> play -> select for 1552 frames,
+plane and palette identical. That retired the hand-written Controls/Help/menu
+work (tasks #43/#44/#45) — the game's own code runs.
+
+## Next: the CPUless stage (M3)
+
+The carrier, not the binary, is what remains. The corpus is VMless but still
+speaks CPU: `emulate_call` (657 sites, 107 modules) and `emulate_int` (32
+sites, 22 modules), over a CPU-shaped struct. Stage 2 removes that — pure
+functions over `(mem[, plat], *regs)`.
+
+Measured by `dos_re/tools/cpuless_census.py` (-> `artifacts/codemap/cpuless_census.json`):
+
+| tier | before enter/leave | now |
+|---|---|---|
+| leaf (promotable) | 54 | **74** |
+| calls-only | 35 | **102** |
+| blocked | 90 | **3** |
+
+The 90 -> 3 collapse was five 80186 opcodes: ENTER/LEAVE (85 sites each --
+Borland opens and closes nearly every function with them), IMUL r16,rm,imm8,
+PUSHA/POPA. Modelled upstream in `dos_re/lift/cpuless.py` (3d11da1).
+
+The 3 remaining are the de-SMC'd trio (3B17/41A0/66E6), read as
+`ir-not-liftable` from the PRE-de-SMC verdict — they lift fine under `--desmc`
+today and all three run in the differential above. Task #56.
+`call-abi-composition` (606) is not a gap: it is what
+`tools/cpuless_promote.py`'s fixpoint resolves bottom-up.
+
+Path: #56 -> `cpuless_promote` fixpoint -> `lint_cpuless` as the static gate,
+with the demo differential above as the authoritative acceptance test (the
+clean-room form runs the STANDALONE program against the oracle).
+
+---
+
+# Historical record: how the VMless port was reached
+
+Everything below is the 2026-07-10..11 narrative, written when SkyRoads was a
+hybrid (~17 recovered routines, 99%+ interpreted) and the questions above were
+open. It is kept for the recovery detail — the LZS format, the menu-flow trace,
+the movement-pipeline proof — not as a statement of current state.
 
 ## Progress: the first native (VM-less) frame steppers (2026-07-11)
 

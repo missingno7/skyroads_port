@@ -20,13 +20,21 @@ byte-identical:
     replacement graph and the interpreter POISONED, so it cannot silently fall
     back to interpreting the original.
 
-COLD-START DEMOS (``snapshot: None``) are the strongest form of this, and the
-only one that tests the actual deliverable:
+COLD-START DEMOS are the strongest form of this, and the only one that tests
+the actual deliverable:
 
-  * reference -- a fresh boot of the real SKYROADS.EXE, interpreted.
+  * reference -- the real SKYROADS.EXE, interpreted, from its own boot.
   * candidate -- the data-only BOOT IMAGE. No EXE, and not merely unused: its
     code bytes are ZEROED, so falling back to the binary is not something it
     could do if it tried.
+
+Two kinds count as cold: a demo with NO snapshot (it re-boots the EXE), and a
+demo whose snapshot is of the machine BEFORE the packer unpacked it (1010:0000
+still holds the stub -- it recorded its starting image rather than re-booting).
+Both are settled identically. Treating only the first as cold and SKIPPING the
+second cost the only coverage of the Controls and Help screens -- the front-end
+this gate exists to prove -- so 9 demos sat unverified behind a distinction
+that makes no difference.
 
 The stub is the one asymmetry, and it is not part of the comparison -- it is
 what PRODUCES the thing being compared. A cold demo's frame 0 is the EXE entry;
@@ -271,23 +279,31 @@ def main(argv=None) -> int:
     demo = Path(args_cli.demo)
     pb_o = InputDemoPlayback.load(str(demo))
     pb_c = InputDemoPlayback.load(str(demo))
-    cold = bool(getattr(pb_o, "is_cold_start", False))
-    if not cold and _is_predecompression(pb_o):
-        print(f"[verify] SKIP {demo.name}: snapshot predates the packer's "
-              f"self-decompression (1010:0000 is still the stub, not the game). "
-              f"The corpus is lifted for the decompressed image, so there is "
-              f"nothing here it could correctly run.")
-        return 0
+    # A demo is COLD if it has no snapshot at all, OR if its snapshot is of the
+    # machine BEFORE the packer unpacked it (1010:0000 still holds the stub).
+    # The second kind is a cold start too -- it just recorded its starting image
+    # instead of re-booting the EXE -- and both are settled the same way: run the
+    # stub as a pre-phase, then start frame 0 at the canonical entry with the
+    # candidate on the boot image. Skipping them cost the ONLY coverage of the
+    # Controls and Help screens (demo_cold_20260713_213510 walks intro -> menu ->
+    # controls -> help -> select -> play), which is exactly the front-end this
+    # differential is supposed to be proving.
+    cold = bool(getattr(pb_o, "is_cold_start", False)) or _is_predecompression(pb_o)
 
     if cold:
         # THE REAL THING: no EXE on the candidate side at all.
-        f_o, a_o, rt_o = build_oracle_cold(demo, pb_o)
+        f_o, a_o, rt_o = (build_oracle_cold(demo, pb_o)
+                          if getattr(pb_o, "is_cold_start", False)
+                          else build_oracle(demo, pb_o))
         f_c, a_c, rt_c, manifest = build_candidate_cold(
             demo, pb_c, Path(args_cli.boot_dir), Path(args_cli.lift_dir))
         # boot_vmless_image installs the graph itself; count the dispatch
         # points it registered (entries + every re-entry), not modules.
         installed = None
-        print(f"[verify] demo={demo.name} COLD START, frames={pb_o.end_boundary} "
+        kind = ("no snapshot" if getattr(pb_o, "is_cold_start", False)
+                else "pre-decompression snapshot")
+        print(f"[verify] demo={demo.name} COLD START ({kind}), "
+              f"frames={pb_o.end_boundary} "
               f"mouse_present={pb_o.mouse_present_hint}")
         n = run_stub(rt_o.cpu, *CANONICAL_ENTRY)
         print(f"[verify] oracle: ran the packer stub {n:,} steps to "
