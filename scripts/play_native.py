@@ -418,7 +418,7 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
     from skyroads.native.boot import (DASHBOARD_BEZEL_OVERLAP, SEG_DASHBRD,
                                       paint_dashboard)
     from skyroads.native.frame import render_native_frame
-    from skyroads.native.hud import update_hud
+    from skyroads.native.hud import update_hud, update_progress_bar, draw_grav_meter
     from skyroads.native.image import NativeGameImage
     from skyroads.native.level_load import native_level_load
     from skyroads.native.state import DATA_SEG, NativeGameState
@@ -582,19 +582,21 @@ def run_window(root: Path, level: int, baseline_dir: Path, max_frames: int = 0,
         render_native_frame(img, DATA_SEG, offscreen=1, rebuild=True)
         paint_dashboard(img.data, SEG_DASHBRD, byte_count=DASHBOARD_BEZEL_OVERLAP)
         update_hud(img, DATA_SEG, view.ship_pos)
+        update_progress_bar(img, DATA_SEG)
+        draw_grav_meter(img, DATA_SEG)
 
-        frame = bytes(img.data[0xA0000:0xA0000 + 64000])   # the live VGA plane
+        frame = img.data[0xA0000:0xA0000 + 64000]   # the live VGA plane
         fpal = fader.palette(palette) or palette            # fade-to-black transitions
-        rgb = bytearray(320 * 200 * 3)
-        for i in range(320 * 200):            # viewport rows + the cockpit dashboard
-            r, g, b = fpal[frame[i]]
-            j = i * 3
-            rgb[j] = r; rgb[j + 1] = g; rgb[j + 2] = b
         try:
             import numpy as _np
-            arr = _np.frombuffer(bytes(rgb), dtype=_np.uint8).reshape(200, 320, 3)
         except ImportError:
             raise SystemExit("--window needs numpy (pip install numpy pygame)")
+        # numpy palette LUT: the 320x200 indexed plane -> RGB in one gather
+        # (pal[idx]), ~20x the per-pixel Python loop and byte-identical -- the
+        # dos_re render_frame numpy fast-path policy applied to the native player.
+        _pal = _np.asarray(fpal, dtype=_np.uint8)                 # (256, 3)
+        _idx = _np.frombuffer(bytes(frame), dtype=_np.uint8)      # (64000,)
+        arr = _pal[_idx].reshape(200, 320, 3)
         disp.draw_game(arr)
         disp.flip()
         clock.tick(GAME_FPS)
@@ -635,9 +637,10 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
                                       native_boot_image, paint_dashboard,
                                       parse_lzs_container)
     from skyroads.native.frame import render_native_frame
-    from skyroads.native.hud import update_hud
+    from skyroads.native.hud import update_hud, update_progress_bar, draw_grav_meter
     from skyroads.native.image import NativeGameImage
     from skyroads.native.level_load import native_level_load, read_game_file
+    from skyroads.native.level_select import move_selection
     from skyroads.native.loop import NativeGameplayDriver, apply_level_init
     from skyroads.native.state import DATA_SEG, NativeGameState
     from skyroads.native.world_load import (
@@ -680,45 +683,44 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
     clock = pygame.time.Clock()
 
     def to_rgb(frame: bytes, palette) -> bytes:
-        rgb = bytearray(320 * 200 * 3)
-        for i in range(320 * 200):
-            r, g, b = palette[frame[i]]
-            j = i * 3
-            rgb[j] = r; rgb[j + 1] = g; rgb[j + 2] = b
-        return bytes(rgb)
+        # numpy palette LUT (idx -> RGB in one gather), byte-identical to the
+        # per-pixel loop and ~20x faster -- see the gameplay render path.
+        pal = _np.asarray(palette, dtype=_np.uint8)
+        idx = _np.frombuffer(bytes(frame), dtype=_np.uint8)
+        return pal[idx].reshape(200, 320, 3).tobytes()
 
     def present(rgb_bytes: bytes) -> None:
         arr = _np.frombuffer(rgb_bytes, dtype=_np.uint8).reshape(200, 320, 3)
         disp.draw_game(arr)
         disp.flip()
 
-    # ---- INTRO: the publisher splash (LOGO.PCX), then the real in-EXE
-    # ship/tunnel animation (ANIM.LZS), with INTRO.SND playing throughout.
+    # ---- INTRO -- the VM-verified cold-start opening (demo_cold_20260713_
+    # 213510, run_status.md round 20). The real game NEVER shows LOGO.PCX (a
+    # publisher splash the EXE never opens; a stand-in previously shown here
+    # and removed as unfaithful). The verified sequence is:
     #
-    # LOGO.PCX is NOT part of SKYROADS.EXE's own runtime -- tracing real cold
-    # boots shows the game never opens that file at all (it must come from
-    # an external loader in the original distribution), so this is a
-    # reasonable stand-in rather than a VM-verified recovery.
+    #   1. black screen;
+    #   2. the 1010:4331 palette fade-in (the SAME verified 30-frame
+    #      blend_byte fade as the gameplay transitions -- observed firing at
+    #      the demo's f11) revealing the static INTRO.LZS checkerboard, whose
+    #      palette is expand6(INTRO CMAP) (== the demo's stable DAC, 0/38
+    #      mismatch);
+    #   3. the ANIM.LZS ship animation painted ON TOP of that INTRO canvas.
+    #      ANIM's 102-colour CMAP is a strict extension of INTRO's 38
+    #      (identical prefix, ship colours at 38..101; == the demo's f110 DAC,
+    #      0/102 mismatch), so the palette swap is invisible. The 221 tiles
+    #      reveal at the VM-traced per-tick pace (skyroads/native/anim.py);
+    #      the table-walk driver itself is a documented gap (output replayed).
     #
-    # ANIM.LZS IS real game data, decoded and VM-traced (see
-    # skyroads/native/anim.py's docstring + run_status.md): 221 dirty-
-    # rectangle tiles (a shared 102-colour CMAP + LZS-compressed pixel
-    # blocks, full-file-exact decode), revealed onto the VGA plane in file
-    # order at the exact per-tick pace observed driving a real cold boot
-    # blind (zero input). What's NOT recovered is the generic table-walk
-    # driver itself (only its OUTPUT is replayed) -- an honest, bounded gap,
-    # not a silent approximation. INTRO.SND (6024 Hz PCM, SB-DMA-rate-
-    # verified) plays underneath both phases, since it IS real game audio.
+    # INTRO.SND (6024 Hz PCM, SB-DMA-rate-verified real game audio) plays
+    # underneath.
     try:
-        from skyroads.native.pcx import load_pcx
-        logo = load_pcx(root / "assets" / "LOGO.PCX")
-        logo_frame = bytearray(320 * 200)
-        ox, oy = (320 - logo.width) // 2, (200 - logo.height) // 2
-        for y in range(logo.height):
-            row = logo.pixels[y * logo.width:(y + 1) * logo.width]
-            base = (oy + y) * 320 + ox
-            logo_frame[base:base + logo.width] = row
-        logo_rgb = to_rgb(bytes(logo_frame), logo.palette)
+        intro_lzs = read_game_file(root / "assets", "INTRO.LZS")
+        icmap, _iaux, ipict_at, _idest, _imh, _imw = parse_lzs_container(intro_lzs)
+        _ihdr, intro_pixels = load_pict(intro_lzs, ipict_at)
+        intro_palette = [(0, 0, 0)] * 256
+        for i in range(len(icmap) // 3):
+            intro_palette[i] = tuple(expand6(icmap[3 * i + k]) for k in range(3))
 
         intro_sound = None
         try:
@@ -746,23 +748,31 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
 
         played = False
         intro_frames = 0
-        while intro_frames < 35 and not wants_skip():      # ~1s LOGO.PCX
+        # 1+2. black -> the verified 4331 fade-in of the INTRO.LZS checkerboard.
+        intro_rgb_frame = bytes(intro_pixels[:64000])
+        for f in range(FADE_FRAMES):
+            if wants_skip():
+                break
             if intro_sound is not None and not played:
                 intro_sound.play()
                 played = True
-            present(logo_rgb)
-            clock.tick(35)
+            percent = round(100 * (f + 1) / FADE_FRAMES)
+            present(to_rgb(intro_rgb_frame,
+                           fade_palette(BLACK_PALETTE, intro_palette, percent)))
+            clock.tick(GAME_FPS)
             intro_frames += 1
             if window_frames and intro_frames >= window_frames:
-                print(f"[window] --window-frames reached during the logo ({intro_frames}); advancing")
+                print(f"[window] --window-frames reached during the intro fade ({intro_frames})")
                 break
 
+        # 3. the ANIM ship animation over the INTRO canvas (palette is a strict
+        # extension of the intro's -- no visible pop at the swap).
         from skyroads.native.anim import iter_reveal_counts, load_anim, paint_tile
         anim_cmap, anim_tiles = load_anim(root / "assets" / "ANIM.LZS")
         anim_palette = [(0, 0, 0)] * 256
         for i in range(len(anim_cmap) // 3):
             anim_palette[i] = tuple(expand6(anim_cmap[3 * i + k]) for k in range(3))
-        canvas = bytearray(320 * 200)
+        canvas = bytearray(intro_rgb_frame)          # the INTRO base, not black
         idx = 0
         for count in iter_reveal_counts(len(anim_tiles)):
             if wants_skip():
@@ -773,7 +783,7 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
                 paint_tile(canvas, anim_tiles[idx])
                 idx += 1
             present(to_rgb(bytes(canvas), anim_palette))
-            clock.tick(35)
+            clock.tick(35)               # the anim's VM-traced reveal pace
             intro_frames += 1
             if window_frames and intro_frames >= window_frames:
                 print(f"[window] --window-frames reached during the anim ({intro_frames}); advancing to the menu")
@@ -785,187 +795,246 @@ def run_cold_boot(root: Path, window_frames: int = 0) -> None:
 
     # ---- MENU: pick a level (native GOMENU background + a drawn highlight
     # box around the selected "Road N" line) ----
-    selected = 0
-    running = True
-    frames = 0
-    prev_left = prev_right = prev_up = prev_down = prev_confirm = False
-    while running:
-        for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
+    # NOTE: the full faithful cold-boot menu flow (main menu / Controls / Help
+    # before the level-select, with the VM's real per-screen palettes, screen
+    # composition and cursor) is a pending byte-exact recovery -- see
+    # run_status.md 2026-07-13 round 19. This section is the level-select only.
+    def run_level_select(selected: int, *, fade_in: bool) -> "int | None":
+        """The level-select loop. Returns the confirmed level, or ``None`` if
+        the window was closed. ``fade_in``: re-entering from a finished level
+        (see the caller) fades the grid IN from black over ``FADE_FRAMES`` --
+        the VM-measured mirror of the fade-out below (demo_skyroads_
+        20260713_234905: the level-select pixels appear at the black
+        mid-point then the palette ramps up over ~30 frames, run_status.md
+        round 23). The very first entry (from the intro) needs no fade -- the
+        anim already leaves the screen visible."""
+        menu_frames = 0
+        prev_left = prev_right = prev_up = prev_down = prev_confirm = False
+
+        def grid_frame(sel: int) -> bytearray:
+            frame = bytearray(img.data[(menu_seg << 4):(menu_seg << 4) + 64000])
+            x0, y0, x1, y1 = level_box(sel)
+            for x in range(x0, x1):
+                frame[y0 * 320 + x] = HIGHLIGHT_IDX
+                frame[(y1 - 1) * 320 + x] = HIGHLIGHT_IDX
+            for y in range(y0, y1):
+                frame[y * 320 + x0] = HIGHLIGHT_IDX
+                frame[y * 320 + (x1 - 1)] = HIGHLIGHT_IDX
+            return frame
+
+        if fade_in:
+            still = bytes(grid_frame(selected))
+            for f in range(FADE_FRAMES):
+                percent = round(100 * (f + 1) / FADE_FRAMES)
+                present(to_rgb(still, fade_palette(BLACK_PALETTE, menu_palette, percent)))
+                clock.tick(GAME_FPS)
+
+        running = True
+        while running:
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT:
+                    pygame.quit()
+                    print("[window] closed at menu")
+                    return None
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_ESCAPE]:
                 pygame.quit()
                 print("[window] closed at menu")
-                return
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_ESCAPE]:
-            pygame.quit()
-            print("[window] closed at menu")
-            return
-        left, right = keys[pygame.K_LEFT], keys[pygame.K_RIGHT]
-        up, down = keys[pygame.K_UP], keys[pygame.K_DOWN]
-        confirm = keys[pygame.K_RETURN] or keys[pygame.K_SPACE]
-        world, road = selected // 3, selected % 3
-        if up and not prev_up:
-            road = (road - 1) % 3
-        if down and not prev_down:
-            road = (road + 1) % 3
-        if left and not prev_left:
-            world = (world - 1) % 10
-        if right and not prev_right:
-            world = (world + 1) % 10
-        selected = world * 3 + road
-        prev_left, prev_right, prev_up, prev_down = left, right, up, down
-        if confirm and not prev_confirm:
-            running = False
-        prev_confirm = confirm
+                return None
+            left, right = keys[pygame.K_LEFT], keys[pygame.K_RIGHT]
+            up, down = keys[pygame.K_UP], keys[pygame.K_DOWN]
+            confirm = keys[pygame.K_RETURN] or keys[pygame.K_SPACE]
+            selected = move_selection(
+                selected,
+                up=up and not prev_up, down=down and not prev_down,
+                left=left and not prev_left, right=right and not prev_right)
+            prev_left, prev_right, prev_up, prev_down = left, right, up, down
+            if confirm and not prev_confirm:
+                running = False
+            prev_confirm = confirm
 
-        frame = bytearray(img.data[(menu_seg << 4):(menu_seg << 4) + 64000])
+            present(to_rgb(bytes(grid_frame(selected)), menu_palette))
+            clock.tick(GAME_FPS)
+            menu_frames += 1
+            if window_frames and menu_frames >= window_frames:
+                print(f"[window] --window-frames reached at the menu "
+                      f"({menu_frames}); auto-selecting level {selected}")
+                break
+        return selected
+
+    selected = run_level_select(0, fade_in=False)
+    gp_frames_total = 0
+    while selected is not None:
+        print(f"[window] level {selected} (world {selected // 3}, road {selected % 3 + 1}) "
+              f"selected -- loading VM-free")
+
+        # Fade the menu OUT to black before loading gameplay -- VM-verified pair
+        # (see TransitionFader): the real menu->gameplay handoff is a fade-out of
+        # the CURRENT screen, then (invisibly, behind full black) the level loads,
+        # then a fade-in of the new scene. This is the menu-screen half only (no
+        # gameplay state to hold frozen yet); the gameplay fade-in follows once
+        # the level below is loaded.
+        menu_frame = bytearray(img.data[(menu_seg << 4):(menu_seg << 4) + 64000])
         x0, y0, x1, y1 = level_box(selected)
         for x in range(x0, x1):
-            frame[y0 * 320 + x] = HIGHLIGHT_IDX
-            frame[(y1 - 1) * 320 + x] = HIGHLIGHT_IDX
+            menu_frame[y0 * 320 + x] = HIGHLIGHT_IDX
+            menu_frame[(y1 - 1) * 320 + x] = HIGHLIGHT_IDX
         for y in range(y0, y1):
-            frame[y * 320 + x0] = HIGHLIGHT_IDX
-            frame[y * 320 + (x1 - 1)] = HIGHLIGHT_IDX
-        present(to_rgb(bytes(frame), menu_palette))
-        clock.tick(GAME_FPS)
-        frames += 1
-        if window_frames and frames >= window_frames:
-            print(f"[window] --window-frames reached at the menu ({frames}); "
-                  f"auto-selecting level {selected}")
-            break
+            menu_frame[y * 320 + x0] = HIGHLIGHT_IDX
+            menu_frame[y * 320 + (x1 - 1)] = HIGHLIGHT_IDX
+        for f in range(FADE_FRAMES):
+            percent = round(100 * (f + 1) / FADE_FRAMES)
+            present(to_rgb(bytes(menu_frame), fade_palette(menu_palette, BLACK_PALETTE, percent)))
+            clock.tick(GAME_FPS)
 
-    print(f"[window] level {selected} (world {selected // 3}, road {selected % 3 + 1}) "
-          f"selected -- loading VM-free")
+        # ---- GAMEPLAY: identical to run_window's --cold-native path ----
+        st = NativeGameState(bytearray(img.data[dg_base:dg_base + 0x10000]))
+        apply_gameplay_segment_init(st.data)
+        palette = native_boot_dac(root / "assets")
+        decoded = native_level_load(st, selected, game_root=str(root / "assets"))
+        world = load_world_assets(selected, game_root=str(root / "assets"))
+        song_index, _ = choose_song()                # random gameplay track (1..9)
+        song = native_song_load(st, song_index, game_root=str(root / "assets"))
+        img.data[dg_base:dg_base + 0x10000] = st.data
+        bg_seg = img.rw(DATA_SEG, 0x5170)
+        img.data[(bg_seg << 4):(bg_seg << 4) + len(world.background)] = world.background
+        for i in range(72):
+            palette[i] = tuple(expand6(decoded.palette[3 * i + k]) for k in range(3))
+        for i in range(len(world.cmap) // 3):
+            palette[CMAP_DAC_BASE + i] = tuple(expand6(world.cmap[3 * i + k]) for k in range(3))
+        gate = st.rw(0x4562)
+        print(f"[window] level {selected} loaded VM-free (road={len(decoded.road)}B); "
+              f"world {selected // 3} + song {song.index} (random 1..9) -- all native")
 
-    # Fade the menu OUT to black before loading gameplay -- VM-verified pair
-    # (see TransitionFader): the real menu->gameplay handoff is a fade-out of
-    # the CURRENT screen, then (invisibly, behind full black) the level loads,
-    # then a fade-in of the new scene. This is the menu-screen half only (no
-    # gameplay state to hold frozen yet); the gameplay fade-in follows once
-    # the level below is loaded.
-    menu_frame = bytearray(img.data[(menu_seg << 4):(menu_seg << 4) + 64000])
-    x0, y0, x1, y1 = level_box(selected)
-    for x in range(x0, x1):
-        menu_frame[y0 * 320 + x] = HIGHLIGHT_IDX
-        menu_frame[(y1 - 1) * 320 + x] = HIGHLIGHT_IDX
-    for y in range(y0, y1):
-        menu_frame[y * 320 + x0] = HIGHLIGHT_IDX
-        menu_frame[y * 320 + (x1 - 1)] = HIGHLIGHT_IDX
-    for f in range(FADE_FRAMES):
-        percent = round(100 * (f + 1) / FADE_FRAMES)
-        present(to_rgb(bytes(menu_frame), fade_palette(menu_palette, BLACK_PALETTE, percent)))
-        clock.tick(GAME_FPS)
+        view = GameView(img, base=dg_base)
+        scratch = apply_level_init(view, gate)
+        driver = NativeGameplayDriver(view, gate, scratch, auto_respawn=False)
+        # `_switch` fires at the fade's black mid-point. A DEATH (crash/fall/
+        # timeout) respawns the SAME level in place (driver.respawn()); a
+        # FINISH does NOT -- it returns to the level-select grid instead (see
+        # skyroads/native/menus.py's MenuModel.level_ended, VM-verified
+        # against demo_colde2e_full_20260713_144604: "finish -- return to the
+        # level-select grid"; "a DEATH ... respawns from the start"). The
+        # actual return-to-menu happens after this gameplay loop exits below.
+        finished = [False]
 
-    # ---- GAMEPLAY: identical to run_window's --cold-native path ----
-    st = NativeGameState(bytearray(img.data[dg_base:dg_base + 0x10000]))
-    apply_gameplay_segment_init(st.data)
-    palette = native_boot_dac(root / "assets")
-    decoded = native_level_load(st, selected, game_root=str(root / "assets"))
-    world = load_world_assets(selected, game_root=str(root / "assets"))
-    song_index, _ = choose_song()                # random gameplay track (1..9)
-    song = native_song_load(st, song_index, game_root=str(root / "assets"))
-    img.data[dg_base:dg_base + 0x10000] = st.data
-    bg_seg = img.rw(DATA_SEG, 0x5170)
-    img.data[(bg_seg << 4):(bg_seg << 4) + len(world.background)] = world.background
-    for i in range(72):
-        palette[i] = tuple(expand6(decoded.palette[3 * i + k]) for k in range(3))
-    for i in range(len(world.cmap) // 3):
-        palette[CMAP_DAC_BASE + i] = tuple(expand6(world.cmap[3 * i + k]) for k in range(3))
-    gate = st.rw(0x4562)
-    print(f"[window] level {selected} loaded VM-free (road={len(decoded.road)}B); "
-          f"world {selected // 3} + song {song.index} (random 1..9) -- all native")
+        def _switch() -> None:
+            if not finished[0]:
+                driver.respawn()
+        fader = TransitionFader(switch=_switch)
 
-    view = GameView(img, base=dg_base)
-    scratch = apply_level_init(view, gate)
-    driver = NativeGameplayDriver(view, gate, scratch, auto_respawn=False)
-    fader = TransitionFader(switch=driver.respawn)
+        music_engine = music_synth = None
+        try:
+            from skyroads.audio.opl3_synth import NativeOplSynth
+            from skyroads.recovered.music import Engine as _MusicEngine
+            music_synth = NativeOplSynth(pygame, present_hz=GAME_FPS)
+            if not music_synth.available:
+                music_synth = None
+            else:
+                music_engine = _MusicEngine(lambda o: img.rb(DATA_SEG, o),
+                                            lambda o: img.rw(DATA_SEG, o))
+                for reg, val in music_engine.reset_opl():     # one-time OPL/percussion init
+                    music_synth.write(reg, val)
+                for off, b in music_engine.ovl.items():
+                    img.wb(DATA_SEG, off, b)
+        except Exception as e:                       # noqa: BLE001
+            print(f"[window] music disabled ({e})")
+        try:
+            import numpy as _np
+            from skyroads.native.sfx import load_sfx_bank
+            if pygame.mixer.get_init() is None:
+                pygame.mixer.init()
+            mix_rate, _sz, mix_ch = pygame.mixer.get_init()
+            sounds = []
+            for eff in load_sfx_bank(root / "assets" / "SFX.SND"):
+                u8 = _np.frombuffer(eff.pcm, dtype=_np.uint8).astype(_np.float32)
+                mono = (u8 - 128.0) / 128.0
+                n_out = max(1, int(len(mono) * mix_rate / eff.rate))
+                res = _np.interp(_np.linspace(0, len(mono) - 1, n_out),
+                                 _np.arange(len(mono)), mono)
+                s16 = (res * 32000).astype(_np.int16)
+                if mix_ch > 1:
+                    s16 = _np.repeat(s16[:, None], mix_ch, axis=1)
+                sounds.append(pygame.sndarray.make_sound(_np.ascontiguousarray(s16)))
+            driver.on_sfx = lambda i: sounds[i].play() if i < len(sounds) else None
+        except Exception as e:                       # noqa: BLE001
+            print(f"[window] SFX disabled ({e})")
 
-    music_engine = music_synth = None
-    try:
-        from skyroads.audio.opl3_synth import NativeOplSynth
-        from skyroads.recovered.music import Engine as _MusicEngine
-        music_synth = NativeOplSynth(pygame, present_hz=GAME_FPS)
-        if not music_synth.available:
-            music_synth = None
-        else:
-            music_engine = _MusicEngine(lambda o: img.rb(DATA_SEG, o),
-                                        lambda o: img.rw(DATA_SEG, o))
-            for reg, val in music_engine.reset_opl():     # one-time OPL/percussion init
-                music_synth.write(reg, val)
-            for off, b in music_engine.ovl.items():
-                img.wb(DATA_SEG, off, b)
-    except Exception as e:                       # noqa: BLE001
-        print(f"[window] music disabled ({e})")
-    try:
-        import numpy as _np
-        from skyroads.native.sfx import load_sfx_bank
-        if pygame.mixer.get_init() is None:
-            pygame.mixer.init()
-        mix_rate, _sz, mix_ch = pygame.mixer.get_init()
-        sounds = []
-        for eff in load_sfx_bank(root / "assets" / "SFX.SND"):
-            u8 = _np.frombuffer(eff.pcm, dtype=_np.uint8).astype(_np.float32)
-            mono = (u8 - 128.0) / 128.0
-            n_out = max(1, int(len(mono) * mix_rate / eff.rate))
-            res = _np.interp(_np.linspace(0, len(mono) - 1, n_out),
-                             _np.arange(len(mono)), mono)
-            s16 = (res * 32000).astype(_np.int16)
-            if mix_ch > 1:
-                s16 = _np.repeat(s16[:, None], mix_ch, axis=1)
-            sounds.append(pygame.sndarray.make_sound(_np.ascontiguousarray(s16)))
-        driver.on_sfx = lambda i: sounds[i].play() if i < len(sounds) else None
-    except Exception as e:                       # noqa: BLE001
-        print(f"[window] SFX disabled ({e})")
+        gp_frames = 0
+        running = True
+        quit_requested = False
+        paint_dashboard(img.data, SEG_DASHBRD)       # full once; bezel-only per frame below
+        fader.start_in()                              # frozen fade IN from black on level start
+        while running and (window_frames <= 0 or gp_frames_total + gp_frames < window_frames):
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT or (
+                        ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
+                    running = False
+                    quit_requested = True
+            keys = pygame.key.get_pressed()
+            view.speed = (1 if keys[pygame.K_UP] else 0) - (1 if keys[pygame.K_DOWN] else 0)
+            view.steer = ((1 if keys[pygame.K_RIGHT] else 0)
+                          - (1 if keys[pygame.K_LEFT] else 0)) & 0xFFFF
+            view.jump = 1 if keys[pygame.K_SPACE] else 0
+            view.elapsed_ticks = (view.elapsed_ticks + 2) & 0xFFFF
+            if music_engine is not None:
+                try:
+                    for _ in range(MUSIC_TICKS_PER_FRAME):
+                        writes = music_engine.run_tick()
+                        for off, b in music_engine.ovl.items():
+                            img.wb(DATA_SEG, off, b)
+                        for reg, val in writes:
+                            music_synth.write(reg, val)
+                    music_synth.pump()
+                except Exception as e:                       # noqa: BLE001
+                    print(f"[window] music stopped ({e})")
+                    music_engine = None
 
-    gp_frames = 0
-    running = True
-    paint_dashboard(img.data, SEG_DASHBRD)       # full once; bezel-only per frame below
-    fader.start_in()                              # frozen fade IN from black on level start
-    while running and (window_frames <= 0 or gp_frames < window_frames):
-        for ev in pygame.event.get():
-            if ev.type == pygame.QUIT or (
-                    ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
-                running = False
-        keys = pygame.key.get_pressed()
-        view.speed = (1 if keys[pygame.K_UP] else 0) - (1 if keys[pygame.K_DOWN] else 0)
-        view.steer = ((1 if keys[pygame.K_RIGHT] else 0)
-                      - (1 if keys[pygame.K_LEFT] else 0)) & 0xFFFF
-        view.jump = 1 if keys[pygame.K_SPACE] else 0
-        view.elapsed_ticks = (view.elapsed_ticks + 2) & 0xFFFF
-        if music_engine is not None:
-            try:
-                for _ in range(MUSIC_TICKS_PER_FRAME):
-                    writes = music_engine.run_tick()
-                    for off, b in music_engine.ovl.items():
-                        img.wb(DATA_SEG, off, b)
-                    for reg, val in writes:
-                        music_synth.write(reg, val)
-                music_synth.pump()
-            except Exception as e:                       # noqa: BLE001
-                print(f"[window] music stopped ({e})")
-                music_engine = None
+            # Gameplay is FROZEN for the whole fade window (VM-verified -- see
+            # TransitionFader), not just while the screen is black.
+            if fader.active:
+                fader.tick()
+                # A finish doesn't get the fade BACK in (that would reveal the
+                # abandoned gameplay scene again) -- stop exactly at the black
+                # mid-point (`remaining == FADE_FRAMES`, the same instant
+                # `_switch` fires) and let the level-select's own fade-in
+                # (below) pick up from there.
+                if finished[0] and fader.remaining <= FADE_FRAMES:
+                    running = False
+            else:
+                outcome = driver.tick()
+                if outcome.transitioned:
+                    print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- fading out")
+                    finished[0] = (outcome.kind == "finish")
+                    fader.start_out()
+            # Full road re-render every frame -- see the run_window() comment: the
+            # delta/skip render paths leave stale edge terrain (edge ghosting), so
+            # the windowed viewer always does a full render (~6 ms/frame).
+            render_native_frame(img, DATA_SEG, offscreen=1, rebuild=True)
+            paint_dashboard(img.data, SEG_DASHBRD, byte_count=DASHBOARD_BEZEL_OVERLAP)
+            update_hud(img, DATA_SEG, view.ship_pos)
+            update_progress_bar(img, DATA_SEG)
+            draw_grav_meter(img, DATA_SEG)
+            present(to_rgb(bytes(img.data[0xA0000:0xA0000 + 64000]),
+                           fader.palette(palette) or palette))
+            clock.tick(GAME_FPS)
+            gp_frames += 1
+        gp_frames_total += gp_frames
 
-        # Gameplay is FROZEN for the whole fade window (VM-verified -- see
-        # TransitionFader), not just while the screen is black.
-        if fader.active:
-            fader.tick()
-        else:
-            outcome = driver.tick()
-            if outcome.transitioned:
-                print(f"[window] {outcome.reason} (kind={outcome.kind!r}) -- fading out")
-                fader.start_out()
-        # Full road re-render every frame -- see the run_window() comment: the
-        # delta/skip render paths leave stale edge terrain (edge ghosting), so
-        # the windowed viewer always does a full render (~6 ms/frame).
-        render_native_frame(img, DATA_SEG, offscreen=1, rebuild=True)
-        paint_dashboard(img.data, SEG_DASHBRD, byte_count=DASHBOARD_BEZEL_OVERLAP)
-        update_hud(img, DATA_SEG, view.ship_pos)
-        present(to_rgb(bytes(img.data[0xA0000:0xA0000 + 64000]),
-                       fader.palette(palette) or palette))
-        clock.tick(GAME_FPS)
-        gp_frames += 1
+        if quit_requested:
+            pygame.quit()
+            print(f"[window] closed after {gp_frames_total} gameplay frames")
+            return
+        if finished[0]:
+            selected = run_level_select(selected, fade_in=True)
+            continue
+        # window_frames budget reached mid-level (not a finish) -- stop here,
+        # matching the previous single-level behaviour.
+        pygame.quit()
+        print(f"[window] closed after {gp_frames_total} gameplay frames")
+        return
     pygame.quit()
-    print(f"[window] closed after {frames} menu frames + {gp_frames} gameplay frames")
+    print("[window] closed at menu")
 
 
 def run_cold_verify(root: Path, demo_path: Path, max_ticks: int = 2000) -> None:

@@ -83,7 +83,12 @@ def _collect_samples():
             af2c = cpu.mem.rw(ds, 0xAF2C)
             grounded = cpu.mem.rw(ds, 0x456A)
             in_envelope = grounded == 0 and af2c >= GRAVITY_HEIGHT_GATE
-            if (game_state == 3 and ctrl_device == 0 and not jump_held
+            # ctrl_device selects only WHERE steering input comes from (0=kbd,
+            # 2=mouse-mode); the native gameplay sub-step consumes the already-
+            # computed input and is device-independent (the movement-pipeline
+            # oracle proves it for this same demo, which runs at device 2). Accept
+            # either so a faithful mouse-absent replay still yields samples.
+            if (game_state == 3 and ctrl_device in (0, 2) and not jump_held
                     and ((in_envelope and envelope_seen < 4) or (not in_envelope and outside_seen < 4))):
                 before = bytes(cpu.mem.data[(ds << 4):(ds << 4) + 0x10000])
                 kind = "envelope" if in_envelope else "outside"

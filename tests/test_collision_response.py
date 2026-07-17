@@ -240,7 +240,7 @@ def test_probes_screen_y_is_af2c_minus_one() -> None:
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_e2e_20260710_132930"
+DEMO = ROOT / "artifacts" / "demos" / "demo_menu_3levels_20260713_144256"
 
 
 @pytest.mark.skipif(not (EXE.exists() and DEMO.exists()),

@@ -25,7 +25,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_e2e_20260710_132930"
+DEMO = ROOT / "artifacts" / "demos" / "demo_skyroads_L1FULL_20260713_212417"
 
 pytestmark = pytest.mark.skipif(
     not (EXE.exists() and DEMO.exists()),
@@ -67,6 +67,9 @@ def test_native_loop_stays_in_lockstep_with_vm() -> None:
     args.install_replacements = False
     frontend.apply_hook_mode(rt, args)
     _use_real_console_input(rt)
+    # Replay with the mouse-presence the demo was recorded under (pinned in its
+    # metadata), so a demo recorded with the mouse present reproduces faithfully.
+    rt.dos.mouse_present = pb.mouse_present_hint
 
     def _bpw(m, ss, bp, o):
         return m.rw(ss, (bp - o) & 0xFFFF)
