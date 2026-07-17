@@ -2,6 +2,8 @@
 # recovered program REACHES at runtime but no recorded demo ever executed
 # (startup paths, and routines whose callers were hooked during observation).
 1010:3B6B
+1010:5914
+1010:5971
 1010:5C82
 1010:5FD4
 1010:6001

@@ -70,33 +70,50 @@ def regenerate(lift_dir: Path, extras: list[str]) -> None:
                     "--boundary-heads", f"@{CODEMAP / 'boundary_heads.txt'}",
                     "--out", str(CODEMAP / "recovery_ir.json")],
                    check=True, capture_output=True, text=True)
+    # --desmc: the SMC routines (LZS decoder, blit threshold, timer-ISR far
+    # chain) lift as operand-from-memory transforms; without it they are
+    # refused and the boot dies in the startup decode.  The raised iteration
+    # guard is for the decompressors, which legitimately loop far past the
+    # emitter's default.
     subprocess.run([sys.executable, str(ROOT / "dos_re/tools/liftemit.py"),
                     "--from-ir", str(CODEMAP / "recovery_ir.json"),
                     "--boundary-heads", f"@{CODEMAP / 'boundary_heads.txt'}",
+                    "--desmc", "--max-iterations", "8000000",
                     "--emit-dir", str(lift_dir)],
                    check=True, capture_output=True, text=True)
 
 
 def try_boot(lift_dir: Path, steps: int) -> tuple[bool, str]:
-    """Boot the image and step it. Returns (clean, violation_addr_or_message)."""
+    """Drive FRAMES through the image and report the first wall violation.
+
+    Frames, not raw steps: the corpus parks at tick-wait boundary heads and
+    only makes progress when the next frame's timer IRQs arrive (see
+    scripts/play_vmless.py).  A raw step loop stalls at the first park and so
+    never reaches the code the game runs from its ISRs and later screens --
+    which is exactly the code the census is missing.  ``steps`` is read as a
+    FRAME budget here.
+    """
     code = f'''
 import sys; sys.path.insert(0, r"{ROOT / 'dos_re'}"); sys.path.insert(0, r"{ROOT}")
+sys.path.insert(0, r"{ROOT / 'scripts'}")
 from pathlib import Path
-from dos_re.independence import boot_vmless_image
-rt, m = boot_vmless_image(Path(r"{ROOT / 'artifacts/boot_image'}"),
-                          game_root=Path(r"{ROOT / 'assets'}"),
-                          lift_dir=Path(r"{lift_dir}"))
+from play_vmless import build, VmlessDriver
+rt, m = build(Path(r"{ROOT / 'artifacts/boot_image'}"), Path(r"{lift_dir}"),
+              Path(r"{ROOT / 'assets'}"))
+drv = VmlessDriver(rt)
 n = 0
 try:
     for _ in range({steps}):
-        rt.cpu.step(); n += 1
+        if not drv.frame():
+            break
+        n += 1
 except Exception as e:
     print("VIOLATION", type(e).__name__, str(e).replace(chr(10), " "))
 else:
     print("CLEAN", n)
 '''
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                       cwd=str(ROOT), timeout=900)
+                       cwd=str(ROOT), timeout=1800)
     out = (r.stdout or "") + (r.stderr or "")
     if "CLEAN" in out:
         return True, out.strip().splitlines()[-1]
@@ -109,7 +126,8 @@ else:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--rounds", type=int, default=25)
-    ap.add_argument("--steps", type=int, default=20000)
+    ap.add_argument("--steps", type=int, default=400,
+                    help="FRAME budget per probe run (the driver ticks frames)")
     ap.add_argument("--lift-dir", default=str(ROOT / "artifacts" / "lifted_full"))
     args = ap.parse_args(argv)
 
