@@ -63,7 +63,7 @@ def call_imm16_sites(ir: dict) -> list[tuple[int, int]]:
     return sorted(set(out))
 
 
-def build(ir: dict, images: list[Path]) -> dict:
+def build(ir: dict, images: list[Path], observed: set | None = None) -> dict:
     sites: dict[int, dict[str, str]] = {}   # call_ip -> {target_key: provenance}
     #: a dispatch target is ALWAYS a function entry (it is called). So an image
     #: read of a slot is trustworthy only when it lands on one -- that filter is
@@ -76,7 +76,17 @@ def build(ir: dict, images: list[Path]) -> dict:
             return
         if verified_entry and target not in fn_entries:
             return
-        sites.setdefault(call_ip, {})[f"{CODE_SEG:04X}:{target:04X}"] = why
+        key = f"{CODE_SEG:04X}:{target:04X}"
+        # --observed: cpuless_promote's _gate_dyn_evidence gates a dispatcher on
+        # its OBSERVED runtime targets. A bounded table also holds entries no run
+        # ever selects (a per-object render type the demos never show); requiring
+        # the dispatcher to COMPOSE those -- and everything they transitively
+        # reach -- blocks it on untested code. Keeping only observed targets makes
+        # an unselected one a fail-loud UnknownDispatchTarget instead (hard-wall
+        # correct), which is what a standalone CPUless corpus wants.
+        if observed is not None and key not in observed:
+            return
+        sites.setdefault(call_ip, {})[key] = why
 
     # 1. bounded indexed dispatch -- the mask PROVES the entry count, so every
     #    table slot read from an image is a real branch (verified as an entry).
@@ -122,6 +132,11 @@ def main(argv=None) -> int:
                          "defaults to the boot image + every demo snapshot)")
     ap.add_argument("--out",
                     default=str(ROOT / "artifacts" / "codemap" / "dispatch_evidence.json"))
+    ap.add_argument("--observed", default=None,
+                    help="observed.json (probe execution trace): keep only "
+                         "dispatch targets the game actually SELECTS at runtime "
+                         "(the rest become fail-loud UnknownDispatchTarget). Use "
+                         "for a standalone CPUless corpus.")
     ap.add_argument("--print", dest="show", action="store_true")
     args = ap.parse_args(argv)
 
@@ -131,8 +146,14 @@ def main(argv=None) -> int:
         images += sorted((ROOT / "artifacts" / "demos").glob("*/snapshot/memory_1mb.bin"))
     images = [Path(p) for p in images if Path(p).exists()]
 
+    observed = None
+    if args.observed and Path(args.observed).is_file():
+        doc0 = json.loads(Path(args.observed).read_text(encoding="utf-8"))
+        observed = {a.upper() for a in doc0.get("executed", ())
+                    if isinstance(a, str)}
+
     ir = json.loads(Path(args.ir).read_text(encoding="utf-8"))
-    doc = build(ir, images)
+    doc = build(ir, images, observed)
     text = json.dumps(doc, indent=2) + "\n"
     if args.show:
         print(text)
