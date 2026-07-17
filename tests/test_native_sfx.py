@@ -38,8 +38,8 @@ def test_jump_landing_emits_sfx_1_with_debounce():
     `0476` 8-tick debounce must space repeated landings by >= 8 ticks of
     `[1600]` (which this loop advances +2/tick)."""
     snap = ROOT / "artifacts" / "frame_2d1f" / "snap92" / "memory_1mb.bin"
-    if not snap.exists():
-        pytest.skip("baseline snapshot not present")
+    if not (snap.exists() and EXE.exists()):
+        pytest.skip("baseline snapshot or game assets not present")
     from skyroads.bridge.dgroup_view import GameView
     from skyroads.handrecovered_native.level_load import native_level_load
     from skyroads.handrecovered_native.loop import NativeGameplayDriver, apply_level_init
@@ -184,8 +184,8 @@ def test_sfx_callback_absence_is_pure():
     """Without a callback the emission layer must be a strict no-op: two runs
     (with sfx=None vs with a swallowing callback) reach the same crash tick."""
     snap = ROOT / "artifacts" / "frame_2d1f" / "snap92" / "memory_1mb.bin"
-    if not snap.exists():
-        pytest.skip("baseline snapshot not present")
+    if not (snap.exists() and EXE.exists()):
+        pytest.skip("baseline snapshot or game assets not present")
     from skyroads.bridge.dgroup_view import GameView
     from skyroads.handrecovered_native.level_load import native_level_load
     from skyroads.handrecovered_native.loop import NativeGameplayDriver, apply_level_init
