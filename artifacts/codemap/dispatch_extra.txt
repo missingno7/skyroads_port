@@ -1,0 +1,22 @@
+# Indirect dispatch targets -- DERIVED by scripts/find_dispatch_targets.py.
+# The music ISR (1010:5A55) calls ds:[bx+0C5B] with `and bx,7` -- so the
+# table has EXACTLY 8 entries and the set is provable, not merely observed.
+# Needed because which entries a demo exercises depends on the song, and
+# the boot picks one at random: a demo-derived census covers only some, and
+# the strict-VMless wall then fires on the first unseen music command.
+# table[0] (ds:0C5B) -> 1010:5914
+# table[1] (ds:0C5D) -> 1010:5919
+# table[2] (ds:0C5F) -> 1010:5971
+# table[3] (ds:0C61) -> 1010:59CF
+# table[4] (ds:0C63) -> 1010:5A0D
+# table[5] (ds:0C65) -> 1010:5A42
+# table[6] (ds:0C67) -> 1010:5A49
+# table[7] (ds:0C69) -> 1010:5A50
+1010:5914
+1010:5919
+1010:5971
+1010:59CF
+1010:5A0D
+1010:5A42
+1010:5A49
+1010:5A50

@@ -52,10 +52,26 @@ def write_extras(extras: list[str]) -> None:
         + "".join(f"{a}\n" for a in sorted(set(extras))))
 
 
+DISPATCH_FILE = CODEMAP / "dispatch_extra.txt"
+
+
+def read_dispatch() -> list[str]:
+    """Provable indirect-dispatch targets (scripts/find_dispatch_targets.py).
+
+    Folded into every census: the music table's 8 entries are bounded by an
+    `and bx,7`, but WHICH ones a demo runs depends on the (randomly picked)
+    song -- so demo evidence alone under-covers them and the wall fires on the
+    first unseen music command."""
+    if not DISPATCH_FILE.exists():
+        return []
+    return [ln.strip() for ln in DISPATCH_FILE.read_text().splitlines()
+            if ln.strip() and not ln.startswith("#")]
+
+
 def regenerate(lift_dir: Path, extras: list[str]) -> None:
     """census -> IR -> corpus, with the discovered extras folded in."""
     extra_args: list[str] = []
-    for a in extras:
+    for a in list(extras) + read_dispatch():
         extra_args += ["--extra", a]
     subprocess.run([sys.executable, str(ROOT / "dos_re/tools/codemap.py"),
                     "--observed", str(CODEMAP / "observed.json"),
