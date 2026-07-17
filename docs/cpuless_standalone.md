@@ -13,12 +13,14 @@ which overlays the recovered corpus on the interpreter driver.
 | **Source** — manual overrides | `skyroads/cpuless_overrides/func_CCCC_IIII.py` (address-keyed) | yes |
 | **Source** — runner + tools | `scripts/play_cpuless.py`, `scripts/build_cpuless_standalone.py`, `tools/lint_cpuless.py` | yes |
 | **Committed record** — manifest | `artifacts/codemap/cpuless_manifest.json` | yes |
-| **Generated** — recovered corpus | `skyroads/cpuless_standalone/` (deterministic, one command) | **no** (gitignored) |
+| **Committed** — recovered corpus | `skyroads/cpuless_standalone/` (the recorded no-CPU port surface) | **yes** |
 | **Generated** — scratch adapters | `artifacts/cpuless_standalone_adapters/` (hybrid-only, unused here) | no |
 
-Generated function modules are **not committed**: they regenerate byte-for-byte
-from the tracked inputs in one command. The persistent **manifest** is
-committed so a clean checkout can inspect the result without building.
+The recovered corpus **is committed** — it is the recorded no-CPU port surface,
+inspectable from a clean checkout. `scripts/build_cpuless_standalone.py`
+regenerates it **in place**, deterministically, so a rebuild that changes any
+byte shows up as a diff (drift detection). Only the CPU-carrying scratch
+adapters and the build intermediates stay ignored.
 
 ## Overrides
 
