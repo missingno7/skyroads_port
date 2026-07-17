@@ -1,4 +1,4 @@
-"""Byte-exact oracle for the recovered master timer ISR (skyroads/recovered/timer_isr.py).
+"""Byte-exact oracle for the recovered master timer ISR (skyroads/handrecovered/timer_isr.py).
 
 The island was produced by the automatic lifter and refactored into named code;
 this test is the contract that keeps the refactor honest. For every prescaler
@@ -26,7 +26,7 @@ from dos_re.repro_artifacts import clone_runtime_state  # noqa: E402
 from dos_re.snapshot import load_snapshot  # noqa: E402
 
 from skyroads.hooks import master_timer_isr  # noqa: E402  (the VM hook)
-from skyroads.recovered.timer_isr import advance_music_timer  # noqa: E402  (the pure rule)
+from skyroads.handrecovered.timer_isr import advance_music_timer  # noqa: E402  (the pure rule)
 
 CS = 0x1010
 ISR = 0x3B17

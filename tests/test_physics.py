@@ -1,10 +1,10 @@
-"""Verify the recovered movement-target formula (skyroads.recovered.physics)
+"""Verify the recovered movement-target formula (skyroads.handrecovered.physics)
 against real 186B call arguments captured over the full E2E demo.
 
 682/682 real calls matched (58 with real steering held, lateral_accel != 0)
 with af1c_base_offset == 0x618 -- the value ss:[bp-16]==0 selects, which was
 probed as 0 at the decision point in every one of the 682 calls (see
-skyroads/recovered/physics.py's docstring; the alternate 0-offset branch is
+skyroads/handrecovered/physics.py's docstring; the alternate 0-offset branch is
 never exercised). The fixture keeps all 58 steering samples plus a spread of
 40 non-steering ones (for which the offset is irrelevant -- 0*base == 0).
 """
@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.physics import AF1C_BASE_OFFSET, compute_movement_targets
+from skyroads.handrecovered.physics import AF1C_BASE_OFFSET, compute_movement_targets
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "movement_target_trace.json").read_text())
 

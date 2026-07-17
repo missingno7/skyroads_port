@@ -1,9 +1,9 @@
-"""Native SKYROADS.EXE unpacker (skyroads/recovered_native/exe_image.py)."""
+"""Native SKYROADS.EXE unpacker (skyroads/handrecovered_native/exe_image.py)."""
 from pathlib import Path
 
 import pytest
 
-from skyroads.recovered_native.exe_image import (
+from skyroads.handrecovered_native.exe_image import (
     DGROUP_REL, RELOC_SITES, build_program_image, decompress, initial_dgroup)
 
 ROOT = Path(__file__).resolve().parents[1]

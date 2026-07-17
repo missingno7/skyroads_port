@@ -1,4 +1,4 @@
-"""Verify the recovered buffer-relocation patch (skyroads.recovered.relocate)
+"""Verify the recovered buffer-relocation patch (skyroads.handrecovered.relocate)
 against real ASM I/O captured over the E2E demo (1010:4052/4062-4069).
 
 Recovered via lift-then-refactor: `dos_re.tools.liftverify` first proved a
@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.relocate import patch_nonzero_bytes
+from skyroads.handrecovered.relocate import patch_nonzero_bytes
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "relocate_trace.json").read_text())
 

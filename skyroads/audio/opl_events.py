@@ -1,7 +1,7 @@
 """OPL write stream → semantic events — the decoder side of the boundary.
 
 Consumes the exact `(register, value)` writes the RECOVERED music engine emits
-(`skyroads.recovered.music.Engine.run_tick`, byte-exact over 12,882 verified
+(`skyroads.handrecovered.music.Engine.run_tick`, byte-exact over 12,882 verified
 ticks) and tracks just enough OPL2 channel state to say what the music *means*:
 key-on transitions become :class:`NoteOn` (with the channel's current
 :class:`FmPatch` timbre and the fnum/block decoded to Hz), key-offs become

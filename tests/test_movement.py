@@ -1,4 +1,4 @@
-"""Verify the recovered 186B movement/collision solver (skyroads.recovered.movement).
+"""Verify the recovered 186B movement/collision solver (skyroads.handrecovered.movement).
 
 Uses captured (input, collision-probe-answers, output) traces of the real
 routine: each case replays the exact ``1732`` results the ASM saw, so the pure
@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.movement import resolve_move
+from skyroads.handrecovered.movement import resolve_move
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "movement_186b_trace.json"
 _CASES = json.loads(_FIXTURE.read_text())

@@ -1,4 +1,4 @@
-"""Verify the pure tile-dispatch loop (`skyroads.recovered_native.tile_dispatch`,
+"""Verify the pure tile-dispatch loop (`skyroads.handrecovered_native.tile_dispatch`,
 = `1010:2D1F`'s road loop) against a captured VM frame.
 
 The capture (`artifacts/frame_2d1f`, produced by driving the level-select demo
@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.recovered_native.image import NativeGameImage
-from skyroads.recovered_native.tile_dispatch import render_tile_passes
+from skyroads.handrecovered_native.image import NativeGameImage
+from skyroads.handrecovered_native.tile_dispatch import render_tile_passes
 
 CAPTURE = Path(__file__).resolve().parents[1] / "artifacts" / "frame_2d1f"
 
@@ -66,7 +66,7 @@ def test_full_native_frame_is_byte_exact() -> None:
     2026-07-12 capture). The `3a22` ship-sprite calls (34AE(1)/39D4 chain) are
     delta-stable rewrites on this frame, hence not needed for byte-equality
     here; they get exercised by a full-redraw capture later."""
-    from skyroads.recovered.tile_raster import tile_rasterize
+    from skyroads.handrecovered.tile_raster import tile_rasterize
 
     meta = json.loads((CAPTURE / "meta.json").read_text())
     vmlog = json.loads((CAPTURE / "write_log.json").read_text())

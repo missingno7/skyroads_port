@@ -1,5 +1,5 @@
 """Verify the recovered road-column strip compositor
-(skyroads.recovered.road_column.road_column_strip) against real ASM I/O
+(skyroads.handrecovered.road_column.road_column_strip) against real ASM I/O
 captured over the full E2E demo (1010:38BF).
 
 Unlike every other recovery this session, verification here is a FULL memory
@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.road_column import SKIP_SYNC_LOOP_BIT, road_column_strip
+from skyroads.handrecovered.road_column import SKIP_SYNC_LOOP_BIT, road_column_strip
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "road_column_strip_trace.json").read_text())
 

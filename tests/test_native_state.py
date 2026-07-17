@@ -1,11 +1,11 @@
-"""Unit tests for skyroads.recovered_native.state.NativeGameState and
+"""Unit tests for skyroads.handrecovered_native.state.NativeGameState and
 skyroads.bridge.dgroup_view.GameView -- the plumbing every native frame
 stepper runs through (no real demo needed; that proof is
 test_native_loop.py's real-demo integration test)."""
 from __future__ import annotations
 
 from skyroads.bridge.dgroup_view import GameView
-from skyroads.recovered_native.state import DATA_SEG, SEGMENT_SIZE, NativeGameState
+from skyroads.handrecovered_native.state import DATA_SEG, SEGMENT_SIZE, NativeGameState
 
 
 class _FakeMem:

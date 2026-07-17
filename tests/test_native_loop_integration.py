@@ -1,4 +1,4 @@
-"""Real-demo integration proof for skyroads.recovered_native.* against the pure ASM
+"""Real-demo integration proof for skyroads.handrecovered_native.* against the pure ASM
 oracle -- NOT re-proving individual islands (advance_ship/decay_bounce/
 update_vertical_velocity/dispatch_menu_action are already ASM_MATCHED, see
 their own @oracle_link status), but proving the NEW plumbing around them:
@@ -9,7 +9,7 @@ gameplay.
 This is also where a real divergence was FOUND (2026-07-11): composing
 decay_bounce + update_vertical_velocity unconditionally every frame predicts
 values the real ASM does not produce outside one narrow, directly-verified
-envelope (see skyroads.recovered_native.gaps.VerticalVelocityGap) -- so this test
+envelope (see skyroads.handrecovered_native.gaps.VerticalVelocityGap) -- so this test
 checks the field(s) native_gameplay_frame actually COMMITS before each gap,
 not a full post-condition, and treats "which gap fired" as part of the
 assertion.
@@ -28,10 +28,10 @@ from dos_re.input_demo import InputDemoPlayback
 from dos_re.player import _use_real_console_input
 
 from skyroads.bridge.dgroup_view import GameView
-from skyroads.recovered_native.gaps import JumpGateGap, MovementPhysicsGap, VerticalVelocityGap
-from skyroads.recovered_native.loop import native_gameplay_frame, native_menu_frame
-from skyroads.recovered_native.state import NativeGameState
-from skyroads.recovered.player import GRAVITY_HEIGHT_GATE
+from skyroads.handrecovered_native.gaps import JumpGateGap, MovementPhysicsGap, VerticalVelocityGap
+from skyroads.handrecovered_native.loop import native_gameplay_frame, native_menu_frame
+from skyroads.handrecovered_native.state import NativeGameState
+from skyroads.handrecovered.player import GRAVITY_HEIGHT_GATE
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"

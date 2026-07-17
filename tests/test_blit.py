@@ -1,4 +1,4 @@
-"""Verify the recovered stencil blit (skyroads.recovered.blit) against real ASM
+"""Verify the recovered stencil blit (skyroads.handrecovered.blit) against real ASM
 I/O captured over the E2E demo's menu screens (1010:0F62).
 
 The pure per-byte substitution is what ``stencil_blit`` recovers; the full
@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.blit import stencil_blit
+from skyroads.handrecovered.blit import stencil_blit
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "stencil_blit_trace.json").read_text())
 

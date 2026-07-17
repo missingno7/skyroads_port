@@ -1,5 +1,5 @@
 """Semantics tests for the promoted RLE sprite rasterizer pair
-(`skyroads.recovered.rle_sprite`, from the differential-verified hook bodies).
+(`skyroads.handrecovered.rle_sprite`, from the differential-verified hook bodies).
 
 Byte-exactness against the game comes from the frame-level assembly test (the
 `artifacts/frame_2d1f` capture); these tests pin the stream/paint contract:
@@ -7,7 +7,7 @@ span placement, row stride, mirroring, fill-table indexing, cursor return.
 """
 from __future__ import annotations
 
-from skyroads.recovered.rle_sprite import (FILL_TABLE_BWD, FILL_TABLE_FWD,
+from skyroads.handrecovered.rle_sprite import (FILL_TABLE_BWD, FILL_TABLE_FWD,
                                            ROW_STRIDE, rle_sprite_backward,
                                            rle_sprite_forward)
 

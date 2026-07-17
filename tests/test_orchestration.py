@@ -1,5 +1,5 @@
 """Verify the per-frame orchestration gate
-(skyroads.recovered.orchestration.should_run_gameplay) -- the 1010:229D-22E9
+(skyroads.handrecovered.orchestration.should_run_gameplay) -- the 1010:229D-22E9
 decision between running the gameplay sub-step and exiting to a transition.
 
 The full-path match (571/571 real E2E frames, including the game_state 3 -> exit
@@ -8,7 +8,7 @@ pins the branch logic directly.
 """
 from __future__ import annotations
 
-from skyroads.recovered.orchestration import (
+from skyroads.handrecovered.orchestration import (
     FRAME_CTR_GAMEPLAY_MAX,
     SETTLE_WINDOW_MAX,
     should_run_gameplay,

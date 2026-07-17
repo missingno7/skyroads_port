@@ -1,4 +1,4 @@
-"""Verify the assembled native mode-0 render pipeline (skyroads.recovered_native.render_frame)
+"""Verify the assembled native mode-0 render pipeline (skyroads.handrecovered_native.render_frame)
 reproduces the VM's exact road_column_strip call sequence.
 
 Ground truth: one real mode-0 34AE composite pass from demo_e2e_20260710_132930
@@ -13,8 +13,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered_native.image import NativeGameImage
-from skyroads.recovered_native.render_frame import (
+from skyroads.handrecovered_native.image import NativeGameImage
+from skyroads.handrecovered_native.render_frame import (
     ColumnCall,
     compute_mode0_setup,
     mode0_column_calls,

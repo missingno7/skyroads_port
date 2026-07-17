@@ -1,5 +1,5 @@
 """Verify the recovered level-progression state machine
-(skyroads.recovered.progression.step_level_progression) against real ASM I/O
+(skyroads.handrecovered.progression.step_level_progression) against real ASM I/O
 captured over the full E2E demo (1010:2A35-2AE2).
 
 682/682 real sub-steps matched byte-exact on (game_state, level_timer_a,
@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.progression import (
+from skyroads.handrecovered.progression import (
     STATE_GAMEPLAY,
     STATE_TRANSITIONAL,
     step_level_progression,

@@ -1,4 +1,4 @@
-"""Native, VM-free level loading (`skyroads.recovered_native.level_load`).
+"""Native, VM-free level loading (`skyroads.handrecovered_native.level_load`).
 
 `decode_level_files` reads and decompresses any of ROADS.LZS's 31 levels with no
 VM (reusing the VM-verified `roads_archive`); `native_level_load` places the
@@ -12,10 +12,10 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.recovered_native.level_load import (DecodedLevel, decode_level_files,
+from skyroads.handrecovered_native.level_load import (DecodedLevel, decode_level_files,
                                         native_level_load, read_game_file)
-from skyroads.recovered_native.state import NativeGameState, DATA_SEG
-from skyroads.recovered import roads_archive
+from skyroads.handrecovered_native.state import NativeGameState, DATA_SEG
+from skyroads.handrecovered import roads_archive
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
@@ -104,7 +104,7 @@ def test_native_loaded_level_plays_the_vm_golden_trajectory() -> None:
     the original game for level 14 (0x4B,0x96,0xE1,…) and crashes into the same
     obstacle at frame_ctr 108 (game_state=3) — verified byte-for-byte against a
     VM-captured level-14 seed (see run_status.md 2026-07-12)."""
-    from skyroads.recovered_native.loop import NativeGameplayDriver, apply_level_init
+    from skyroads.handrecovered_native.loop import NativeGameplayDriver, apply_level_init
     from skyroads.bridge.dgroup_view import GameView
 
     dg = BASELINE.read_bytes()[(DATA_SEG << 4):(DATA_SEG << 4) + 0x10000]

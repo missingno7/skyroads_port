@@ -16,7 +16,7 @@ black frame (f119, 63,707/64,000 pixels change while the palette is still all
 zero), then a fade-IN of the level-select grid (frames 119-148, ~29 frames) —
 the exact same fade-out/switch/fade-in shape `TransitionFader` already
 implements for crash/death, just with a DIFFERENT destination. This matches
-`skyroads/recovered_native/menus.py`'s already-recovered (and already-tested)
+`skyroads/handrecovered_native/menus.py`'s already-recovered (and already-tested)
 `MenuModel.level_ended`: `"finish"` -> return to the level-select grid;
 any death -> respawn the same level -- verified there against
 `demo_colde2e_full_20260713_144604`.
@@ -124,7 +124,7 @@ the grav-o-meter's LCD region):
   `0x00/0x62/0x62/0x61` / `0x61/0x62/0x62/0x00` exactly.
 
 The digit font at DGROUP `0x16C` is present byte-exact in the native boot image
-(initialised EXE data, not a file load). `skyroads/recovered_native/hud.py::draw_grav_meter`
+(initialised EXE data, not a file load). `skyroads/handrecovered_native/hud.py::draw_grav_meter`
 + `grav_value`; wired into `play_native` (both gameplay render sites, after
 `update_progress_bar`); `tests/test_hud_grav.py` (formula + byte-exact draw) —
 2 pass. This closes the HUD: speed/oxygen/fuel gauges, progress bar, and now the
@@ -149,7 +149,7 @@ demo_skyroads_L1FULL_20260713_212417:
   -> 55. Set in `native_level_load`.
 
 Wired into `play_native` (both gameplay render sites); `[455C]` added to the
-level-init cache-zero set. `skyroads/recovered_native/hud.py::update_progress_bar` +
+level-init cache-zero set. `skyroads/handrecovered_native/hud.py::update_progress_bar` +
 `progress_target_col`; `tests/test_hud_progress.py` (formula points + the
 byte-exact draw) — 3 pass; HUD/driver suites still green.
 
@@ -239,7 +239,7 @@ select is inaccurate. Verified every complaint against the VM (demo_cold_
   brighten + dots -- all real ROM cursor draws; my drawn boxes/recolours are
   affordances, not the ROM's.
 
-REVERTED: removed `skyroads/recovered_native/menu_screens.py` + its test; `run_cold_boot`
+REVERTED: removed `skyroads/handrecovered_native/menu_screens.py` + its test; `run_cold_boot`
 restored to the level-select-only flow (which at least shows a real GOMENU
 screen, though its box cursor + scroll_pos mapping are themselves still the older
 provisional pieces flagged in round-17/#40).
@@ -252,13 +252,13 @@ per screen: the VM's palette source/upload (incl. the shared main+controls
 palette), the exact screen composition, and the ROM's cursor/highlight draw +
 the transition state machine, all checked against `demo_cold_20260713_213510`.
 This is a real multi-routine recovery (like the gameplay sub-step was), not a
-one-pass render. `skyroads/recovered_native/menus.py` (the MenuModel graph) + its tests
+one-pass render. `skyroads/handrecovered_native/menus.py` (the MenuModel graph) + its tests
 stay as the state-graph scaffold; the RENDERING is what must be recovered.
 
 ## 2026-07-13 (round 18) — native cold-boot MENU FLOW IMPLEMENTED: main menu + Controls + Help now render VM-free and drive the recovered MenuModel
 
 Absorbed the round-17 reconstruction into the native player. New
-`skyroads/recovered_native/menu_screens.py` loads the real menu assets and renders each
+`skyroads/handrecovered_native/menu_screens.py` loads the real menu assets and renders each
 screen VM-free (same `parse_lzs_container`/`load_pict` path as GOMENU):
 - **main menu** = INTRO.LZS checkered-road backdrop + the MAINMENU.LZS
   `Start!/Controls/Help` overlay (68x57 @ row 128), the selected item recoloured
@@ -306,7 +306,7 @@ asset each screen loads (from an INT-21h open trace):**
 (16 colours) load via the existing `parse_lzs_container`/`load_pict` path and
 render VM-free **matching the demo's Controls (f260) and Help (f410) frames**.
 MAINMENU.LZS is the title/menu overlay (composite over the road). The
-`skyroads/recovered_native/menus.py` `MenuModel` state graph (Start/Controls/Help order,
+`skyroads/handrecovered_native/menus.py` `MenuModel` state graph (Start/Controls/Help order,
 ENTER/ESC/SPACE transitions, help-page wrap) **matches the demo** — the logic is
 right; what's missing is that `run_cold_boot` opens straight on GOMENU and never
 renders MAINMENU/SETMENU/HELPMENU or the intro.
@@ -592,7 +592,7 @@ finish → menu** — they differ. The native already emits `03C2(0)` on crash
 (`loop.py:360`); whether the native sim DETECTS the red-tile landing as a crash
 is a separate parity check (follow-up).
 
-**Correction landed**: `skyroads/recovered_native/menus.py::level_ended` had routed *all*
+**Correction landed**: `skyroads/handrecovered_native/menus.py::level_ended` had routed *all*
 level ends to the menu (death was flagged unverified). Now `kind=="finish"` →
 menu; any death → respawn-in-place (stay in gameplay). `tests/test_menus.py`
 updated with both the finish and death cases. 13 menu tests pass.
@@ -628,7 +628,7 @@ give the rules:
 
 This **refutes the shipped `--boot` model** (`road = (road±1)%3`;
 `world = (world±1)%10`), which was an explicit guess. Recovered as
-`skyroads/recovered_native/level_select.py::move_selection` (+ grid encoding), wired into
+`skyroads/handrecovered_native/level_select.py::move_selection` (+ grid encoding), wired into
 `play_native.run_cold_boot`, guarded by `tests/test_level_select.py` (7 cases
 transcribed from the demo trace). The grid layout/`level_box` geometry the boot
 path already had matches the rendered grid and is unchanged.
@@ -671,7 +671,7 @@ fine, SHIPPING one without checking it against the oracle is not.
 
 **The real fade, reconstructed and verified:**
 - `docs/skyroads/blockers.md` already had an ASM-VERIFIED primitive sitting
-  unused: `skyroads.recovered.palette_fade.blend_byte` (`1010:43A9`, 34,439
+  unused: `skyroads.handrecovered.palette_fade.blend_byte` (`1010:43A9`, 34,439
   real hook calls, zero divergence) -- linear interpolation `out = b +
   trunc((a-b)*percent/100)`, NOT a subtract ramp. Should have been used from
   the start.
@@ -919,7 +919,7 @@ old "song 4 == level-14 snapshot" and "level 30 → song 6" notes: those were
 byte-exact *loader* proofs / one-capture *observations* of a random pick, not
 a fixed level→song table.)
 
-Fix: `skyroads/recovered_native/world_load.py` gains `pick_gameplay_song(rand_value,
+Fix: `skyroads/handrecovered_native/world_load.py` gains `pick_gameplay_song(rand_value,
 prev)` (the ASM's `(rand%9)+1` + no-repeat rule; returns `(song_index, di)`)
 and `GAMEPLAY_SONG_COUNT=9`; `native_song_load` now takes an explicit
 `song_index` (the pure loader stays deterministic/testable — the random
@@ -937,7 +937,7 @@ User report: `play_native` plays a crash sound on a slow-speed wall hit that
 the real game does not, reproduced in `demo_skyroads_20260713_095814`.
 
 Root cause was in `native_gameplay_substep`'s collision-response block
-(`skyroads/recovered_native/loop.py`): the `03C2(0)` "wall crash thud" was gated on
+(`skyroads/handrecovered_native/loop.py`): the `03C2(0)` "wall crash thud" was gated on
 `crash.crashed` (`LateralCrashResult.crashed`, from `resolve_lateral_crash`),
 which is `True` for EVERY lateral mismatch (ship_pos always resets to 0 on
 any wall hit) — not just the real ASM's "flagged" crash (past
@@ -965,7 +965,7 @@ Fix: capture `grounded_before = view.grounded` ahead of the
 `grounded_before == 0 and crash.f456a != 0` (the real 0 -> nonzero flagging
 edge) instead of `crash.crashed`; everything else falls through to the
 existing distance-gated `03C2(2)` thump, matching the ASM exactly. Updated
-`skyroads/recovered_native/sfx.py`'s id map to describe the corrected, game_state-
+`skyroads/handrecovered_native/sfx.py`'s id map to describe the corrected, game_state-
 independent condition.
 
 ## 2026-07-13 — HUD gauges + real Nuked-OPL3 music in `play_native`; crash/finish settle window
@@ -975,7 +975,7 @@ player (not VM-derived bugs):
 
 **1. HUD dashboard/gauges.** `paint_dashboard` overlays the cockpit dashboard
 onto the live VGA plane (nonzero pixels only), fixing the missing top-of-HUD
-rows. `skyroads/recovered_native/hud.py` ports `1010:12F8`/`0F8C` (the speed/oxygen/fuel
+rows. `skyroads/handrecovered_native/hud.py` ports `1010:12F8`/`0F8C` (the speed/oxygen/fuel
 gauge updater + its widget-draw helper) to pure functions — verified against
 7 real VM calls, 6/7 exact VGA-byte match (the 7th differs only in the
 deliberately-unported fuel/oxygen digit-pair readout), gauge cache values
@@ -1135,7 +1135,7 @@ tiles paint a close-up ship (engine glow visible) on a checkered runway;
 later tiles progressively repaint the SAME screen region with a receding
 checkered-floor perspective as the "camera" flies through — matching the
 game's whole rendering philosophy of partial/delta updates, not full-screen
-redraws. `skyroads/recovered_native/anim.py`'s `load_anim`/`paint_tile`.
+redraws. `skyroads/handrecovered_native/anim.py`'s `load_anim`/`paint_tile`.
 
 **Pacing**: the per-tick reveal-count sequence (22, 27, 14, 11, 8, 7, 4, 4,
 3, 2, 2, ... settling into a steady 1-2-3 repeat) was captured directly from
@@ -1160,7 +1160,7 @@ SKYROADS.EXE's own runtime) and the menu's UI-drawn selection cursor
 ## 2026-07-13 — MILESTONE 2 COMPLETE (bounded): `play_native --boot` runs the FULL chain — splash -> menu -> gameplay, zero VM, entirely from game files
 
 Closed the loop task #24 set out to close. `--boot` now runs: LOGO.PCX splash
-(native PCX decoder, `skyroads/recovered_native/pcx.py` — standard ZSoft RLE format, no
+(native PCX decoder, `skyroads/handrecovered_native/pcx.py` — standard ZSoft RLE format, no
 VM recovery needed; a generic-format module, not SkyRoads-proprietary) +
 INTRO.SND (6024 Hz PCM, SB-DMA-rate-verified) -> the native GOMENU
 level-select grid -> real gameplay via the already-verified `--cold-native`
@@ -1274,7 +1274,7 @@ all 8 segments' decompress + `3A96` expand).
 **`scripts/play_native.py --level N --cold-native`**: the entire 1 MB
 image — program (native EXE unpack), DGROUP, all 8 display-list buffers,
 the full palette — now builds from `assets/` alone via
-`skyroads.recovered_native.boot.native_boot_image`. Ran end to end: level 2 opens,
+`skyroads.handrecovered_native.boot.native_boot_image`. Ran end to end: level 2 opens,
 loads VM-free, renders the road/ship/background/cockpit correctly, plays
 music and SFX — **no VM was ever instantiated**. 381 tests pass (full
 suite, +2 min for the exhaustive boot/EXE/world checks).
@@ -1312,7 +1312,7 @@ which already renders everything else from files alone).
 
 ## 2026-07-13 — native boot builder + the GRAPHICS CONTAINER format + the complete DAC map; cars/dashbrd banks byte-exact from files alone
 
-`skyroads/recovered_native/boot.py`: the snapshot-free boot image. Key discoveries:
+`skyroads/handrecovered_native/boot.py`: the snapshot-free boot image. Key discoveries:
 
 **The graphics container format** (generalizing the WORLD finding — CARS,
 DASHBRD, WORLD, GOMENU all share it): ``"CMAP" + u8 colour-count + colours``,
@@ -1349,7 +1349,7 @@ has NO LZ91/PKLITE signature — a custom packer; the bit-LZ loop resembles
 LZEXE but the length/distance coding differs), captured the decode loop's
 initial registers live (stream at file offset 0x62, initial `lodsw` -> BP,
 output forward at `100F:0010` = load 0x1010:0000), and transcribed the loop
-register-exact into `skyroads/recovered_native/exe_image.py`:
+register-exact into `skyroads/handrecovered_native/exe_image.py`:
 
 - getbit `063A` (16-bit LSB-first BP buffer), main loop `06B3`: `1` ->
   literal; else disp-low byte then LONG (`0646`: BH gamma-windowed high
@@ -1437,7 +1437,7 @@ IDENTICAL road band (0 diff) — the per-frame handler patches fully
 regenerate the visible window; there is no separate level-start strip
 bootstrap to recover.
 
-`skyroads/recovered_native/world_load.py` + `tests/test_world_load.py` (6 tests);
+`skyroads/handrecovered_native/world_load.py` + `tests/test_world_load.py` (6 tests);
 `play_native --level N` now shows each level's own background/palette and
 plays its own song. Native renders of levels 2/20/30 match the real game's
 look (level 30 vs the e2e VM capture side-by-side). Open: a possible stale
@@ -1472,7 +1472,7 @@ FRONTAL crash (game_state=3, the golden-trajectory one) plays nothing from
 the substep — its explosion SFX site is elsewhere (settle-window subsystem,
 still open).
 
-**Implementation**: `skyroads/recovered_native/sfx.py` (bank parser + id map);
+**Implementation**: `skyroads/handrecovered_native/sfx.py` (bank parser + id map);
 `native_gameplay_substep(..., sfx=)` emits at the three verified sites with
 the ASM's exact conditions (including the `0476` debounce via
 `[AF38]`/`[1600]`, which the emitter only touches when a callback is
@@ -1798,7 +1798,7 @@ transcription + the same write-log verification used for the tile dispatch):
   clamp 10, same cell walk (tail at `14B0+`); helpers `1191`/`11D3`/`1282`
   (cell compare/draw/pair).
 - Port plan (next focused turn): transcribe `12F8` + helpers into
-  `skyroads/recovered_native/hud.py` over the pure `stencil_blit`/`present_rect`,
+  `skyroads/handrecovered_native/hud.py` over the pure `stencil_blit`/`present_rect`,
   verify with the same VM write-log capture (widget-draw sequence + A000
   bytes), wire into the window per frame (present A000 rows live instead of
   the frozen dashboard copy).
@@ -1864,7 +1864,7 @@ same engine via separate triggers) not yet mapped; per-level song loading
 
 The interactive native player is wired:
 
-- **`skyroads/recovered_native/frame.py`** — the complete per-frame render as one
+- **`skyroads/handrecovered_native/frame.py`** — the complete per-frame render as one
   function (`render_native_frame` / `compose_frame`): params (0C98, 40/40) →
   `[0E28..0E36]` → rebuild-only background-bank copy → `composite_mode0`
   (display-list build) → tile passes + ship-row tile → post-steps (rotation +
@@ -1921,7 +1921,7 @@ background-on-rebuild → tile passes → ship row → `34AE(1)`/`39D4` ship spr
 
 ## 2026-07-12 (latest+15) — 🎯 THE FIRST FULLY-NATIVE GAMEPLAY FRAME IS BYTE-EXACT (65536/65536)
 
-Promoted the ship-row tile chain (`skyroads/recovered/tile_raster.py`:
+Promoted the ship-row tile chain (`skyroads/handrecovered/tile_raster.py`:
 `tile_mask_build` 32C1 + the 29×24 masked blit + `tile_shade` 33FD, from the
 differential-verified hook bodies) and wired it into `render_tile_passes` as
 `on_ship_row`. Result on the captured live frame:
@@ -1948,7 +1948,7 @@ the window+keyboard shell.
 
 ## 2026-07-12 (latest+14) — TILE DISPATCH PORTED + verified WRITE-FOR-WRITE (3166/3166): the native road frame renders
 
-Landed `skyroads/recovered_native/tile_dispatch.py` — the pure transcription of `2D1F`'s
+Landed `skyroads/handrecovered_native/tile_dispatch.py` — the pure transcription of `2D1F`'s
 11-row × 2-pass × 4-column road loop + all 6 tile handlers + the `31D1` strip
 skip, drawing through the promoted pure RLE pair. **Verified against the
 captured VM frame: all 3166 road-tile rasterizer writes (`3153`/`3190`)
@@ -2030,7 +2030,7 @@ table). From the captured image:
   slot`[di+8]` → SIX consecutive draws; row-above `<1` → two more.
 - **`3AC9`** = plain `ret` (types 6–15 draw nothing).
 
-Landed this turn: **`skyroads/recovered/rle_sprite.py`** — the RLE pair promoted
+Landed this turn: **`skyroads/handrecovered/rle_sprite.py`** — the RLE pair promoted
 to pure functions (from the differential-verified hook bodies), + semantics
 tests (3), lint + audit clean (34 pure files).
 
@@ -2075,7 +2075,7 @@ dispatch purely (preferred) or drive the lifted chain over a NativeGameImage.
 ## 2026-07-12 (latest+11) — render orchestrator PORTED + verified 40/40: `native/render_params.py`
 
 Ported `1010:0C98` to the pure `compute_render_params(rw, ww, offscreen)`
-(`skyroads/recovered_native/render_params.py`): sim state → the road renderer's 8 params
+(`skyroads/handrecovered_native/render_params.py`): sim state → the road renderer's 8 params
 (`[0E28..0E36]` order), the `[0E1C..0E26]` dirty-cache maintenance, the
 A000/A200 page-flip dest select, and the sprite-frame index
 `si = (row_band(af1c)*3 + pitch)*3 + 14 + wobble` (or `air/3`, capped → hidden).
@@ -2271,7 +2271,7 @@ loader just PLACES it at fixed offsets.
 `road[]@0x162C` and `palette@0x41C2` all match `roads_archive` exactly.
 
 **Implemented `native_level_load(state, level, game_root)`** in
-`skyroads/recovered_native/level_load.py` — reproduces `5614`'s DGROUP writes (memset clear
+`skyroads/handrecovered_native/level_load.py` — reproduces `5614`'s DGROUP writes (memset clear
 + road[]→0x162C + gravity/fuel/oxygen + palette), 100% VM-free, `[asm 5614]`-
 annotated. 7 tests (incl. the level-14 VM-verified placement, the memset
 stale-clear, and all-31-levels), lint + layer audit clean. This corrects the
@@ -2342,7 +2342,7 @@ sits inside `main`'s call tree — reachable and disassemblable, not overlaid.
 
 ## 2026-07-12 (latest+5) — native `level_load.py` scaffold landed; perspective-placement chain traced; write-tracing hits its limit (→ lift)
 
-- **Landed `skyroads/recovered_native/level_load.py`** (pre2-style, committed): the
+- **Landed `skyroads/handrecovered_native/level_load.py`** (pre2-style, committed): the
   FILE-DECODE half is recovered + tested VM-free — `read_game_file` (native
   file shim, no DOS) + `decode_level_files` reads/decompresses all **31/31**
   ROADS.LZS levels byte-exact via `roads_archive`. `native_level_load` FAILS
@@ -2370,7 +2370,7 @@ sits inside `main`'s call tree — reachable and disassemblable, not overlaid.
   placement, verify byte-exact. Then mirror pre2's
 `probe_native_level_load`: run the real loader to capture the post-DGROUP witness
 at the RIGHT point (the actual gameplay-start, not a stray `4B8E`), build
-`skyroads/recovered_native/level_load.py` to reproduce it, assert byte-exact.
+`skyroads/handrecovered_native/level_load.py` to reproduce it, assert byte-exact.
 
 ---
 
@@ -2664,7 +2664,7 @@ Followed the present pipeline (previous entry) one step upstream to find what
 fills `present_rect`'s source buffer, and it reframes the render picture.
 
 **`present_rect`'s source (seg `0x19a1`) is filled by `1010:0F62` =
-`stencil_blit`** — an ALREADY-recovered routine (`skyroads/recovered/blit.py`,
+`stencil_blit`** — an ALREADY-recovered routine (`skyroads/handrecovered/blit.py`,
 its VM hook in `hooks.py`). Traced it: `stencil_blit` writes to
 `ES = ds:[AF2A] = 0x19a1` and reads its source from a far-pointer arg. In
 gameplay it's called compositing several source segments (`0x221a`/`0x2232`/
@@ -2710,7 +2710,7 @@ it reads a 4-field descriptor `{srcB_seg, dest_off, rows, width}` and loops
 `0x140` (a VGA scanline) and the source cursor by `width` each row — a
 `rows x width` color-keyed rectangle flush.
 
-Ported it to `skyroads/recovered/present.py::present_rect` and verified by
+Ported it to `skyroads/handrecovered/present.py::present_rect` and verified by
 FULL-MEMORY DIFF against real `4201` row-loop invocations: **12/12 calls
 reproduce every VGA byte written, byte-exact** (the initial "mismatch" was
 purely the timer ISR's counter bytes at `0x220f0-0x2210b`, written because a
@@ -2738,7 +2738,7 @@ takes in the non-gameplay case, which is a separate, smaller follow-up.
 ## 2026-07-12 — RECOVERED the screen-present masked blit (`1010:41A0`), verified byte-exact — the presentation piece
 
 Ported `1010:41A0` (the screen present found in the prior entry) to a pure
-function `skyroads/recovered/present.py::masked_blit`, and verified it by
+function `skyroads/handrecovered/present.py::masked_blit`, and verified it by
 FULL-MEMORY DIFF against real VM calls. It's the color-keyed compositor that
 flushes a frame to the screen: a TOP band copied verbatim from a background
 buffer (source A), a MIDDLE band compositing a foreground buffer (source B —
@@ -2964,7 +2964,7 @@ The genuinely-remaining renderer item is the separate mode-1 VGA-flush pass
 native frame would drive the VGA display.
 ## 2026-07-12 — ASSEMBLED the native mode-0 render pipeline — reproduces the VM's EXACT 24-call road_column_strip sequence
 
-Composed the recovered renderer pieces into `skyroads/recovered_native/render_frame.py`
+Composed the recovered renderer pieces into `skyroads/handrecovered_native/render_frame.py`
 and verified the assembly against the VM. `mode0_column_calls(img, ds)` runs,
 over a `NativeGameImage`, the full mode-0 (off-screen composite) decision
 pipeline in `34AE`'s own order:
@@ -3044,7 +3044,7 @@ No code landed for the setup this stretch (the mode-1 ambiguity makes a clean
 `render_frame` premature) — `render_classify` was the shipped milestone.
 ## 2026-07-12 — RECOVERED the render-classification loop (render_classify), 80/80 — the classify→dispatch pipeline is now complete and VM-verified
 
-Landed the piece the previous entry spec'd: `skyroads/recovered/
+Landed the piece the previous entry spec'd: `skyroads/handrecovered/
 render_classify.py::render_classify`, the triple-nested loop inside `34AE`
 (`1010:356B-3627`) that produces the per-column dispatch inputs. Ported from
 `34AE`'s PROVEN lift (not re-derived from ASM — the exact code an earlier
@@ -3544,7 +3544,7 @@ unintegrated pieces), the user redirected toward continuing the broader
 hooking/lifting effort first, to grow real coverage before attempting a
 full native product again. This entry preserves the research (a real,
 verified, from-the-proven-lift understanding of `34AE`'s COMPLETE
-algorithm) so it's not lost — porting it to `skyroads/recovered/road_frame.py`
+algorithm) so it's not lost — porting it to `skyroads/handrecovered/road_frame.py`
 remains a concretely scoped, mostly-solved next step whenever the project
 returns to the renderer.
 
@@ -3616,7 +3616,7 @@ fuel" puzzle from two entries ago — it isn't an anomaly, it's just a flat,
 index-addressed table where multiple distinct levels legitimately share a
 `gravity` value while differing on `fuel`/`oxygen`.
 
-Landed `skyroads/recovered/roads_archive.py` (`parse_directory`,
+Landed `skyroads/handrecovered/roads_archive.py` (`parse_directory`,
 `read_level_header`, `level_count` — pure, VM-free, reads a byte string) +
 `tests/test_roads_archive.py` (the 3 real-capture matches, a directory
 self-consistency check, and a regression test locking in the "same gravity,
@@ -4013,7 +4013,7 @@ advancing to `9` on the third. Cross-referencing with the already-recovered
 mechanics: action `0xA` (`ACTION_SCROLL_RIGHT`) fires every tick while
 `ship_pos` climbs from `0` toward `LEVEL_END` (`0x2AAA`) — this is the
 AUTOMATIC forward-motion tick (`classify`'s `1B49` side-effect call,
-`skyroads/recovered/classify.py`), not a human pressing a right-arrow key in
+`skyroads/handrecovered/classify.py`), not a human pressing a right-arrow key in
 a menu. Action `0xC` (`ACTION_ENTER_LEVEL_SELECT`, sets `game_state:=2`)
 fires exactly when `ship_pos` reaches `LEVEL_END` — this is the
 LEVEL-COMPLETE trigger already documented in the "the native loop is now
@@ -4033,7 +4033,7 @@ currently no capturable data anywhere in this repo of a player actually
 navigating a level-select screen with the keyboard.
 
 **Where the real level-load code lives, and why it's not mapped yet**:
-`should_run_gameplay` (already recovered, `skyroads/recovered/orchestration.py`)
+`should_run_gameplay` (already recovered, `skyroads/handrecovered/orchestration.py`)
 documents that `game_state == 2` makes the frame handler EXIT to
 `1010:2B0B` — "the outer game loop, which then does the transition: respawn
 `201F`, menu return, or level load." `2B0B` itself is NOT recovered. An
@@ -4186,7 +4186,7 @@ drop root-caused" entry). It was already proven `ORACLE_PASSING` (401 calls
 byte-exact, then 400 further full-level-demo calls under the strict
 differential verifier, zero divergence) and installed as a live hook
 (`skyroads/lifted/lifted_1010_34ae.py` + `registry.replace(0x34AE)`) — but
-never refactored into clean `skyroads/recovered/` code (explicitly flagged as
+never refactored into clean `skyroads/handrecovered/` code (explicitly flagged as
 "the to-do" in that 2026-07-10 entry).
 
 **Reading the proven lift resolves several open questions from today's
@@ -4219,7 +4219,7 @@ renderer work in one shot**:
   `renderer.perspective_row_offset` uses, via an 8-entry shape lookup table at
   `ds:[0xBA7]`.
 
-**Attempted a clean refactor into `skyroads/recovered/road_frame.py` and
+**Attempted a clean refactor into `skyroads/handrecovered/road_frame.py` and
 deliberately backed it out.** The function has real subtlety I mis-transcribed
 twice in a row while drafting (a `cmp` at `34F8` is actually a `sub` that
 STORES its result, not a flag-only compare; the full-copy fast path is
@@ -4259,13 +4259,13 @@ this — it is NOT a quick follow-up.
 ## 2026-07-11 — road_column_strip ported to a pure function, verified by FULL MEMORY DIFF — the first real compositing primitive
 
 Ported `road_column_strip` (`1010:38BF`) from its existing VM-facing hook to a
-pure function, `skyroads/recovered/road_column.py`. Needed real physical
+pure function, `skyroads/handrecovered/road_column.py`. Needed real physical
 segment addressing (the DGROUP fields it reads — `[0E60]`/`[0E62]`/`[0E66]`/
 `[0E68]` — are real DOS segment NUMBERS pointing at other parts of the address
 space: display lists, source bitmap, screen), so added
-`skyroads/recovered_native/image.py::NativeGameImage`, a SEPARATE, purely additive class
+`skyroads/handrecovered_native/image.py::NativeGameImage`, a SEPARATE, purely additive class
 holding the full 1 MB real-mode image (the existing
-`skyroads.recovered_native.state.NativeGameState` stays DGROUP-only — zero risk to the
+`skyroads.handrecovered_native.state.NativeGameState` stays DGROUP-only — zero risk to the
 300+ tests depending on it).
 
 **Verification here is qualitatively different from every prior recovery**:
@@ -4296,7 +4296,7 @@ touched-address set per case (determined by instrumenting the pure function
 itself) to keep the fixture a reasonable size while remaining fully
 reproducible. `tests/test_road_column.py` + `tests/test_native_image.py`.
 
-This is the first ACTUAL pixel-compositing code in `skyroads/recovered/` —
+This is the first ACTUAL pixel-compositing code in `skyroads/handrecovered/` —
 everything before it (dispatch variants, classification, physics) decided
 game STATE; this one writes real screen bytes. Combined with the dispatch
 variants (previous entry), the renderer now has: which columns to draw
@@ -4334,7 +4334,7 @@ kept per variant, ALL matching exactly) rather than leave a fuzzy pass rate in
 the test suite. Added `test_fixtures_exclude_the_known_anomaly` asserting the
 exclusion holds, so this can't quietly regress into hiding a real bug later.
 
-Landed `skyroads/recovered/render_dispatch.py` (`dispatch_variant_a`/`_b`,
+Landed `skyroads/handrecovered/render_dispatch.py` (`dispatch_variant_a`/`_b`,
 pure functions returning the ordered `ax` call list) + `tests/
 test_render_dispatch.py` (101 distinct real field-snapshots per variant, plus
 synthetic edge-case tests for the six-record volley).
@@ -4353,7 +4353,7 @@ consumer to verify it against; (3) the display-list BUILDER that populates
 ## 2026-07-11 — FULL VMLESS NATIVE GAMEPLAY: a standalone driver plays the whole demo, purely natively
 
 The `/goal` target: a complete, self-contained gameplay simulation loop that
-never needs the VM. Built `skyroads.recovered_native.loop.NativeGameplayDriver`, which
+never needs the VM. Built `skyroads.handrecovered_native.loop.NativeGameplayDriver`, which
 composes `native_gameplay_substep` (one verified sub-step) with
 `apply_level_init` (the recovered per-level/respawn init) so the loop runs
 THROUGH transition boundaries — level-complete, wall-crash, timer-expired,
@@ -4395,7 +4395,7 @@ Recovered the per-level init the frame handler runs on entry (`1010:1FD9-206C`)
 — it's the fixed `respawn()` field reset PLUS a per-level gravity computation I'd
 missed: `ds:[54AA] = -((jump_level_gate * 0x1680) / 0x190)` (`level_gravity`,
 verified vs the ASM: gate 8 -> 0xFF8D, 9 -> 0xFF7F). Landed
-`skyroads.recovered_native.loop.apply_level_init(view, jump_level_gate)` — the transition
+`skyroads.handrecovered_native.loop.apply_level_init(view, jump_level_gate)` — the transition
 primitive a driver runs at the start of each level / after a respawn (writes the
 reset fields + the derived gravity, returns a fresh `GameplayScratch`).
 
@@ -4541,7 +4541,7 @@ out-of-bounds death check (`23CA-2421`), and the `1DFA` effect.
 The convergence step. With the whole physics/collision sub-step recovered as
 individual VM-verified islands, composed them — in confirmed ASM spine order,
 over a session-persistent `GameplayScratch` — into a single running native
-stepper: `skyroads/recovered_native/loop.py::native_gameplay_substep(view, scratch)`.
+stepper: `skyroads/handrecovered_native/loop.py::native_gameplay_substep(view, scratch)`.
 
 Spine (empirically traced, `game_state == 0` active gameplay):
 
@@ -4692,7 +4692,7 @@ movement target's `[5496]` input is now itself recovered).
 The scan probes `road_object_visible` (`1732`) at `af1c ± k*128` for `k = 1..14`,
 finds the first UNBLOCKED cell above and below the ship, nets that into `{-1, 0,
 +1}`, and moves `[5496]` by `net * 17` (or zeroes it when net is 0). Recovered as
-`skyroads/recovered/collision_response.py::vertical_center_nudge` (pure, takes
+`skyroads/handrecovered/collision_response.py::vertical_center_nudge` (pure, takes
 the same `visible` predicate `resolve_move` uses), **verified 314/314** real
 E2E scans byte-exact — every probe computed through
 `renderer.road_object_visible` bound to the frame's real DGROUP tables. Landed
@@ -4710,7 +4710,7 @@ adjusts `ship_pos` by `[AF2E]`).
 
 Went into the post-move tail (`26E9-2B0B`) and recovered its state-machine end,
 `1010:2A35-2AE2` — the level timers and `ds:[456E]` game-state transitions that
-end or resume a level. Landed as `skyroads/recovered/progression.py::
+end or resume a level. Landed as `skyroads/handrecovered/progression.py::
 step_level_progression`, **verified 682/682** real E2E sub-steps byte-exact on
 `(game_state, level_timer_a, level_timer_b, frame_ctr)`, including the demo's
 real `0->3` resume transitions.
@@ -4763,8 +4763,8 @@ word `bp-20`, then:
   and set `bp-20 = bp-20>>4` if `af2c` matches else 0), make a side-effect
   `1B49` call, then `bp-14 = (bp-20 & 0xF == 8)`, `bp-16 = (bp-20 & 0xF == 2)`.
 
-Recovered as `skyroads/recovered/classify.py::classify_perspective` (pure, takes
-the perspective word + a table reader) + `skyroads/recovered_native/classify.py::classify_ship`
+Recovered as `skyroads/handrecovered/classify.py::classify_perspective` (pure, takes
+the perspective word + a table reader) + `skyroads/handrecovered_native/classify.py::classify_ship`
 (binds `perspective_row_offset` + DGROUP reads, like `collision.make_visible`).
 **Verified 682/682** real E2E frames byte-exact on `(bp-14, bp-16, bp-18)`,
 computing the perspective word natively. Landed `tests/test_classify.py` (6
@@ -4804,7 +4804,7 @@ unrecovered gap is right here: `2570-25A9` fires the up-impulse
 (`bounce := 0x480`), latches `bp-8 := 1`, and records the jump-start height
 `bp-10 := af2c`, gated by `bp-8==0 && bp-18==0 && [547A]!=0 && [4562]<0x14`.
 
-Recovered the block as `skyroads/recovered/dynamics.py::step_jump_steer_gravity`,
+Recovered the block as `skyroads/handrecovered/dynamics.py::step_jump_steer_gravity`,
 operating on a small session-persistent `JumpScratch` (`bp-6`/`bp-8`/`bp-10`)
 plus two per-frame classification flags (`bp-14`/`bp-18`) and DGROUP scalars.
 It covers three things the earlier naive functions couldn't gate correctly:
@@ -4861,14 +4861,14 @@ irrelevant there and the fixture-builder's "try 0 first" recorded 0. Held
 `lateral_accel` nonzero, only `0x0618` matches (58/58). The alternate `0` needs
 the `af2c > 0x2800` + `ds:[0x228]`-table-match path (`1010:2340-23BF`), which
 never fired in the demo — a real but UNEXERCISED branch, not a gap. Corrected
-`skyroads/recovered/physics.py` (default `af1c_base_offset=0x0618`, docstring
+`skyroads/handrecovered/physics.py` (default `af1c_base_offset=0x0618`, docstring
 rewritten), re-patched the fixture, updated `tests/test_physics.py`. This
 retires the "open selector" caveat from all three earlier places it appeared.
 
 **2. The lateral/vertical movement MATH is complete — the whole pipeline
 reproduces the VM 300/300.** Composed the two already-ASM_MATCHED halves —
 `compute_movement_targets` (`2635-26E6`) → `resolve_move` (`186B`) — with the
-`skyroads/recovered_native/collision.make_visible` predicate bound to a `NativeGameState`'s
+`skyroads/handrecovered_native/collision.make_visible` predicate bound to a `NativeGameState`'s
 DGROUP tables, and diffed the result against the real VM's post-move
 `(lateral, af1c, af2c)` captured at `26E9`. **300/300 exact, 39 with real
 steering.** Landed as `tests/test_native_movement_pipeline.py` (live-oracle,
@@ -4964,7 +4964,7 @@ or `ss:[bp-20]`'s value at this point in the ASM isn't what
 `1010:2324-2336`'s disassembly suggested. Ruling this out so a future attempt
 doesn't re-derive the same dead end — the only currently-known signal for
 `af1c_base_offset` remains the empirical `lateral_accel != 0` correlation
-already documented in `skyroads/recovered/physics.py`'s docstring (682/682
+already documented in `skyroads/handrecovered/physics.py`'s docstring (682/682
 in this demo, structurally unconfirmed).
 
 ## 2026-07-11 — CONFIRMED: the jump-latch locals are session-persistent, not per-frame (architecture, not just a hypothesis anymore)
@@ -5002,7 +5002,7 @@ exact ASM instruction doing the reset write wasn't located (checked
 `resolve_move` returns — not there; the reset write is elsewhere, not yet
 found).
 
-**Implication for skyroads.recovered_native**: confirms the gaps.py architecture note
+**Implication for skyroads.handrecovered_native**: confirms the gaps.py architecture note
 was right, not just plausible. `native_gameplay_frame` cannot model bp-8/
 bp-10/bp-14/bp-16/bp-18 as either DGROUP fields (they aren't) or per-call
 locals (they don't reset per call) — it needs a companion session-scoped
@@ -5061,13 +5061,13 @@ flag) is traced but not implemented. Empirically, `af1c_base_offset ==
 in all 624 others — a clean, perfect correlation in this demo, but the two
 conditions are structurally independent circuits in the ASM, so it may be
 coincidental to this demo rather than the true rule. Landed as
-`skyroads/recovered/physics.py::compute_movement_targets`, requiring the
+`skyroads/handrecovered/physics.py::compute_movement_targets`, requiring the
 caller to supply `af1c_base_offset` explicitly rather than defaulting to the
 correlation (tests: `tests/test_physics.py`, fixture
 `tests/fixtures/movement_target_trace.json`, 98 samples: all 58 real-steering
 ones + a spread of 40 non-steering).
 
-**Not wired into `skyroads/recovered_native/loop.py` yet** — `MovementPhysicsGap`
+**Not wired into `skyroads/handrecovered_native/loop.py` yet** — `MovementPhysicsGap`
 still fires unconditionally. Closing it for real needs: (1) the
 `af1c_base_offset` selector properly implemented (not the correlation
 heuristic), (2) `lateral_accel` (`ds:[4568]`)'s own write-gate
@@ -5081,7 +5081,7 @@ whole per-frame handler (`1010:2280-2B0B`) is actually one continuous
 execution context looping internally (via `jmp`, not `call`/`ret`) across
 displayed frames — the tick-wait spin `skyroads/pacing.py` already parks at
 `1010:22F8` sits INSIDE this same block, consistent with that theory. If
-true, `skyroads.recovered_native`'s per-frame steppers need a companion session-scoped
+true, `skyroads.handrecovered_native`'s per-frame steppers need a companion session-scoped
 scratch object alongside `GameView` (mirroring pre2_port's non-memory
 `NativeGameState.__slots__` side channels: `sfx_queue`, `particle_capture`,
 etc.) to hold these latches across `native_gameplay_frame` calls — not
@@ -5094,7 +5094,7 @@ Started wiring "the entire game loop towards native vmless game" (the
 pre2_port endgame model, see `vmless_roadmap.md`). Landed the state-mirror
 plumbing and two frame steppers over it:
 
-- `skyroads/recovered_native/state.py::NativeGameState` — the game's DGROUP owned as a
+- `skyroads/handrecovered_native/state.py::NativeGameState` — the game's DGROUP owned as a
   plain 64 KB `bytearray` (no VM), with `from_vm(rt)` seeding. Smaller than
   pre2's 1 MB image on purpose: every SkyRoads island recovered so far only
   touches DGROUP.
@@ -5102,14 +5102,14 @@ plumbing and two frame steppers over it:
   for `oracle_link`) so `skyroads/bridge/dgroup_view.py::GameView` can use
   the shared `dos_re.state_view` backend/descriptor machinery (promoted from
   pre2_port) without a direct `dos_re` import — keeps skyroads/bridge under
-  the same pitfall-#17 bar as skyroads/recovered. `GameView` names every
+  the same pitfall-#17 bar as skyroads/handrecovered. `GameView` names every
   DGROUP field the current islands touch (ship_pos, lateral, speed, bounce,
   af1c/af2c, game_state, entered/grounded (the same offset, two names for two
   modes), the timers, the keyboard row) as one dword/word property per field,
   reading raw (unsigned) words — the recovered functions each sign-extend
   their own inputs, so a view field must hand them the raw word, not an
   already-Python-signed one, or a function like `decay_bounce` double-converts.
-- `skyroads/recovered_native/collision.py::make_visible` — wires
+- `skyroads/handrecovered_native/collision.py::make_visible` — wires
   `renderer.road_object_visible`/`perspective_row_offset`/`road_segment_clip`
   into the `visible(lateral32, depth, screen_y)` callback
   `movement.resolve_move` needs, mirroring `hooks.py`'s `_persp_exit`/
@@ -5117,14 +5117,14 @@ plumbing and two frame steppers over it:
   an independent reimplementation of the same wiring over 500 random table/
   probe samples (`tests/test_native_collision.py`) — not yet CALLED from the
   gameplay stepper (see below).
-- `skyroads/recovered_native/loop.py::native_menu_frame` — complete, gap-free: every
+- `skyroads/handrecovered_native/loop.py::native_menu_frame` — complete, gap-free: every
   transition `dispatch_menu_action` needs is recovered. Verified against 4
   real E2E-demo frames where the ASM's own dispatch was confirmed a no-op
   (menu.py's "heartbeat" case) — the action code itself isn't observable
   without a dedicated capture hook, so only no-op frames are valid samples.
-- `skyroads/recovered_native/loop.py::native_gameplay_frame` — commits forward motion
+- `skyroads/handrecovered_native/loop.py::native_gameplay_frame` — commits forward motion
   (`advance_ship`) unconditionally (real-demo-proven, 0 mismatches), then
-  raises a typed gap (`skyroads/recovered_native/gaps.py`) the instant it needs
+  raises a typed gap (`skyroads/handrecovered_native/gaps.py`) the instant it needs
   something not safe to compute: `JumpGateGap` if a jump is held (the
   impulse latch isn't recovered), `MovementPhysicsGap` for the lateral/
   vertical movement-target block (`1010:2560-26E9`, mapped but not recovered
@@ -5172,7 +5172,7 @@ vaguely "game logic, none recovered yet". Tests: `tests/test_native_state.py`,
 `tests/test_native_collision.py`, `tests/test_native_loop.py` (synthetic,
 no demo needed), `tests/test_native_loop_integration.py` (real E2E demo,
 skips if assets/demo are absent), `tests/test_layer_audit.py` (wires
-`tools/audit_layers.py` into the suite for skyroads/recovered + native +
+`tools/audit_layers.py` into the suite for skyroads/handrecovered + native +
 bridge, pitfall #17).
 
 ## 2026-07-11 — recovered + wired the intro animation-frame unpacker (1010:3A96), lift-first, one more real bug caught
@@ -5208,7 +5208,7 @@ that reads the whole 3-byte prefix before writing any of it does not.
 Confirmed by tracing all 1040 row-boundary `(si, di)` pairs against real
 hardware — they matched exactly once the instruction ordering was fixed.
 
-Recovered as `skyroads/recovered/intro_anim.py::unpack_animation_segment`
+Recovered as `skyroads/handrecovered/intro_anim.py::unpack_animation_segment`
 (operating through `rb`/`wb` callbacks, not an isolated buffer copy — table
 segments are less than 64K apart in real memory and physically overlap, so
 writes must land on live memory to behave like real hardware regardless of
@@ -5251,7 +5251,7 @@ The key discovery: **`ds:[54AC:54AE]` — the same field `advance_ship` calls
 gameplay. Confirmed directly: `54AC` increased by exactly `0x12F` (303) per
 scroll-right call, tracked across 100+ consecutive samples.
 
-Recovered as `skyroads/recovered/menu.py::dispatch_menu_action` (clean rule,
+Recovered as `skyroads/handrecovered/menu.py::dispatch_menu_action` (clean rule,
 sampled verification — this is UI-tier code, not performance-hot, so no live
 VM hook). **ASM_MATCHED: 318/318 real E2E-demo calls byte-exact**, across
 every action code the demo actually exercises (`0`, `1`, `3` — all no-op/
@@ -5334,7 +5334,7 @@ the function never touches, an easy miss (the same class of mistake the
 (`inc bx; jz`) runs unconditionally on every byte, independent of the count
 check that follows it.
 
-Recovered as `skyroads/recovered/relocate.py::patch_nonzero_bytes(source,
+Recovered as `skyroads/handrecovered/relocate.py::patch_nonzero_bytes(source,
 delta) -> bytes` (a DOS relocation-fixup pattern: `0` is a "leave alone"
 sentinel, everything else gets `delta` added mod 256) plus
 `skyroads/hooks.py::buffer_relocate_hook`, which ports the lift's proven
@@ -5368,7 +5368,7 @@ much slower full-gameplay strict verifier.
 
 Picked up perf cause #1 from the diagnosis below: the un-hooked menu text/glyph
 rendering primitive at `1010:0F62`. Recovered as
-`skyroads/recovered/blit.py::stencil_blit(source, template_color,
+`skyroads/handrecovered/blit.py::stencil_blit(source, template_color,
 other_color) -> bytes`: a pure 3-value stencil remap (`0->0, 1->template_color,
 else->other_color`), the low-level primitive behind menu font/glyph drawing.
 No port I/O (unlike the music engine), so — unlike that hook, which got
@@ -5560,7 +5560,7 @@ Guarded by `tests/test_player.py` (respawn + resume-gate cases). 174 tests pass.
 ## 2026-07-10 — sound/music island COMPLETE (OPL music engine recovered + verified)
 
 Recovered the whole AdLib/OPL music engine into
-`skyroads/recovered/music.py::Engine.run_tick` — a pure, VM-free song-bytecode
+`skyroads/handrecovered/music.py::Engine.run_tick` — a pure, VM-free song-bytecode
 interpreter (all 8 opcodes incl. the intricate note/instrument/pitch/volume
 register math). **Verified byte-exact**: its OPL register-write stream matches
 the ASM over **all 12,882 cold-sound-demo ticks (intro + menu), zero
@@ -5621,7 +5621,7 @@ is done; the byte-exact build is the well-defined next step.
 With the user's **deaths demo** (`demo_skyroads_20260710_213019` — 29 jump-frames,
 3 jump impulses, states 0/1/3), recovered the jump+gravity stage of the vertical
 velocity `ds:[9336]` update (`2582-2635`) as
-`skyroads/recovered/player.py::update_vertical_velocity`, **ASM_MATCHED 238/238
+`skyroads/handrecovered/player.py::update_vertical_velocity`, **ASM_MATCHED 238/238
 deaths-demo frames byte-exact** (incl. the 3 jump frames). Per frame, after
 `decay_bounce`: jump fires `[9336]:=0x480` (`2596`), then airborne
 (`[456A]==0`) `[AF2C]>=0x2800` adds gravity `[54AA]` (`25F0`). Guarded by
@@ -5654,7 +5654,7 @@ track at `ds:0x961E`, indexed by `lateral_pos / 0x666`, unpacking speed/steer/
 jump from bitfields). Live play is the keyboard case (`0758`); the whole demo
 runs `95F6==0`.
 
-Recovered the keyboard case as `skyroads/recovered/controls.py::decode_keyboard`
+Recovered the keyboard case as `skyroads/handrecovered/controls.py::decode_keyboard`
 — **ASM_MATCHED, 1466/1466 full-demo `074C` calls byte-exact** (497 with keys
 held). It reads the per-key row the timer ISR maintains at `ds:0x0BD0` (bit 7 =
 held) and folds nine keys (an 8-direction pad + jump) into three axes:
@@ -5763,7 +5763,7 @@ outright (`No module named 'tests.test_*'`). Pinned `testpaths=["tests"]` +
 
 ## 2026-07-10 — physics recovery verified full-demo + a negative-speed bug fixed
 
-Brought the recovered ship physics (`skyroads/recovered/player.py`) up to the
+Brought the recovered ship physics (`skyroads/handrecovered/player.py`) up to the
 movement-island standard: captured real `advance_ship` (`24C4`) and
 `decay_bounce` (`24A1`) I/O by watching those inline IPs over the whole demo and
 verified `player.py` reproduces every sample byte-exact — **1610/1610
@@ -5827,7 +5827,7 @@ differential verifier is authoritative. All 159 port tests pass with `186B`
 installed.
 
 **Now refactored into a clean recovered island** (metrics-honesty debt paid):
-`skyroads/recovered/movement.py::resolve_move` is the swept movement+collision
+`skyroads/handrecovered/movement.py::resolve_move` is the swept movement+collision
 solver as pure, VM-free Python + `@oracle_link` — the native-port destination
 (roadmap gap #1, movement/collision logic). Verified `ASM_MATCHED` **1760/1760
 full-demo calls** by a *predicate-oracle* method: replay the exact `1732` results
@@ -5935,7 +5935,7 @@ Honesty notes:
   The real perf win needs the hot `356B` loop **refactored into efficient
   Python** (as `38BF`/`325B` were), and/or PyPy JIT-compiling the lift. The
   install is correct scaffolding; the refactor into a clean
-  `skyroads/recovered/` island (metrics-honesty rule) is the to-do.
+  `skyroads/handrecovered/` island (metrics-honesty rule) is the to-do.
 - A cautionary self-note: a first verification of the lift falsely "diverged"
   — the ad-hoc harness had installed the `1732` hook function at address
   `0x34AE` (a sed slip). Always verify the ACTUAL lifted function; `liftverify`
@@ -5952,7 +5952,7 @@ hand. Workflow, end to end:
    byte-exact** against the interpreted original (this also drove the new
    `--timer-irqs` option: a plain forward run never fires the ISR).
 2. The mechanical lift was refactored into the port's pure-rule + thin-adapter
-   shape: `skyroads/recovered/timer_isr.py::advance_music_timer` (VM-free, the
+   shape: `skyroads/handrecovered/timer_isr.py::advance_music_timer` (VM-free, the
    prescaler/song/PIT-divisor decision, `@oracle_link ASM_MATCHED`) plus
    `skyroads/hooks.py::master_timer_isr` (the pusha/popa/iret frame, the
    sound-engine call, the PIT/PIC port writes).
@@ -6024,13 +6024,13 @@ main loop (~22xx)
 ```
 
 **The renderer-island plan.** Goal: a clean, VM-agnostic recovered renderer
-(a `skyroads/recovered/renderer.py` module) that, given game state, produces
+(a `skyroads/handrecovered/renderer.py` module) that, given game state, produces
 the exact framebuffer the ASM does — wired in behind ONE thin hook at the
 render root, verified whole against the oracle. Bottom-up, the leaf + math
 layers are DONE. Remaining, in dependency order:
 1. **`04C0` fixed-point perspective transform** — the keystone; every render
    path calls it, and it now depends only on the already-hooked long-arithmetic.
-   DONE (2026-07-09): recovered as `skyroads/recovered/renderer.py::
+   DONE (2026-07-09): recovered as `skyroads/handrecovered/renderer.py::
    perspective_row_offset`, wired via a thin `perspective_transform` hook,
    VERIFIED byte-exact over all 34,786 in-game calls. First recovered-code
    layer of the island. (The recovery corrected a decode error — the third

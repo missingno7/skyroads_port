@@ -1,5 +1,5 @@
 """Verify the recovered jump-latch + steering + gravity block
-(skyroads.recovered.dynamics.step_jump_steer_gravity) against real ASM I/O
+(skyroads.handrecovered.dynamics.step_jump_steer_gravity) against real ASM I/O
 captured over the full E2E demo (1010:252B-2635).
 
 415/416 real frames match byte-exact on (bounce, lateral_accel, bp-8, bp-10);
@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.dynamics import JumpScratch, step_jump_steer_gravity
+from skyroads.handrecovered.dynamics import JumpScratch, step_jump_steer_gravity
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "dynamics_trace.json").read_text())
 

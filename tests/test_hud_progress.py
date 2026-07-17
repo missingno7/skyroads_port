@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.recovered_native.hud import progress_target_col
+from skyroads.handrecovered_native.hud import progress_target_col
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
@@ -37,7 +37,7 @@ def test_progress_target_col_matches_the_vm_formula() -> None:
 def test_level_length_is_road_rows() -> None:
     """[41C0] = decompressed road length // 14 (7-UINT16 rows) -- the VM's 5614
     return; the demo level's 770-byte road gives 55."""
-    from skyroads.recovered_native.level_load import _ROAD_ROW_BYTES
+    from skyroads.handrecovered_native.level_load import _ROAD_ROW_BYTES
     assert 770 // _ROAD_ROW_BYTES == 55
 
 
@@ -52,9 +52,9 @@ def test_progress_bar_draw_is_byte_exact_vs_vm() -> None:
     from dos_re.dos import ConsoleInputWouldBlock
     from dos_re.input_demo import InputDemoPlayback
     from dos_re.player import _use_real_console_input
-    from skyroads.recovered_native.image import NativeGameImage
-    from skyroads.recovered_native.state import DATA_SEG
-    from skyroads.recovered_native.hud import update_progress_bar, PROGRESS_SRC, PROGRESS_LEN
+    from skyroads.handrecovered_native.image import NativeGameImage
+    from skyroads.handrecovered_native.state import DATA_SEG
+    from skyroads.handrecovered_native.hud import update_progress_bar, PROGRESS_SRC, PROGRESS_LEN
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(["--play-demo", str(DEMO), "--headless"])

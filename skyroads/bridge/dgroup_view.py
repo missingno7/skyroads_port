@@ -3,11 +3,11 @@
 See docs/state_mirrors.md and dos_re/docs/state_mirrors.md (the shared
 machinery this instantiates: ``dos_re.state_view``, promoted from
 pre2_port's ``pre2/bridge/dgroup_view.py``). Recovered logic
-(skyroads/recovered/*) and the native frame stepper (skyroads/recovered_native/*)
+(skyroads/handrecovered/*) and the native frame stepper (skyroads/handrecovered_native/*)
 operate on ``GameView`` fields (``view.ship_pos``, ``view.game_state``) and
 never see a DGROUP offset; THIS module is the only place those offsets are
 written down for skyroads. The same view can run over EITHER a
-``NativeGameState`` (skyroads.recovered_native.state, whose ``.data`` is already just
+``NativeGameState`` (skyroads.handrecovered_native.state, whose ``.data`` is already just
 the 64 KB DGROUP -- pass ``base=0``, the default) or a live VM ``mem``
 (whose ``.data`` is the full 1 MB real-mode image -- pass
 ``base=ds_segment << 4``); ``coerce_backend`` wraps either in a
@@ -16,7 +16,7 @@ is a parameter here, not a module constant -- skyroads' native image has no
 other segments (yet) to offset against.
 
 Field offsets are taken directly from the ``@oracle_link`` docstrings in
-skyroads/recovered/player.py, movement.py, controls.py and menu.py -- see
+skyroads/handrecovered/player.py, movement.py, controls.py and menu.py -- see
 those modules for the verification status of each field's *consumer*, not
 just its address.
 """
@@ -27,7 +27,7 @@ from skyroads.state_view import U16, StructView, coerce_backend
 
 class _KeyRow:
     """Adapts a backend to ``Sequence[int]`` indexed by ABSOLUTE DGROUP offset
-    (``key_row[0x0BD2]``), matching skyroads.recovered.controls.decode_keyboard's
+    (``key_row[0x0BD2]``), matching skyroads.handrecovered.controls.decode_keyboard's
     signature -- it indexes by the raw offsets it documents, not a 0-based array."""
 
     __slots__ = ("_backend",)
@@ -96,7 +96,7 @@ class GameView(StructView):
     @property
     def rw(self):
         """The backend's DGROUP word-reader, for the collision/classify predicates
-        (``skyroads.recovered_native.collision.make_visible`` / ``classify.classify_ship``)."""
+        (``skyroads.handrecovered_native.collision.make_visible`` / ``classify.classify_ship``)."""
         return self._backend.rw
 
     # -- 32-bit fields: state_view has no U32 descriptor (dos_re/state_view.py), so these are

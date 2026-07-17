@@ -1,4 +1,4 @@
-"""Verify skyroads.recovered.roads_archive against the real ROADS.LZS asset.
+"""Verify skyroads.handrecovered.roads_archive against the real ROADS.LZS asset.
 
 3/3 real live-VM-captured (gravity, fuel, oxygen) triples matched exactly --
 see the module docstring and docs/skyroads/run_status.md for how these three
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.recovered.roads_archive import (
+from skyroads.handrecovered.roads_archive import (
     LEVEL_HEADER_LEN,
     LevelHeader,
     level_count,

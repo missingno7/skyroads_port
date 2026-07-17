@@ -1,7 +1,7 @@
 """Native music playback via REAL Nuked-OPL3 emulation (`pynuked_opl3`),
 zero VM.
 
-`skyroads.recovered.music.Engine.run_tick()` already returns the EXACT
+`skyroads.handrecovered.music.Engine.run_tick()` already returns the EXACT
 `(register, value)` OPL writes the real ASM would emit that tick (VERIFIED
 byte-exact, 12,882 ticks — see `music.py`'s docstring). This class feeds
 those writes DIRECTLY into a real Nuked-OPL3 chip instance, skipping
@@ -21,7 +21,7 @@ CPython, and the wall-clock-sized fix) is the exact algorithm
 ``skyroads.audio.sink.SkyroadsAudioSink.pump`` already uses and documents at
 length; this class is that same algorithm minus the VM-bound Sound-Blaster/
 PC-speaker pieces (native SFX play as one-shot `pygame.Sound`s elsewhere --
-see ``skyroads/recovered_native/sfx.py`` -- not through this continuous OPL channel).
+see ``skyroads/handrecovered_native/sfx.py`` -- not through this continuous OPL channel).
 """
 from __future__ import annotations
 

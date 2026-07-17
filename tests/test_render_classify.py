@@ -1,4 +1,4 @@
-"""Verify skyroads.recovered.render_classify against a real 34AE render pass.
+"""Verify skyroads.handrecovered.render_classify against a real 34AE render pass.
 
 Ground truth: one full 34AE render invocation (variant A, record_base 0x16B8)
 captured from demo_e2e_20260710_132930 -- 80 dispatch calls (= 10 outer x 4
@@ -10,8 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.render_classify import ColumnClass, render_classify
-from skyroads.recovered.render_dispatch import dispatch_variant_a
+from skyroads.handrecovered.render_classify import ColumnClass, render_classify
+from skyroads.handrecovered.render_dispatch import dispatch_variant_a
 
 _FX = json.loads((Path(__file__).parent / "fixtures" / "render_classify_trace.json").read_text())
 

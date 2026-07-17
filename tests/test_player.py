@@ -1,4 +1,4 @@
-"""Verify the recovered ship physics (skyroads.recovered.player) against real
+"""Verify the recovered ship physics (skyroads.handrecovered.player) against real
 ASM I/O captured over the level demo.
 
 ``advance_ship`` (1010:24C4) and ``decay_bounce`` (1010:24A1) are inline in the
@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.player import (
+from skyroads.handrecovered.player import (
     JUMP_IMPULSE, RESUME_HEIGHT_GATE, TERMINAL_VVEL, RespawnState, advance_ship,
     decay_bounce, is_landed_for_resume, level_gravity, respawn,
     update_vertical_velocity,

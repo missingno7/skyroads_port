@@ -1,4 +1,4 @@
-"""Verify skyroads.recovered.present.masked_blit against real 1010:41A0 calls.
+"""Verify skyroads.handrecovered.present.masked_blit against real 1010:41A0 calls.
 
 The screen-present masked blit (the routine that flushes composited frames to
 VGA -- see run_status.md's "FOUND the real screen present" entry). Verified by
@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.present import masked_blit
+from skyroads.handrecovered.present import masked_blit
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "present_masked_blit_trace.json").read_text())
 

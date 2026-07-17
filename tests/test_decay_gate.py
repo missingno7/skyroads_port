@@ -1,5 +1,5 @@
 """Verify the recovered bounce-decay gate
-(skyroads.recovered.dynamics.gate_bounce_decay) against real ASM I/O captured
+(skyroads.handrecovered.dynamics.gate_bounce_decay) against real ASM I/O captured
 over the full E2E demo (1010:2421-24BA).
 
 682/682 real frames matched byte-exact on ds:[9336]; the fixture keeps a spread
@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.dynamics import BOUNCE_KILL_MUL, gate_bounce_decay
-from skyroads.recovered.player import decay_bounce
+from skyroads.handrecovered.dynamics import BOUNCE_KILL_MUL, gate_bounce_decay
+from skyroads.handrecovered.player import decay_bounce
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "decay_gate_trace.json").read_text())
 

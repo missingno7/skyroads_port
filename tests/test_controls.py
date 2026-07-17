@@ -1,4 +1,4 @@
-"""Verify the recovered keyboard control decode (skyroads.recovered.controls)
+"""Verify the recovered keyboard control decode (skyroads.handrecovered.controls)
 against real ASM I/O captured over the level demo.
 
 Fixture: unique (key-state row -> speed/steer/jump) samples recorded at every
@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.controls import Controls, decode_keyboard
+from skyroads.handrecovered.controls import Controls, decode_keyboard
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "controls_trace.json"
 _CASES = json.loads(_FIXTURE.read_text())["decode_keyboard"]
@@ -34,7 +34,7 @@ def test_decode_keyboard_matches_asm() -> None:
 
 
 def test_decode_keyboard_axes_and_diagonals() -> None:
-    from skyroads.recovered.controls import (
+    from skyroads.handrecovered.controls import (
         K_UP, K_DOWN, K_LEFT, K_RIGHT, K_UPRIGHT, K_DOWNLEFT, K_JUMP, KEY_DOWN_BIT,
     )
     down = KEY_DOWN_BIT

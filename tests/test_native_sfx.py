@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.recovered_native.sfx import EFFECT_COUNT, load_sfx_bank
+from skyroads.handrecovered_native.sfx import EFFECT_COUNT, load_sfx_bank
 
 ROOT = Path(__file__).resolve().parents[1]
 SFX_SND = ROOT / "assets" / "SFX.SND"
@@ -41,9 +41,9 @@ def test_jump_landing_emits_sfx_1_with_debounce():
     if not snap.exists():
         pytest.skip("baseline snapshot not present")
     from skyroads.bridge.dgroup_view import GameView
-    from skyroads.recovered_native.level_load import native_level_load
-    from skyroads.recovered_native.loop import NativeGameplayDriver, apply_level_init
-    from skyroads.recovered_native.state import DATA_SEG, NativeGameState
+    from skyroads.handrecovered_native.level_load import native_level_load
+    from skyroads.handrecovered_native.loop import NativeGameplayDriver, apply_level_init
+    from skyroads.handrecovered_native.state import DATA_SEG, NativeGameState
 
     data = bytearray(snap.read_bytes())
     dgb = DATA_SEG << 4
@@ -98,11 +98,11 @@ def test_slow_wall_crash_emits_no_thud():
     from dos_re.player import _use_real_console_input
 
     from skyroads.bridge.dgroup_view import GameView
-    from skyroads.recovered_native.gaps import SkyroadsGap
-    from skyroads.recovered_native.loop import GameplayScratch, native_gameplay_substep
-    from skyroads.recovered_native.sfx import SFX_TOUCHDOWN
-    from skyroads.recovered_native.state import NativeGameState
-    from skyroads.recovered.dynamics import JumpScratch
+    from skyroads.handrecovered_native.gaps import SkyroadsGap
+    from skyroads.handrecovered_native.loop import GameplayScratch, native_gameplay_substep
+    from skyroads.handrecovered_native.sfx import SFX_TOUCHDOWN
+    from skyroads.handrecovered_native.state import NativeGameState
+    from skyroads.handrecovered.dynamics import JumpScratch
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
@@ -187,9 +187,9 @@ def test_sfx_callback_absence_is_pure():
     if not snap.exists():
         pytest.skip("baseline snapshot not present")
     from skyroads.bridge.dgroup_view import GameView
-    from skyroads.recovered_native.level_load import native_level_load
-    from skyroads.recovered_native.loop import NativeGameplayDriver, apply_level_init
-    from skyroads.recovered_native.state import DATA_SEG, NativeGameState
+    from skyroads.handrecovered_native.level_load import native_level_load
+    from skyroads.handrecovered_native.loop import NativeGameplayDriver, apply_level_init
+    from skyroads.handrecovered_native.state import DATA_SEG, NativeGameState
 
     def run(on_sfx):
         data = bytearray(snap.read_bytes())

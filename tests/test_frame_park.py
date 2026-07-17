@@ -30,7 +30,7 @@ FRAMES = 24
 SPF = 30_000
 IRQS = 6
 
-# ds:DGROUP game-state fields the port has named (see skyroads/recovered/player.py)
+# ds:DGROUP game-state fields the port has named (see skyroads/handrecovered/player.py)
 _STATE_FIELDS = {
     "ship_pos_lo": 0x54AC, "ship_pos_hi": 0x54AE, "speed": 0x9330,
     "bounce": 0x9336, "view_y_base": 0xAF2C, "game_state": 0x456E,

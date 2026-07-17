@@ -107,7 +107,7 @@ init, not just any entry to `58A5`.
 
 ## Status: COMPLETE ✅
 
-Both pieces recovered as `skyroads/recovered/music.py::Engine` — clean VM-free
+Both pieces recovered as `skyroads/handrecovered/music.py::Engine` — clean VM-free
 Python operating on (song stream, tables, state) via two DGROUP readers:
 
 - **`run_tick()`** — verified byte-exact over all **12,882 cold-sound-demo

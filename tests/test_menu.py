@@ -1,23 +1,23 @@
 """Verify the recovered level-select action dispatcher
-(skyroads.recovered.menu) against real ASM I/O captured over the E2E demo.
+(skyroads.handrecovered.menu) against real ASM I/O captured over the E2E demo.
 
 318/318 real 1010:1B49 calls matched byte-exact across every action code the
 demo exercises (0, 1, 3 -- all no-op/default -> clamp-only; 0xA -- scroll
 right; 0xC -- enter level-select). Actions 2 (scroll left) and 9 (confirm) are
 transcribed from the same disassembly pattern but not exercised by any demo
--- see the ASM_MATCHED caveat in skyroads/recovered/menu.py.
+-- see the ASM_MATCHED caveat in skyroads/handrecovered/menu.py.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from skyroads.recovered.menu import (
+from skyroads.handrecovered.menu import (
     ACTION_CONFIRM, ACTION_ENTER_LEVEL_SELECT, ACTION_SCROLL_LEFT,
     ACTION_SCROLL_RIGHT, CONFIRM_TIMER_RESET, SCROLL_STEP, MenuState,
     dispatch_menu_action,
 )
-from skyroads.recovered.player import LEVEL_END
+from skyroads.handrecovered.player import LEVEL_END
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "menu_dispatch_trace.json").read_text())
 

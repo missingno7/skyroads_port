@@ -1,5 +1,5 @@
 """Verify the recovered post-move collision response
-(skyroads.recovered.collision_response) -- so far the vertical centering scan
+(skyroads.handrecovered.collision_response) -- so far the vertical centering scan
 (1010:2963-2A24) -- with pure-logic unit tests plus a live-oracle test that
 computes every 1732 probe through the real DGROUP tables (314/314 vs the ASM).
 """
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.recovered.collision_response import (
+from skyroads.handrecovered.collision_response import (
     CENTER_NUDGE,
     CONTACT_BRAKE,
     LATERAL_BUMP_STEP,
@@ -20,8 +20,8 @@ from skyroads.recovered.collision_response import (
     resolve_lateral_crash,
     vertical_center_nudge,
 )
-from skyroads.recovered.collision_response import fell_off_segment, ship_fell_off
-from skyroads.recovered.dynamics import JumpScratch
+from skyroads.handrecovered.collision_response import fell_off_segment, ship_fell_off
+from skyroads.handrecovered.dynamics import JumpScratch
 
 
 # ---- ship_fell_off (fall predicate) unit tests -----------------------------
@@ -253,8 +253,8 @@ def test_native_vertical_scan_matches_asm_over_demo() -> None:
     from dos_re.input_demo import InputDemoPlayback
     from dos_re.player import _use_real_console_input
 
-    from skyroads.recovered_native.collision import make_visible
-    from skyroads.recovered_native.state import NativeGameState
+    from skyroads.handrecovered_native.collision import make_visible
+    from skyroads.handrecovered_native.state import NativeGameState
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
@@ -331,8 +331,8 @@ def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
     from dos_re.input_demo import InputDemoPlayback
     from dos_re.player import _use_real_console_input
 
-    from skyroads.recovered_native.collision import make_visible
-    from skyroads.recovered_native.state import NativeGameState
+    from skyroads.handrecovered_native.collision import make_visible
+    from skyroads.handrecovered_native.state import NativeGameState
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(

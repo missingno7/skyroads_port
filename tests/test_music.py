@@ -1,4 +1,4 @@
-"""Verify the recovered OPL music engine (skyroads.recovered.music) against real
+"""Verify the recovered OPL music engine (skyroads.handrecovered.music) against real
 ASM I/O captured over the cold-sound demo.
 
 Each fixture tick records the exact DGROUP bytes the engine reads plus the
@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.music import CURSOR, DELAY, Engine
+from skyroads.handrecovered.music import CURSOR, DELAY, Engine
 
 _TICKS = json.loads((Path(__file__).parent / "fixtures" / "music_ticks.json").read_text())["ticks"]
 _RESET = json.loads((Path(__file__).parent / "fixtures" / "opl_reset.json").read_text())

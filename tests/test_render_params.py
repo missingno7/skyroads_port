@@ -1,4 +1,4 @@
-"""Verify the pure render orchestrator (`skyroads.recovered_native.render_params`,
+"""Verify the pure render orchestrator (`skyroads.handrecovered_native.render_params`,
 = `1010:0C98`) against real VM invocations.
 
 Fixture: 8 real `0C98` calls captured from the level-14 demo — the DGROUP words
@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered_native.render_params import RenderParams, compute_render_params
+from skyroads.handrecovered_native.render_params import RenderParams, compute_render_params
 
 _CASES = json.loads(
     (Path(__file__).parent / "fixtures" / "render_params_0c98.json").read_text())

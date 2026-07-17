@@ -1,5 +1,5 @@
 """Verify the recovered per-column road-draw dispatch
-(skyroads.recovered.render_dispatch) against real ASM I/O captured over the
+(skyroads.handrecovered.render_dispatch) against real ASM I/O captured over the
 full E2E demo.
 
 101 distinct field-snapshots per variant (deduped from ~1280 real invocations
@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.render_dispatch import dispatch_variant_a, dispatch_variant_b
+from skyroads.handrecovered.render_dispatch import dispatch_variant_a, dispatch_variant_b
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 _A = json.loads((_FIXTURES_DIR / "dispatch_variant_a_trace.json").read_text())

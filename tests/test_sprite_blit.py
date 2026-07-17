@@ -1,4 +1,4 @@
-"""Verify skyroads.recovered.present.sprite_blit against real 1010:3A22 calls.
+"""Verify skyroads.handrecovered.present.sprite_blit against real 1010:3A22 calls.
 
 sprite_blit is the gameplay ship/object compositor: a 29-column-wide masked flip
 that copies a source sprite onto a destination buffer where a packed parallel
@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.present import sprite_blit
+from skyroads.handrecovered.present import sprite_blit
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "sprite_blit_trace.json").read_text())
 

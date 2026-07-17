@@ -1,5 +1,5 @@
 """Convergence proof: the ASSEMBLED native gameplay sub-step
-(skyroads.recovered_native.loop.native_gameplay_substep) reproduces the VM.
+(skyroads.handrecovered_native.loop.native_gameplay_substep) reproduces the VM.
 
 This is the payoff of recovering the whole physics/collision sub-step as
 individual islands: composed in ASM spine order over a GameplayScratch, they
@@ -50,10 +50,10 @@ def test_native_substep_matches_vm_over_demo() -> None:
     from dos_re.player import _use_real_console_input
 
     from skyroads.bridge.dgroup_view import GameView
-    from skyroads.recovered_native.gaps import SkyroadsGap
-    from skyroads.recovered_native.loop import GameplayScratch, native_gameplay_substep
-    from skyroads.recovered_native.state import NativeGameState
-    from skyroads.recovered.dynamics import JumpScratch
+    from skyroads.handrecovered_native.gaps import SkyroadsGap
+    from skyroads.handrecovered_native.loop import GameplayScratch, native_gameplay_substep
+    from skyroads.handrecovered_native.state import NativeGameState
+    from skyroads.handrecovered.dynamics import JumpScratch
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(

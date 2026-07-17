@@ -48,7 +48,7 @@ def test_real_song_decodes_to_musical_events() -> None:
     """Run the recovered engine over the level-14 gameplay song for 1200 ticks
     (~17s at 70Hz) and decode: dozens of notes, all inside a sane musical
     range (the observed run: 43 NoteOns, 195.7..880 Hz, median 220 Hz)."""
-    from skyroads.recovered.music import Engine
+    from skyroads.handrecovered.music import Engine
 
     mem = (SNAP / "memory_1mb.bin").read_bytes()
     base = 0x1686 << 4

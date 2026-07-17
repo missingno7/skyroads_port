@@ -1,9 +1,9 @@
-"""Native PCX decoder (skyroads/recovered_native/pcx.py) against LOGO.PCX."""
+"""Native PCX decoder (skyroads/handrecovered_native/pcx.py) against LOGO.PCX."""
 from pathlib import Path
 
 import pytest
 
-from skyroads.recovered_native.pcx import load_pcx
+from skyroads.handrecovered_native.pcx import load_pcx
 
 ROOT = Path(__file__).resolve().parents[1]
 LOGO = ROOT / "assets" / "LOGO.PCX"

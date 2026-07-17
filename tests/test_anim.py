@@ -1,9 +1,9 @@
-"""Native ANIM.LZS decoder (skyroads/recovered_native/anim.py)."""
+"""Native ANIM.LZS decoder (skyroads/handrecovered_native/anim.py)."""
 from pathlib import Path
 
 import pytest
 
-from skyroads.recovered_native.anim import (VGA_HEIGHT, VGA_WIDTH, iter_reveal_counts,
+from skyroads.handrecovered_native.anim import (VGA_HEIGHT, VGA_WIDTH, iter_reveal_counts,
                                   load_anim, paint_tile)
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -1,5 +1,5 @@
 """Verify the recovered intro animation-frame unpacker
-(skyroads.recovered.intro_anim) against real ASM I/O captured over the E2E
+(skyroads.handrecovered.intro_anim) against real ASM I/O captured over the E2E
 demo (1010:3A96, one segment's worth of the fixed 1040-row unpack).
 
 Recovered via lift-then-refactor: `dos_re.tools.liftverify` proved a literal
@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.intro_anim import unpack_animation_segment
+from skyroads.handrecovered.intro_anim import unpack_animation_segment
 
 _FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "intro_anim_trace.json").read_text())
 
@@ -39,7 +39,7 @@ def test_unpack_animation_segment_matches_asm() -> None:
 
 
 def test_unpack_animation_segment_row_structure() -> None:
-    from skyroads.recovered.intro_anim import HEADER_BYTES, ROW_TERMINATOR
+    from skyroads.handrecovered.intro_anim import HEADER_BYTES, ROW_TERMINATOR
 
     # A minimal synthetic segment. The self-reference offset must leave a real
     # gap between si and di (di grows faster than si once tokens are present,
@@ -63,7 +63,7 @@ def test_unpack_animation_segment_row_structure() -> None:
     def wb(off, val): seg[off & 0xFFFF] = val & 0xFF
 
     from unittest import mock
-    with mock.patch("skyroads.recovered.intro_anim.ROWS_PER_SEGMENT", 1):
+    with mock.patch("skyroads.handrecovered.intro_anim.ROWS_PER_SEGMENT", 1):
         result = unpack_animation_segment(rb, wb)
 
     di = HEADER_BYTES

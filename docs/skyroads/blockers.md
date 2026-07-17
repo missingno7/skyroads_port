@@ -82,7 +82,7 @@ hook installed.
 
 ## Palette-fade hook: RESOLVED, verified and installed (2026-07-09)
 
-`skyroads/hooks.py::palette_fade_inner_hook` + `skyroads/recovered/palette_fade.py`
+`skyroads/hooks.py::palette_fade_inner_hook` + `skyroads/handrecovered/palette_fade.py`
 (`blend_byte`, `status="VERIFIED"`) implement the inner blend loop at CS:IP
 `1010:43A9` (narrower than the originally-suspected `4331` outer routine — the
 outer function calls this inner loop per-byte, which is where the real

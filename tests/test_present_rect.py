@@ -1,4 +1,4 @@
-"""Verify skyroads.recovered.present.present_rect against real 1010:4201 calls.
+"""Verify skyroads.handrecovered.present.present_rect against real 1010:4201 calls.
 
 The road-present scanline loop: 34AE fills the off-screen road buffer, then
 1010:4201 flushes a rows x width rectangle of it to VGA row-by-row (dest cursor
@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.recovered.present import present_rect
+from skyroads.handrecovered.present import present_rect
 
 _CASES = json.loads((Path(__file__).parent / "fixtures" / "present_rect_trace.json").read_text())
 
