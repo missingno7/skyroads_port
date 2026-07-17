@@ -32,3 +32,8 @@ tmp_*.bin
 tmp_*.png
 frame.png
 *.stackdump
+
+# Runtime save sink (dos_re --save-dir): the game's own SKYROADS.CFG progress
+# writes land here when the interactive player runs. Product output, not source
+# -- demo/test replay keeps save_dir unset and stays bit-deterministic.
+saves/

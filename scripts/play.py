@@ -98,7 +98,29 @@ class SkyroadsFrontend(player.GameFrontend):
         ASM oracle (--no-replacements has no fade-loop gate to compose with)."""
         if getattr(args, "frame_park", True) and not getattr(args, "no_replacements", False):
             install_frame_park(rt)
+        self._pin_demo_mouse_presence(args, rt)
         return rt
+
+    def _pin_demo_mouse_presence(self, args, rt) -> None:
+        """Pin INT 33h mouse presence for a REPLAY, centrally.
+
+        dos_re keeps the mouse OFF unless opted in, so a keyboard demo already
+        replays correctly; this is what turns it ON for a demo that was recorded
+        WITH one (manifest ``metadata.mouse_present``) -- without it, that
+        recording would replay against an absent mouse and diverge. Demos
+        predating the field are keyboard-only, hence the False fallback.
+
+        Applied here (the one funnel both create_runtime and
+        load_snapshot_runtime pass through) so no caller can forget it; the
+        interactive viewer sets it itself and never calls apply_demo_metadata.
+        """
+        pinned = getattr(args, "demo_mouse_present", None)
+        if pinned is not None:
+            rt.dos.mouse_present = bool(pinned)
+
+    def apply_demo_metadata(self, args, meta: dict) -> None:
+        super().apply_demo_metadata(args, meta)
+        args.demo_mouse_present = bool(meta.get("mouse_present", False))
 
     def advance_frame(self, rt, args, frame: int) -> None:
         """Deliver the frame's timer IRQs, then run the step budget — but stop

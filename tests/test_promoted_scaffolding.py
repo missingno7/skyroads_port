@@ -188,7 +188,10 @@ def test_unmodeled_port_reads_are_recorded_and_strict_mode_fails_loud():
     # Default: benign 0 (the proven behaviour game probes rely on), but recorded.
     assert dos.port_read(cpu, 0x0201, 8) == 0          # joystick port: unmodeled
     assert dos.unmodeled_port_reads == [(0x0201, 8)]
-    assert dos.port_read(cpu, 0x03DA, 8) in (0x00, 0x08)  # modeled: not recorded
+    # Modeled -> not recorded.  0x3DA is VGA input status 1: bit3 = vertical
+    # retrace, bit0 = display enable (dos_re toggles both per read so a program's
+    # busy-wait polls make progress deterministically), so a read is 0x00 or 0x09.
+    assert dos.port_read(cpu, 0x03DA, 8) in (0x00, 0x09)
     assert len(dos.unmodeled_port_reads) == 1
 
     dos.strict_ports = True
