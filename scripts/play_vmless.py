@@ -47,6 +47,7 @@ from dos_re.cpu import HaltExecution  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
 from dos_re.independence import boot_vmless_image, independence_report  # noqa: E402
 from dos_re.input_demo import mouse_sample  # noqa: E402
+from dos_re.keyboard import KeyDispatcher, scancode_table  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
 # From runtime_core, NOT dos_re.runtime / skyroads.runtime / dos_re.player:
 # those reach create_runtime -> load_mz_program, and importing them here
@@ -294,7 +295,16 @@ def _window(rt, drv, args) -> int:
     disp = Display((960, 720), title="SkyRoads — VMless (no EXE)")
     disp.par = 1.2
     clock = pygame.time.Clock()
-    scancodes = _scancode_map(pygame)
+    # The FULL pygame->XT map, not a hand-rolled subset: this used to carry
+    # 7 keys (arrows/space/enter/esc), so every letter, digit and function
+    # key simply did not exist -- and SkyRoads lets you REBIND its controls.
+    scancodes = scancode_table(pygame)
+    # And through a KeyDispatcher, because SkyRoads polls its key table once
+    # per frame: a make and its break applied between two frames set and
+    # clear the key before the game ever looks, and the tap is silently
+    # LOST. The dispatcher holds each make for a full frame before releasing
+    # it. Delivering both on the pygame event, as this did, drops fast taps.
+    dispatcher = KeyDispatcher(lambda sc: _deliver_scancode(rt, sc))
     audio = SkyroadsAudioSink(pygame, rt, args.present_hz)
     if not audio.available:
         print("[vmless] audio unavailable -- running silent")
@@ -331,13 +341,13 @@ def _window(rt, drv, args) -> int:
             elif ev.type in (pygame.KEYDOWN, pygame.KEYUP):
                 sc = scancodes.get(ev.key)
                 if sc is not None:
-                    # Through the game's OWN recovered INT 09h ISR: push the
-                    # scan code the way the 8042 would, then vector.
-                    rt.dos.current_scancode = sc if ev.type == pygame.KEYDOWN else (sc | 0x80)
-                    rt.dos.kbd_output_buffer_full = True
-                    deliver_interrupt(rt, 0x09)
+                    if ev.type == pygame.KEYDOWN:
+                        dispatcher.post_down(sc)
+                    else:
+                        dispatcher.post_up(sc)
         # Every frame, changed or not: set_mouse_norm re-maps through the
         # game's CURRENT INT 33h range, which the game itself changes.
+        dispatcher.pump()          # makes/breaks, frame-accurate
         if set_mouse is not None:
             uv = disp.window_to_frame_norm(pygame.mouse.get_pos())
             if uv is not None:
@@ -359,10 +369,12 @@ def _window(rt, drv, args) -> int:
     return 0
 
 
-def _scancode_map(pygame):
-    return {pygame.K_UP: 0x48, pygame.K_DOWN: 0x50, pygame.K_LEFT: 0x4B,
-            pygame.K_RIGHT: 0x4D, pygame.K_SPACE: 0x39, pygame.K_RETURN: 0x1C,
-            pygame.K_ESCAPE: 0x01}
+def _deliver_scancode(rt, sc: int) -> None:
+    """One XT scan code through the game's OWN recovered INT 09h ISR: present
+    it the way the 8042 would, then vector."""
+    rt.dos.current_scancode = sc & 0xFF
+    rt.dos.kbd_output_buffer_full = True
+    deliver_interrupt(rt, 0x09)
 
 
 if __name__ == "__main__":
