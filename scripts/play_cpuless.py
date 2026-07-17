@@ -55,6 +55,8 @@ def _arm_import_guard() -> None:
 CANONICAL_ENTRY = (0x1010, 0x61F3)
 BOOT_DIR = ROOT / "artifacts" / "boot_image"
 STANDALONE_DIR = ROOT / "skyroads" / "recovered"
+#: the recovered INT 08h timer ISR's contract inputs (dispatch.py HANDLERS).
+_TIMER_INPUTS = ("ax", "bp", "bx", "cx", "di", "ds", "dx", "es", "si", "sp", "ss")
 
 
 def _ensure_corpus(rebuild: bool) -> None:
@@ -103,6 +105,7 @@ def run(frames: int, rebuild: bool) -> int:
     from dos_re.dos import DOSMachine
     from dos_re.snapshot_headless import _restore_dos_state   # runtime CPU-free
     from skyroads.recovered.func_1010_61f3 import func_1010_61f3
+    from skyroads.recovered.func_1010_3b17 import func_1010_3b17
     try:
         from skyroads.recovered._dyncall import UnknownDispatchTarget
     except Exception:                       # noqa: BLE001
@@ -122,22 +125,27 @@ def run(frames: int, rebuild: bool) -> int:
     _restore_dos_state(_RtShim(dos, mem), dos_meta)
     rt = CPUlessPlatformRuntime(mem, game_root=ROOT, dos=dos)
 
-    #: SYNCHRONOUS frame scheduler seam.  A boundary head is a plat.boundary
-    #: call from INSIDE the running recovered program; this callback IS the
-    #: per-frame loop.  Reaching the FIRST boundary means the whole cold boot --
-    #: C startup + intro decompression + first frame render -- ran CPU-free.
-    #: (Ticking MULTIPLE frames needs timer-IRQ delivery through the recovered
-    #: HANDLERS; that scheduler is the next piece.)
-    state = {"boundaries": 0}
-    limit = frames or 1
+    #: SYNCHRONOUS frame scheduler.  A boundary head is a plat.boundary call
+    #: from INSIDE the running recovered program; this callback IS the per-frame
+    #: loop.  SkyRoads paces off ds:[1600], the tick its INT 08h ISR bumps once
+    #: per 6 IRQs; a frame is: deliver this frame's timer IRQs through the game's
+    #: OWN recovered INT 08h ISR (func_1010_3b17), which advances the tick so the
+    #: boundary's tick-wait exits, then let the recovered body render the frame.
+    #: NO CPU, NO interpreter -- the ISR is recovered Python.
+    TIMER_IRQS_PER_FRAME = 6
+    state = {"frames": 0}
+    limit = frames or 30
 
     def boundary_cb(head_cs, head_ip, resume_ip, regs, cost):
-        state["boundaries"] += 1
-        if state["boundaries"] == 1:
+        state["frames"] += 1
+        for _ in range(TIMER_IRQS_PER_FRAME):
+            kw = {k: regs[k] for k in _TIMER_INPUTS if k in regs}
+            kw["_flags_in"] = regs.get("_flags_in", 2)
+            func_1010_3b17(mem, rt, **kw)         # advances ds:[1600] (recovered)
+        if state["frames"] == 1:
             print(f"[cpuless] REACHED FIRST FRAME BOUNDARY {head_cs:04X}:"
-                  f"{head_ip:04X} -- cold boot ran CPU-free to a rendered frame "
-                  f"(VGA nonzero px={_vga_nonzero(mem)})")
-        if state["boundaries"] >= limit:
+                  f"{head_ip:04X} -- CPU-free cold boot to the frame loop")
+        if state["frames"] >= limit:
             raise _Done()
         return regs, regs.get("_flags_in", 2), 0
     rt.boundary_cb = boundary_cb
@@ -149,12 +157,12 @@ def run(frames: int, rebuild: bool) -> int:
           f"NO interpreter (guard armed)")
     try:
         out, _ = rt.call(func_1010_61f3, **entry_kw)
-        print(f"[cpuless] program returned/terminated cleanly after "
-              f"{state['boundaries']} boundary pass(es)")
+        print(f"[cpuless] program terminated after {state['frames']} frame(s) "
+              f"-- no CPU, no interpreter")
         return 0
     except _Done:
-        print(f"[cpuless] stopped at the {limit}-frame-boundary limit "
-              f"({state['boundaries']} boundary passes) -- no CPU, no interpreter")
+        print(f"[cpuless] rendered {state['frames']} frames (VGA nonzero "
+              f"px={_vga_nonzero(mem)}) CPU-free -- no CPU, no interpreter")
         return 0
     except (UnsupportedPlatformEffect, *([UnknownDispatchTarget]
                                          if UnknownDispatchTarget else [])) as e:

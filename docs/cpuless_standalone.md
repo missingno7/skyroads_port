@@ -67,16 +67,20 @@ untaken calls — reported, never dropped).
 ## Current status
 
 Against the committed `observed.json` trace the runtime closure is **complete**:
-182 `generated-cpuless`, frontier **0**. The runner cold-boots from `1010:61F3`
-through `CPUlessPlatformRuntime` with the interpreter import guard armed and runs
-the **entire** Borland C-runtime startup + intro `LZS` decompression to the first
-frame boundary (`1010:434A`) — **no CPU, no interpreter, no lifted graph**.
+182 `generated-cpuless`, frontier **0**. `play_cpuless.py` cold-boots from
+`1010:61F3` through `CPUlessPlatformRuntime` with the interpreter import guard
+armed, runs the **entire** Borland C-runtime startup + intro `LZS` decompression
+to the frame loop, and **renders frames** — all with **no CPU, no interpreter,
+no lifted graph**. A 30-frame run reports `VGA nonzero px=48891`, matching the
+byte-exact `play_vmless` output.
 
-Reaching that frame requires restoring the boot snapshot's DOS arena state
-(`snapshot_headless._restore_dos_state`, CPU-free): the C heap `int 21h/48h`
-allocation must run against the post-load arena, or the startup takes its
-out-of-memory path.
+Two pieces make the cold boot work:
+- **DOS arena restore** (`snapshot_headless._restore_dos_state`, CPU-free): the
+  C heap `int 21h/48h` allocation must run against the post-load arena, or the
+  startup takes its out-of-memory path (`5FEA`).
+- **Frame scheduler**: each boundary delivers the frame's 6 timer IRQs through
+  the game's own recovered INT 08h ISR (`func_1010_3b17`), advancing `ds:[1600]`
+  so the tick-wait exits and the recovered body renders the next frame.
 
-**Next:** ticking multiple frames needs timer-IRQ delivery through the recovered
-`HANDLERS` (the frame scheduler); until then the runner stops at the first
-boundary (`--frames N` bounds it).
+**Next:** demo-input replay (recovered INT 09h) for full interactivity, and a
+frame-exact `verify_cpuless` differential against the oracle.

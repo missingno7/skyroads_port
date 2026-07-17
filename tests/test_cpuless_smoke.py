@@ -16,6 +16,7 @@ without assets), exactly like the native-sfx smoke.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -60,9 +61,13 @@ def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
     assert lint.returncode == 0, lint.stdout + lint.stderr
     assert "PASS" in lint.stdout
 
-    # 4. the runner cold-boots from 61F3 with NO CPU / NO interpreter and runs
-    #    the whole C startup + intro decompression to the first frame boundary.
-    play = _run("scripts/play_cpuless.py", "--headless", timeout=600)
+    # 4. the runner cold-boots from 61F3 with NO CPU / NO interpreter, runs the
+    #    whole C startup + intro decompression to the frame loop, and RENDERS
+    #    frames (timer IRQs delivered through the recovered INT 08h ISR).
+    play = _run("scripts/play_cpuless.py", "--headless", "--frames", "12",
+                timeout=600)
     assert play.returncode == 0, (play.stdout + play.stderr)[-2000:]
     assert "REACHED FIRST FRAME BOUNDARY" in play.stdout
     assert FIRST_FRAME_BOUNDARY in play.stdout
+    m = re.search(r"rendered \d+ frames \(VGA nonzero px=(\d+)\)", play.stdout)
+    assert m and int(m.group(1)) > 0, "expected a rendered (nonzero) frame"
