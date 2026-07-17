@@ -14,7 +14,7 @@ that occupies each lifted slot. The result is a HYBRID play surface:
                                              recovered module); the rest stay
                                              literal lifts
 
-``scripts/play_cpuless.py`` (and ``verify_vmless_demo --lift-dir
+``scripts/play_cpuless_hybrid.py`` (and ``verify_vmless_demo --lift-dir
 artifacts/cpuless``) run the game through it, diffed byte-exact against the
 same ASM oracle as the lifted corpus.
 
@@ -124,7 +124,7 @@ def build() -> int:
     n_slots = len(list(CPULESS_DIR.glob("lifted_*.py")))
     print(f"\n[cpuless] corpus ready: {n_slots} lifted slots, {n_rec} now CPUless "
           f"adapters over recovered bodies ({n_slots - n_rec} still literal lifts)")
-    print(f"[cpuless]   play:   python scripts/play_cpuless.py")
+    print(f"[cpuless]   play:   python scripts/play_cpuless_hybrid.py")
     print(f"[cpuless]   verify: python scripts/verify_vmless_demo.py <demo> "
           f"--lift-dir {CPULESS_DIR}")
     return 0
