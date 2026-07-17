@@ -6,9 +6,6 @@ the boot-image memory + a device model + a virtual clock.  It NEVER imports or
 instantiates the interpreter (``dos_re.cpu``); a runtime import guard is the
 dynamic backstop and ``tools/lint_cpuless.py`` is the static proof.
 
-This is distinct from ``play_cpuless_hybrid.py``, which overlays the CPUless
-corpus on the interpreter driver (a transitional, CPU-carrying surface).
-
 CURRENT STATE -- fails loud at the recorded cold-start frontier.  The
 ``--observed`` probe trace does not yet cover the earliest C-startup low-level
 init, so a from-61F3 cold boot reaches code the corpus marked runtime-dead and
@@ -36,7 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 #: The interpreter and every CPU-carrying surface the standalone runtime must
 #: never reach.  x86 is the CPU-FREE shared leaf (constants + HaltExecution) and
 #: is allowed; dos_re.cpu is the interpreter and is not.
-_FORBIDDEN = ("dos_re.cpu", "skyroads.lifted", "skyroads.recovered")
+_FORBIDDEN = ("dos_re.cpu", "skyroads.lifted")
 
 
 def _arm_import_guard() -> None:
@@ -57,14 +54,14 @@ def _arm_import_guard() -> None:
 
 CANONICAL_ENTRY = (0x1010, 0x61F3)
 BOOT_DIR = ROOT / "artifacts" / "boot_image"
-STANDALONE_DIR = ROOT / "skyroads" / "cpuless_standalone"
+STANDALONE_DIR = ROOT / "skyroads" / "recovered"
 
 
 def _ensure_corpus(rebuild: bool) -> None:
     if rebuild or not any(STANDALONE_DIR.glob("func_*.py")):
         print("[cpuless] regenerating the standalone corpus ...")
         r = subprocess.run([sys.executable,
-                            str(ROOT / "scripts/build_cpuless_standalone.py")])
+                            str(ROOT / "scripts/build_recovered.py")])
         if r.returncode != 0:
             raise SystemExit(r.returncode)
 
@@ -90,9 +87,9 @@ def run(frames: int, rebuild: bool) -> int:
     from dos_re.lift.platform import (CPUlessPlatformRuntime,
                                       UnsupportedPlatformEffect)
     from dos_re.dos import DOSMachine
-    from skyroads.cpuless_standalone.func_1010_61f3 import func_1010_61f3
+    from skyroads.recovered.func_1010_61f3 import func_1010_61f3
     try:
-        from skyroads.cpuless_standalone._dyncall import UnknownDispatchTarget
+        from skyroads.recovered._dyncall import UnknownDispatchTarget
     except Exception:                       # noqa: BLE001
         UnknownDispatchTarget = ()
 

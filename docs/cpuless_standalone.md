@@ -2,29 +2,27 @@
 
 The **standalone CPUless port** runs SkyRoads through a pure-Python recovered
 corpus with **no CPU, no interpreter, no lifted graph** — the true hard wall.
-It is distinct from the *hybrid* surface (`scripts/play_cpuless_hybrid.py`),
-which overlays the recovered corpus on the interpreter driver.
 
 ## Source vs generated
 
 | Kind | Path | Tracked? |
 | --- | --- | --- |
 | **Source** — census inputs | `artifacts/codemap/{recovery_ir,observed}.json`, `boundary_heads.txt`, dispatch tables | yes |
-| **Source** — manual overrides | `skyroads/cpuless_overrides/func_CCCC_IIII.py` (address-keyed) | yes |
-| **Source** — runner + tools | `scripts/play_cpuless.py`, `scripts/build_cpuless_standalone.py`, `tools/lint_cpuless.py` | yes |
+| **Source** — manual overrides | `skyroads/recovered_overrides/func_CCCC_IIII.py` (address-keyed) | yes |
+| **Source** — runner + tools | `scripts/play_cpuless.py`, `scripts/build_recovered.py`, `tools/lint_cpuless.py` | yes |
 | **Committed record** — manifest | `artifacts/codemap/cpuless_manifest.json` | yes |
-| **Committed** — recovered corpus | `skyroads/cpuless_standalone/` (the recorded no-CPU port surface) | **yes** |
-| **Generated** — scratch adapters | `artifacts/cpuless_standalone_adapters/` (hybrid-only, unused here) | no |
+| **Committed** — recovered corpus | `skyroads/recovered/` (the recorded no-CPU port surface) | **yes** |
+| **Generated** — scratch adapters | `artifacts/recovered_adapters/` (hybrid-only, unused here) | no |
 
 The recovered corpus **is committed** — it is the recorded no-CPU port surface,
-inspectable from a clean checkout. `scripts/build_cpuless_standalone.py`
+inspectable from a clean checkout. `scripts/build_recovered.py`
 regenerates it **in place**, deterministically, so a rebuild that changes any
 byte shows up as a diff (drift detection). Only the CPU-carrying scratch
 adapters and the build intermediates stay ignored.
 
 ## Overrides
 
-A hand-written CPUless function goes in `skyroads/cpuless_overrides/` as an
+A hand-written CPUless function goes in `skyroads/recovered_overrides/` as an
 address-keyed `func_CCCC_IIII.py`. The build layers it **over** the generated
 body for that address, and the manifest records it as `manual-cpuless-override`.
 An override must match the generated interface and import nothing outside the
@@ -38,7 +36,7 @@ Requires your own game files under `assets/` and a built boot image
 
 ```sh
 # 1. regenerate the complete standalone corpus + manifest from tracked inputs
-python scripts/build_cpuless_standalone.py
+python scripts/build_recovered.py
 
 # 2. prove the hard wall: no import path reaches a CPU (static AST proof)
 python tools/lint_cpuless.py
@@ -47,7 +45,7 @@ python tools/lint_cpuless.py
 python scripts/play_cpuless.py --headless
 
 # one-shot: all of the above + count/manifest/frontier checks
-python -m pytest tests/test_cpuless_standalone_smoke.py -q
+python -m pytest tests/test_cpuless_smoke.py -q
 ```
 
 ## The manifest

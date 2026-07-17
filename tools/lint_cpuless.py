@@ -2,7 +2,7 @@
 
 A thin, documented wrapper over dos_re's generic ``lint_cpuless.py`` pinned to
 THIS port's layout: the standalone runner ``scripts/play_cpuless.py``, the
-generated corpus ``skyroads/cpuless_standalone/``, and the interpreter/lifted
+generated corpus ``skyroads/recovered/``, and the interpreter/lifted
 carriers this port must never reach.  Static import-graph proof (AST): no path
 from the runner or the recovered corpus imports a CPU.
 
@@ -24,12 +24,11 @@ def main(argv=None) -> int:
     cmd = [sys.executable, str(ROOT / "dos_re/tools/lint_cpuless.py"),
            "--repo-root", str(ROOT),
            "--root", "scripts/play_cpuless.py",
-           "--recovered-root", "skyroads/cpuless_standalone",
-           "--recovered-prefix", "skyroads.cpuless_standalone",
+           "--recovered-root", "skyroads/recovered",
+           "--recovered-prefix", "skyroads.recovered",
            # the interpreter and every CPU-carrying corpus the runner forbids:
            "--forbidden-module", "dos_re.cpu",
            "--forbidden-module", "skyroads.lifted",
-           "--forbidden-module", "skyroads.recovered",
            "--local-prefix", "dos_re", "--local-prefix", "skyroads",
            "--package-dir", "dos_re=dos_re/dos_re",
            "--package-dir", "skyroads=skyroads",
