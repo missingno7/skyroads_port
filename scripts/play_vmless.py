@@ -186,7 +186,8 @@ class VmlessDriver:
         return out
 
 
-def build(boot_dir: Path, lift_dir: Path, game_root: Path, *, sound: bool = True):
+def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
+          sound: bool = True, capture_sb: bool = False):
     """Boot the image AND set up the machine around it.
 
     ``boot_vmless_image`` builds a CPU + DOS + BIOS from the image; it does not
@@ -212,9 +213,17 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *, sound: bool = True
 
     # 2. SOUND HARDWARE. Without it there is no OPL to play music through --
     #    and SkyRoads' own detection can take its "not enough sound hardware"
-    #    exit. detection_only mirrors what the viewer does for normal play.
+    #    exit.
+    #
+    #    detection_only attaches a stub: the game detects a digital device and
+    #    emits its audio commands, but no PCM is streamed -- music (OPL) plays,
+    #    digital SFX do not. Capture mode streams the DMA PCM too, and is a
+    #    determinism-safe OBSERVER (byte-identical CPU timeline), but it stays
+    #    OFF for headless/demo runs so the differential keeps the exact
+    #    detection-only path and accumulates no captured PCM. Same rule as
+    #    scripts/play.py::_capture_sb -- audio on and interactive.
     if sound:
-        enable_sound_blaster(rt, detection_only=True)
+        enable_sound_blaster(rt, detection_only=not capture_sb)
 
     # 3. THE MOUSE. dos_re keeps INT 33h absent unless a front-end opts in;
     #    the interactive viewer opts in, so the interactive VMless one must too,
@@ -240,8 +249,12 @@ def main(argv=None) -> int:
                     help="print the independence hard-gate banner and exit")
     args = ap.parse_args(argv)
 
+    # Capture the DMA PCM only for the interactive viewer: it is a
+    # determinism-safe observer, but headless must keep the detection-only
+    # path so demo replay and the differential stay byte-identical.
     rt, manifest = build(Path(args.boot_dir), Path(args.lift_dir),
-                         Path(args.game_root), sound=not args.no_sound)
+                         Path(args.game_root), sound=not args.no_sound,
+                         capture_sb=not args.no_sound and not args.headless)
     if args.report:
         print(independence_report(manifest))
         return 0
