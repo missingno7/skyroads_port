@@ -109,7 +109,9 @@ def build() -> int:
            "--recovered-dir", str(RECOVERED_DIR),
            "--adapter-dir", str(CPULESS_DIR),
            "--import-base", IMPORT_BASE,
-           "--dyn-evidence", str(DYN_EVIDENCE)]
+           "--dyn-evidence", str(DYN_EVIDENCE),
+           "--desmc"]      # the lifted corpus is built --desmc; match it so the
+                           # SMC functions (blit 41A0, LZS 66E6) promote too
     for f in EXCLUDE_FILES:
         cmd += ["--exclude", f"@{f}"]
     cmd += ["--apply"]
