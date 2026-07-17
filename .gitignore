@@ -55,3 +55,6 @@ saves/
 # Crash snapshots: 1 MB machine images written on a fault (dos_re.crash).
 # Local debugging evidence -- resumable, regenerable, and never a source input.
 artifacts/crashes/
+
+# CPUless recovered corpus -- regenerable build artifact (scripts/build_cpuless_corpus.py)
+skyroads/recovered/
