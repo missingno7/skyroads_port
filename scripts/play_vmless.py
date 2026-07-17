@@ -51,6 +51,7 @@ from dos_re.interrupts import deliver_interrupt  # noqa: E402
 # those reach create_runtime -> load_mz_program, and importing them here
 # would put the EXE loader on this runner's module graph -- exactly what
 # lint_independence forbids. runtime_core is loader-free by construction.
+from dos_re.crash import crash_dir, save_crash  # noqa: E402
 from dos_re.runtime_core import (enable_sound_blaster,  # noqa: E402
                                  use_real_console_input)
 
@@ -65,6 +66,12 @@ TIMER_IRQS_PER_FRAME = 6
 STEP_BUDGET = 2_000_000
 
 
+def _stamp() -> str:
+    """Wall-clock, for the crash directory name only."""
+    from datetime import datetime
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
 class FrameIdle(Exception):
     """The corpus parked in a tick-wait it cannot leave until the next frame."""
 
@@ -72,9 +79,13 @@ class FrameIdle(Exception):
 class VmlessDriver:
     """Drives the generated corpus one displayed frame at a time."""
 
-    def __init__(self, rt, *, irqs_per_frame: int = TIMER_IRQS_PER_FRAME):
+    def __init__(self, rt, *, irqs_per_frame: int = TIMER_IRQS_PER_FRAME,
+                 crash_root: str | Path = 'artifacts/crashes',
+                 stamp: str = 'run'):
         self.rt = rt
         self.irqs_per_frame = irqs_per_frame
+        self.crash_root = crash_root
+        self.stamp = stamp
         self.frames = 0
         self.parks: dict[int, int] = {}      # head_ip -> times parked
         self._in_isr = False
@@ -120,7 +131,14 @@ class VmlessDriver:
         raise FrameIdle
 
     def frame(self) -> bool:
-        """Advance one displayed frame. False once the program has exited."""
+        """Advance one displayed frame. False once the program has exited.
+
+        Anything that is NOT one of the three expected outcomes (park, waiting
+        for a key, program exit) leaves a crash snapshot behind: see
+        ``self.crash_root``. A wall violation, an iteration guard, a bad lift --
+        each of those has cost a bespoke probe and a replay from frame 0 to get
+        back to a machine that was standing right here when it broke.
+        """
         self._seen.clear()       # "re-arrival" is per frame: new tick, new pass
         self._in_isr = True
         try:
@@ -147,8 +165,25 @@ class VmlessDriver:
             pass
         except HaltExecution:
             return False
+        except BaseException as exc:            # noqa: BLE001 -- then re-raised
+            self.crash(exc)
+            raise
         self.frames += 1
         return True
+
+    def crash(self, exc: BaseException) -> Path:
+        """Leave the broken machine on disk, resumable, and say where it is."""
+        out = save_crash(
+            self.rt, crash_dir(self.crash_root, "vmless", self.stamp), exc=exc,
+            status="vmless-crash", frame=self.frames,
+            parks={f"{k:04X}": v for k, v in sorted(self.parks.items())})
+        print(f"\n[vmless] CRASHED at frame {self.frames}: "
+              f"{type(exc).__name__}: {str(exc)[:200]}")
+        print(f"[vmless] machine saved -> {out}")
+        print(f"[vmless] resume it (you land ON the fault, no replay):\n"
+              f"           from dos_re.snapshot_headless import load_snapshot_headless\n"
+              f"           rt = load_snapshot_headless(r'{out}', game_root='assets')")
+        return out
 
 
 def build(boot_dir: Path, lift_dir: Path, game_root: Path, *, sound: bool = True):
@@ -199,6 +234,8 @@ def main(argv=None) -> int:
                     help="audio present rate (matches play.py's default)")
     ap.add_argument("--no-sound", action="store_true",
                     help="leave the sound hardware detached (silent run)")
+    ap.add_argument("--crash-root", default=str(ROOT / "artifacts" / "crashes"),
+                    help="where a crash leaves its resumable snapshot")
     ap.add_argument("--report", action="store_true",
                     help="print the independence hard-gate banner and exit")
     args = ap.parse_args(argv)
@@ -209,7 +246,7 @@ def main(argv=None) -> int:
         print(independence_report(manifest))
         return 0
     print(independence_report(manifest))
-    drv = VmlessDriver(rt)
+    drv = VmlessDriver(rt, crash_root=args.crash_root, stamp=_stamp())
 
     if args.headless:
         n = args.frames or 400

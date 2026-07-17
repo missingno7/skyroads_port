@@ -76,6 +76,7 @@ sys.path.insert(0, str(ROOT))
 import scripts.play as sp  # noqa: E402
 from dos_re import player  # noqa: E402
 from dos_re.cpu import HaltExecution  # noqa: E402
+from dos_re.crash import save_crash  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
 from dos_re.independence import boot_vmless_image  # noqa: E402
 from dos_re.input_demo import InputDemoPlayback  # noqa: E402
@@ -110,6 +111,34 @@ def _is_predecompression(pb) -> bool:
     with img.open("rb") as fh:
         fh.seek(0x1010 << 4)
         return fh.read(4) != _DECOMPRESSED_MARK
+
+
+def _save_both(args_cli, demo: Path, frame: int, rt_o, rt_c, status: str,
+               exc: BaseException | None = None, **detail) -> None:
+    """Keep BOTH machines at the moment they disagreed.
+
+    A divergence is a PAIR -- the answer is never in one side alone, it is in
+    what the two did differently -- so saving one is saving half the evidence.
+    And getting back here is the expensive part: the palette divergence at intro
+    frame 1115 took a multi-minute replay of two runtimes for every question
+    asked of it, over and over, about a pair of machines that had both been
+    sitting right here when they split.
+
+    Both snapshots are ordinary and resumable, so the next question costs a load
+    rather than a replay:
+
+        rt = load_snapshot_headless(<dir>/candidate, game_root='assets')
+    """
+    root = Path(args_cli.crash_root) / f"{demo.name}_f{frame:05d}_{status}"
+    for name, rt in (("oracle", rt_o), ("candidate", rt_c)):
+        save_crash(rt, root / name, exc=exc if name == "candidate" else None,
+                   status=f"{status}:{name}", frame=frame, demo=demo.name,
+                   **detail)
+    print(f"[verify] both machines saved -> {root}")
+    print(f"[verify]   resume either (you land ON the divergence, no replay):\n"
+          f"             from dos_re.snapshot_headless import load_snapshot_headless\n"
+          f"             rt = load_snapshot_headless(r'{root / 'candidate'}',"
+          f" game_root='assets')")
 
 
 def read_heads(path: Path) -> set[tuple[int, int]]:
@@ -235,6 +264,8 @@ def main(argv=None) -> int:
                                            / "boundary_heads.txt"))
     ap.add_argument("--boot-dir", default=str(ROOT / "artifacts" / "boot_image"),
                     help="the data-only boot image (cold demos run FROM it)")
+    ap.add_argument("--crash-root", default=str(ROOT / "artifacts" / "crashes"),
+                    help="where a divergence leaves BOTH resumable machines")
     args_cli = ap.parse_args(argv)
 
     demo = Path(args_cli.demo)
@@ -377,6 +408,8 @@ def main(argv=None) -> int:
         except Exception as exc:                     # noqa: BLE001
             print(f"\n[verify] FRAME {frame}: candidate raised "
                   f"{type(exc).__name__}: {str(exc)[:400]}")
+            _save_both(args_cli, demo, frame, rt_o, rt_c, "candidate-raised",
+                       exc=exc)
             return 1
 
         vo = bytes(rt_o.cpu.mem.data[VGA:VGA + VGA_LEN])
@@ -387,6 +420,8 @@ def main(argv=None) -> int:
             print(f"\n[verify] VGA DIVERGED at frame {frame}: {n} px differ; "
                   f"first at row {first // 320} col {first % 320} "
                   f"(oracle={vo[first]:02X} corpus={vc[first]:02X})")
+            _save_both(args_cli, demo, frame, rt_o, rt_c, "vga-diverged",
+                       pixels=n, first_row=first // 320, first_col=first % 320)
             return 1
         # THE PALETTE IS STATE TOO, and diffing the plane alone does not see it:
         # the plane holds INDICES, the DAC holds the colours those index. They
@@ -404,6 +439,10 @@ def main(argv=None) -> int:
             print(f"          indices: {bad}")
             for i in bad[:12]:
                 print(f"            [{i:3d}] oracle={po[i]}  corpus={pc[i]}")
+            _save_both(args_cli, demo, frame, rt_o, rt_c, "palette-diverged",
+                       entries=bad,
+                       oracle={i: po[i] for i in bad[:16]},
+                       corpus={i: pc[i] for i in bad[:16]})
             return 1
         if frame % 50 == 0:
             print(f"  frame {frame:4d}: VGA + palette identical")

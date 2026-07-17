@@ -51,3 +51,7 @@ frame.png
 # writes land here when the interactive player runs. Product output, not source
 # -- demo/test replay keeps save_dir unset and stays bit-deterministic.
 saves/
+
+# Crash snapshots: 1 MB machine images written on a fault (dos_re.crash).
+# Local debugging evidence -- resumable, regenerable, and never a source input.
+artifacts/crashes/
