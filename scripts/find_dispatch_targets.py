@@ -1,4 +1,4 @@
-"""Recover the dispatch-table targets a census structurally cannot see.
+r"""Recover the dispatch-table targets a census structurally cannot see.
 
 ``codemap.py`` keeps a call target only if a demo EXECUTED it and only if it can
 SEE the call. Both rules are right, and together they are blind to every target

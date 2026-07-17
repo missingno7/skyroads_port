@@ -172,9 +172,9 @@ owned game to port.
 
 ## License
 
-MIT ([LICENSE](LICENSE)), except `dos_re`'s own `pynuked_opl3/` submodule
+MIT ([LICENSE](LICENSE)), except the `pynuked_opl3/` submodule
 (Nuked-OPL3 emulator core + binding), which is LGPL-2.1-or-later — see
-[`dos_re/pynuked_opl3/LICENSE`](dos_re/pynuked_opl3/LICENSE).
+[`pynuked_opl3/LICENSE`](pynuked_opl3/LICENSE).
 
 The framework's openness never extends to game IP: no game assets or
 executables are ever included here or in adapter repos; ports require a
