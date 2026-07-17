@@ -1,0 +1,448 @@
+{
+  "version": 2,
+  "status": "complete",
+  "created_at": "2026-07-17T12:27:36",
+  "stopped_at": "2026-07-17T12:28:02",
+  "snapshot": "snapshot",
+  "metadata": {
+    "game": "skyroads",
+    "exe": "SKYROADS.EXE",
+    "command_tail": "",
+    "steps_per_frame": 48000,
+    "timer_irqs_per_frame": 6,
+    "mouse_present": true
+  },
+  "start_boundary": 0,
+  "end_boundary": 735,
+  "event_count": 71,
+  "events": [
+    {
+      "boundary": 0,
+      "seq": 0,
+      "kind": "mouse",
+      "u": 0.5154,
+      "v": 0.3044,
+      "buttons": 0
+    },
+    {
+      "boundary": 10,
+      "seq": 1,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 13,
+      "seq": 2,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 18,
+      "seq": 3,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 21,
+      "seq": 4,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 87,
+      "seq": 5,
+      "kind": "scan",
+      "value": 77
+    },
+    {
+      "boundary": 92,
+      "seq": 6,
+      "kind": "scan",
+      "value": 205
+    },
+    {
+      "boundary": 93,
+      "seq": 7,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 96,
+      "seq": 8,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 101,
+      "seq": 9,
+      "kind": "scan",
+      "value": 77
+    },
+    {
+      "boundary": 105,
+      "seq": 10,
+      "kind": "scan",
+      "value": 205
+    },
+    {
+      "boundary": 109,
+      "seq": 11,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 111,
+      "seq": 12,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 118,
+      "seq": 13,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 120,
+      "seq": 14,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 122,
+      "seq": 15,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 124,
+      "seq": 16,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 128,
+      "seq": 17,
+      "kind": "scan",
+      "value": 75
+    },
+    {
+      "boundary": 131,
+      "seq": 18,
+      "kind": "scan",
+      "value": 203
+    },
+    {
+      "boundary": 133,
+      "seq": 19,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 135,
+      "seq": 20,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 140,
+      "seq": 21,
+      "kind": "scan",
+      "value": 72
+    },
+    {
+      "boundary": 143,
+      "seq": 22,
+      "kind": "scan",
+      "value": 200
+    },
+    {
+      "boundary": 149,
+      "seq": 23,
+      "kind": "scan",
+      "value": 77
+    },
+    {
+      "boundary": 152,
+      "seq": 24,
+      "kind": "scan",
+      "value": 205
+    },
+    {
+      "boundary": 154,
+      "seq": 25,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 156,
+      "seq": 26,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 159,
+      "seq": 27,
+      "kind": "scan",
+      "value": 75
+    },
+    {
+      "boundary": 162,
+      "seq": 28,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 163,
+      "seq": 29,
+      "kind": "scan",
+      "value": 203
+    },
+    {
+      "boundary": 165,
+      "seq": 30,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 173,
+      "seq": 31,
+      "kind": "scan",
+      "value": 1
+    },
+    {
+      "boundary": 175,
+      "seq": 32,
+      "kind": "scan",
+      "value": 129
+    },
+    {
+      "boundary": 241,
+      "seq": 33,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 243,
+      "seq": 34,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 244,
+      "seq": 35,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 247,
+      "seq": 36,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 306,
+      "seq": 37,
+      "kind": "scan",
+      "value": 57
+    },
+    {
+      "boundary": 311,
+      "seq": 38,
+      "kind": "scan",
+      "value": 185
+    },
+    {
+      "boundary": 376,
+      "seq": 39,
+      "kind": "scan",
+      "value": 57
+    },
+    {
+      "boundary": 380,
+      "seq": 40,
+      "kind": "scan",
+      "value": 185
+    },
+    {
+      "boundary": 444,
+      "seq": 41,
+      "kind": "scan",
+      "value": 72
+    },
+    {
+      "boundary": 446,
+      "seq": 42,
+      "kind": "scan",
+      "value": 200
+    },
+    {
+      "boundary": 449,
+      "seq": 43,
+      "kind": "scan",
+      "value": 72
+    },
+    {
+      "boundary": 451,
+      "seq": 44,
+      "kind": "scan",
+      "value": 200
+    },
+    {
+      "boundary": 452,
+      "seq": 45,
+      "kind": "scan",
+      "value": 28
+    },
+    {
+      "boundary": 454,
+      "seq": 46,
+      "kind": "scan",
+      "value": 156
+    },
+    {
+      "boundary": 515,
+      "seq": 47,
+      "kind": "scan",
+      "value": 77
+    },
+    {
+      "boundary": 518,
+      "seq": 48,
+      "kind": "scan",
+      "value": 205
+    },
+    {
+      "boundary": 521,
+      "seq": 49,
+      "kind": "scan",
+      "value": 77
+    },
+    {
+      "boundary": 524,
+      "seq": 50,
+      "kind": "scan",
+      "value": 205
+    },
+    {
+      "boundary": 529,
+      "seq": 51,
+      "kind": "scan",
+      "value": 72
+    },
+    {
+      "boundary": 531,
+      "seq": 52,
+      "kind": "scan",
+      "value": 200
+    },
+    {
+      "boundary": 534,
+      "seq": 53,
+      "kind": "scan",
+      "value": 72
+    },
+    {
+      "boundary": 537,
+      "seq": 54,
+      "kind": "scan",
+      "value": 200
+    },
+    {
+      "boundary": 539,
+      "seq": 55,
+      "kind": "scan",
+      "value": 75
+    },
+    {
+      "boundary": 542,
+      "seq": 56,
+      "kind": "scan",
+      "value": 203
+    },
+    {
+      "boundary": 545,
+      "seq": 57,
+      "kind": "scan",
+      "value": 75
+    },
+    {
+      "boundary": 547,
+      "seq": 58,
+      "kind": "scan",
+      "value": 203
+    },
+    {
+      "boundary": 550,
+      "seq": 59,
+      "kind": "scan",
+      "value": 75
+    },
+    {
+      "boundary": 552,
+      "seq": 60,
+      "kind": "scan",
+      "value": 203
+    },
+    {
+      "boundary": 559,
+      "seq": 61,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 561,
+      "seq": 62,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 564,
+      "seq": 63,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 566,
+      "seq": 64,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 568,
+      "seq": 65,
+      "kind": "scan",
+      "value": 80
+    },
+    {
+      "boundary": 573,
+      "seq": 66,
+      "kind": "scan",
+      "value": 208
+    },
+    {
+      "boundary": 574,
+      "seq": 67,
+      "kind": "scan",
+      "value": 77
+    },
+    {
+      "boundary": 578,
+      "seq": 68,
+      "kind": "scan",
+      "value": 205
+    },
+    {
+      "boundary": 611,
+      "seq": 69,
+      "kind": "scan",
+      "value": 1
+    },
+    {
+      "boundary": 612,
+      "seq": 70,
+      "kind": "scan",
+      "value": 129
+    }
+  ]
+}

@@ -1,17 +1,94 @@
 # Indirect dispatch targets -- DERIVED by scripts/find_dispatch_targets.py.
-# The music ISR (1010:5A55) calls ds:[bx+0C5B] with `and bx,7` -- so the
-# table has EXACTLY 8 entries and the set is provable, not merely observed.
-# Needed because which entries a demo exercises depends on the song, and
-# the boot picks one at random: a demo-derived census covers only some, and
-# the strict-VMless wall then fires on the first unseen music command.
-# table[0] (ds:0C5B) -> 1010:5914
-# table[1] (ds:0C5D) -> 1010:5919
-# table[2] (ds:0C5F) -> 1010:5971
-# table[3] (ds:0C61) -> 1010:59CF
-# table[4] (ds:0C63) -> 1010:5A0D
-# table[5] (ds:0C65) -> 1010:5A42
-# table[6] (ds:0C67) -> 1010:5A49
-# table[7] (ds:0C69) -> 1010:5A50
+# Nothing here is hand-listed. Every address is one the PROGRAM proves is a
+# function pointer, reached through a table the census cannot see: it keeps
+# a call target only if it can SEE the call, and an indirect call through a
+# table shows it nothing.
+#
+# 1. BOUNDED INDEXED DISPATCH -- `and bx,MASK; shl bx,1; call [bx+TABLE]`.
+#    The mask is a PROOF of the entry count, so enumerating the table covers
+#    every branch the program can take, including the ones no demo took.
+#    That matters: which entries run depends on data (which song, which
+#    level), so a census built from observation gets only the ones those
+#    runs needed, and the wall fires on the first unseen one -- one crash at
+#    a time, days apart. Tables are read from every image below, because
+#    their contents depend on what the machine was doing when it was caught.
+#      image: artifacts/memory_1mb.bin
+#      image: demo_cold_20260711_201845/memory_1mb.bin
+#      image: demo_cold_20260711_201855/memory_1mb.bin
+#      image: demo_cold_20260713_213510/memory_1mb.bin
+#      image: demo_cold_sound_20260710_212256/memory_1mb.bin
+#      image: demo_cold_sound_20260710_212952/memory_1mb.bin
+#      image: demo_colde2e_20260713_144431/memory_1mb.bin
+#      image: demo_colde2e_full_20260713_144604/memory_1mb.bin
+#      image: demo_death_redtile_20260713_154259/memory_1mb.bin
+#      image: demo_e2e_20260710_132930/memory_1mb.bin
+#      image: demo_menu_3levels_20260713_144256/memory_1mb.bin
+#      image: demo_skyroads_20260709_184949/memory_1mb.bin
+#      image: demo_skyroads_20260709_225824/memory_1mb.bin
+#      image: demo_skyroads_20260710_125342/memory_1mb.bin
+#      image: demo_skyroads_20260710_125418/memory_1mb.bin
+#      image: demo_skyroads_20260710_125610/memory_1mb.bin
+#      image: demo_skyroads_20260710_132812/memory_1mb.bin
+#      image: demo_skyroads_20260710_145303/memory_1mb.bin
+#      image: demo_skyroads_20260710_204553/memory_1mb.bin
+#      image: demo_skyroads_20260710_213019/memory_1mb.bin
+#      image: demo_skyroads_20260710_213537/memory_1mb.bin
+#      image: demo_skyroads_20260711_123234/memory_1mb.bin
+#      image: demo_skyroads_20260711_202740/memory_1mb.bin
+#      image: demo_skyroads_20260713_095814/memory_1mb.bin
+#      image: demo_skyroads_20260713_101126/memory_1mb.bin
+#      image: demo_skyroads_20260713_103107/memory_1mb.bin
+#      image: demo_skyroads_20260713_131407/memory_1mb.bin
+#      image: demo_skyroads_20260713_154238/memory_1mb.bin
+#      image: demo_skyroads_20260713_154252/memory_1mb.bin
+#      image: demo_skyroads_20260713_160506/memory_1mb.bin
+#      image: demo_skyroads_20260713_234905/memory_1mb.bin
+#      image: demo_skyroads_20260717_122736/memory_1mb.bin
+#      image: demo_skyroads_crash_20260713_085908/memory_1mb.bin
+#      image: demo_skyroads_finish_20260713_085832/memory_1mb.bin
+#      image: demo_skyroads_L1FULL_20260713_212417/memory_1mb.bin
+#    1010:2DD4 calls [bx+0BAF], 16 entries:
+#      [ 0] (ds:0BAF) -> 1010:2E6C  (artifacts)
+#      [ 1] (ds:0BB1) -> 1010:3059  (artifacts)
+#      [ 2] (ds:0BB3) -> 1010:2EBB  (artifacts)
+#      [ 3] (ds:0BB5) -> 1010:2EFD  (artifacts)
+#      [ 4] (ds:0BB7) -> 1010:2F58  (artifacts)
+#      [ 5] (ds:0BB9) -> 1010:2FCC  (artifacts)
+#      [ 6] (ds:0BBB) -> 1010:3AC9  (artifacts)
+#    1010:5A77 calls [bx+0C5B], 8 entries:
+#      [ 0] (ds:0C5B) -> 1010:5914  (artifacts)
+#      [ 1] (ds:0C5D) -> 1010:5919  (artifacts)
+#      [ 2] (ds:0C5F) -> 1010:5971  (artifacts)
+#      [ 3] (ds:0C61) -> 1010:59CF  (artifacts)
+#      [ 4] (ds:0C63) -> 1010:5A0D  (artifacts)
+#      [ 5] (ds:0C65) -> 1010:5A42  (artifacts)
+#      [ 6] (ds:0C67) -> 1010:5A49  (artifacts)
+#      [ 7] (ds:0C69) -> 1010:5A50  (artifacts)
+#
+# 2. TABLES BUILT AT RUNTIME -- a straight-line run of `mov word [imm16],
+#    imm16` over consecutive slots, covering a slot that `call [imm16]`
+#    reaches. The run IS the table and every value in it IS a code pointer.
+#    The render dispatch at ds:0E38 is filled this way, twice, and which
+#    fill wins is a mode flag (ds:003C) -- so reading it from an image can
+#    only ever show one variant. Taken from the instructions instead, both
+#    are covered.
+#    1010:2CF2 stores ds:0E38 <- 1010:347E
+#    1010:2CD3 stores ds:0E38 <- 1010:34A7
+#    1010:2CF8 stores ds:0E3A <- 1010:309F
+#    1010:2CD9 stores ds:0E3A <- 1010:3153
+#    1010:2CFE stores ds:0E3C <- 1010:30F5
+#    1010:2CDF stores ds:0E3C <- 1010:3190
+#    1010:2D04 stores ds:0E3E <- 1010:31DB
+#    1010:2CE5 stores ds:0E3E <- 1010:325B
+#    1010:34CD stores ds:0E42 <- 1010:364F
+#    1010:34E5 stores ds:0E42 <- 1010:36F3
+1010:2E6C
+1010:3059
+1010:2EBB
+1010:2EFD
+1010:2F58
+1010:2FCC
+1010:3AC9
 1010:5914
 1010:5919
 1010:5971
@@ -20,3 +97,13 @@
 1010:5A42
 1010:5A49
 1010:5A50
+1010:347E
+1010:34A7
+1010:309F
+1010:3153
+1010:30F5
+1010:3190
+1010:31DB
+1010:325B
+1010:364F
+1010:36F3

@@ -10,7 +10,15 @@
    "1010:4468",
    "1010:47CD"
   ],
-  "dispatch_entries": [],
+  "dispatch_entries": [
+   "1010:0000",
+   "1010:1D7A",
+   "1010:22F8",
+   "1010:2301",
+   "1010:3199",
+   "1010:434A",
+   "1010:5FED"
+  ],
   "keep_interpreted": []
  },
  "functions": {
@@ -20,6 +28,7 @@
      "instructions": [
       {
        "bytes": "c8000000",
+       "dispatch_entry": true,
        "ip": "0000",
        "kind": "seq",
        "mnemonic": "enter"
@@ -244,6 +253,132 @@
    "liftable": true,
    "refusals": [],
    "signature": "c80000005657833e3c00007503"
+  },
+  "1010:0046": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "c8000000",
+       "ip": "0046",
+       "kind": "seq",
+       "mnemonic": "enter"
+      },
+      {
+       "bytes": "56",
+       "ip": "004A",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "57",
+       "ip": "004B",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "6a03",
+       "ip": "004C",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "e8cc5f",
+       "ip": "004E",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "601D"
+      },
+      {
+       "bytes": "83c402",
+       "ip": "0051",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "e8143b",
+       "ip": "0054",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "3B6B"
+      },
+      {
+       "bytes": "e84b58",
+       "ip": "0057",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "58A5"
+      },
+      {
+       "bytes": "e8635b",
+       "ip": "005A",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "5BC0"
+      },
+      {
+       "bytes": "6a00",
+       "ip": "005D",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "e89f5f",
+       "ip": "005F",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "6001"
+      },
+      {
+       "bytes": "83c402",
+       "ip": "0062",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "5f",
+       "ip": "0065",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5e",
+       "ip": "0066",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c9",
+       "ip": "0067",
+       "kind": "seq",
+       "mnemonic": "leave"
+      },
+      {
+       "bytes": "c3",
+       "ip": "0068",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "0046"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "3B6B",
+    "58A5",
+    "5BC0",
+    "6001",
+    "601D"
+   ],
+   "entry": "1010:0046",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "c800000056576a03e8cc5f"
   },
   "1010:0069": {
    "blocks": [
@@ -21567,6 +21702,7 @@
      "instructions": [
       {
        "bytes": "837e0c00",
+       "dispatch_entry": true,
        "ip": "1D7A",
        "kind": "seq",
        "mem_operand": true,
@@ -25354,6 +25490,7 @@
       {
        "boundary_effect": true,
        "bytes": "8b46fc",
+       "dispatch_entry": true,
        "ip": "22F8",
        "kind": "seq",
        "mem_operand": true,
@@ -25381,6 +25518,7 @@
      "instructions": [
       {
        "bytes": "e9f4ff",
+       "dispatch_entry": true,
        "ip": "2301",
        "kind": "jmp",
        "mnemonic": "jmp",
@@ -33380,6 +33518,2539 @@
    "refusals": [],
    "signature": "8a4600240f7447"
   },
+  "1010:2EBB": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "e8aeff",
+       "ip": "2EBB",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "2E6C"
+      },
+      {
+       "bytes": "807ef302",
+       "ip": "2EBE",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "7308",
+       "ip": "2EC2",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2ECC"
+      }
+     ],
+     "leader": "2EBB"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7506",
+       "ip": "2EC4",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "2EC7",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2EC4"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7504",
+       "ip": "2ECC",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8a4600",
+       "ip": "2ECF",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c0e804",
+       "ip": "2ED2",
+       "kind": "seq",
+       "mnemonic": "shift rm8,imm8"
+      },
+      {
+       "bytes": "7502",
+       "ip": "2ED5",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "2ED9"
+      }
+     ],
+     "leader": "2ECC"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b03d",
+       "ip": "2ED7",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      }
+     ],
+     "leader": "2ED7"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8804",
+       "ip": "2ED9",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "2EDB",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "55",
+       "ip": "2EE0",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "368b1e480e",
+       "ip": "2EE1",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c1e302",
+       "ip": "2EE6",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "f7db",
+       "ip": "2EE9",
+       "kind": "seq",
+       "mnemonic": "grp3 rm16"
+      },
+      {
+       "bytes": "83c302",
+       "ip": "2EEB",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "03eb",
+       "ip": "2EEE",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "807e0102",
+       "ip": "2EF0",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "5d",
+       "ip": "2EF4",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "7305",
+       "ip": "2EF5",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2EFC"
+      }
+     ],
+     "leader": "2ED9"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36ff16400e",
+       "ip": "2EF7",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2EF7"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c3",
+       "ip": "2EFC",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "2EFC"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "2E6C"
+   ],
+   "entry": "1010:2EBB",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "e8aeff80"
+  },
+  "1010:2EFD": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "e86cff",
+       "ip": "2EFD",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "2E6C"
+      },
+      {
+       "bytes": "807ef302",
+       "ip": "2F00",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "730b",
+       "ip": "2F04",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2F11"
+      }
+     ],
+     "leader": "2EFD"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7502",
+       "ip": "2F06",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c60441",
+       "ip": "2F09",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm8,imm8"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "2F0C",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2F06"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7504",
+       "ip": "2F11",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8a4600",
+       "ip": "2F14",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c0e804",
+       "ip": "2F17",
+       "kind": "seq",
+       "mnemonic": "shift rm8,imm8"
+      },
+      {
+       "bytes": "7502",
+       "ip": "2F1A",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "2F1E"
+      }
+     ],
+     "leader": "2F11"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b03d",
+       "ip": "2F1C",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      }
+     ],
+     "leader": "2F1C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8804",
+       "ip": "2F1E",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "2F20",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "55",
+       "ip": "2F25",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "368b1e480e",
+       "ip": "2F26",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c1e302",
+       "ip": "2F2B",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "f7db",
+       "ip": "2F2E",
+       "kind": "seq",
+       "mnemonic": "grp3 rm16"
+      },
+      {
+       "bytes": "83c302",
+       "ip": "2F30",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "03eb",
+       "ip": "2F33",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "807e0102",
+       "ip": "2F35",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "5d",
+       "ip": "2F39",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "7305",
+       "ip": "2F3A",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2F41"
+      }
+     ],
+     "leader": "2F1E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36ff16400e",
+       "ip": "2F3C",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2F3C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "807ef302",
+       "ip": "2F41",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "7310",
+       "ip": "2F45",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2F57"
+      }
+     ],
+     "leader": "2F41"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7506",
+       "ip": "2F47",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "e88402",
+       "ip": "2F4A",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "31D1"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "2F4D",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "2F52",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2F47"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c3",
+       "ip": "2F57",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "2F57"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "2E6C",
+    "31D1"
+   ],
+   "entry": "1010:2EFD",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "e86cff80"
+  },
+  "1010:2F58": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "e811ff",
+       "ip": "2F58",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "2E6C"
+      },
+      {
+       "bytes": "807ef302",
+       "ip": "2F5B",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "7308",
+       "ip": "2F5F",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2F69"
+      }
+     ],
+     "leader": "2F58"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7506",
+       "ip": "2F61",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "2F64",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2F61"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7504",
+       "ip": "2F69",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "e86202",
+       "ip": "2F6C",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "31D1"
+      },
+      {
+       "bytes": "55",
+       "ip": "2F6F",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "368b1e480e",
+       "ip": "2F70",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c1e302",
+       "ip": "2F75",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "f7db",
+       "ip": "2F78",
+       "kind": "seq",
+       "mnemonic": "grp3 rm16"
+      },
+      {
+       "bytes": "83c302",
+       "ip": "2F7A",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "03eb",
+       "ip": "2F7D",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "807e0102",
+       "ip": "2F7F",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "5d",
+       "ip": "2F83",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "7305",
+       "ip": "2F84",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2F8B"
+      }
+     ],
+     "leader": "2F69"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36ff16400e",
+       "ip": "2F86",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2F86"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b750a",
+       "ip": "2F8B",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8a4600",
+       "ip": "2F8E",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c0e804",
+       "ip": "2F91",
+       "kind": "seq",
+       "mnemonic": "shift rm8,imm8"
+      },
+      {
+       "bytes": "7502",
+       "ip": "2F94",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "2F98"
+      }
+     ],
+     "leader": "2F8B"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b03d",
+       "ip": "2F96",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      }
+     ],
+     "leader": "2F96"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8804",
+       "ip": "2F98",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "2F9A",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "55",
+       "ip": "2F9F",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "368b1e480e",
+       "ip": "2FA0",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c1e302",
+       "ip": "2FA5",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "f7db",
+       "ip": "2FA8",
+       "kind": "seq",
+       "mnemonic": "grp3 rm16"
+      },
+      {
+       "bytes": "83c302",
+       "ip": "2FAA",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "03eb",
+       "ip": "2FAD",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "807e0104",
+       "ip": "2FAF",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "5d",
+       "ip": "2FB3",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "7307",
+       "ip": "2FB4",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2FBD"
+      }
+     ],
+     "leader": "2F98"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36ff16400e",
+       "ip": "2FB6",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "eb03",
+       "ip": "2FBB",
+       "kind": "jmp",
+       "mnemonic": "jmp short",
+       "target": "2FC0"
+      }
+     ],
+     "leader": "2FB6"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e81102",
+       "ip": "2FBD",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "31D1"
+      }
+     ],
+     "leader": "2FBD"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "807ef304",
+       "ip": "2FC0",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "7305",
+       "ip": "2FC4",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2FCB"
+      }
+     ],
+     "leader": "2FC0"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36ff16400e",
+       "ip": "2FC6",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2FC6"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c3",
+       "ip": "2FCB",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "2FCB"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "2E6C",
+    "31D1"
+   ],
+   "entry": "1010:2F58",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "e811ff80"
+  },
+  "1010:2FCC": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "e89dfe",
+       "ip": "2FCC",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "2E6C"
+      },
+      {
+       "bytes": "807ef302",
+       "ip": "2FCF",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "730b",
+       "ip": "2FD3",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "2FE0"
+      }
+     ],
+     "leader": "2FCC"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7502",
+       "ip": "2FD5",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c60441",
+       "ip": "2FD8",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm8,imm8"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "2FDB",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2FD5"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7504",
+       "ip": "2FE0",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "e8eb01",
+       "ip": "2FE3",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "31D1"
+      },
+      {
+       "bytes": "55",
+       "ip": "2FE6",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "368b1e480e",
+       "ip": "2FE7",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c1e302",
+       "ip": "2FEC",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "f7db",
+       "ip": "2FEF",
+       "kind": "seq",
+       "mnemonic": "grp3 rm16"
+      },
+      {
+       "bytes": "83c302",
+       "ip": "2FF1",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "03eb",
+       "ip": "2FF4",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "807e0102",
+       "ip": "2FF6",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "5d",
+       "ip": "2FFA",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "7305",
+       "ip": "2FFB",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "3002"
+      }
+     ],
+     "leader": "2FE0"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36ff16400e",
+       "ip": "2FFD",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "2FFD"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "807ef302",
+       "ip": "3002",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "7310",
+       "ip": "3006",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "3018"
+      }
+     ],
+     "leader": "3002"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7506",
+       "ip": "3008",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "e8c301",
+       "ip": "300B",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "31D1"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "300E",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "3013",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "3008"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b750a",
+       "ip": "3018",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8a4600",
+       "ip": "301B",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c0e804",
+       "ip": "301E",
+       "kind": "seq",
+       "mnemonic": "shift rm8,imm8"
+      },
+      {
+       "bytes": "7502",
+       "ip": "3021",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3025"
+      }
+     ],
+     "leader": "3018"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b03d",
+       "ip": "3023",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      }
+     ],
+     "leader": "3023"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8804",
+       "ip": "3025",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "3027",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "55",
+       "ip": "302C",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "368b1e480e",
+       "ip": "302D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c1e302",
+       "ip": "3032",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "f7db",
+       "ip": "3035",
+       "kind": "seq",
+       "mnemonic": "grp3 rm16"
+      },
+      {
+       "bytes": "83c302",
+       "ip": "3037",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "03eb",
+       "ip": "303A",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "807e0104",
+       "ip": "303C",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "5d",
+       "ip": "3040",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "7307",
+       "ip": "3041",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "304A"
+      }
+     ],
+     "leader": "3025"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36ff16400e",
+       "ip": "3043",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "eb03",
+       "ip": "3048",
+       "kind": "jmp",
+       "mnemonic": "jmp short",
+       "target": "304D"
+      }
+     ],
+     "leader": "3043"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e88401",
+       "ip": "304A",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "31D1"
+      }
+     ],
+     "leader": "304A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "807ef304",
+       "ip": "304D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "7305",
+       "ip": "3051",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "3058"
+      }
+     ],
+     "leader": "304D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36ff16400e",
+       "ip": "3053",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "3053"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c3",
+       "ip": "3058",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "3058"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "2E6C",
+    "31D1"
+   ],
+   "entry": "1010:2FCC",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "e89dfe80"
+  },
+  "1010:3059": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "e810fe",
+       "ip": "3059",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "2E6C"
+      },
+      {
+       "bytes": "807ef301",
+       "ip": "305C",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "730b",
+       "ip": "3060",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "306D"
+      }
+     ],
+     "leader": "3059"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7502",
+       "ip": "3062",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c60443",
+       "ip": "3065",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm8,imm8"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "3068",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "3062"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b7508",
+       "ip": "306D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "3070",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "3075",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "307A",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "307F",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "3084",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "3089",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "807ef301",
+       "ip": "308E",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "730a",
+       "ip": "3092",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "309E"
+      }
+     ],
+     "leader": "306D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36ff16400e",
+       "ip": "3094",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      },
+      {
+       "bytes": "36ff16400e",
+       "ip": "3099",
+       "kind": "call_ind",
+       "mem_operand": true,
+       "mnemonic": "call rm16"
+      }
+     ],
+     "leader": "3094"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c3",
+       "ip": "309E",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "309E"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "2E6C"
+   ],
+   "entry": "1010:3059",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "e810fe80"
+  },
+  "1010:309F": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "57",
+       "ip": "309F",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "55",
+       "ip": "30A0",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "bace03",
+       "ip": "30A1",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "32ff",
+       "ip": "30A4",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "32ed",
+       "ip": "30A6",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "ac",
+       "ip": "30A8",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8ad8",
+       "ip": "30A9",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c1e302",
+       "ip": "30AB",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "368a875403",
+       "ip": "30AE",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "32ff",
+       "ip": "30B3",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "8ae0",
+       "ip": "30B5",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "32c0",
+       "ip": "30B7",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "ef",
+       "ip": "30B9",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "ad",
+       "ip": "30BA",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8bf8",
+       "ip": "30BB",
+       "kind": "seq",
+       "mnemonic": "mov"
+      }
+     ],
+     "leader": "309F"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "ac",
+       "ip": "30BD",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "3cff",
+       "ip": "30BE",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7430",
+       "ip": "30C0",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "30F2"
+      }
+     ],
+     "leader": "30BD"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "32e4",
+       "ip": "30C2",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "8bef",
+       "ip": "30C4",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "2bf8",
+       "ip": "30C6",
+       "kind": "seq",
+       "mnemonic": "sub"
+      },
+      {
+       "bytes": "ac",
+       "ip": "30C8",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8ae0",
+       "ip": "30C9",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "ac",
+       "ip": "30CB",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8ac8",
+       "ip": "30CC",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8ad8",
+       "ip": "30CE",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c0e903",
+       "ip": "30D0",
+       "kind": "seq",
+       "mnemonic": "shift rm8,imm8"
+      },
+      {
+       "bytes": "80e307",
+       "ip": "30D3",
+       "kind": "seq",
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "b008",
+       "ip": "30D6",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      },
+      {
+       "bytes": "ef",
+       "ip": "30D8",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "26fe05",
+       "ip": "30D9",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp4"
+      },
+      {
+       "bytes": "47",
+       "ip": "30DC",
+       "kind": "seq",
+       "mnemonic": "inc r16"
+      },
+      {
+       "bytes": "b4ff",
+       "ip": "30DD",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      },
+      {
+       "bytes": "ef",
+       "ip": "30DF",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "f3aa",
+       "ip": "30E0",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "368aa74203",
+       "ip": "30E2",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "ef",
+       "ip": "30E7",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "26fe05",
+       "ip": "30E8",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp4"
+      },
+      {
+       "bytes": "8bfd",
+       "ip": "30EB",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "83c728",
+       "ip": "30ED",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "ebcb",
+       "ip": "30F0",
+       "kind": "jmp",
+       "mnemonic": "jmp short",
+       "target": "30BD"
+      }
+     ],
+     "leader": "30C2"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "5d",
+       "ip": "30F2",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5f",
+       "ip": "30F3",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c3",
+       "ip": "30F4",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "30F2"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [],
+   "entry": "1010:309F",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "5755bace0332ff32edac8ad8c1e30236"
+  },
+  "1010:30F5": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "57",
+       "ip": "30F5",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "55",
+       "ip": "30F6",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "bace03",
+       "ip": "30F7",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "32ff",
+       "ip": "30FA",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "32ed",
+       "ip": "30FC",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "ac",
+       "ip": "30FE",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8ad8",
+       "ip": "30FF",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c1e302",
+       "ip": "3101",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "368a875503",
+       "ip": "3104",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "32ff",
+       "ip": "3109",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "8ae0",
+       "ip": "310B",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "32c0",
+       "ip": "310D",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "ef",
+       "ip": "310F",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "ad",
+       "ip": "3110",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8bf8",
+       "ip": "3111",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "4f",
+       "ip": "3113",
+       "kind": "seq",
+       "mnemonic": "dec r16"
+      }
+     ],
+     "leader": "30F5"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "ac",
+       "ip": "3114",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "3cff",
+       "ip": "3115",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7437",
+       "ip": "3117",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3150"
+      }
+     ],
+     "leader": "3114"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "32e4",
+       "ip": "3119",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "8bef",
+       "ip": "311B",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "03f8",
+       "ip": "311D",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "ac",
+       "ip": "311F",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8ad8",
+       "ip": "3120",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "368aa78e05",
+       "ip": "3122",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "ac",
+       "ip": "3127",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8ac8",
+       "ip": "3128",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8ad8",
+       "ip": "312A",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c0e903",
+       "ip": "312C",
+       "kind": "seq",
+       "mnemonic": "shift rm8,imm8"
+      },
+      {
+       "bytes": "80e307",
+       "ip": "312F",
+       "kind": "seq",
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "b008",
+       "ip": "3132",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      },
+      {
+       "bytes": "ef",
+       "ip": "3134",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "26fe05",
+       "ip": "3135",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp4"
+      },
+      {
+       "bytes": "4f",
+       "ip": "3138",
+       "kind": "seq",
+       "mnemonic": "dec r16"
+      },
+      {
+       "bytes": "b4ff",
+       "ip": "3139",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      },
+      {
+       "bytes": "ef",
+       "ip": "313B",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "fd",
+       "ip": "313C",
+       "kind": "seq",
+       "mnemonic": "std"
+      },
+      {
+       "bytes": "f3aa",
+       "ip": "313D",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "fc",
+       "ip": "313F",
+       "kind": "seq",
+       "mnemonic": "cld"
+      },
+      {
+       "bytes": "368aa74a03",
+       "ip": "3140",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "ef",
+       "ip": "3145",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "26fe05",
+       "ip": "3146",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp4"
+      },
+      {
+       "bytes": "8bfd",
+       "ip": "3149",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "83c728",
+       "ip": "314B",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "ebc4",
+       "ip": "314E",
+       "kind": "jmp",
+       "mnemonic": "jmp short",
+       "target": "3114"
+      }
+     ],
+     "leader": "3119"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "5d",
+       "ip": "3150",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5f",
+       "ip": "3151",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c3",
+       "ip": "3152",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "3150"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [],
+   "entry": "1010:30F5",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "5755bace0332ff32edac8ad8c1e30236"
+  },
+  "1010:3153": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "57",
+       "ip": "3153",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "55",
+       "ip": "3154",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "32ed",
+       "ip": "3155",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "ac",
+       "ip": "3157",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8ad8",
+       "ip": "3158",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "32ff",
+       "ip": "315A",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "c1e302",
+       "ip": "315C",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "368a875203",
+       "ip": "315F",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8ad0",
+       "ip": "3164",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "ad",
+       "ip": "3166",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8bf8",
+       "ip": "3167",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "32e4",
+       "ip": "3169",
+       "kind": "seq",
+       "mnemonic": "xor"
+      }
+     ],
+     "leader": "3153"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "ac",
+       "ip": "316B",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "3cff",
+       "ip": "316C",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "741d",
+       "ip": "316E",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "318D"
+      }
+     ],
+     "leader": "316B"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8bef",
+       "ip": "3170",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "2bf8",
+       "ip": "3172",
+       "kind": "seq",
+       "mnemonic": "sub"
+      },
+      {
+       "bytes": "ac",
+       "ip": "3174",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "46",
+       "ip": "3175",
+       "kind": "seq",
+       "mnemonic": "inc r16"
+      },
+      {
+       "bytes": "8ac8",
+       "ip": "3176",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8ac2",
+       "ip": "3178",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "d1e9",
+       "ip": "317A",
+       "kind": "seq",
+       "mnemonic": "shift"
+      },
+      {
+       "bytes": "7301",
+       "ip": "317C",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "317F"
+      }
+     ],
+     "leader": "3170"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "aa",
+       "ip": "317E",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      }
+     ],
+     "leader": "317E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8ae0",
+       "ip": "317F",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "f3ab",
+       "ip": "3181",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "32e4",
+       "ip": "3183",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "8bfd",
+       "ip": "3185",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "81c74001",
+       "ip": "3187",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm16"
+      },
+      {
+       "bytes": "ebde",
+       "ip": "318B",
+       "kind": "jmp",
+       "mnemonic": "jmp short",
+       "target": "316B"
+      }
+     ],
+     "leader": "317F"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "5d",
+       "ip": "318D",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5f",
+       "ip": "318E",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c3",
+       "ip": "318F",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "318D"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [],
+   "entry": "1010:3153",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "575532edac8ad832ffc1e302368a8752"
+  },
+  "1010:3190": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "57",
+       "ip": "3190",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "55",
+       "ip": "3191",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "32ed",
+       "ip": "3192",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "ac",
+       "ip": "3194",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8ad8",
+       "ip": "3195",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "32ff",
+       "ip": "3197",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "c1e302",
+       "dispatch_entry": true,
+       "ip": "3199",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "368a875303",
+       "ip": "319C",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8ad0",
+       "ip": "31A1",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "ad",
+       "ip": "31A3",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "8bf8",
+       "ip": "31A4",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "4f",
+       "ip": "31A6",
+       "kind": "seq",
+       "mnemonic": "dec r16"
+      },
+      {
+       "bytes": "32e4",
+       "ip": "31A7",
+       "kind": "seq",
+       "mnemonic": "xor"
+      }
+     ],
+     "leader": "3190"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "ac",
+       "ip": "31A9",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "3cff",
+       "ip": "31AA",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7420",
+       "ip": "31AC",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "31CE"
+      }
+     ],
+     "leader": "31A9"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8bef",
+       "ip": "31AE",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "03f8",
+       "ip": "31B0",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "ac",
+       "ip": "31B2",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "46",
+       "ip": "31B3",
+       "kind": "seq",
+       "mnemonic": "inc r16"
+      },
+      {
+       "bytes": "8ac8",
+       "ip": "31B4",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8ac2",
+       "ip": "31B6",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "fd",
+       "ip": "31B8",
+       "kind": "seq",
+       "mnemonic": "std"
+      },
+      {
+       "bytes": "d1e9",
+       "ip": "31B9",
+       "kind": "seq",
+       "mnemonic": "shift"
+      },
+      {
+       "bytes": "7301",
+       "ip": "31BB",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "31BE"
+      }
+     ],
+     "leader": "31AE"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "aa",
+       "ip": "31BD",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      }
+     ],
+     "leader": "31BD"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "4f",
+       "ip": "31BE",
+       "kind": "seq",
+       "mnemonic": "dec r16"
+      },
+      {
+       "bytes": "8ae0",
+       "ip": "31BF",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "f3ab",
+       "ip": "31C1",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "32e4",
+       "ip": "31C3",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "fc",
+       "ip": "31C5",
+       "kind": "seq",
+       "mnemonic": "cld"
+      },
+      {
+       "bytes": "8bfd",
+       "ip": "31C6",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "81c74001",
+       "ip": "31C8",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm16"
+      },
+      {
+       "bytes": "ebdb",
+       "ip": "31CC",
+       "kind": "jmp",
+       "mnemonic": "jmp short",
+       "target": "31A9"
+      }
+     ],
+     "leader": "31BE"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "5d",
+       "ip": "31CE",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5f",
+       "ip": "31CF",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c3",
+       "ip": "31D0",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "31CE"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [],
+   "entry": "1010:3190",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "575532edac8ad832ffc1e302368a8753"
+  },
   "1010:31D1": {
    "blocks": [
     {
@@ -33435,6 +36106,741 @@
    "liftable": true,
    "refusals": [],
    "signature": "83c603803cff75f8"
+  },
+  "1010:31DB": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "53",
+       "ip": "31DB",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "57",
+       "ip": "31DC",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "55",
+       "ip": "31DD",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "1e",
+       "ip": "31DE",
+       "kind": "seq",
+       "mnemonic": "push ds"
+      },
+      {
+       "bytes": "06",
+       "ip": "31DF",
+       "kind": "seq",
+       "mnemonic": "push es"
+      },
+      {
+       "bytes": "8cd0",
+       "ip": "31E0",
+       "kind": "seq",
+       "mnemonic": "mov rm16,sreg"
+      },
+      {
+       "bytes": "8ed8",
+       "ip": "31E2",
+       "kind": "seq",
+       "mnemonic": "mov sreg,rm16"
+      },
+      {
+       "bytes": "8e06360e",
+       "ip": "31E4",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov sreg,rm16"
+      },
+      {
+       "bytes": "e8d600",
+       "ip": "31E8",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "32C1"
+      },
+      {
+       "bytes": "b89d00",
+       "ip": "31EB",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "2b062c0e",
+       "ip": "31EE",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "sub"
+      },
+      {
+       "bytes": "b92800",
+       "ip": "31F2",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "f7e9",
+       "ip": "31F5",
+       "kind": "seq",
+       "mnemonic": "grp3 rm16"
+      },
+      {
+       "bytes": "8bf8",
+       "ip": "31F7",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "a1280e",
+       "ip": "31F9",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      },
+      {
+       "bytes": "2d6e00",
+       "ip": "31FC",
+       "kind": "seq",
+       "mnemonic": "sub"
+      },
+      {
+       "bytes": "8bc8",
+       "ip": "31FF",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "83e107",
+       "ip": "3201",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "c1f803",
+       "ip": "3204",
+       "kind": "seq",
+       "mnemonic": "shift rm16,imm8"
+      },
+      {
+       "bytes": "03f8",
+       "ip": "3207",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "b380",
+       "ip": "3209",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      },
+      {
+       "bytes": "d2eb",
+       "ip": "320B",
+       "kind": "seq",
+       "mnemonic": "shift"
+      },
+      {
+       "bytes": "b71d",
+       "ip": "320D",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      },
+      {
+       "bytes": "c5362e0e",
+       "ip": "320F",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "lds"
+      },
+      {
+       "bytes": "33ed",
+       "ip": "3213",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "bace03",
+       "ip": "3215",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      }
+     ],
+     "leader": "31DB"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8ae3",
+       "ip": "3218",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "b008",
+       "ip": "321A",
+       "kind": "seq",
+       "mnemonic": "mov r8,imm8"
+      },
+      {
+       "bytes": "ef",
+       "ip": "321C",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "b91800",
+       "ip": "321D",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      }
+     ],
+     "leader": "3218"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "ac",
+       "ip": "3220",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "0ac0",
+       "ip": "3221",
+       "kind": "seq",
+       "mnemonic": "or"
+      },
+      {
+       "bytes": "7414",
+       "ip": "3223",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3239"
+      }
+     ],
+     "leader": "3220"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "80be860e00",
+       "ip": "3225",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "740d",
+       "ip": "322A",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3239"
+      }
+     ],
+     "leader": "3225"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c686860e02",
+       "ip": "322C",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm8,imm8"
+      },
+      {
+       "bytes": "8ae0",
+       "ip": "3231",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "32c0",
+       "ip": "3233",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "ef",
+       "ip": "3235",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "26fe05",
+       "ip": "3236",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp4"
+      }
+     ],
+     "leader": "322C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "83c728",
+       "ip": "3239",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "83c51d",
+       "ip": "323C",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "e2df",
+       "ip": "323F",
+       "kind": "jcc",
+       "mnemonic": "loop",
+       "target": "3220"
+      }
+     ],
+     "leader": "3239"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "81efc003",
+       "ip": "3241",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm16"
+      },
+      {
+       "bytes": "81edb702",
+       "ip": "3245",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm16"
+      },
+      {
+       "bytes": "d0cb",
+       "ip": "3249",
+       "kind": "seq",
+       "mnemonic": "shift"
+      },
+      {
+       "bytes": "7301",
+       "ip": "324B",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "324E"
+      }
+     ],
+     "leader": "3241"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "47",
+       "ip": "324D",
+       "kind": "seq",
+       "mnemonic": "inc r16"
+      }
+     ],
+     "leader": "324D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "fecf",
+       "ip": "324E",
+       "kind": "seq",
+       "mnemonic": "grp4"
+      },
+      {
+       "bytes": "75c6",
+       "ip": "3250",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3218"
+      }
+     ],
+     "leader": "324E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e81601",
+       "ip": "3252",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "336B"
+      },
+      {
+       "bytes": "07",
+       "ip": "3255",
+       "kind": "seq",
+       "mnemonic": "pop es"
+      },
+      {
+       "bytes": "1f",
+       "ip": "3256",
+       "kind": "seq",
+       "mnemonic": "pop ds"
+      },
+      {
+       "bytes": "5d",
+       "ip": "3257",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5f",
+       "ip": "3258",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5b",
+       "ip": "3259",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c3",
+       "ip": "325A",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "3252"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "32C1",
+    "336B"
+   ],
+   "entry": "1010:31DB",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "5357551e068cd08ed88e06360ee8d600"
+  },
+  "1010:325B": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "53",
+       "ip": "325B",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "57",
+       "ip": "325C",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "1e",
+       "ip": "325D",
+       "kind": "seq",
+       "mnemonic": "push ds"
+      },
+      {
+       "bytes": "06",
+       "ip": "325E",
+       "kind": "seq",
+       "mnemonic": "push es"
+      },
+      {
+       "bytes": "8cd0",
+       "ip": "325F",
+       "kind": "seq",
+       "mnemonic": "mov rm16,sreg"
+      },
+      {
+       "bytes": "8ed8",
+       "ip": "3261",
+       "kind": "seq",
+       "mnemonic": "mov sreg,rm16"
+      },
+      {
+       "bytes": "8e06360e",
+       "ip": "3263",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov sreg,rm16"
+      },
+      {
+       "bytes": "e85700",
+       "ip": "3267",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "32C1"
+      },
+      {
+       "bytes": "b89d00",
+       "ip": "326A",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "2b062c0e",
+       "ip": "326D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "sub"
+      },
+      {
+       "bytes": "b94001",
+       "ip": "3271",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "f7e9",
+       "ip": "3274",
+       "kind": "seq",
+       "mnemonic": "grp3 rm16"
+      },
+      {
+       "bytes": "8bf8",
+       "ip": "3276",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "033e280e",
+       "ip": "3278",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "83ef6e",
+       "ip": "327C",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "893e6c0e",
+       "ip": "327F",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "c5362e0e",
+       "ip": "3283",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "lds"
+      },
+      {
+       "bytes": "33db",
+       "ip": "3287",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "ba1d00",
+       "ip": "3289",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      }
+     ],
+     "leader": "325B"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b91800",
+       "ip": "328C",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      }
+     ],
+     "leader": "328C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "ac",
+       "ip": "328F",
+       "kind": "seq",
+       "mnemonic": "stos/lods/scas"
+      },
+      {
+       "bytes": "0ac0",
+       "ip": "3290",
+       "kind": "seq",
+       "mnemonic": "or"
+      },
+      {
+       "bytes": "7411",
+       "ip": "3292",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "32A5"
+      }
+     ],
+     "leader": "328F"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "3680bf860e00",
+       "ip": "3294",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm8,imm8"
+      },
+      {
+       "bytes": "7409",
+       "ip": "329A",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "32A5"
+      }
+     ],
+     "leader": "3294"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "36c687860e02",
+       "ip": "329C",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm8,imm8"
+      },
+      {
+       "bytes": "268805",
+       "ip": "32A2",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      }
+     ],
+     "leader": "329C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "81c74001",
+       "ip": "32A5",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm16"
+      },
+      {
+       "bytes": "83c31d",
+       "ip": "32A9",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "e2e1",
+       "ip": "32AC",
+       "kind": "jcc",
+       "mnemonic": "loop",
+       "target": "328F"
+      }
+     ],
+     "leader": "32A5"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "81efff1d",
+       "ip": "32AE",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm16"
+      },
+      {
+       "bytes": "81ebb702",
+       "ip": "32B2",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm16"
+      },
+      {
+       "bytes": "4a",
+       "ip": "32B6",
+       "kind": "seq",
+       "mnemonic": "dec r16"
+      },
+      {
+       "bytes": "75d3",
+       "ip": "32B7",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "328C"
+      }
+     ],
+     "leader": "32AE"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e84101",
+       "ip": "32B9",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "33FD"
+      },
+      {
+       "bytes": "07",
+       "ip": "32BC",
+       "kind": "seq",
+       "mnemonic": "pop es"
+      },
+      {
+       "bytes": "1f",
+       "ip": "32BD",
+       "kind": "seq",
+       "mnemonic": "pop ds"
+      },
+      {
+       "bytes": "5f",
+       "ip": "32BE",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5b",
+       "ip": "32BF",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c3",
+       "ip": "32C0",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "32B9"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "32C1",
+    "33FD"
+   ],
+   "entry": "1010:325B",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "53571e068cd08ed88e06360ee85700"
   },
   "1010:32C1": {
    "blocks": [
@@ -34366,6 +37772,179 @@
    "liftable": true,
    "refusals": [],
    "signature": "8cd08ed833d2a1340eb90500f7f13d05"
+  },
+  "1010:347E": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "1e",
+       "ip": "347E",
+       "kind": "seq",
+       "mnemonic": "push ds"
+      },
+      {
+       "bytes": "bace03",
+       "ip": "347F",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "b80500",
+       "ip": "3482",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "ef",
+       "ip": "3485",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "b8010f",
+       "ip": "3486",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "ef",
+       "ip": "3489",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "b80300",
+       "ip": "348A",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "ef",
+       "ip": "348D",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "b80800",
+       "ip": "348E",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "ef",
+       "ip": "3491",
+       "kind": "seq",
+       "mnemonic": "out dx,ax",
+       "platform_effect": "port_dx_dynamic"
+      },
+      {
+       "bytes": "368e1e7051",
+       "ip": "3492",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov sreg,rm16"
+      },
+      {
+       "bytes": "368e06360e",
+       "ip": "3497",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov sreg,rm16"
+      },
+      {
+       "bytes": "33f6",
+       "ip": "349C",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "33ff",
+       "ip": "349E",
+       "kind": "seq",
+       "mnemonic": "xor"
+      },
+      {
+       "bytes": "b99015",
+       "ip": "34A0",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "f3a4",
+       "ip": "34A3",
+       "kind": "seq",
+       "mnemonic": "movs/cmps"
+      },
+      {
+       "bytes": "1f",
+       "ip": "34A5",
+       "kind": "seq",
+       "mnemonic": "pop ds"
+      },
+      {
+       "bytes": "c3",
+       "ip": "34A6",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "347E"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [],
+   "entry": "1010:347E",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "1ebace03b80500efb8010fefb80300ef"
+  },
+  "1010:34A7": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "b80000",
+       "ip": "34A7",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e80100",
+       "ip": "34AA",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "34AE"
+      },
+      {
+       "bytes": "c3",
+       "ip": "34AD",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "34A7"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "34AE"
+   ],
+   "entry": "1010:34A7",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "b80000e80100"
   },
   "1010:34AE": {
    "blocks": [
@@ -35371,6 +38950,1753 @@
    "liftable": true,
    "refusals": [],
    "signature": "1e8cd38edb833e3c00007503"
+  },
+  "1010:364F": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "833e560e00",
+       "ip": "364F",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7521",
+       "ip": "3654",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3677"
+      }
+     ],
+     "leader": "364F"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e580e00",
+       "ip": "3656",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "741a",
+       "ip": "365B",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3677"
+      }
+     ],
+     "leader": "3656"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e01",
+       "ip": "365D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7506",
+       "ip": "3662",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "366A"
+      }
+     ],
+     "leader": "365D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80000",
+       "ip": "3664",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e85502",
+       "ip": "3667",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "3664"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e5a0e00",
+       "ip": "366A",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7506",
+       "ip": "366F",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3677"
+      }
+     ],
+     "leader": "366A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80100",
+       "ip": "3671",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e84802",
+       "ip": "3674",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "3671"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e03",
+       "ip": "3677",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7321",
+       "ip": "367C",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "369F"
+      }
+     ],
+     "leader": "3677"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e03",
+       "ip": "367E",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7506",
+       "ip": "3683",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "368B"
+      }
+     ],
+     "leader": "367E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80002",
+       "ip": "3685",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e83402",
+       "ip": "3688",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "3685"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e03",
+       "ip": "368B",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "720d",
+       "ip": "3690",
+       "kind": "jcc",
+       "mnemonic": "jb",
+       "target": "369F"
+      }
+     ],
+     "leader": "368B"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e520e03",
+       "ip": "3692",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7306",
+       "ip": "3697",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "369F"
+      }
+     ],
+     "leader": "3692"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80102",
+       "ip": "3699",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e82002",
+       "ip": "369C",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "3699"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e01",
+       "ip": "369F",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "752b",
+       "ip": "36A4",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "36D1"
+      }
+     ],
+     "leader": "369F"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e02",
+       "ip": "36A6",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7524",
+       "ip": "36AB",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "36D1"
+      }
+     ],
+     "leader": "36A6"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80004",
+       "ip": "36AD",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e80c02",
+       "ip": "36B0",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80104",
+       "ip": "36B3",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e80602",
+       "ip": "36B6",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80204",
+       "ip": "36B9",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e80002",
+       "ip": "36BC",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80304",
+       "ip": "36BF",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8fa01",
+       "ip": "36C2",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80404",
+       "ip": "36C5",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8f401",
+       "ip": "36C8",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80504",
+       "ip": "36CB",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8ee01",
+       "ip": "36CE",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "36AD"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e04",
+       "ip": "36D1",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "731a",
+       "ip": "36D6",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "36F2"
+      }
+     ],
+     "leader": "36D1"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e04",
+       "ip": "36D8",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7513",
+       "ip": "36DD",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "36F2"
+      }
+     ],
+     "leader": "36D8"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80005",
+       "ip": "36DF",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8da01",
+       "ip": "36E2",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "833e520e04",
+       "ip": "36E5",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7306",
+       "ip": "36EA",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "36F2"
+      }
+     ],
+     "leader": "36DF"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80105",
+       "ip": "36EC",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8cd01",
+       "ip": "36EF",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "36EC"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c3",
+       "ip": "36F2",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "36F2"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "38BF"
+   ],
+   "entry": "1010:364F",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "833e560e007521"
+  },
+  "1010:36F3": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e01",
+       "ip": "36F3",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7516",
+       "ip": "36F8",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3710"
+      }
+     ],
+     "leader": "36F3"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "a1560e",
+       "ip": "36FA",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      },
+      {
+       "bytes": "3906580e",
+       "ip": "36FD",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "740d",
+       "ip": "3701",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3710"
+      }
+     ],
+     "leader": "36FA"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e01",
+       "ip": "3703",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7506",
+       "ip": "3708",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3710"
+      }
+     ],
+     "leader": "3703"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80000",
+       "ip": "370A",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8af01",
+       "ip": "370D",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "370A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e560e00",
+       "ip": "3710",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "741b",
+       "ip": "3715",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3732"
+      }
+     ],
+     "leader": "3710"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e580e00",
+       "ip": "3717",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7514",
+       "ip": "371C",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3732"
+      }
+     ],
+     "leader": "3717"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e460e02",
+       "ip": "371E",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7607",
+       "ip": "3723",
+       "kind": "jcc",
+       "mnemonic": "jbe",
+       "target": "372C"
+      }
+     ],
+     "leader": "371E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e540e01",
+       "ip": "3725",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7506",
+       "ip": "372A",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3732"
+      }
+     ],
+     "leader": "3725"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80280",
+       "ip": "372C",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e88d01",
+       "ip": "372F",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "372C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e5a0e00",
+       "ip": "3732",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7516",
+       "ip": "3737",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "374F"
+      }
+     ],
+     "leader": "3732"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "a1560e",
+       "ip": "3739",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      },
+      {
+       "bytes": "3906580e",
+       "ip": "373C",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "740d",
+       "ip": "3740",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "374F"
+      }
+     ],
+     "leader": "3739"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e540e01",
+       "ip": "3742",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7506",
+       "ip": "3747",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "374F"
+      }
+     ],
+     "leader": "3742"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80100",
+       "ip": "3749",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e87001",
+       "ip": "374C",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "3749"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e02",
+       "ip": "374F",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7407",
+       "ip": "3754",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "375D"
+      }
+     ],
+     "leader": "374F"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e03",
+       "ip": "3756",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7518",
+       "ip": "375B",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3775"
+      }
+     ],
+     "leader": "3756"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "a14e0e",
+       "ip": "375D",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      },
+      {
+       "bytes": "3906500e",
+       "ip": "3760",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7509",
+       "ip": "3764",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "376F"
+      }
+     ],
+     "leader": "375D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "a15c0e",
+       "ip": "3766",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      },
+      {
+       "bytes": "39065e0e",
+       "ip": "3769",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7406",
+       "ip": "376D",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3775"
+      }
+     ],
+     "leader": "3766"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80002",
+       "ip": "376F",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e84a01",
+       "ip": "3772",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "376F"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e02",
+       "ip": "3775",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "721b",
+       "ip": "377A",
+       "kind": "jcc",
+       "mnemonic": "jb",
+       "target": "3797"
+      }
+     ],
+     "leader": "3775"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e03",
+       "ip": "377C",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7314",
+       "ip": "3781",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "3797"
+      }
+     ],
+     "leader": "377C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e02",
+       "ip": "3783",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7507",
+       "ip": "3788",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3791"
+      }
+     ],
+     "leader": "3783"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e02",
+       "ip": "378A",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7406",
+       "ip": "378F",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3797"
+      }
+     ],
+     "leader": "378A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80083",
+       "ip": "3791",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e82801",
+       "ip": "3794",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "3791"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e02",
+       "ip": "3797",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7507",
+       "ip": "379C",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "37A5"
+      }
+     ],
+     "leader": "3797"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e02",
+       "ip": "379E",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7515",
+       "ip": "37A3",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "37BA"
+      }
+     ],
+     "leader": "379E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e03",
+       "ip": "37A5",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7214",
+       "ip": "37AA",
+       "kind": "jcc",
+       "mnemonic": "jb",
+       "target": "37C0"
+      }
+     ],
+     "leader": "37A5"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e03",
+       "ip": "37AC",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "730d",
+       "ip": "37B1",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "37C0"
+      }
+     ],
+     "leader": "37AC"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e520e03",
+       "ip": "37B3",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7306",
+       "ip": "37B8",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "37C0"
+      }
+     ],
+     "leader": "37B3"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80102",
+       "ip": "37BA",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8ff00",
+       "ip": "37BD",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "37BA"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e04",
+       "ip": "37C0",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7518",
+       "ip": "37C5",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "37DF"
+      }
+     ],
+     "leader": "37C0"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "a14e0e",
+       "ip": "37C7",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      },
+      {
+       "bytes": "3906500e",
+       "ip": "37CA",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7509",
+       "ip": "37CE",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "37D9"
+      }
+     ],
+     "leader": "37C7"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "a15c0e",
+       "ip": "37D0",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      },
+      {
+       "bytes": "39065e0e",
+       "ip": "37D3",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7406",
+       "ip": "37D7",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "37DF"
+      }
+     ],
+     "leader": "37D0"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80005",
+       "ip": "37D9",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8e000",
+       "ip": "37DC",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "37D9"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e04",
+       "ip": "37DF",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "750d",
+       "ip": "37E4",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "37F3"
+      }
+     ],
+     "leader": "37DF"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e04",
+       "ip": "37E6",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7306",
+       "ip": "37EB",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "37F3"
+      }
+     ],
+     "leader": "37E6"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80285",
+       "ip": "37ED",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8cc00",
+       "ip": "37F0",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "37ED"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e04",
+       "ip": "37F3",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7514",
+       "ip": "37F8",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "380E"
+      }
+     ],
+     "leader": "37F3"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e04",
+       "ip": "37FA",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "730d",
+       "ip": "37FF",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "380E"
+      }
+     ],
+     "leader": "37FA"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e520e04",
+       "ip": "3801",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7306",
+       "ip": "3806",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "380E"
+      }
+     ],
+     "leader": "3801"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80105",
+       "ip": "3808",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e8b100",
+       "ip": "380B",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "3808"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "a14e0e",
+       "ip": "380E",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      },
+      {
+       "bytes": "3906500e",
+       "ip": "3811",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7703",
+       "ip": "3815",
+       "kind": "jcc",
+       "mnemonic": "ja",
+       "target": "381A"
+      }
+     ],
+     "leader": "380E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e9a400",
+       "ip": "3817",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "38BE"
+      }
+     ],
+     "leader": "3817"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e4e0e02",
+       "ip": "381A",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7603",
+       "ip": "381F",
+       "kind": "jcc",
+       "mnemonic": "jbe",
+       "target": "3824"
+      }
+     ],
+     "leader": "381A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e98000",
+       "ip": "3821",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "38A4"
+      }
+     ],
+     "leader": "3821"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e04",
+       "ip": "3824",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7530",
+       "ip": "3829",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "385B"
+      }
+     ],
+     "leader": "3824"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80005",
+       "ip": "382B",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e88e00",
+       "ip": "382E",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "833e520e04",
+       "ip": "3831",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "740d",
+       "ip": "3836",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3845"
+      }
+     ],
+     "leader": "382B"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e540e04",
+       "ip": "3838",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7406",
+       "ip": "383D",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "3845"
+      }
+     ],
+     "leader": "3838"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80105",
+       "ip": "383F",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e87a00",
+       "ip": "3842",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "383F"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e520e03",
+       "ip": "3845",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7372",
+       "ip": "384A",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "38BE"
+      }
+     ],
+     "leader": "3845"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e540e03",
+       "ip": "384C",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "736b",
+       "ip": "3851",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "38BE"
+      }
+     ],
+     "leader": "384C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80102",
+       "ip": "3853",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e86600",
+       "ip": "3856",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "eb63",
+       "ip": "3859",
+       "kind": "jmp",
+       "mnemonic": "jmp short",
+       "target": "38BE"
+      }
+     ],
+     "leader": "3853"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e500e02",
+       "ip": "385B",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7526",
+       "ip": "3860",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "3888"
+      }
+     ],
+     "leader": "385B"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80004",
+       "ip": "3862",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e85700",
+       "ip": "3865",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80104",
+       "ip": "3868",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e85100",
+       "ip": "386B",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80204",
+       "ip": "386E",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e84b00",
+       "ip": "3871",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80304",
+       "ip": "3874",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e84500",
+       "ip": "3877",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80404",
+       "ip": "387A",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e83f00",
+       "ip": "387D",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "b80504",
+       "ip": "3880",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e83900",
+       "ip": "3883",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "eb36",
+       "ip": "3886",
+       "kind": "jmp",
+       "mnemonic": "jmp short",
+       "target": "38BE"
+      }
+     ],
+     "leader": "3862"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80002",
+       "ip": "3888",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e83100",
+       "ip": "388B",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "833e520e03",
+       "ip": "388E",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7329",
+       "ip": "3893",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "38BE"
+      }
+     ],
+     "leader": "3888"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e540e03",
+       "ip": "3895",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7322",
+       "ip": "389A",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "38BE"
+      }
+     ],
+     "leader": "3895"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80102",
+       "ip": "389C",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e81d00",
+       "ip": "389F",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "eb1a",
+       "ip": "38A2",
+       "kind": "jmp",
+       "mnemonic": "jmp short",
+       "target": "38BE"
+      }
+     ],
+     "leader": "389C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80005",
+       "ip": "38A4",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e81500",
+       "ip": "38A7",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      },
+      {
+       "bytes": "833e520e04",
+       "ip": "38AA",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "740d",
+       "ip": "38AF",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "38BE"
+      }
+     ],
+     "leader": "38A4"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e540e04",
+       "ip": "38B1",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7406",
+       "ip": "38B6",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "38BE"
+      }
+     ],
+     "leader": "38B1"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80105",
+       "ip": "38B8",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e80100",
+       "ip": "38BB",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "38BF"
+      }
+     ],
+     "leader": "38B8"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c3",
+       "ip": "38BE",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "38BE"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "38BF"
+   ],
+   "entry": "1010:36F3",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "833e4e0e017516"
   },
   "1010:38BF": {
    "blocks": [
@@ -36700,6 +42026,31 @@
    "liftable": true,
    "refusals": [],
    "signature": "1e33db368b87760e8ed88ec0ba100433"
+  },
+  "1010:3AC9": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "c3",
+       "ip": "3AC9",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "3AC9"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [],
+   "entry": "1010:3AC9",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "c386166a"
   },
   "1010:3ACC": {
    "blocks": [
@@ -41623,6 +46974,7 @@
       {
        "boundary_effect": true,
        "bytes": "837e0800",
+       "dispatch_entry": true,
        "ip": "434A",
        "kind": "seq",
        "mem_operand": true,
@@ -47705,6 +53057,1724 @@
    "liftable": true,
    "refusals": [],
    "signature": "c80c000056576800036a0068a831e868"
+  },
+  "1010:4C20": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "c8060000",
+       "ip": "4C20",
+       "kind": "seq",
+       "mnemonic": "enter"
+      },
+      {
+       "bytes": "56",
+       "ip": "4C24",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "57",
+       "ip": "4C25",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "c746fe0000",
+       "ip": "4C26",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm16,imm16"
+      },
+      {
+       "bytes": "c746fc0000",
+       "ip": "4C2B",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm16,imm16"
+      },
+      {
+       "bytes": "e8edf2",
+       "ip": "4C30",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "3F20"
+      },
+      {
+       "bytes": "68700d",
+       "ip": "4C33",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e8e2f4",
+       "ip": "4C36",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "411B"
+      },
+      {
+       "bytes": "83c402",
+       "ip": "4C39",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "68c800",
+       "ip": "4C3C",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "687451",
+       "ip": "4C3F",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e84cf3",
+       "ip": "4C42",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "3F91"
+      },
+      {
+       "bytes": "83c404",
+       "ip": "4C45",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "68c800",
+       "ip": "4C48",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "6822af",
+       "ip": "4C4B",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e833f4",
+       "ip": "4C4E",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4084"
+      },
+      {
+       "bytes": "83c404",
+       "ip": "4C51",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "68fa00",
+       "ip": "4C54",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "687451",
+       "ip": "4C57",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e834f3",
+       "ip": "4C5A",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "3F91"
+      },
+      {
+       "bytes": "83c404",
+       "ip": "4C5D",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "c746fa0000",
+       "ip": "4C60",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm16,imm16"
+      },
+      {
+       "bytes": "e91c00",
+       "ip": "4C65",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4C84"
+      }
+     ],
+     "leader": "4C20"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "68fa00",
+       "ip": "4C68",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "8b46fa",
+       "ip": "4C6B",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "d1e0",
+       "ip": "4C6E",
+       "kind": "seq",
+       "mnemonic": "shift"
+      },
+      {
+       "bytes": "d1e0",
+       "ip": "4C70",
+       "kind": "seq",
+       "mnemonic": "shift"
+      },
+      {
+       "bytes": "d1e0",
+       "ip": "4C72",
+       "kind": "seq",
+       "mnemonic": "shift"
+      },
+      {
+       "bytes": "b9c244",
+       "ip": "4C74",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "03c8",
+       "ip": "4C77",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "51",
+       "ip": "4C79",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "e807f4",
+       "ip": "4C7A",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4084"
+      },
+      {
+       "bytes": "83c404",
+       "ip": "4C7D",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "8346fa01",
+       "ip": "4C80",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      }
+     ],
+     "leader": "4C68"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "837efa0a",
+       "ip": "4C84",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7303",
+       "ip": "4C88",
+       "kind": "jcc",
+       "mnemonic": "jnb",
+       "target": "4C8D"
+      }
+     ],
+     "leader": "4C84"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e9dbff",
+       "ip": "4C8A",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4C68"
+      }
+     ],
+     "leader": "4C8A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e8acf4",
+       "ip": "4C8D",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "413C"
+      },
+      {
+       "bytes": "6822af",
+       "ip": "4C90",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e819f6",
+       "ip": "4C93",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "42AF"
+      },
+      {
+       "bytes": "83c402",
+       "ip": "4C96",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "e862fe",
+       "ip": "4C99",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4AFE"
+      },
+      {
+       "bytes": "6a01",
+       "ip": "4C9C",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "6a00",
+       "ip": "4C9E",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "e828fe",
+       "ip": "4CA0",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4ACB"
+      },
+      {
+       "bytes": "83c404",
+       "ip": "4CA3",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "6a24",
+       "ip": "4CA6",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "6a01",
+       "ip": "4CA8",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "687451",
+       "ip": "4CAA",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e8defe",
+       "ip": "4CAD",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4B8E"
+      },
+      {
+       "bytes": "83c406",
+       "ip": "4CB0",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "e90501",
+       "ip": "4CB3",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4DBB"
+      }
+     ],
+     "leader": "4C8D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b46fc",
+       "ip": "4CB6",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "3946fe",
+       "ip": "4CB9",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4CBC",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4CC1"
+      }
+     ],
+     "leader": "4CB6"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e91b00",
+       "ip": "4CBE",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4CDC"
+      }
+     ],
+     "leader": "4CBE"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "68ff00",
+       "ip": "4CC1",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "ff76fc",
+       "ip": "4CC4",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "push rm16"
+      },
+      {
+       "bytes": "e801fe",
+       "ip": "4CC7",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4ACB"
+      },
+      {
+       "bytes": "83c404",
+       "ip": "4CCA",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "6a01",
+       "ip": "4CCD",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "8b46fe",
+       "ip": "4CCF",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "8946fc",
+       "ip": "4CD2",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "50",
+       "ip": "4CD5",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "e8f2fd",
+       "ip": "4CD6",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4ACB"
+      },
+      {
+       "bytes": "83c404",
+       "ip": "4CD9",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      }
+     ],
+     "leader": "4CC1"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e80c13",
+       "ip": "4CDC",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "5FEB"
+      },
+      {
+       "bytes": "e9a600",
+       "ip": "4CDF",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D88"
+      }
+     ],
+     "leader": "4CDC"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e9d900",
+       "ip": "4CE2",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4DBE"
+      }
+     ],
+     "leader": "4CE2"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "837efe02",
+       "ip": "4CE5",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7603",
+       "ip": "4CE9",
+       "kind": "jcc",
+       "mnemonic": "jbe",
+       "target": "4CEE"
+      }
+     ],
+     "leader": "4CE5"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90900",
+       "ip": "4CEB",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4CF7"
+      }
+     ],
+     "leader": "4CEB"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b46fe",
+       "ip": "4CEE",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "a31845",
+       "ip": "4CF1",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      },
+      {
+       "bytes": "e90900",
+       "ip": "4CF4",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D00"
+      }
+     ],
+     "leader": "4CEE"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8b46fe",
+       "ip": "4CF7",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "05fdff",
+       "ip": "4CFA",
+       "kind": "seq",
+       "mnemonic": "add"
+      },
+      {
+       "bytes": "a31a45",
+       "ip": "4CFD",
+       "kind": "seq",
+       "mnemonic": "mov moffs"
+      }
+     ],
+     "leader": "4CF7"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "833e1a4500",
+       "ip": "4D00",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4D05",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4D0A"
+      }
+     ],
+     "leader": "4D00"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90c00",
+       "ip": "4D07",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D16"
+      }
+     ],
+     "leader": "4D07"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e8980b",
+       "ip": "4D0A",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "58A5"
+      },
+      {
+       "bytes": "c706f20bffff",
+       "ip": "4D0D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm16,imm16"
+      },
+      {
+       "bytes": "e90800",
+       "ip": "4D13",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D1E"
+      }
+     ],
+     "leader": "4D0A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "6a02",
+       "ip": "4D16",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "e8a90a",
+       "ip": "4D18",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "57C4"
+      },
+      {
+       "bytes": "83c402",
+       "ip": "4D1B",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      }
+     ],
+     "leader": "4D16"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e8ddfd",
+       "ip": "4D1E",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4AFE"
+      },
+      {
+       "bytes": "e99700",
+       "ip": "4D21",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4DBB"
+      }
+     ],
+     "leader": "4D1E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "837efe00",
+       "ip": "4D24",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4D28",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4D2D"
+      }
+     ],
+     "leader": "4D24"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90400",
+       "ip": "4D2A",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D31"
+      }
+     ],
+     "leader": "4D2A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "836efe01",
+       "ip": "4D2D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      }
+     ],
+     "leader": "4D2D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e98700",
+       "ip": "4D31",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4DBB"
+      }
+     ],
+     "leader": "4D31"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "837efe04",
+       "ip": "4D34",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7203",
+       "ip": "4D38",
+       "kind": "jcc",
+       "mnemonic": "jb",
+       "target": "4D3D"
+      }
+     ],
+     "leader": "4D34"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90400",
+       "ip": "4D3A",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D41"
+      }
+     ],
+     "leader": "4D3A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "8346fe01",
+       "ip": "4D3D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      }
+     ],
+     "leader": "4D3D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e97700",
+       "ip": "4D41",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4DBB"
+      }
+     ],
+     "leader": "4D41"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "837efe03",
+       "ip": "4D44",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7403",
+       "ip": "4D48",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "4D4D"
+      }
+     ],
+     "leader": "4D44"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90500",
+       "ip": "4D4A",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D52"
+      }
+     ],
+     "leader": "4D4A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c746fe0000",
+       "ip": "4D4D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm16,imm16"
+      }
+     ],
+     "leader": "4D4D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "837efe04",
+       "ip": "4D52",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7403",
+       "ip": "4D56",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "4D5B"
+      }
+     ],
+     "leader": "4D52"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90500",
+       "ip": "4D58",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D60"
+      }
+     ],
+     "leader": "4D58"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c746fe0100",
+       "ip": "4D5B",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm16,imm16"
+      }
+     ],
+     "leader": "4D5B"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e95800",
+       "ip": "4D60",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4DBB"
+      }
+     ],
+     "leader": "4D60"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "837efe00",
+       "ip": "4D63",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7403",
+       "ip": "4D67",
+       "kind": "jcc",
+       "mnemonic": "jz",
+       "target": "4D6C"
+      }
+     ],
+     "leader": "4D63"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90800",
+       "ip": "4D69",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D74"
+      }
+     ],
+     "leader": "4D69"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c746fe0300",
+       "ip": "4D6C",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm16,imm16"
+      },
+      {
+       "bytes": "e90e00",
+       "ip": "4D71",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D82"
+      }
+     ],
+     "leader": "4D6C"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "837efe03",
+       "ip": "4D74",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7203",
+       "ip": "4D78",
+       "kind": "jcc",
+       "mnemonic": "jb",
+       "target": "4D7D"
+      }
+     ],
+     "leader": "4D74"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90500",
+       "ip": "4D7A",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D82"
+      }
+     ],
+     "leader": "4D7A"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "c746fe0400",
+       "ip": "4D7D",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "mov rm16,imm16"
+      }
+     ],
+     "leader": "4D7D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e93600",
+       "ip": "4D82",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4DBB"
+      }
+     ],
+     "leader": "4D82"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "3d0d00",
+       "ip": "4D88",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4D8B",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4D90"
+      }
+     ],
+     "leader": "4D88"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e955ff",
+       "ip": "4D8D",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4CE5"
+      }
+     ],
+     "leader": "4D8D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "3d1b00",
+       "ip": "4D90",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4D93",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4D98"
+      }
+     ],
+     "leader": "4D90"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e94aff",
+       "ip": "4D95",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4CE2"
+      }
+     ],
+     "leader": "4D95"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "3d0048",
+       "ip": "4D98",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4D9B",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4DA0"
+      }
+     ],
+     "leader": "4D98"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e9a4ff",
+       "ip": "4D9D",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D44"
+      }
+     ],
+     "leader": "4D9D"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "3d004b",
+       "ip": "4DA0",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4DA3",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4DA8"
+      }
+     ],
+     "leader": "4DA0"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e97cff",
+       "ip": "4DA5",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D24"
+      }
+     ],
+     "leader": "4DA5"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "3d004d",
+       "ip": "4DA8",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4DAB",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4DB0"
+      }
+     ],
+     "leader": "4DA8"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e984ff",
+       "ip": "4DAD",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D34"
+      }
+     ],
+     "leader": "4DAD"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "3d0050",
+       "ip": "4DB0",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4DB3",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4DB8"
+      }
+     ],
+     "leader": "4DB0"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e9abff",
+       "ip": "4DB5",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4D63"
+      }
+     ],
+     "leader": "4DB5"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90000",
+       "ip": "4DB8",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4DBB"
+      }
+     ],
+     "leader": "4DB8"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e9f8fe",
+       "ip": "4DBB",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4CB6"
+      }
+     ],
+     "leader": "4DBB"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e87af1",
+       "ip": "4DBE",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "3F3B"
+      },
+      {
+       "bytes": "e8c809",
+       "ip": "4DC1",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "578C"
+      },
+      {
+       "bytes": "5f",
+       "ip": "4DC4",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5e",
+       "ip": "4DC5",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c9",
+       "ip": "4DC6",
+       "kind": "seq",
+       "mnemonic": "leave"
+      },
+      {
+       "bytes": "c3",
+       "ip": "4DC7",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "4DBE"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "3F20",
+    "3F3B",
+    "3F91",
+    "4084",
+    "411B",
+    "413C",
+    "42AF",
+    "4ACB",
+    "4AFE",
+    "4B8E",
+    "578C",
+    "57C4",
+    "58A5",
+    "5FEB"
+   ],
+   "entry": "1010:4C20",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "c80600005657c746fe0000c746fc0000"
+  },
+  "1010:4DC8": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "c80a0000",
+       "ip": "4DC8",
+       "kind": "seq",
+       "mnemonic": "enter"
+      },
+      {
+       "bytes": "56",
+       "ip": "4DCC",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "57",
+       "ip": "4DCD",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "e84ff1",
+       "ip": "4DCE",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "3F20"
+      },
+      {
+       "bytes": "68c800",
+       "ip": "4DD1",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "687451",
+       "ip": "4DD4",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e8b7f1",
+       "ip": "4DD7",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "3F91"
+      },
+      {
+       "bytes": "83c404",
+       "ip": "4DDA",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "68c800",
+       "ip": "4DDD",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "8d46f8",
+       "ip": "4DE0",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "lea"
+      },
+      {
+       "bytes": "50",
+       "ip": "4DE3",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "e89df2",
+       "ip": "4DE4",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4084"
+      },
+      {
+       "bytes": "83c404",
+       "ip": "4DE7",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "8d46f8",
+       "ip": "4DEA",
+       "kind": "seq",
+       "mem_operand": true,
+       "mnemonic": "lea"
+      },
+      {
+       "bytes": "50",
+       "ip": "4DED",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "e8bef4",
+       "ip": "4DEE",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "42AF"
+      },
+      {
+       "bytes": "83c402",
+       "ip": "4DF1",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "6a24",
+       "ip": "4DF4",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "6a01",
+       "ip": "4DF6",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "687451",
+       "ip": "4DF8",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e890fd",
+       "ip": "4DFB",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4B8E"
+      },
+      {
+       "bytes": "83c406",
+       "ip": "4DFE",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "e837f1",
+       "ip": "4E01",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "3F3B"
+      },
+      {
+       "bytes": "e8e411",
+       "ip": "4E04",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "5FEB"
+      },
+      {
+       "bytes": "8bf0",
+       "ip": "4E07",
+       "kind": "seq",
+       "mnemonic": "mov"
+      },
+      {
+       "bytes": "6a24",
+       "ip": "4E09",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "6a00",
+       "ip": "4E0B",
+       "kind": "seq",
+       "mnemonic": "push imm8"
+      },
+      {
+       "bytes": "687451",
+       "ip": "4E0D",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e87bfd",
+       "ip": "4E10",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4B8E"
+      },
+      {
+       "bytes": "83c406",
+       "ip": "4E13",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "83fe1b",
+       "ip": "4E16",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4E19",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4E1E"
+      }
+     ],
+     "leader": "4DC8"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90600",
+       "ip": "4E1B",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4E24"
+      }
+     ],
+     "leader": "4E1B"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80100",
+       "ip": "4E1E",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      },
+      {
+       "bytes": "e90300",
+       "ip": "4E21",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4E27"
+      }
+     ],
+     "leader": "4E1E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "b80000",
+       "ip": "4E24",
+       "kind": "seq",
+       "mnemonic": "mov r16,imm16"
+      }
+     ],
+     "leader": "4E24"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90000",
+       "ip": "4E27",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4E2A"
+      }
+     ],
+     "leader": "4E27"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "5f",
+       "ip": "4E2A",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5e",
+       "ip": "4E2B",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c9",
+       "ip": "4E2C",
+       "kind": "seq",
+       "mnemonic": "leave"
+      },
+      {
+       "bytes": "c3",
+       "ip": "4E2D",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "4E2A"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "3F20",
+    "3F3B",
+    "3F91",
+    "4084",
+    "42AF",
+    "4B8E",
+    "5FEB"
+   ],
+   "entry": "1010:4DC8",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "c80a00005657e84ff1"
+  },
+  "1010:4E2E": {
+   "blocks": [
+    {
+     "instructions": [
+      {
+       "bytes": "c8000000",
+       "ip": "4E2E",
+       "kind": "seq",
+       "mnemonic": "enter"
+      },
+      {
+       "bytes": "56",
+       "ip": "4E32",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "57",
+       "ip": "4E33",
+       "kind": "seq",
+       "mnemonic": "push r16"
+      },
+      {
+       "bytes": "687c0d",
+       "ip": "4E34",
+       "kind": "seq",
+       "mnemonic": "push imm16"
+      },
+      {
+       "bytes": "e8e1f2",
+       "ip": "4E37",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "411B"
+      },
+      {
+       "bytes": "83c402",
+       "ip": "4E3A",
+       "kind": "seq",
+       "mnemonic": "grp1 rm16,imm8sx"
+      },
+      {
+       "bytes": "e888ff",
+       "ip": "4E3D",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4DC8"
+      },
+      {
+       "bytes": "3d0000",
+       "ip": "4E40",
+       "kind": "seq",
+       "mnemonic": "cmp"
+      },
+      {
+       "bytes": "7503",
+       "ip": "4E43",
+       "kind": "jcc",
+       "mnemonic": "jnz",
+       "target": "4E48"
+      }
+     ],
+     "leader": "4E2E"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e90300",
+       "ip": "4E45",
+       "kind": "jmp",
+       "mnemonic": "jmp",
+       "target": "4E4B"
+      }
+     ],
+     "leader": "4E45"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e87dff",
+       "ip": "4E48",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "4DC8"
+      }
+     ],
+     "leader": "4E48"
+    },
+    {
+     "instructions": [
+      {
+       "bytes": "e8eef2",
+       "ip": "4E4B",
+       "kind": "call",
+       "mnemonic": "call",
+       "target": "413C"
+      },
+      {
+       "bytes": "5f",
+       "ip": "4E4E",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "5e",
+       "ip": "4E4F",
+       "kind": "seq",
+       "mnemonic": "pop r16"
+      },
+      {
+       "bytes": "c9",
+       "ip": "4E50",
+       "kind": "seq",
+       "mnemonic": "leave"
+      },
+      {
+       "bytes": "c3",
+       "ip": "4E51",
+       "kind": "ret",
+       "mnemonic": "ret"
+      }
+     ],
+     "leader": "4E4B"
+    }
+   ],
+   "calls_far": [],
+   "calls_near": [
+    "411B",
+    "413C",
+    "4DC8"
+   ],
+   "entry": "1010:4E2E",
+   "exits": [
+    "ret"
+   ],
+   "ints": [],
+   "liftable": true,
+   "refusals": [],
+   "signature": "c80000005657687c0de8e1f2"
   },
   "1010:4E52": {
    "blocks": [
@@ -59396,118 +66466,6 @@
    "refusals": [],
    "signature": "8bdc8b5702b8003de976ff"
   },
-  "1010:5C82": {
-   "blocks": [
-    {
-     "instructions": [
-      {
-       "bytes": "8bdc",
-       "ip": "5C82",
-       "kind": "seq",
-       "mnemonic": "mov"
-      },
-      {
-       "bytes": "56",
-       "ip": "5C84",
-       "kind": "seq",
-       "mnemonic": "push r16"
-      },
-      {
-       "bytes": "8b7702",
-       "ip": "5C85",
-       "kind": "seq",
-       "mem_operand": true,
-       "mnemonic": "mov"
-      }
-     ],
-     "leader": "5C82"
-    },
-    {
-     "instructions": [
-      {
-       "bytes": "ac",
-       "ip": "5C88",
-       "kind": "seq",
-       "mnemonic": "stos/lods/scas"
-      },
-      {
-       "bytes": "0ac0",
-       "ip": "5C89",
-       "kind": "seq",
-       "mnemonic": "or"
-      },
-      {
-       "bytes": "7407",
-       "ip": "5C8B",
-       "kind": "jcc",
-       "mnemonic": "jz",
-       "target": "5C94"
-      }
-     ],
-     "leader": "5C88"
-    },
-    {
-     "instructions": [
-      {
-       "bytes": "50",
-       "ip": "5C8D",
-       "kind": "seq",
-       "mnemonic": "push r16"
-      },
-      {
-       "bytes": "e84303",
-       "ip": "5C8E",
-       "kind": "call",
-       "mnemonic": "call",
-       "target": "5FD4"
-      },
-      {
-       "bytes": "58",
-       "ip": "5C91",
-       "kind": "seq",
-       "mnemonic": "pop r16"
-      },
-      {
-       "bytes": "ebf4",
-       "ip": "5C92",
-       "kind": "jmp",
-       "mnemonic": "jmp short",
-       "target": "5C88"
-      }
-     ],
-     "leader": "5C8D"
-    },
-    {
-     "instructions": [
-      {
-       "bytes": "5e",
-       "ip": "5C94",
-       "kind": "seq",
-       "mnemonic": "pop r16"
-      },
-      {
-       "bytes": "c3",
-       "ip": "5C95",
-       "kind": "ret",
-       "mnemonic": "ret"
-      }
-     ],
-     "leader": "5C94"
-    }
-   ],
-   "calls_far": [],
-   "calls_near": [
-    "5FD4"
-   ],
-   "entry": "1010:5C82",
-   "exits": [
-    "ret"
-   ],
-   "ints": [],
-   "liftable": true,
-   "refusals": [],
-   "signature": "8bdc568b7702ac0ac07407"
-  },
   "1010:5C96": {
    "blocks": [
     {
@@ -62104,109 +69062,6 @@
    "refusals": [],
    "signature": "b40bcd21"
   },
-  "1010:5FD4": {
-   "blocks": [
-    {
-     "instructions": [
-      {
-       "bytes": "8bdc",
-       "ip": "5FD4",
-       "kind": "seq",
-       "mnemonic": "mov"
-      },
-      {
-       "bytes": "8a5702",
-       "ip": "5FD6",
-       "kind": "seq",
-       "mem_operand": true,
-       "mnemonic": "mov"
-      },
-      {
-       "bytes": "80fa0a",
-       "ip": "5FD9",
-       "kind": "seq",
-       "mnemonic": "grp1 rm8,imm8"
-      },
-      {
-       "bytes": "7508",
-       "ip": "5FDC",
-       "kind": "jcc",
-       "mnemonic": "jnz",
-       "target": "5FE6"
-      }
-     ],
-     "leader": "5FD4"
-    },
-    {
-     "instructions": [
-      {
-       "bytes": "b20d",
-       "ip": "5FDE",
-       "kind": "seq",
-       "mnemonic": "mov r8,imm8"
-      },
-      {
-       "bytes": "b402",
-       "ip": "5FE0",
-       "kind": "seq",
-       "mnemonic": "mov r8,imm8"
-      },
-      {
-       "bytes": "cd21",
-       "int_no": "21",
-       "ip": "5FE2",
-       "kind": "int",
-       "mnemonic": "int",
-       "platform_effect": "int21_dos"
-      },
-      {
-       "bytes": "b20a",
-       "ip": "5FE4",
-       "kind": "seq",
-       "mnemonic": "mov r8,imm8"
-      }
-     ],
-     "leader": "5FDE"
-    },
-    {
-     "instructions": [
-      {
-       "bytes": "b402",
-       "ip": "5FE6",
-       "kind": "seq",
-       "mnemonic": "mov r8,imm8"
-      },
-      {
-       "bytes": "cd21",
-       "int_no": "21",
-       "ip": "5FE8",
-       "kind": "int",
-       "mnemonic": "int",
-       "platform_effect": "int21_dos"
-      },
-      {
-       "bytes": "c3",
-       "ip": "5FEA",
-       "kind": "ret",
-       "mnemonic": "ret"
-      }
-     ],
-     "leader": "5FE6"
-    }
-   ],
-   "calls_far": [],
-   "calls_near": [],
-   "entry": "1010:5FD4",
-   "exits": [
-    "ret"
-   ],
-   "ints": [
-    "21"
-   ],
-   "liftable": true,
-   "refusals": [],
-   "signature": "8bdc8a570280fa0a7508"
-  },
   "1010:5FEB": {
    "blocks": [
     {
@@ -62219,6 +69074,7 @@
       },
       {
        "bytes": "cd21",
+       "dispatch_entry": true,
        "int_no": "21",
        "ip": "5FED",
        "kind": "int",
@@ -63165,97 +70021,6 @@
    "liftable": true,
    "refusals": [],
    "signature": "558bec33c0363906aa417520"
-  },
-  "1010:60E9": {
-   "blocks": [
-    {
-     "instructions": [
-      {
-       "bytes": "6a01",
-       "ip": "60E9",
-       "kind": "seq",
-       "mnemonic": "push imm8"
-      },
-      {
-       "bytes": "e813ff",
-       "ip": "60EB",
-       "kind": "call",
-       "mnemonic": "call",
-       "target": "6001"
-      },
-      {
-       "bytes": "8bdc",
-       "ip": "60EE",
-       "kind": "seq",
-       "mnemonic": "mov"
-      },
-      {
-       "bytes": "33c0",
-       "ip": "60F0",
-       "kind": "seq",
-       "mnemonic": "xor"
-      },
-      {
-       "bytes": "50",
-       "ip": "60F2",
-       "kind": "seq",
-       "mnemonic": "push r16"
-      },
-      {
-       "bytes": "50",
-       "ip": "60F3",
-       "kind": "seq",
-       "mnemonic": "push r16"
-      },
-      {
-       "bytes": "50",
-       "ip": "60F4",
-       "kind": "seq",
-       "mnemonic": "push r16"
-      },
-      {
-       "bytes": "ff7702",
-       "ip": "60F5",
-       "kind": "seq",
-       "mem_operand": true,
-       "mnemonic": "push rm16"
-      },
-      {
-       "bytes": "e8abfb",
-       "ip": "60F8",
-       "kind": "call",
-       "mnemonic": "call",
-       "target": "5CA6"
-      },
-      {
-       "bytes": "83c408",
-       "ip": "60FB",
-       "kind": "seq",
-       "mnemonic": "grp1 rm16,imm8sx"
-      },
-      {
-       "bytes": "c3",
-       "ip": "60FE",
-       "kind": "ret",
-       "mnemonic": "ret"
-      }
-     ],
-     "leader": "60E9"
-    }
-   ],
-   "calls_far": [],
-   "calls_near": [
-    "5CA6",
-    "6001"
-   ],
-   "entry": "1010:60E9",
-   "exits": [
-    "ret"
-   ],
-   "ints": [],
-   "liftable": true,
-   "refusals": [],
-   "signature": "6a01e813ff"
   },
   "1010:60EE": {
    "blocks": [
@@ -67563,10 +74328,10 @@
  },
  "ir_version": 0,
  "provenance": {
-  "entries": 162,
+  "entries": 179,
   "exe": "SKYROADS.EXE sha1=9ab6a17284e0b2474036745d67266db397c55fbe",
   "snapshot": "D:\\Games\\DOS\\dos_recosystem\\skyroads_port\\artifacts\\snapshots\\menu_code_live_f250",
-  "toolchain": "63d858cd75bae8adc57df01d2b16ac6b20357ac1"
+  "toolchain": "29cf10dbddf5cceae9677a9150c5d195006fb9d8"
  },
  "unsupported": [
   {

@@ -1,0 +1,664 @@
+{
+  "version": 2,
+  "status": "complete",
+  "created_at": "2026-07-17T12:54:03",
+  "stopped_at": "2026-07-17T12:55:07",
+  "snapshot": null,
+  "metadata": {
+    "game": "skyroads",
+    "exe": "SKYROADS.EXE",
+    "command_tail": "",
+    "steps_per_frame": 48000,
+    "timer_irqs_per_frame": 6,
+    "mouse_present": true
+  },
+  "start_boundary": 0,
+  "end_boundary": 1832,
+  "event_count": 82,
+  "events": [
+    {
+      "boundary": 0,
+      "seq": 0,
+      "kind": "mouse",
+      "u": 0.1991,
+      "v": 0.6254,
+      "buttons": 0
+    },
+    {
+      "boundary": 61,
+      "seq": 1,
+      "kind": "mouse",
+      "u": 0.1949,
+      "v": 0.6157,
+      "buttons": 0
+    },
+    {
+      "boundary": 62,
+      "seq": 2,
+      "kind": "mouse",
+      "u": 0.1886,
+      "v": 0.6095,
+      "buttons": 0
+    },
+    {
+      "boundary": 63,
+      "seq": 3,
+      "kind": "mouse",
+      "u": 0.1803,
+      "v": 0.6032,
+      "buttons": 0
+    },
+    {
+      "boundary": 64,
+      "seq": 4,
+      "kind": "mouse",
+      "u": 0.1725,
+      "v": 0.6025,
+      "buttons": 0
+    },
+    {
+      "boundary": 65,
+      "seq": 5,
+      "kind": "mouse",
+      "u": 0.1417,
+      "v": 0.6032,
+      "buttons": 0
+    },
+    {
+      "boundary": 66,
+      "seq": 6,
+      "kind": "mouse",
+      "u": 0.0803,
+      "v": 0.6088,
+      "buttons": 0
+    },
+    {
+      "boundary": 67,
+      "seq": 7,
+      "kind": "mouse",
+      "u": 0.0021,
+      "v": 0.6261,
+      "buttons": 0
+    },
+    {
+      "boundary": 69,
+      "seq": 8,
+      "kind": "mouse",
+      "u": 0.0,
+      "v": 0.5928,
+      "buttons": 0
+    },
+    {
+      "boundary": 88,
+      "seq": 9,
+      "kind": "mouse",
+      "u": 0.001,
+      "v": 0.4552,
+      "buttons": 0
+    },
+    {
+      "boundary": 95,
+      "seq": 10,
+      "kind": "mouse",
+      "u": 0.0,
+      "v": 0.4552,
+      "buttons": 0
+    },
+    {
+      "boundary": 104,
+      "seq": 11,
+      "kind": "mouse",
+      "u": 0.0015,
+      "v": 0.4688,
+      "buttons": 0
+    },
+    {
+      "boundary": 105,
+      "seq": 12,
+      "kind": "mouse",
+      "u": 0.014,
+      "v": 0.4604,
+      "buttons": 0
+    },
+    {
+      "boundary": 106,
+      "seq": 13,
+      "kind": "mouse",
+      "u": 0.0764,
+      "v": 0.4309,
+      "buttons": 0
+    },
+    {
+      "boundary": 107,
+      "seq": 14,
+      "kind": "mouse",
+      "u": 0.1881,
+      "v": 0.3579,
+      "buttons": 0
+    },
+    {
+      "boundary": 108,
+      "seq": 15,
+      "kind": "mouse",
+      "u": 0.2439,
+      "v": 0.2611,
+      "buttons": 0
+    },
+    {
+      "boundary": 109,
+      "seq": 16,
+      "kind": "mouse",
+      "u": 0.2748,
+      "v": 0.214,
+      "buttons": 0
+    },
+    {
+      "boundary": 110,
+      "seq": 17,
+      "kind": "mouse",
+      "u": 0.3475,
+      "v": 0.1761,
+      "buttons": 0
+    },
+    {
+      "boundary": 111,
+      "seq": 18,
+      "kind": "mouse",
+      "u": 0.3865,
+      "v": 0.1256,
+      "buttons": 0
+    },
+    {
+      "boundary": 112,
+      "seq": 19,
+      "kind": "mouse",
+      "u": 0.3733,
+      "v": 0.073,
+      "buttons": 0
+    },
+    {
+      "boundary": 113,
+      "seq": 20,
+      "kind": "mouse",
+      "u": 0.3652,
+      "v": 0.0014,
+      "buttons": 0
+    },
+    {
+      "boundary": 114,
+      "seq": 21,
+      "kind": "mouse",
+      "u": 0.3542,
+      "v": 0.0,
+      "buttons": 0
+    },
+    {
+      "boundary": 150,
+      "seq": 22,
+      "kind": "mouse",
+      "u": 0.4328,
+      "v": 0.0587,
+      "buttons": 0
+    },
+    {
+      "boundary": 151,
+      "seq": 23,
+      "kind": "mouse",
+      "u": 0.5121,
+      "v": 0.217,
+      "buttons": 0
+    },
+    {
+      "boundary": 152,
+      "seq": 24,
+      "kind": "mouse",
+      "u": 0.5783,
+      "v": 0.3205,
+      "buttons": 0
+    },
+    {
+      "boundary": 153,
+      "seq": 25,
+      "kind": "mouse",
+      "u": 0.5929,
+      "v": 0.3274,
+      "buttons": 0
+    },
+    {
+      "boundary": 154,
+      "seq": 26,
+      "kind": "mouse",
+      "u": 0.5974,
+      "v": 0.3259,
+      "buttons": 0
+    },
+    {
+      "boundary": 155,
+      "seq": 27,
+      "kind": "mouse",
+      "u": 0.5981,
+      "v": 0.3251,
+      "buttons": 0
+    },
+    {
+      "boundary": 224,
+      "seq": 28,
+      "kind": "mouse",
+      "u": 0.6003,
+      "v": 0.3236,
+      "buttons": 0
+    },
+    {
+      "boundary": 225,
+      "seq": 29,
+      "kind": "mouse",
+      "u": 0.6135,
+      "v": 0.2888,
+      "buttons": 0
+    },
+    {
+      "boundary": 226,
+      "seq": 30,
+      "kind": "mouse",
+      "u": 0.5996,
+      "v": 0.1792,
+      "buttons": 0
+    },
+    {
+      "boundary": 227,
+      "seq": 31,
+      "kind": "mouse",
+      "u": 0.5907,
+      "v": 0.1212,
+      "buttons": 0
+    },
+    {
+      "boundary": 228,
+      "seq": 32,
+      "kind": "mouse",
+      "u": 0.6025,
+      "v": 0.0934,
+      "buttons": 0
+    },
+    {
+      "boundary": 229,
+      "seq": 33,
+      "kind": "mouse",
+      "u": 0.6172,
+      "v": 0.0641,
+      "buttons": 0
+    },
+    {
+      "boundary": 230,
+      "seq": 34,
+      "kind": "mouse",
+      "u": 0.6245,
+      "v": 0.0239,
+      "buttons": 0
+    },
+    {
+      "boundary": 231,
+      "seq": 35,
+      "kind": "mouse",
+      "u": 0.6245,
+      "v": 0.0,
+      "buttons": 0
+    },
+    {
+      "boundary": 281,
+      "seq": 36,
+      "kind": "mouse",
+      "u": 0.6062,
+      "v": 0.0145,
+      "buttons": 0
+    },
+    {
+      "boundary": 282,
+      "seq": 37,
+      "kind": "mouse",
+      "u": 0.6047,
+      "v": 0.1128,
+      "buttons": 0
+    },
+    {
+      "boundary": 283,
+      "seq": 38,
+      "kind": "mouse",
+      "u": 0.6084,
+      "v": 0.19,
+      "buttons": 0
+    },
+    {
+      "boundary": 284,
+      "seq": 39,
+      "kind": "mouse",
+      "u": 0.6216,
+      "v": 0.2334,
+      "buttons": 0
+    },
+    {
+      "boundary": 285,
+      "seq": 40,
+      "kind": "mouse",
+      "u": 0.6312,
+      "v": 0.2517,
+      "buttons": 0
+    },
+    {
+      "boundary": 286,
+      "seq": 41,
+      "kind": "mouse",
+      "u": 0.637,
+      "v": 0.2459,
+      "buttons": 0
+    },
+    {
+      "boundary": 287,
+      "seq": 42,
+      "kind": "mouse",
+      "u": 0.6378,
+      "v": 0.2449,
+      "buttons": 0
+    },
+    {
+      "boundary": 1359,
+      "seq": 43,
+      "kind": "mouse",
+      "u": 0.6378,
+      "v": 0.243,
+      "buttons": 0
+    },
+    {
+      "boundary": 1638,
+      "seq": 44,
+      "kind": "scan",
+      "value": 57
+    },
+    {
+      "boundary": 1640,
+      "seq": 45,
+      "kind": "scan",
+      "value": 185
+    },
+    {
+      "boundary": 1664,
+      "seq": 46,
+      "kind": "mouse",
+      "u": 0.64,
+      "v": 0.243,
+      "buttons": 0
+    },
+    {
+      "boundary": 1665,
+      "seq": 47,
+      "kind": "mouse",
+      "u": 0.7869,
+      "v": 0.19,
+      "buttons": 0
+    },
+    {
+      "boundary": 1666,
+      "seq": 48,
+      "kind": "mouse",
+      "u": 0.8714,
+      "v": 0.2314,
+      "buttons": 0
+    },
+    {
+      "boundary": 1667,
+      "seq": 49,
+      "kind": "mouse",
+      "u": 0.7715,
+      "v": 0.3462,
+      "buttons": 0
+    },
+    {
+      "boundary": 1668,
+      "seq": 50,
+      "kind": "mouse",
+      "u": 0.6796,
+      "v": 0.3693,
+      "buttons": 0
+    },
+    {
+      "boundary": 1669,
+      "seq": 51,
+      "kind": "mouse",
+      "u": 0.6576,
+      "v": 0.3664,
+      "buttons": 0
+    },
+    {
+      "boundary": 1670,
+      "seq": 52,
+      "kind": "mouse",
+      "u": 0.6422,
+      "v": 0.3732,
+      "buttons": 0
+    },
+    {
+      "boundary": 1671,
+      "seq": 53,
+      "kind": "mouse",
+      "u": 0.5893,
+      "v": 0.4137,
+      "buttons": 0
+    },
+    {
+      "boundary": 1672,
+      "seq": 54,
+      "kind": "mouse",
+      "u": 0.543,
+      "v": 0.4503,
+      "buttons": 0
+    },
+    {
+      "boundary": 1674,
+      "seq": 55,
+      "kind": "mouse",
+      "u": 0.543,
+      "v": 0.4474,
+      "buttons": 1
+    },
+    {
+      "boundary": 1675,
+      "seq": 56,
+      "kind": "mouse",
+      "u": 0.543,
+      "v": 0.4417,
+      "buttons": 1
+    },
+    {
+      "boundary": 1676,
+      "seq": 57,
+      "kind": "mouse",
+      "u": 0.5474,
+      "v": 0.4339,
+      "buttons": 0
+    },
+    {
+      "boundary": 1677,
+      "seq": 58,
+      "kind": "mouse",
+      "u": 0.5511,
+      "v": 0.4282,
+      "buttons": 0
+    },
+    {
+      "boundary": 1680,
+      "seq": 59,
+      "kind": "mouse",
+      "u": 0.5562,
+      "v": 0.4253,
+      "buttons": 0
+    },
+    {
+      "boundary": 1681,
+      "seq": 60,
+      "kind": "mouse",
+      "u": 0.5584,
+      "v": 0.4253,
+      "buttons": 0
+    },
+    {
+      "boundary": 1684,
+      "seq": 61,
+      "kind": "scan",
+      "value": 57
+    },
+    {
+      "boundary": 1687,
+      "seq": 62,
+      "kind": "scan",
+      "value": 185
+    },
+    {
+      "boundary": 1709,
+      "seq": 63,
+      "kind": "scan",
+      "value": 1
+    },
+    {
+      "boundary": 1711,
+      "seq": 64,
+      "kind": "scan",
+      "value": 129
+    },
+    {
+      "boundary": 1810,
+      "seq": 65,
+      "kind": "mouse",
+      "u": 0.5599,
+      "v": 0.4224,
+      "buttons": 0
+    },
+    {
+      "boundary": 1811,
+      "seq": 66,
+      "kind": "mouse",
+      "u": 0.5628,
+      "v": 0.3848,
+      "buttons": 0
+    },
+    {
+      "boundary": 1812,
+      "seq": 67,
+      "kind": "mouse",
+      "u": 0.5783,
+      "v": 0.3095,
+      "buttons": 0
+    },
+    {
+      "boundary": 1813,
+      "seq": 68,
+      "kind": "mouse",
+      "u": 0.6106,
+      "v": 0.3414,
+      "buttons": 0
+    },
+    {
+      "boundary": 1814,
+      "seq": 69,
+      "kind": "mouse",
+      "u": 0.6223,
+      "v": 0.4012,
+      "buttons": 0
+    },
+    {
+      "boundary": 1817,
+      "seq": 70,
+      "kind": "mouse",
+      "u": 0.6172,
+      "v": 0.4069,
+      "buttons": 0
+    },
+    {
+      "boundary": 1818,
+      "seq": 71,
+      "kind": "mouse",
+      "u": 0.6025,
+      "v": 0.4195,
+      "buttons": 0
+    },
+    {
+      "boundary": 1819,
+      "seq": 72,
+      "kind": "mouse",
+      "u": 0.626,
+      "v": 0.4214,
+      "buttons": 0
+    },
+    {
+      "boundary": 1820,
+      "seq": 73,
+      "kind": "mouse",
+      "u": 0.673,
+      "v": 0.4687,
+      "buttons": 0
+    },
+    {
+      "boundary": 1821,
+      "seq": 74,
+      "kind": "mouse",
+      "u": 0.7296,
+      "v": 0.5284,
+      "buttons": 0
+    },
+    {
+      "boundary": 1822,
+      "seq": 75,
+      "kind": "mouse",
+      "u": 0.7744,
+      "v": 0.5468,
+      "buttons": 0
+    },
+    {
+      "boundary": 1823,
+      "seq": 76,
+      "kind": "mouse",
+      "u": 0.8053,
+      "v": 0.5294,
+      "buttons": 0
+    },
+    {
+      "boundary": 1824,
+      "seq": 77,
+      "kind": "mouse",
+      "u": 0.842,
+      "v": 0.4918,
+      "buttons": 0
+    },
+    {
+      "boundary": 1825,
+      "seq": 78,
+      "kind": "mouse",
+      "u": 0.8861,
+      "v": 0.4417,
+      "buttons": 0
+    },
+    {
+      "boundary": 1826,
+      "seq": 79,
+      "kind": "mouse",
+      "u": 0.9412,
+      "v": 0.352,
+      "buttons": 0
+    },
+    {
+      "boundary": 1827,
+      "seq": 80,
+      "kind": "mouse",
+      "u": 0.9882,
+      "v": 0.2681,
+      "buttons": 0
+    },
+    {
+      "boundary": 1829,
+      "seq": 81,
+      "kind": "mouse",
+      "u": 1.0,
+      "v": 0.19,
+      "buttons": 0
+    }
+  ]
+}

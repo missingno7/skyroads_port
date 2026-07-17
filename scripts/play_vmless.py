@@ -71,16 +71,29 @@ class VmlessDriver:
         self.frames = 0
         self.parks: dict[int, int] = {}      # head_ip -> times parked
         self._in_isr = False
+        self._seen: set = set()              # heads passed THIS frame
         rt.cpu.boundary_hook = self._boundary
 
     def _boundary(self, cpu, head_cs, head_ip, resume_ip):
         """Boundary-head observer (ABI: cpu, head_cs, head_ip, resume_ip).
 
-        Reaching ANY tick-wait ends the frame: the game has consumed the work
-        this frame's IRQs released, and ``[1600]`` cannot change again until
-        the next frame's IRQs — so the spin provably cannot exit. Re-point
-        CS:IP at the resume entry (the contract in dos_re/lift/emit.py) so the
-        next frame re-dispatches inside the lifted body, then unwind.
+        PARK ON RE-ARRIVAL, NOT ON ARRIVAL. ``[1600]`` cannot change until the
+        next frame's IRQs, so a tick-wait provably cannot exit this frame — but
+        that does NOT mean it has nothing left to do. Its BODY may not have run
+        yet, and a tick-wait body is not always empty: 1010:434A's is the fade's
+        palette re-blend. Parking on the first pass skipped the blend outright
+        and left its buffer (DGROUP 31AB) zeroed — the whole fade rendered as
+        flat fill, and it took a frame-by-frame diff against the ASM oracle to
+        see it, because nothing failed.
+
+        So let pass 1 run the body to its steady state, and park on pass 2: the
+        wait is still unsatisfied and nothing it reads can change, which is the
+        proof. One extra iteration per head per frame. This is the same rule
+        skyroads/pacing.py's verified park_fade_wait encodes — park only once
+        _fade_loop_cache holds a blend for the CURRENT tick.
+
+        Re-point CS:IP at the resume entry (the contract in dos_re/lift/emit.py)
+        so the next frame re-dispatches inside the lifted body, then unwind.
 
         EXCEPT inside an ISR: an interrupt handler must run to its IRET or the
         machine is left mid-frame with a half-delivered interrupt (and the
@@ -91,12 +104,17 @@ class VmlessDriver:
         """
         if self._in_isr:
             return
+        key = (head_cs, head_ip)
+        if key not in self._seen:
+            self._seen.add(key)              # pass 1: let the body run
+            return
         self.parks[head_ip] = self.parks.get(head_ip, 0) + 1
         cpu.s.cs, cpu.s.ip = head_cs & 0xFFFF, resume_ip & 0xFFFF
         raise FrameIdle
 
     def frame(self) -> bool:
         """Advance one displayed frame. False once the program has exited."""
+        self._seen.clear()       # "re-arrival" is per frame: new tick, new pass
         self._in_isr = True
         try:
             for _ in range(self.irqs_per_frame):

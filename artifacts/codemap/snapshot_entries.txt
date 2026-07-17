@@ -1,0 +1,48 @@
+# Snapshot re-entry points -- DERIVED by scripts/find_snapshot_entries.py.
+# A demo resumes from a snapshot, and a snapshot catches the machine
+# wherever it was -- almost never at a function entry, usually in whatever
+# loop the game spends its time in. Resuming at a mid-function address
+# needs a hook there, or the VMless wall fires at frame 0 inside a function
+# that IS lifted. The evidence is the snapshot itself: the machine was
+# recorded at that address.
+#   demo_cold_20260711_201845: 1010:0000
+#   demo_cold_20260711_201855: 1010:0000
+#   demo_cold_20260713_213510: 1010:0000
+#   demo_cold_sound_20260710_212256: 1010:0000
+#   demo_cold_sound_20260710_212952: 1010:0000
+#   demo_colde2e_20260713_144431: 1010:0000
+#   demo_colde2e_full_20260713_144604: 1010:0000
+#   demo_e2e_20260710_132930: 1010:0000
+#   demo_skyroads_20260710_213537: 1010:1D7A
+#   demo_death_redtile_20260713_154259: 1010:22F8
+#   demo_skyroads_20260710_125342: 1010:22F8
+#   demo_skyroads_20260710_204553: 1010:22F8
+#   demo_skyroads_20260710_213019: 1010:22F8
+#   demo_skyroads_20260711_123234: 1010:22F8
+#   demo_skyroads_20260713_095814: 1010:22F8
+#   demo_skyroads_20260713_103107: 1010:22F8
+#   demo_skyroads_20260713_154238: 1010:22F8
+#   demo_skyroads_20260713_154252: 1010:22F8
+#   demo_skyroads_20260713_234905: 1010:22F8
+#   demo_skyroads_crash_20260713_085908: 1010:22F8
+#   demo_skyroads_finish_20260713_085832: 1010:22F8
+#   demo_skyroads_20260710_125418: 1010:2301
+#   demo_skyroads_20260709_225824: 1010:3199
+#   demo_skyroads_20260713_131407: 1010:434A
+#   demo_menu_3levels_20260713_144256: 1010:5FED
+#   demo_skyroads_20260709_184949: 1010:5FED
+#   demo_skyroads_20260710_125610: 1010:5FED
+#   demo_skyroads_20260710_132812: 1010:5FED
+#   demo_skyroads_20260710_145303: 1010:5FED
+#   demo_skyroads_20260711_202740: 1010:5FED
+#   demo_skyroads_20260713_101126: 1010:5FED
+#   demo_skyroads_20260713_160506: 1010:5FED
+#   demo_skyroads_20260717_122736: 1010:5FED
+#   demo_skyroads_L1FULL_20260713_212417: 1010:5FED
+1010:0000
+1010:1D7A
+1010:22F8
+1010:2301
+1010:3199
+1010:434A
+1010:5FED

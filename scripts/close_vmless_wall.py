@@ -53,15 +53,21 @@ def write_extras(extras: list[str]) -> None:
 
 
 DISPATCH_FILE = CODEMAP / "dispatch_extra.txt"
+#: scripts/find_snapshot_entries.py -- the addresses demo snapshots were CAUGHT
+#: at. Re-entry points (--dispatch-entries), not new functions: they are almost
+#: always interior addresses of a function that is already lifted.
+SNAPSHOT_ENTRIES_FILE = CODEMAP / "snapshot_entries.txt"
 
 
 def read_dispatch() -> list[str]:
     """Provable indirect-dispatch targets (scripts/find_dispatch_targets.py).
 
-    Folded into every census: the music table's 8 entries are bounded by an
-    `and bx,7`, but WHICH ones a demo runs depends on the (randomly picked)
-    song -- so demo evidence alone under-covers them and the wall fires on the
-    first unseen music command."""
+    Folded into every census because a table hides its targets from the census
+    twice over: it cannot SEE an indirect call's destination, and it keeps only
+    what a demo EXECUTED. Both of skyroads' indexed dispatches are bounded by an
+    `and bx,MASK`, so their entry counts are provable -- but which entries run
+    depends on data (which song, which video mode), so demo evidence alone
+    under-covers them and the wall fires on the first unseen one."""
     if not DISPATCH_FILE.exists():
         return []
     return [ln.strip() for ln in DISPATCH_FILE.read_text().splitlines()
@@ -78,23 +84,38 @@ def regenerate(lift_dir: Path, extras: list[str]) -> None:
                     "--out", str(CODEMAP / "entries.txt"),
                     "--seg", "1010", "--extra", "1010:61F3", *extra_args],
                    check=True, capture_output=True, text=True)
+    # Snapshot re-entry points go in as --dispatch-entries, NOT --extra: a
+    # snapshot catches the machine at an interior address of a function that is
+    # already lifted (1010:3199 sits inside 3190), so it needs a hook that
+    # re-enters THAT body at THAT block -- not a second module cloning its
+    # blocks and losing the enclosing frame.
+    dispatch_entries: list[str] = []
+    if SNAPSHOT_ENTRIES_FILE.exists():
+        dispatch_entries = [f"@{SNAPSHOT_ENTRIES_FILE}"]
     subprocess.run([sys.executable, str(ROOT / "dos_re/tools/irgen.py"),
                     "--exe", str(ROOT / "assets/SKYROADS.EXE"),
                     "--snapshot", str(ROOT / "artifacts/snapshots/menu_code_live_f250"),
                     "--game-root", str(ROOT / "assets"),
                     "--entries-file", str(CODEMAP / "entries.txt"),
                     "--boundary-heads", f"@{CODEMAP / 'boundary_heads.txt'}",
+                    *(["--dispatch-entries", *dispatch_entries] if dispatch_entries else []),
                     "--out", str(CODEMAP / "recovery_ir.json")],
                    check=True, capture_output=True, text=True)
     # --desmc: the SMC routines (LZS decoder, blit threshold, timer-ISR far
     # chain) lift as operand-from-memory transforms; without it they are
-    # refused and the boot dies in the startup decode.  The raised iteration
-    # guard is for the decompressors, which legitimately loop far past the
-    # emitter's default.
+    # refused and the boot dies in the startup decode.
+    #
+    # No --max-iterations: it would now LOWER the guard, not raise it. The
+    # emitter's floor is 100,000,000 and the real guard is the no-progress
+    # detector, which proves a spin (same block, identical registers) in ~64K
+    # instead of counting to a magic number. The 8,000,000 that used to be
+    # here was itself the frame-353 "stall": lifted_1010_3a96, the ANIM
+    # decompressor, legitimately loops past it.
     subprocess.run([sys.executable, str(ROOT / "dos_re/tools/liftemit.py"),
                     "--from-ir", str(CODEMAP / "recovery_ir.json"),
                     "--boundary-heads", f"@{CODEMAP / 'boundary_heads.txt'}",
-                    "--desmc", "--max-iterations", "8000000",
+                    *(["--dispatch-entries", *dispatch_entries] if dispatch_entries else []),
+                    "--desmc",
                     "--emit-dir", str(lift_dir)],
                    check=True, capture_output=True, text=True)
 
