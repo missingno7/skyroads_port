@@ -4,6 +4,662 @@
 > ledger of per-routine evidence see [`symbol_ledger.md`](symbol_ledger.md);
 > open issues are in [`blockers.md`](blockers.md).
 
+## 2026-07-14 (round 24) — `play_native --boot`: FINISH now returns to the level-select menu instead of respawning the same level
+
+The user reported the cold-boot flow still mishandling level end (demo
+`demo_skyroads_20260713_234905`). Traced the real VM's finish sequence with
+that demo (frame-by-frame, `game_state`/palette/pixel-diff): the ship is
+frozen ("IDLE" speed, no road, the classic "flew into the sun" settle-window
+view — task #36) for ~90 frames, then a real fade-OUT to black (frames 86-118,
+palette DAC sum ramping to 0, ~32 frames), an invisible content swap AT the
+black frame (f119, 63,707/64,000 pixels change while the palette is still all
+zero), then a fade-IN of the level-select grid (frames 119-148, ~29 frames) —
+the exact same fade-out/switch/fade-in shape `TransitionFader` already
+implements for crash/death, just with a DIFFERENT destination. This matches
+`skyroads/native/menus.py`'s already-recovered (and already-tested)
+`MenuModel.level_ended`: `"finish"` -> return to the level-select grid;
+any death -> respawn the same level -- verified there against
+`demo_colde2e_full_20260713_144604`.
+
+The bug: `scripts/play_native.py`'s `run_cold_boot` (the `--boot` full-flow
+entry point) never consulted that routing. Its `TransitionFader.switch` was
+hard-wired to `driver.respawn` for EVERY transition kind, so a finish just
+silently reloaded the same level in place -- there was no code path back to
+the menu at all once gameplay started.
+
+Fix: `run_cold_boot` now loops MENU -> GAMEPLAY -> (on `outcome.kind ==
+"finish"`) MENU -> ... instead of running gameplay once. The level-select
+section became a re-entrant `run_level_select(selected, fade_in)` closure; on
+finish, the gameplay fade stops at the black mid-point (skipping the fade
+BACK IN to the abandoned scene) and `run_level_select` picks up with its own
+symmetric fade-in from black, matching the VM-measured ~30/~30 frame split
+above. Crash/fall/timeout are UNCHANGED (still `driver.respawn()`, still
+in-place). `--level N` (`run_window`, no menu to return to) is also unchanged
+-- out of scope, it has nowhere else to go.
+
+Verified: a standalone state-machine simulation (mocked driver) shows
+`kind="finish"` never calls `driver.respawn()` (0 calls, stops after exactly
+`FADE_FRAMES+1+FADE_FRAMES`=61 simulated frames) while `kind` in
+{crash,fall,timeout_fuel} calls it exactly once and keeps running. Then the
+REAL `run_cold_boot` was driven end-to-end with `NativeGameplayDriver.tick`
+patched to force a `"finish"` outcome on tick 3: the console log shows the
+menu's "auto-selecting level 0" line firing a SECOND time with a freshly
+re-randomized song index, proving a genuine return to level-select and a
+fresh `native_level_load`, not a stale in-place reload. A forced `"crash"`
+outcome, by contrast, produces no second menu visit -- confirms the death
+path is untouched.
+
+## 2026-07-14 (round 24) — the REAL cold-boot SCREEN FLOW mapped from the demo oracle (intro → main menu → controls/help → level-select); native's `--boot` is UNFAITHFUL (skips 3 screens)
+
+User report: native `--boot` is not faithful — the intro is incomplete, and
+skipping it jumps straight to level-select instead of showing the SkyRoads logo
++ main menu; level-select selection is also inaccurate. Directive reaffirmed:
+"proven original demo verified flow," no faking.
+
+Traced the file-opens across the whole cold e2e demo (demo_cold_20260713_213510,
+1552 frames) to map the REAL screen sequence:
+
+| frame | opens | screen |
+|-------|-------|--------|
+| f9    | intro.lzs, anim.lzs, intro.snd, trekdat.lzs | INTRO (checkerboard + ship anim) |
+| f123  | **mainmenu.lzs** (+intro.lzs reload)        | **MAIN MENU** (SkyRoads logo + Start!/Controls/Help) |
+| f241  | **setmenu.lzs**                             | **CONTROLS** (5 input-device icons, "Press Esc to exit menu") |
+| f396  | **helpmenu.lzs**                            | **HELP** (control guide, "SPACE to view next page") |
+| f610  | gomenu.lzs (+cars/dashbrd/sfx)              | LEVEL SELECT (2×5 world grid) |
+| f876  | roads.lzs, world0.lzs                       | GAMEPLAY |
+| f1430 | gomenu.lzs                                  | back to LEVEL SELECT |
+
+Native's `run_cold_boot` renders intro → level-select and SKIPS the main menu,
+controls, and help screens entirely — the unfaithfulness the user is seeing.
+
+**Per-screen recovery state (from this session's decode + VM traces):**
+- **INTRO**: checkerboard = INTRO.LZS pict (byte-exact); anim = ANIM.LZS 221
+  tiles rebuilding the checkerboard (byte-exact). The ship sprite + the intro's
+  completion into the logo are NOT in intro/anim — drawn by the front-end code.
+- **MAIN MENU**: the whole screen is pre-composed AT BOOT (f9) into an offscreen
+  buffer at seg `0x6e27` and only PRESENTED (via `1010:6099`/`41F1`, the masked
+  blit) when the menu opens. Composition: checkerboard (INTRO.LZS) + the
+  "SkyRoads" LOGO (320×40, blitted by `1010:4052`/`6712` from DGROUP `ds:0xb902`)
+  + the Start!/Controls/Help OPTIONS (MAINMENU.LZS = a 68×57 sprite, dest row
+  128). The logo at `ds:0xb902` is ZERO in native's boot image — it is decoded
+  into DGROUP at runtime (source not yet pinned; TREKDAT.LZS — 98 KB, non-CMAP
+  format, loaded f9 — is the prime candidate menu-graphics bank).
+- **CONTROLS (SETMENU.LZS)**: full-screen 320×200 background decodes BYTE-EXACT
+  natively (34-colour CMAP). Missing: the red device-cursor overlay + navigation;
+  Esc → main menu.
+- **HELP (HELPMENU.LZS)**: full-screen 320×200 background decodes BYTE-EXACT
+  (16-colour CMAP). Missing: multi-page paging (SPACE) + Esc → main menu.
+- **LEVEL SELECT (GOMENU.LZS)**: background byte-exact already; the real cursor
+  (a green road-box + orange position dots) and the scroll_pos→level mapping are
+  the accuracy gap the user noted.
+
+**The faithful path** (pre2_port model, per the user's "lift more parts of the
+game" directive): lift the front-end state machine (`1010:4FE4-5076`, found round
+21) + the boot-time menu-compose routine that builds `0x6e27` (draws logo from
+DGROUP + options from MAINMENU.LZS over the checkerboard) + the per-screen
+cursors, and run them VM-free, verified tick-for-tick against
+demo_cold_20260713_213510. This is a multi-part recovery; this round mapped and
+de-risked every screen's real source so the compose/state-machine lift can
+proceed without guessing. NO stand-in main menu was shipped (the current
+level-select-only `--boot` stays, honestly labelled, until the real screens are
+recovered).
+
+## 2026-07-13 (round 23) — the GRAV-O-METER LCD number recovered from the real code + verified BYTE-EXACT; wired into native gameplay
+
+The remaining HUD piece. Recovered the whole draw chain from the ASM (no faking),
+verified against demo_cold_20260713_213510 (native pixels 0-diff vs the VM over
+the grav-o-meter's LCD region):
+- **value** (`1010:2BC5`): `(ds:[4562] gravity - 3) * 100` (16-bit signed mul).
+  The demo level's gravity 8 -> **500**. (No "500" string exists in DGROUP — it is
+  formatted digit-by-digit from the scalar, which is why it wasn't a text blit.)
+- **draw_number** (`1010:1114`, called from `2BC3` with col=0x60, row=0x9C,
+  value, width=4): right-aligned digit loop with leading-zero suppression —
+  `digit = (value // pow10[si]) % 10` (pow10 = `ds:[0x824+si*2]` = 1,10,100,..),
+  `x = col + (width-si-1)*5`, glyph = font `ds:[0x16C + digit*20]` (4 wide x 5
+  tall), then `value -= digit*pow10[si]`; stop once the remainder is 0 and si!=0.
+- **draw_glyph_at** (`1010:1073`): blits the 4x5 glyph to VGA row-major writing
+  EVERY pixel (no zero-skip) — font byte `b` -> colour `0` if `b==0` else `0x60+b`
+  (the LCD dark background + two segment shades 0x61/0x62). VM-verified against the
+  live VGA writes: the '5' font rows `[.,2,2,1]`/`[1,2,2,.]` wrote
+  `0x00/0x62/0x62/0x61` / `0x61/0x62/0x62/0x00` exactly.
+
+The digit font at DGROUP `0x16C` is present byte-exact in the native boot image
+(initialised EXE data, not a file load). `skyroads/native/hud.py::draw_grav_meter`
++ `grav_value`; wired into `play_native` (both gameplay render sites, after
+`update_progress_bar`); `tests/test_hud_grav.py` (formula + byte-exact draw) —
+2 pass. This closes the HUD: speed/oxygen/fuel gauges, progress bar, and now the
+grav-o-meter are all recovered-and-verified, no stand-ins.
+
+## 2026-07-13 (round 22) — the level PROGRESS BAR recovered from the real code + verified BYTE-EXACT; wired into native gameplay
+
+The user reported the gravity meter + progress bar dead in native. Recovered the
+**progress bar** end-to-end from the ASM (no faking), all verified against
+demo_skyroads_L1FULL_20260713_212417:
+- **target column** (`1010:159C`): `clamp((prog32 - 0x30000) * 30 // ((L<<16) -
+  0x30000), 29)` where `prog32 = ds:[9618:961A]` (32-bit forward position),
+  `L = ds:[41C0]` (level length), 30 (0x1E) = bar width. Matched the VM **321/321**
+  sub-steps.
+- **per-column draw** (`1010:1218` -> putpixel `11D3`, getpixel `1191`): for each
+  new column (cache `ds:[455C]`..target) at screen col `col+0x2A`, scan UP from
+  row `0x8F` while matching the empty-bar reference colour to find the run top,
+  then fill DOWN the run with colour `0x60`. Native `update_progress_bar`
+  reproduces it **0/290 frames** pixel-diff over the whole bar.
+- **level length** `[41C0]` (`1010:5614`): opens ROADS.LZS, decodes the level
+  road, returns `len(road)//14` (7-UINT16 rows); the demo level's 770-byte road
+  -> 55. Set in `native_level_load`.
+
+Wired into `play_native` (both gameplay render sites); `[455C]` added to the
+level-init cache-zero set. `skyroads/native/hud.py::update_progress_bar` +
+`progress_target_col`; `tests/test_hud_progress.py` (formula points + the
+byte-exact draw) — 3 pass; HUD/driver suites still green.
+
+**Grav-o-meter — the value is identified, the display is the remaining piece.**
+The number is the gravity scalar `ds:[4562]` (which `native_level_load` already
+loads from ROADS.LZS's per-level header). What's still missing is DRAWING it: the
+dashboard TEXT/glyph system (string-draw `1010:42xx`, glyph `1010:60xx`,
+text-stream cursor `[41AA]`) — the next recovery, same rigor.
+
+## 2026-07-13 (round 21) — the REAL main-menu state machine FOUND and disassembled (`1010:4FE4-5076`); the front-end routine map is now anchored for lifting
+
+Per the user's directive (lift the game's own routines, don't hand-model), the
+front-end code was located by capturing the **stack chains at the menu screens'
+LZS opens** (SETMENU from `4C39` ret `5026`; HELPMENU from `4E3A` ret `5039`;
+GOMENU from `519C`; MAINMENU from `4E69`; all through loader `5C01`<-`412E`),
+then disassembling the live self-decompressed code (`lindis` over a fresh f250
+snapshot — the demo's start snapshot still has zeros there).
+
+**The main-menu key state machine, read straight off the ASM** (full map in
+symbol_ledger.md): selection in `si` (0..2, clamped both ends); UP=`0x4800`,
+DOWN=`0x5000`, ENTER=`0x000D`, ESC=`0x001B` (BIOS-style codes); ENTER dispatch
+`si==0`->level-select / `si==1`->`call 4C20` (Controls) / `si==2`->`call 4E2E`
+(Help); ESC -> the quit path (`call 0046`); `4B8E(0x5174,flag,0x24)` draws the
+items (flag 0 entry / 1 after a sub-screen). This VM-PROVES the MenuModel graph
+(clamped 3-item, same dispatch) that was previously only demo-inferred.
+
+**Lift queue** (each byte-exact before native use): `4B8E` (menu draw + the
+`0x5174` menu-def struct), the menu key-get feeding `ax`, `4C20`/`4E2E` (the
+sub-screens incl. their own loops), and the level-select flow after the Start
+exit (`5086: 3F20`, `3EF4`, the `5CD1` draw calls + `ds:[003C]` flag,
+`5073-50DE`). The f250 live-code snapshot is kept at `artifacts/snapshots/menu_code_live_f250`.
+
+## 2026-07-13 (round 20) — the fake LOGO.PCX splash REMOVED; the real cold-start opening recovered + verified pixel-exact (black → 4331 fade-in → INTRO checkerboard → ANIM ship)
+
+The user reported `play_native` opening on an unknown screen ("510 484 5918").
+That screen is **LOGO.PCX** — a "Creative Dimensions" publisher splash (the
+number is their phone number) that the game **never displays**: the EXE never
+opens the file (the old code's own comment admitted this and showed it anyway as
+"a reasonable stand-in"). Removed.
+
+**The real opening, recovered from demo_cold_20260713_213510 and verified:**
+1. black screen (DAC zeroed at ~f12);
+2. a palette fade-in — **the already-verified `1010:4331` blend_byte fade**
+   (observed firing at f11) — revealing the static **INTRO.LZS** checkerboard;
+   its palette is `expand6(INTRO CMAP)` == the demo's stable DAC (**0/38
+   mismatch**), and the rendered frame is **pixel-exact: 0/64000 differ** vs the
+   VM's stable intro frame;
+3. the **ANIM.LZS ship animation painted OVER the INTRO canvas** (the old code
+   painted onto a black canvas — that's why the native intro looked like a dark
+   pyramid instead of the wide road). ANIM's 102-colour CMAP is a **strict
+   extension** of INTRO's 38 (identical prefix; == the demo's f110 DAC, 0/102),
+   so the palette swap is invisible. Reveal pace unchanged (VM-traced).
+
+Also: the round-19 palette mystery is RESOLVED — the "purple" palette shared by
+the main menu and Controls **is the INTRO palette**, loaded once at this fade-in
+and inherited. That pins the palette model for the coming menu-screen recovery.
+
+**Retrospective (user asked how we drifted into faking):** three causes, none of
+them ambiguity in the directive itself: (a) the **LOGO.PCX precedent** — an old
+stand-in, honestly commented but *displayed by default*, normalized showing
+things the game doesn't; (b) **milestone-2's "COMPLETE (bounded)" framing** with
+drawn affordances (highlight box, guessed scroll mapping) made the menu read as
+done-with-caveats, inviting incremental UI patching instead of recovery; (c) the
+repo had **no loud-gap policy for front-end screens** — gameplay had a byte-exact
+verifier culture, screens had none (pre2_port codifies exactly this:
+an unrecovered scene RAISES, it never renders a stand-in). POLICY, effective now:
+**a screen the VM doesn't show is never displayed; an unrecovered screen is a
+loud gap or an honest absence, never a composite; every front-end screen gets
+frame-verified against the demo oracle like gameplay frames.**
+
+## 2026-07-13 (round 19) — round-18 native menu was a GUESS and is WRONG vs the VM; REVERTED. Faithful facts captured for a proper recovery
+
+The user tested `--boot` and correctly rejected the round-18 menu: the main-menu
+screen is not what the game shows, the interaction isn't faithful, and level
+select is inaccurate. Verified every complaint against the VM (demo_cold_
+20260713_213510) and the round-18 approach was guessing, not reproduction:
+- **Palette wrong.** At the Controls screen the VM's DAC is a *purple* palette,
+  not `expand6(SETMENU.LZS's CMAP)` (blue/grayscale): 33/34 of 34 entries differ.
+  Tracing port 0x3C9 shows the Controls load uploads **0** DAC bytes -- it
+  INHERITS the main-menu palette (main f150 vs Controls f285 DAC: 0/64 differ).
+  Help and level-select DO load their own (61/64, 63/64 differ vs main). So menu
+  palette handling is per-screen and nuanced; my per-LZS `expand6(CMAP)` is wrong.
+- **Main-menu composition wrong.** The VM shows the red "SkyRoads" title at top +
+  the road positioned lower; my INTRO.LZS-as-full-background + MAINMENU overlay
+  is a different composite (no title, wrong road position/items).
+- **Cursors guessed.** The Controls red device-outline, the level-select "Road N"
+  brighten + dots -- all real ROM cursor draws; my drawn boxes/recolours are
+  affordances, not the ROM's.
+
+REVERTED: removed `skyroads/native/menu_screens.py` + its test; `run_cold_boot`
+restored to the level-select-only flow (which at least shows a real GOMENU
+screen, though its box cursor + scroll_pos mapping are themselves still the older
+provisional pieces flagged in round-17/#40).
+
+**The faithful path (pre2_port's pattern, confirmed by reading its
+`pre2/native/front_end.py`):** recover each front-end SCENE's real RENDER +
+STATE-MACHINE and verify tick-for-tick vs the VM demo, failing LOUD (a gap) where
+not yet recovered -- no composited stand-ins. For Skyroads that means recovering,
+per screen: the VM's palette source/upload (incl. the shared main+controls
+palette), the exact screen composition, and the ROM's cursor/highlight draw +
+the transition state machine, all checked against `demo_cold_20260713_213510`.
+This is a real multi-routine recovery (like the gameplay sub-step was), not a
+one-pass render. `skyroads/native/menus.py` (the MenuModel graph) + its tests
+stay as the state-graph scaffold; the RENDERING is what must be recovered.
+
+## 2026-07-13 (round 18) — native cold-boot MENU FLOW IMPLEMENTED: main menu + Controls + Help now render VM-free and drive the recovered MenuModel
+
+Absorbed the round-17 reconstruction into the native player. New
+`skyroads/native/menu_screens.py` loads the real menu assets and renders each
+screen VM-free (same `parse_lzs_container`/`load_pict` path as GOMENU):
+- **main menu** = INTRO.LZS checkered-road backdrop + the MAINMENU.LZS
+  `Start!/Controls/Help` overlay (68x57 @ row 128), the selected item recoloured
+  to the highlight;
+- **Controls** = SETMENU.LZS full background; **Help** = HELPMENU.LZS full
+  background.
+
+`scripts/play_native.run_cold_boot` no longer jumps straight to GOMENU: after the
+intro it drives the recovered `menus.MenuModel` graph across MAIN → CONTROLS /
+HELP / SELECT → GAMEPLAY with edge-triggered keys (UP/DOWN/ENTER/ESC on the main
+menu, ESC-back on Controls, SPACE-page/ESC on Help, the existing grid nav on
+level-select, ESC from the grid back to main). Verified: `tests/test_menu_screens.py`
+(assets load+render to 320x200, highlight moves, and the demo's keypress sequence
+walks Controls→Help→level-select→gameplay) + the existing `test_menus.py`; 16
+pass. `--boot` smoke drives intro→menu→gameplay clean headless.
+
+Follow-ups (small, flagged): the red "SkyRoads" title element over the main-menu
+road (not in MAINMENU.LZS's 68x57 items block — a separate draw to locate); the
+HELPMENU page-2 tile legend (Supplies/Boost/Sticky/Slippery/Burning — a second
+HELPMENU record); and the palette on SETMENU/HELPMENU reads a touch dark vs the
+VM (a DAC detail). The FLOW and screens are now faithful and asset-backed, not
+guessed.
+
+## 2026-07-13 (round 17) — faithful cold-boot MENU FLOW reconstructed from `demo_cold_20260713_213510`; the 3 missing screens + their assets identified and shown to render VM-free
+
+The user recorded `demo_cold_20260713_213510` — a full cold session: intro → main
+menu → Controls → Help(×2 pages) → level-select grid → play a level → back. Used
+it as the authoritative reference (replayed with its pinned `mouse_present=True`).
+
+**Real screen flow (visually verified off rendered frames + keydowns), with the
+asset each screen loads (from an INT-21h open trace):**
+- intro/attract (INTRO.LZS + ANIM.LZS) → SPACE →
+- **main menu** = **MAINMENU.LZS** (the "SkyRoads" title + `Start! / Controls /
+  Help`; a **small 3876-px OVERLAY** composited over the live intro road, not a
+  full background) → DOWN/UP move the highlight, ENTER selects;
+- Start → **level-select** = GOMENU.LZS (already native);
+- Controls → **SETMENU.LZS** (device-select screen, full 320x200 background) →
+  ESC back;
+- Help → **HELPMENU.LZS** (full background; **page 1** = the control reference,
+  **page 2** = the road-tile legend Supplies/Boost/Sticky/Slippery/Burning; SPACE
+  = next page, ESC/last-page = back);
+- gameplay ←→ level-select (ESC from a level returns to the grid).
+
+**Verified the recovery is tractable:** SETMENU.LZS (34 colours) and HELPMENU.LZS
+(16 colours) load via the existing `parse_lzs_container`/`load_pict` path and
+render VM-free **matching the demo's Controls (f260) and Help (f410) frames**.
+MAINMENU.LZS is the title/menu overlay (composite over the road). The
+`skyroads/native/menus.py` `MenuModel` state graph (Start/Controls/Help order,
+ENTER/ESC/SPACE transitions, help-page wrap) **matches the demo** — the logic is
+right; what's missing is that `run_cold_boot` opens straight on GOMENU and never
+renders MAINMENU/SETMENU/HELPMENU or the intro.
+
+**Remaining (the "let native absorb it" work):** wire the three screens into
+`run_cold_boot` driven by `MenuModel` — a native menu-screen loader for the two
+full backgrounds + the MAINMENU overlay composite + the highlight draw, then
+frame-verify the flow against this demo. Reconstruction done; implementation is
+the next chunk.
+
+## 2026-07-13 (round 16) — 2 of 3 fixed with the user's demos; the last one (cold-run) is pinned to the single unrecovered `1DFA` effect
+
+The user recorded `demo_menu_3levels_20260713_144256` (mouse-disabled, keyboard)
+and `demo_skyroads_L1FULL_20260713_212417` (a full Level-1 start→finish run,
+recorded with the mouse present so it carries `metadata.mouse_present=True`).
+
+- **collision scan test → FIXED** on `demo_menu_3levels` (native==VM on >50
+  landings; full file 32 passed).
+- **lockstep test → FIXED** on `demo_skyroads_L1FULL`: the harness now replays
+  with the demo's pinned mouse mode (`rt.dos.mouse_present = pb.mouse_present_hint`)
+  and the native stays in lockstep for **136 steps** (≥50 required) before the
+  first gap. Passes.
+- **cold-run milestone → still 1 failing**, and the blocker is now pinned exactly:
+  it is the **`1DFA` effect (`25AC-25D6`)** — a one-shot effect gated by
+  `ds:[4570]`, ~0.7% of sub-steps, that rewrites `lateral_accel` (sets
+  `bounce=0x480, jumping=1`; looks like a special boost/jump tile). It's the ONE
+  unrecovered piece of the gameplay sub-step. Two facts make this the sole
+  remaining work: (a) the milestone's literal "completes with ZERO input" is
+  unachievable — the user confirms no Skyroads level is beatable hands-off (you
+  must at least jump), so `run_cold` dies at ~137 ticks; (b) reframing it to
+  "native drives L1 to its finish with the recorded input" requires the driver to
+  get past the special tiles that fire `1DFA`, which it can't yet.
+
+**Net: from the 3 regressions, 2 fixed; the last needs recovering the single
+`1DFA` (`25AC-25D6`) effect routine + reframing the cold-run milestone from
+"zero-input completion" (impossible) to "native drives a real level to its
+finish." Both are bounded; the `1DFA` recovery is the real remaining native-RE
+task and unblocks the last test.**
+
+## 2026-07-13 (round 15) — mouse-presence pinned per demo; the 3 remaining suite failures pinned to demo-calibration (not native regressions)
+
+**Framework fix (done, verified):** demos now **pin the mouse-presence state** they
+were recorded under. The viewer stamps `mouse_present` into demo metadata at record
+time; replay reads `InputDemoPlayback.mouse_present_hint` (metadata first, else the
+`has_mouse_events` fallback for legacy demos). This makes a keyboard demo recorded
+with the mouse present replay present (it carries no motion, so the heuristic alone
+would wrongly pick absent). dos_re **390 passed**.
+
+**The 3 remaining SkyRoads-suite failures — diagnosed precisely, NOT native
+regressions, NOT hacked.** All three seed off the VM replaying the OLD
+`demo_e2e_20260710_132930`, and were calibrated when the mouse defaulted PRESENT
+(rounds 10-12). Under the now-correct faithful (mouse-absent) replay of that demo:
+- `test_native_vertical_scan_matches_asm_over_demo` — the native **matches the VM
+  for every frame it checks (16/16)**; it just gets **16 scan frames, needs >50**.
+  Pure sample-count shortfall.
+- `test_native_loop_stays_in_lockstep_with_vm` — longest native/VM lockstep run
+  **23, needs ≥50**; ends on native GAPs/level BOUNDARYs, not field divergence.
+- `test_run_cold_completes_the_gate_8_level_with_zero_input` — the demo-derived
+  seed now lands on a level that **crashes cold at tick 137** instead of gate-8's
+  auto-completing level.
+
+All three **fail in isolation even on pristine `fec29d6`** (verified) — they were
+always relying on full-suite test-ordering; my correct determinism fix disturbed
+it. They are calibration artifacts of `demo_e2e`.
+
+**Recalibration progress (using the user's mouse-disabled session demos):**
+- `demo_menu_3levels_20260713_144256` is keyboard-only and, measured, replays
+  IDENTICALLY under mouse present/absent (the game had mouse disabled in-menu), so
+  no "conversion" is needed — it's unambiguous.
+- **collision scan test → FIXED** by repointing it to that demo: it now gets >50
+  landings and the native matches the VM on all of them (`tests/test_collision_
+  response.py` full file, 32 passed).
+- **lockstep** still open: on the new demo the native/VM run breaks at step 30 on a
+  **`bounce` field divergence** (a genuine native-vs-VM mismatch on that demo's
+  gameplay, not merely a coverage gap) — worth a dedicated look; on `demo_e2e`
+  (faithful absent) it maxes at 23. Left on `demo_e2e`.
+- **cold-run milestone** still open: neither `demo_e2e` (faithful) nor the new
+  demo seeds a level that completes cold with zero input (both reach a
+  crash/death). Left on `demo_e2e`.
+
+**Follow-up investigations (both proposed items, now closed with findings):**
+- *bounce "divergence" is NOT a native bug.* Reproduced the step-30 lockstep
+  break on `demo_menu_3levels`: the VM fields there are a fresh level-init
+  (`af2c=0x2800`, `af1c=0x8000`, `bounce=0`, `timers=0x7530`) — the VM did a
+  **level transition** (this demo plays 3 levels) and the bare lockstep harness
+  kept simulating the old level. The native sub-step is correct; the demo just
+  transitions too often to yield a 50-step single-level run. So lockstep needs a
+  demo with one long continuous level; on `demo_e2e` (faithful) the native instead
+  hits recovered-code **GAPs at ~19-23 steps** (a native coverage limit, not a
+  divergence) — filling those, or a long single-level demo, is the real unblock.
+- *cold-run can't be seeded natively (yet).* Tried seeding `run_cold` from the
+  VM-free `native_level_load` (levels 0-29): none complete cold, and the actual
+  cause is that a fresh native-boot seed leaves the ship **stationary**
+  (`ship_pos=0x0` after 800 ticks) — `apply_gameplay_segment_init` +
+  `native_level_load` set up the road but not the live forward-motion state the
+  demo seed captured mid-gameplay. So the milestone genuinely needs a *gameplay*
+  seed that reaches a cold-completable level; that's a level-specific property
+  (most Skyroads levels require steering) the user can identify or record.
+
+## 2026-07-13 (round 14) — adopted dos_re's numpy render fast-path in play_native (per-pixel palette loop → LUT, ~27x)
+
+dos_re bumped `f73980b -> 121f9e0` (one pm_player commit; `real-mode-mouse` rebased
+clean). Adopted the numpy render policy dos_re landed in `7a4f7d8` ("numpy fast
+path for the rasterizers — 21x, byte-identical"): `play_native.py` was converting
+the 320x200 mode-13h indexed plane to RGB with a **per-pixel Python loop**
+(`for i in range(64000): r,g,b = palette[frame[i]]`) at BOTH render sites (the
+gameplay path and the boot `to_rgb`). Replaced with a numpy palette LUT
+(`pal[idx].reshape(200,320,3)`). Byte-identical (verified on a full frame) and
+**~27x faster** (10.6 ms → 0.40 ms/frame here). Drove it end-to-end headless
+(`SDL_VIDEODRIVER=dummy`): `--level 2` gameplay 4 frames and `--boot` 45 menu + 45
+gameplay frames, both clean. (numpy was already a hard `--window` dependency, so
+no new requirement.)
+
+## 2026-07-13 (round 13) — dos_re bumped to f73980b; synergy pass caught the same mouse replay-drift bug in our real-mode viewer that pm_player just fixed
+
+Updated dos_re `fec29d6 -> f73980b` (rebased the `real-mode-mouse` branch onto it,
+clean — upstream touched pm_player/sblaster/step_probe, not the real-mode files).
+New upstream: pm demos v2 fingerprint, `step_probe`, sblaster dma_tc snapshot, and
+**`pm_player: record the mouse value that is actually applied (fix replay drift)`**.
+
+**Direct synergy — the same bug was in code I added this session.** The pm_player
+fix pinned that recording APPLIED the full-precision `mouse_norm` to the VM but
+RECORDED it rounded to 4 decimals; the game maps the normalized mouse to a pixel
+and is sensitive to <1e-4 (~0.06 px), so a replay's rounded sample lands on a
+different pixel and diverges (~frame 22). Our real-mode viewer mouse (round 10)
+had the identical pattern plus mid-frame application. Ported the fix to
+`player.py::run_view`: mouse is **buffered and applied once at the frame
+boundary**, and the value **applied == the value recorded** (the rounded sample).
+Also swallowed the F10/F11/F12 viewer hotkeys on both edges (F10's break leaked
+into the game+demo via the generic KEYUP path). dos_re suite **386 passed**.
+
+**Regression the update surfaced, then two real determinism bugs it exposed in
+MY session's work.** The full SkyRoads suite went red (`test_native_movement_
+pipeline` + `test_native_loop_integration`). Bisected carefully (pure fec29d6 vs
+f73980b, my files A/B): the dos_re update itself is inert for real mode (touches
+only pm/sblaster/step_probe), so both were MY changes:
+- **Read-your-writes overlay (round 11) broke determinism.** The overlay served a
+  re-opened file from what the program just wrote, even with `save_dir=None` —
+  correct DOS behavior, but every demo was recorded under the old "writes dropped
+  on close, re-open reads pristine". demo_e2e diverged at ~frame 600 when Skyroads
+  rewrites then reloads SKYROADS.CFG at a level break. Fix: **gate the whole
+  overlay on `save_dir`** — OFF = legacy drop-writes (byte-exact), ON = overlay +
+  persistence. Fixed the movement-pipeline oracle.
+- **Mouse-presence default (round 10) diverged keyboard demos.** Reporting the
+  mouse present at INT 33h fn 0 makes the game enable mouse control at startup.
+  Fixed by the round-13 gate (`mouse_present` default False; opt-in via viewer /
+  `has_mouse_events`).
+- `test_native_loop_integration` also turned out **pre-existingly fragile**: its
+  `ctrl_device == 0` frame filter is unsatisfiable under a faithful mouse-absent
+  replay of demo_e2e (which runs at device 2) — it FAILS in isolation even on
+  pristine fec29d6, and only passed via full-suite pollution. `ctrl_device` only
+  selects the input source; the sub-step is device-independent (the movement-
+  pipeline oracle proves it on the same frames), so the filter now accepts device
+  0 **or** 2. Native-vs-VM assertions still hold — verified, not just green.
+
+Net: dos_re **389 passed**; SkyRoads suite green again. Four dos_re commits on the
+`real-mode-mouse` branch (INT 33h driver; file persistence; wheel→Up/Down; the
+precision + presence + overlay determinism gates), plus a one-line parent-repo
+test-filter fix.
+
+**Flagged, not yet adopted:** `dos_re/step_probe.py` (per-instance CPU step
+observer with a cheap (cs,ip) trap-set + LIFO nesting) is a clean replacement for
+the **global `CPU8086.step` monkeypatching** every SkyRoads VM-oracle trace uses
+(play_native.py's trace helpers + the scratch verify scripts). It installs on one
+cpu instance and makes the address check in the closure, so a two-address probe
+over a 120M-instruction cold boot costs a few thousand Python calls instead of
+120M. Worth migrating our trace harness to it (tooling/perf, not correctness).
+
+## 2026-07-13 (round 12) — mouse WHEEL in menus is a DOSBox mapping (wheel→Up/Down), not a game feature; wired it in the viewer
+
+User confirmed the live mouse works, but the wheel doesn't scroll the menu /
+level-select. **Verified the game has no wheel of its own**: across the whole
+mouse-enabled menu demo it calls INT 33h **only fn 0/1/2/3/4** — never the wheel
+API (fn `0x11`) nor relative-motion counters (fn `0x0B`) — and the mouse-init
+routine (`1010:0690`, disassembled in round 10) is just reset→show→hide. A 1993
+title predates the scroll wheel; **DOSBox** is what maps the wheel to the Up/Down
+cursor keys, which the menus already navigate on. So the fix belongs in the
+front-end, not the INT 33h driver.
+
+`player.py::run_view` now maps `pygame.MOUSEWHEEL` to one Up/Down arrow **tap per
+notch**, fed through the existing `KeyDispatcher` so (a) each tap spans a full
+frame poll (the menu can't miss it) and (b) it records as a normal scan event →
+deterministic replay for free. Live-only (ignored while a demo drives input).
+Verified the dispatcher emits make→break (`0x48/0xC8` up, `0x50/0xD0` down);
+dos_re suite **378 passed**. (The native player `play_native.py` has its own menu
+loops — mirror the same mapping there when the native menus go interactive.)
+
+## 2026-07-13 (round 11) — saved progress (SKYROADS.CFG) never persisted: dos_re's file layer was write-to-memory-then-discard; added a determinism-safe overlay + opt-in save sink
+
+**Root cause (a deliberate dos_re policy, not read-only).** The game saves
+finished-level progress to `SKYROADS.CFG`, but dos_re's INT 21h file layer
+captures writes in an in-memory `FileHandle` and **discards it on close** — the
+create handler's own comment: *"keep writes in-memory so RE runs are
+deterministic and do not mutate the user's original game directory."* Reads hit
+disk, writes evaporate. Traced `demo_colde2e_full_20260713_144604`: boot opens
+CFG at f9, and after finishing levels the game **rewrites** it at f1585 / f2433 —
+`len=66`, the progress markers at **offset 6 (`2→3`)** and **offset 8 (`0→1`)**.
+Every one of those writes was being dropped.
+
+**Design (agreed with the user): a two-layer writable-file model in dos_re.**
+- *In-run overlay (always on, determinism-safe):* create/write land in an
+  in-memory overlay keyed by resolved path and **survive close**; `open` serves
+  the overlay before disk. A program re-reading a file it just wrote sees its
+  own bytes with **zero disk I/O** → replay stays bit-deterministic.
+- *Persistence sink (opt-in):* a `DOSMachine.save_dir`. When set, `close`
+  flushes the overlay there and `open` reads it back (precedence
+  overlay → save_dir → pristine asset). When unset (demos/tests/headless),
+  nothing touches disk and the shipped `assets/` stay pristine — the historical
+  default is preserved exactly.
+- *Policy chosen:* saves go to a **separate save dir** (`<root>/saves`, assets
+  untouched); the **live viewer persists by default**, demo replay/headless do
+  not (`--save` forces on under replay, `--no-save`/`--save-dir` override).
+  Wired in `player.py::run_view`; `--save-dir/--save/--no-save` added.
+
+**Verified:** unit — overlay read-back with no disk write + asset pristine;
+persistence flush-on-close + a *fresh machine* reading the save back; overlay
+beats a stale save within a run (`dos_re/tests/test_file_persistence.py`, 4
+tests). End-to-end — replaying the real cold e2e demo with `save_dir` set
+persists `SKYROADS.CFG` with byte6=3/byte8=1 while `assets/` stays pristine.
+dos_re suite **378 passed**; SkyRoads suite green.
+
+## 2026-07-13 (round 10) — real-mode MOUSE was a dead INT 33h stub in dos_re; ported the verified DOS/4GW driver + wired the viewer/demo channel
+
+**Root cause (a genuine dos_re/VM gap, not a native-port bug).** The user
+reported mouse control doesn't work. Traced `demo_mouse_enable_20260713_160506`:
+once the mouse is enabled from the menu, SkyRoads polls **INT 33h fn 3**
+(get position + buttons) **1392×** and calls **fn 4** (set position) 234× — but
+dos_re's real-mode `DOSMachine.int33` (dos.py) was a bare *"mouse absent"* stub
+that returned AX=0 on fn 0 and did nothing for fn 3/4, so the game's absolute
+pointer read returned stale registers → dead mouse. SkyRoads is simply the first
+16-bit game exercised here that drives INT 33h; the DOS/4GW (PM) core already had
+a full driver (`dos4gw.py::_int33`, verified against KE) — real mode never did.
+
+Disassembled SkyRoads' mouse helpers to confirm the contract before porting:
+`1010:06bb` reads **absolute** position via fn 3 (`mov [bp-2],cx`/`[bp-4],dx`/
+`[bp-6],bx`) and returns the requested field; `1010:06a4` sets position via fn 4.
+It uses absolute reads (not the relative motion-counter fn 0Bh), which is exactly
+what a `set_mouse_norm` feed provides.
+
+**Fix — all in dos_re (the framework), mirroring the proven PM driver:**
+- `dos.py`: real `int33` for fn 0/1/2/3/4/7/8/0B/5/6/24/0C/0F/10/1A/1B + a
+  `set_mouse_norm(u,v,buttons)` helper and MS-default mouse state
+  (`[0,639]×[0,199]`). Byte-for-byte the same service semantics as `_int33`.
+- `player.py` (real-mode viewer): forward `MOUSEMOTION`/button events to
+  `set_mouse_norm` each frame and record one changed sample per frame.
+- `input_demo.py`: a `kind=="mouse"` event channel (record + replay through
+  `set_mouse_norm`) so mouse demos are deterministic — the recorder had no mouse
+  channel at all, which is why the "mouse enable" demo carried only keystrokes.
+
+**Verified:** unit contract (reset→AX=FFFF/BX=2, fn 3 returns the injected
+clamped absolute pos, fn 7/8 range mapping) + **end-to-end**: injecting window
+pos (0.75,0.25)+L over the real demo, the game's fn 3 reads back **cx=479 dx=49
+bx=1** every frame. `dos_re/tests/test_real_mode_mouse.py` (7 tests). dos_re full
+suite **374 passed**; SkyRoads suite green (real-mode path unaffected). dos_re
+also bumped `e19bb1a -> fec29d6` (2 further PM determinism commits).
+
+## 2026-07-13 (round 9) — red-tile DEATH verified (#38); dos_re bumped + audited; menu state machine death-routing corrected
+
+**dos_re updated** `8f6f558 -> e19bb1a` (40+ commits, dominated by the new
+protected-mode / DOS-4GW layer: `cpu386`, `dos4gw`, `pm_player`, `pm_snapshot`,
+`pm_verification`, the 32-bit lift pipeline). Real-mode-path regression check:
+**full suite 429 passed, 1 skipped** — no breakage.
+
+**Promotion/fix audit of local vs dos_re** (per the standing "keep the framework
+game-agnostic" split): architecture is clean — `skyroads/verification.py`,
+`frame_verify.py`, `state_view.py` are thin adapters over dos_re framework code;
+no production monkeypatching/workarounds of dos_re internals; the LZS codec is a
+game-recovered asset decoder (stays local). **One genuine promote candidate**:
+`tools/lindis.py` has a `--live-demo` mode (drive a demo forward under the pure
+ASM oracle so self-modifying / LZEXE-unpacked code is LIVE before disassembly)
+that dos_re's `tools/lindis.py` lacks entirely. It's a generic fix to a generic
+problem (packed/self-modifying DOS code) but is currently coupled to
+`scripts.play.SkyroadsFrontend`; promoting it means generalizing `main_live` to
+dos_re's `GameFrontend` (same driver interface) + a dos_re-side test. Flagged
+for a framework contribution, not force-landed unverified.
+
+**#38 red kill-tile death — VERIFIED** via `demo_death_redtile_20260713_154259`
+(promoted to the corpus): the ship hits the red "Burning" pyramid and at f39
+`03C2` fires with **id 0** (the crash thud, same sound as a frontal wall crash)
+as game_state 0→2 (writer `1b68`); the ship **explodes** (white flash → debris)
+and the **SAME level respawns** from the start (f115-134). So **death → respawn,
+finish → menu** — they differ. The native already emits `03C2(0)` on crash
+(`loop.py:360`); whether the native sim DETECTS the red-tile landing as a crash
+is a separate parity check (follow-up).
+
+**Correction landed**: `skyroads/native/menus.py::level_ended` had routed *all*
+level ends to the menu (death was flagged unverified). Now `kind=="finish"` →
+menu; any death → respawn-in-place (stay in gameplay). `tests/test_menus.py`
+updated with both the finish and death cases. 13 menu tests pass.
+
+## 2026-07-13 (round 8) — level-select navigation VERIFIED from a real interactive demo; the shipped model was a guess and is now replaced
+
+**New oracle**: the user recorded `demo_menu_3levels_20260713_144256` (renamed
+`demo_menu_3levels_20260713_144256`, promoted to the corpus + `demo_manifest.md`)
+— 849 frames of genuine interactive play: title menu → level-select grid →
+three level attempts. This is the first demo to exercise the real 2D
+level-select **cursor** navigation (earlier "menu" demos were attract-mode
+auto-cycle or single-confirm).
+
+**Established the real screen flow from RENDERED-FRAME ground truth** (decoded
+the VM's own mode-13h framebuffer at chosen frames — not memory guessing):
+1. Title/main menu: "SkyRoads" + `Start!`/`Controls`/`Help`.
+2. `Start!` → level-select grid: 2 cols × 5 worlds, each `Road 1/2/3` (30
+   levels), blinking cursor + selected-road highlight.
+3. ENTER → level loads (fade-in, road slides in, dashboard shows a real
+   GRAV-O-METER number "500" — confirms #35's target is a live number).
+4. ESC during a level (even its fade-in) → fade → back to the level-select grid
+   (NOT respawn-same-level). Confirms the #39 direction: exit returns to grid.
+
+**Level-select navigation, DERIVED + VERIFIED (no guessing)**: tracked the
+on-screen selection highlight frame-by-frame (median-background subtraction on
+the indexed framebuffer) against the recorded keydowns. Many clean mid-list
+samples (e.g. DOWN: Over-the-Base/Road3 → The-Earth/Road1 crossing a world
+boundary; LEFT: The-Earth/Road2 → Satellite/Road2 preserving vertical position)
+give the rules:
+- UP/DOWN step the column's flat **15-entry** (world×road) list, crossing world
+  boundaries, **clamped** at the ends (no wrap).
+- LEFT/RIGHT switch **column** preserving the vertical (row+road) position.
+
+This **refutes the shipped `--boot` model** (`road = (road±1)%3`;
+`world = (world±1)%10`), which was an explicit guess. Recovered as
+`skyroads/native/level_select.py::move_selection` (+ grid encoding), wired into
+`play_native.run_cold_boot`, guarded by `tests/test_level_select.py` (7 cases
+transcribed from the demo trace). The grid layout/`level_box` geometry the boot
+path already had matches the rendered grid and is unchanged.
+
+**Follow-up oracle (same day): `demo_colde2e_full_20260713_144604`** — a full
+end-to-end cold session (intro → main menu → several levels → Help → exit),
+promoted to the corpus. Rendered-frame ground truth (the `[456E]` game_state
+variable proved unreliable here — reads 0 during later gameplay — so frames are
+the oracle) VERIFIED the rest of the flow:
+- **#39 natural FINISH → menu, CONFIRMED**: the ship rides up the level's end
+  ramp and flies off the top; the road recedes below and the ship disappears
+  with **no crash explosion and no SFX** (trace shows silence f2303→2334), then
+  fades to the **level-select grid**. Not a respawn, not a fall-off. This is the
+  behaviour `--boot` must implement (it currently respawns the same level).
+- **Main menu** (`Start!`/`Controls`/`Help`, UP/DOWN + ENTER) and a **Help
+  screen** (tile legend: Supplies / Boost / Sticky / Slippery / Burning; "Press
+  ESC to exit help, SPACE next page") both exist and are reached via ESC up the
+  screen hierarchy; grid→ESC→main menu→ESC→exit game.
+- **Grav-o-meter = the level's gravity number** (Crab Nebula 100, Into the Sun
+  500) — confirms #35's target is a live per-level value.
+
+**Still-open** (genuinely not captured by any demo):
+- **No player DEATH anywhere in the corpus** — the red "Burning" tile is passed,
+  never hit; no wall crash, no fall. So #38's red-death SFX, and whether death
+  routes to menu / respawn / lives, remain unverified. Needs a die-on-red demo.
+- The **selection variable in memory** remains unmapped (nav derived from the
+  screen, not a DGROUP offset).
+- `--boot` does not yet reproduce the main-menu / Help screens or the
+  finish→menu loop (it jumps intro→grid and plays a single level, respawning).
+  This is a bounded interactive build, tracked as the next step.
+
 ## 2026-07-13 (round 7) — palette fade RECONSTRUCTED from the real routine (a prior guess was caught and replaced); menu scroll_pos->level mapping: new evidence, still open
 
 **User correction, taken seriously**: a first pass at the fade-to-black

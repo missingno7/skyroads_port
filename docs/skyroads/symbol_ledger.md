@@ -191,3 +191,58 @@ hooking it the same way as the palette fade is the natural follow-up.
 - The exact on-disk byte offset where the 3 width bytes / bitstream begin,
   relative to the `CMAP`/length header fields visible in raw file
   inspection — not yet correlated field-by-field against our own trace.
+
+## 2026-07-13 — the FRONT-END (menu) routine map, from live disassembly at the demo's Controls screen (artifacts/snapshots/menu_code_live_f250, f250 of demo_cold_20260713_213510)
+
+Anchored by the stack chains captured at the menu screens' LZS opens (all go
+through the file loader `1010:5C01` <- `412E`), then `lindis` over the live
+(self-decompressed) code. STATUS: OBSERVED (disassembled + cross-checked against
+the demo's flow); each routine still needs its own byte-exact recovery before
+native use.
+
+- `1010:4FE4-5076` — **the MAIN-MENU key state machine.** `si` = the selection
+  (0..2), CLAMPED both ends: UP (`ax==0x4800`) -> `sub si,1` only when `si>0`
+  (4FE4-4FEF); DOWN (`ax==0x5000`) -> `cmp si,2; jb -> add si,1` (4FF2-4FFD).
+  ENTER (`ax==0x000D`): `si==0` -> exit the loop at 5079 (Start -> level
+  select); `si==1` -> `call 4C20` (Controls screen); `si==2` -> `call 4E2E`
+  (Help screen); each returns to a redraw + the key loop. ESC (`ax==0x001B`)
+  -> `5000: call 0046` (the quit path). Key codes are BIOS-style
+  (ascii in al, scan<<8 for extended).
+- `1010:4B8E(ptr=0x5174, flag, 0x24)` — the main-menu items DRAW (called with
+  flag 0 on entry/redraw and flag 1 after a sub-screen returns). `0x5174` is a
+  menu-def struct in DGROUP; not yet decoded.
+- `1010:4C20` — the CONTROLS screen routine (loads SETMENU.LZS via `4C39`,
+  runs its own key loop until ESC).
+- `1010:4E2E` — the HELP screen routine (loads HELPMENU.LZS via `4E3A`,
+  SPACE pages internally).
+- `1010:4E69` — the MAINMENU.LZS load site (the menu overlay).
+- `1010:519C` — the GOMENU.LZS load site; the LEVEL-SELECT flow follows the
+  menu loop's Start exit: `5086: call 3F20`, `3EF4(0x1B0,0)`, then `5CD1(...)`
+  draw calls with computed offsets and a `ds:[003C]` config flag branch
+  (5073-50DE region) — the scroll/cursor mechanics to lift next.
+
+### Main-menu RENDER subsystem (2026-07-15, disasm of `4E80-4FE1`, menu_code_live_f250)
+
+The main-menu screen build + input loop, lifted from the ASM (the render half of
+the `4FE4` state machine above). One big `enter` routine:
+
+- **Screen SETUP (`~4E80-4FB7`, runs once):** a chain of resource + draw calls
+  over the menu-def `0x5174`: `3F91(0x5174, dur)` (x3, dur 0/0x32), `4084(ptr,
+  0x32)` / `3FE2(ptr, 0xA0)` (build draw descriptors into locals `[bp-32..-60]`),
+  `411B(0x0D98)` + `413C` (resource open/decode of the menu graphics), `417E(0,
+  1, A000, [bp-32])` (present-window setup), `4201([bp-40/-48])` (masked blit —
+  draws the composed BG incl. the SkyRoads LOGO), and `4331([bp-54],[bp-60],
+  0x32)` (the verified palette FADE-in, dur 0x32). Ends `si:=0` (default
+  selection = Start!) and drops into the loop.
+- **INPUT LOOP (`4FBA-4FE1`):** `417E(...,[bp-32])` re-present; then the HIGHLIGHT
+  draw: `ax=si<<3; cx=[bp-24]+si*8; 4201(cx)` — each option has an **8-byte draw
+  descriptor** in a local table at `[bp-24]`, and the selected one is re-blitted
+  in the highlight style; then `5FEB` (get key) -> the `5053` key dispatch.
+- Data still to decode for the native port: the **`0x5174` menu-def struct**
+  (option list / positions / the `4B8E` item draw), the **8-byte-per-option
+  descriptor table** at `[bp-24]`, and what `411B(0x0D98)`/`6168(0x53AE,3,0xBE)`
+  load (the menu graphics incl. the logo — the raw bytes native must source).
+  `4201` = the same masked-glyph blit family as the HUD (`skyroads.recovered.
+  blit`); `4331` = the verified `palette_fade`. So the PRIMITIVES are already
+  native; the port is (a) the menu-def + descriptor DATA and (b) the loader
+  `411B`/`6168` graphics source.
