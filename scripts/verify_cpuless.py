@@ -133,19 +133,22 @@ def _capture_cpuless(pb, heads, irqs, end):
         if key not in state["seen"]:
             state["seen"].add(key)          # 1st pass: let the body run
             return regs, regs.get("_flags_in", 2), 0
-        # 2nd pass -> this is the frame boundary
+        # 2nd pass -> a frame just rendered.  Capture it, THEN prepare the NEXT
+        # frame: apply ITS input before it renders (so input N affects frame N,
+        # matching the oracle's apply-before-run), then deliver its timer IRQs.
         f = state["frame"]
-        pb.apply_to_runtime(f, rt, deliver=lambda r, sc: deliver_key(r, sc, regs))
+        frames.append((bytes(mem.data[VGA:VGA + VGA_LEN]),
+                       tuple(map(tuple, dos.vga_palette))))
+        state["frame"] = f + 1
+        state["seen"].clear()
+        if state["frame"] >= end or pb.finished(f):
+            raise done()
+        pb.apply_to_runtime(state["frame"], rt,
+                            deliver=lambda r, sc: deliver_key(r, sc, regs))
         for _ in range(irqs):
             kw = {k: regs[k] for k in _TIMER_IN if k in regs}
             kw["_flags_in"] = regs.get("_flags_in", 2)
             func_1010_3b17(mem, rt, **kw)
-        frames.append((bytes(mem.data[VGA:VGA + VGA_LEN]),
-                       tuple(map(tuple, dos.vga_palette))))
-        state["frame"] += 1
-        state["seen"].clear()
-        if state["frame"] >= end or pb.finished(f):
-            raise done()
         return regs, regs.get("_flags_in", 2), 0
     rt.boundary_cb = boundary_cb
 
