@@ -2235,7 +2235,7 @@ def intro_anim_unpack_hook(cpu: CPU8086) -> None:
 # the in-level performance drops. Lifted + verified ORACLE_PASSING (liftverify:
 # 401 calls, 26/28 blocks; plus 400 full-level-demo calls under the strict
 # differential verifier), byte-exact, zero divergence.
-from skyroads.lifted.lifted_1010_34ae import lifted_1010_34ae as _lifted_34ae  # noqa: E402
+from skyroads.lifted.functions.lifted_1010_34ae import lifted_1010_34ae as _lifted_34ae  # noqa: E402
 registry.replace(CODE_SEG, 0x34AE, "lifted_tile_render_34AE")(_lifted_34ae)
 
 # 1010:186B -- the road-segment movement stepper: a ~274-instruction, 5-phase
@@ -2249,7 +2249,7 @@ registry.replace(CODE_SEG, 0x34AE, "lifted_tile_render_34AE")(_lifted_34ae)
 # road-segment path (subsumes repeated 1732+04C0 calls). Lifted + verified
 # ORACLE_PASSING (liftverify: 40 calls, 58/80 blocks; plus the full-level demo
 # under the strict differential verifier), byte-exact.
-from skyroads.lifted.lifted_1010_186b import lifted_1010_186b as _lifted_186b  # noqa: E402
+from skyroads.lifted.functions.lifted_1010_186b import lifted_1010_186b as _lifted_186b  # noqa: E402
 registry.replace(CODE_SEG, 0x186B, "lifted_road_stepper_186B")(_lifted_186b)
 
 # 1010:39D4 -- the fixed-position HUD/dashboard sprite blitter that every 34AE
@@ -2260,7 +2260,7 @@ registry.replace(CODE_SEG, 0x186B, "lifted_road_stepper_186B")(_lifted_186b)
 # 34AE's own algorithm from its proven lift (2026-07-12); lifted + verified
 # ORACLE_PASSING (liftverify: 100 calls, 3/3 blocks, full coverage),
 # byte-exact.
-from skyroads.lifted.lifted_1010_39d4 import lifted_1010_39d4 as _lifted_39d4  # noqa: E402
+from skyroads.lifted.functions.lifted_1010_39d4 import lifted_1010_39d4 as _lifted_39d4  # noqa: E402
 registry.replace(CODE_SEG, 0x39D4, "lifted_hud_blit_finalize_39D4")(_lifted_39d4)
 
 # 1010:2D1F -- the top-level per-frame ROAD RENDER DRIVER: takes 8 params
@@ -2276,7 +2276,7 @@ registry.replace(CODE_SEG, 0x39D4, "lifted_hud_blit_finalize_39D4")(_lifted_39d4
 # VGA), 16/17 blocks (the [003C]==0 non-gameplay branch not exercised in the
 # gameplay window). Additionally pixel-validated in situ: 190/190 gameplay
 # frames (571-760) produce byte-IDENTICAL VGA with vs without this lift.
-from skyroads.lifted.lifted_1010_2d1f import lifted_1010_2d1f as _lifted_2d1f  # noqa: E402
+from skyroads.lifted.functions.lifted_1010_2d1f import lifted_1010_2d1f as _lifted_2d1f  # noqa: E402
 registry.replace(CODE_SEG, 0x2D1F, "lifted_road_render_driver_2D1F")(_lifted_2d1f)
 
 # --- 2026-07-12 leaf-function lifts (movement/projection math helpers) ---------
@@ -2291,16 +2291,16 @@ registry.replace(CODE_SEG, 0x2D1F, "lifted_road_render_driver_2D1F")(_lifted_2d1
 
 # 1010:5D80 -- DX:AX <<= CL, a 32-bit shift-left-by-count helper (xor ch,ch;
 # jcxz; loop: shl ax,1/rcl dx,1). Verified 3/3 blocks (FULL coverage), 3 calls.
-from skyroads.lifted.lifted_1010_5d80 import lifted_1010_5d80 as _lifted_5d80  # noqa: E402
+from skyroads.lifted.functions.lifted_1010_5d80 import lifted_1010_5d80 as _lifted_5d80  # noqa: E402
 registry.replace(CODE_SEG, 0x5D80, "lifted_shl32_5D80")(_lifted_5d80)
 
 # 1010:0BE9 -- a projection helper: si = ((ss:[bp+4] / 128) - 0x5F) / 46, then
 # branches on its sign (perspective-row math, same family as 04C0). Verified
 # ORACLE_PASSING, 6/8 blocks, 2 calls.
-from skyroads.lifted.lifted_1010_0be9 import lifted_1010_0be9 as _lifted_0be9  # noqa: E402
+from skyroads.lifted.functions.lifted_1010_0be9 import lifted_1010_0be9 as _lifted_0be9  # noqa: E402
 registry.replace(CODE_SEG, 0x0BE9, "lifted_project_row_0BE9")(_lifted_0be9)
 
 # 1010:0BAF -- a bounds/clamp predicate on two 16-bit params (cmp ss:[bp+4] vs
 # 0xFE9D, ss:[bp+6] vs 0x2800). Verified ORACLE_PASSING, 7/10 blocks, 1 call.
-from skyroads.lifted.lifted_1010_0baf import lifted_1010_0baf as _lifted_0baf  # noqa: E402
+from skyroads.lifted.functions.lifted_1010_0baf import lifted_1010_0baf as _lifted_0baf  # noqa: E402
 registry.replace(CODE_SEG, 0x0BAF, "lifted_bounds_check_0BAF")(_lifted_0baf)

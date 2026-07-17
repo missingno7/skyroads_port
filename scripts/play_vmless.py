@@ -237,7 +237,7 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--boot-dir", default=str(ROOT / "artifacts" / "boot_image"))
-    ap.add_argument("--lift-dir", default=str(ROOT / "artifacts" / "lifted_full"))
+    ap.add_argument("--lift-dir", default=str(ROOT / "skyroads" / "lifted" / "functions"))
     ap.add_argument("--game-root", default=str(ROOT / "assets"))
     ap.add_argument("--frames", type=int, default=0, help="stop after N frames")
     ap.add_argument("--headless", action="store_true")

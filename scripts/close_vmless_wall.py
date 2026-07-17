@@ -165,7 +165,7 @@ def main(argv=None) -> int:
     ap.add_argument("--rounds", type=int, default=25)
     ap.add_argument("--steps", type=int, default=400,
                     help="FRAME budget per probe run (the driver ticks frames)")
-    ap.add_argument("--lift-dir", default=str(ROOT / "artifacts" / "lifted_full"))
+    ap.add_argument("--lift-dir", default=str(ROOT / "skyroads" / "lifted" / "functions"))
     args = ap.parse_args(argv)
 
     lift_dir = Path(args.lift_dir)
