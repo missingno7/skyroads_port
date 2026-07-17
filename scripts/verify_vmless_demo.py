@@ -20,8 +20,31 @@ byte-identical:
     replacement graph and the interpreter POISONED, so it cannot silently fall
     back to interpreting the original.
 
+COLD-START DEMOS (``snapshot: None``) are the strongest form of this, and the
+only one that tests the actual deliverable:
+
+  * reference -- a fresh boot of the real SKYROADS.EXE, interpreted.
+  * candidate -- the data-only BOOT IMAGE. No EXE, and not merely unused: its
+    code bytes are ZEROED, so falling back to the binary is not something it
+    could do if it tried.
+
+The stub is the one asymmetry, and it is not part of the comparison -- it is
+what PRODUCES the thing being compared. A cold demo's frame 0 is the EXE entry;
+the image's is 1010:61F3, because a data-only image cannot unpack itself: the
+unpack already happened, at build time, and its output IS the image. So the
+oracle runs the stub as a pre-phase (438,448 steps) and both start frame 0 at
+the same instruction. That is sound by construction -- build_boot_image.py makes
+the image by running this exact stub on this exact EXE -- and it is also
+necessary: at the recorded 48,000 steps/frame the stub spans ~9 frames, and the
+candidate has no way to spend them.
+
 Each frame both get the SAME recorded input, the SAME 6 timer IRQs through the
-game's own INT 08h ISR, and the SAME frame cut; then the VGA plane is diffed.
+game's own INT 08h ISR, and the SAME frame cut; then the VGA plane AND the DAC
+palette are diffed. Both, because they are different state: the plane holds
+indices, the DAC holds the colours they index, and vga_palette is device state
+rather than mem.data. SkyRoads' fades are pure palette animation -- the index
+plane does not change at all during one -- so a plane-only diff would call a
+wholly wrong screen identical.
 
 THE FRAME CUT IS SHARED, and it has to be. A fixed step budget is not a neutral
 reference: play.py records with --frame-park ON and treats 48,000 as a CEILING
@@ -54,15 +77,19 @@ import scripts.play as sp  # noqa: E402
 from dos_re import player  # noqa: E402
 from dos_re.cpu import HaltExecution  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
+from dos_re.independence import boot_vmless_image  # noqa: E402
 from dos_re.input_demo import InputDemoPlayback  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
 from dos_re.lift.install import install_vmless_graph  # noqa: E402
 from dos_re.player import _use_real_console_input  # noqa: E402
-from skyroads.runtime import load_game_snapshot  # noqa: E402
+from skyroads.runtime import create_game_runtime, load_game_snapshot  # noqa: E402
 
 VGA = 0xA0000
 VGA_LEN = 64000
 DGROUP = 0x1686
+#: The far jump the packer stub makes once it has decompressed the program and
+#: applied its relocations -- where the boot image begins (build_boot_image.py).
+CANONICAL_ENTRY = (0x1010, 0x61F3)
 
 
 class FrameIdle(Exception):
@@ -134,6 +161,69 @@ def build_candidate(demo: Path, pb, lift_dir: Path):
     return frontend, args, rt, installed
 
 
+def build_oracle_cold(demo: Path, pb):
+    """Reference for a COLD demo: a fresh boot of the real EXE, interpreted.
+
+    Starts where DOS starts it -- on the packer stub, ~438,000 steps short of
+    the game. That asymmetry is the whole difficulty of a cold differential;
+    see ``run_stub`` for how it is settled.
+    """
+    frontend = sp.SkyroadsFrontend(ROOT)
+    args = _mkargs(frontend, demo, pure=True)
+    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
+    rt = create_game_runtime(args.exe, game_root=args.game_root,
+                             command_tail=args.dos_args,
+                             install_replacements=False)
+    _use_real_console_input(rt)
+    rt.dos.mouse_present = pb.mouse_present_hint
+    return frontend, args, rt
+
+
+def build_candidate_cold(demo: Path, pb, boot_dir: Path, lift_dir: Path):
+    """Candidate for a COLD demo: the data-only BOOT IMAGE. No EXE at all.
+
+    This is the only configuration that tests what the project is actually for:
+    the image's code bytes are ZEROED, so nothing here can fall back to running
+    the binary even in principle. The image is already at the canonical
+    post-decompression entry (1010:61F3) -- it has no stub to run, because
+    ``build_boot_image.py`` already ran it once, at build time, and poisoned the
+    result.
+    """
+    frontend = sp.SkyroadsFrontend(ROOT)
+    args = _mkargs(frontend, demo, pure=True)
+    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
+    rt, manifest = boot_vmless_image(boot_dir, game_root=args.game_root,
+                                     lift_dir=lift_dir)
+    _use_real_console_input(rt)
+    rt.dos.mouse_present = pb.mouse_present_hint
+    return frontend, args, rt, manifest
+
+
+def run_stub(cpu, entry_cs: int, entry_ip: int, limit: int = 5_000_000) -> int:
+    """Run the oracle's packer stub up to the canonical entry. Returns steps.
+
+    THE COLD ALIGNMENT. A cold demo's frame 0 is the EXE entry; the candidate's
+    is 1010:61F3, because a data-only image cannot unpack itself -- the unpack
+    already happened, at build time, and its output IS the image. So the stub is
+    not part of the comparison: it is what produces the thing being compared.
+    Run it as a PRE-PHASE, outside the frame loop, and both sides start frame 0
+    at the same instruction with the same machine.
+
+    This is sound precisely because the stub is what build_boot_image.py itself
+    runs to make the image (`--- 438,448 stub steps ---`), from the same EXE:
+    the candidate's frame 0 state is BY CONSTRUCTION the oracle's state here.
+    It is also why the stub cannot be left inside the frame loop -- at the
+    recorded 48,000 steps/frame it spans ~9 frames, and the candidate has no
+    way to spend them.
+    """
+    for n in range(limit):
+        if cpu.s.cs == entry_cs and cpu.s.ip == entry_ip:
+            return n
+        cpu.step()
+    raise RuntimeError(f"stub did not reach {entry_cs:04X}:{entry_ip:04X} "
+                       f"in {limit:,} steps (at {cpu.s.cs:04X}:{cpu.s.ip:04X})")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("demo")
@@ -143,33 +233,51 @@ def main(argv=None) -> int:
     ap.add_argument("--step-budget", type=int, default=4_000_000)
     ap.add_argument("--heads", default=str(ROOT / "artifacts" / "codemap"
                                            / "boundary_heads.txt"))
+    ap.add_argument("--boot-dir", default=str(ROOT / "artifacts" / "boot_image"),
+                    help="the data-only boot image (cold demos run FROM it)")
     args_cli = ap.parse_args(argv)
 
     demo = Path(args_cli.demo)
     pb_o = InputDemoPlayback.load(str(demo))
-    if getattr(pb_o, "is_cold_start", False):
-        # Not a failure and not a pass: there is nothing to resume FROM. A cold
-        # demo replays by booting the EXE, which is the one thing an EXE-free
-        # corpus cannot do. Its coverage comes through the boot image instead
-        # (scripts/build_boot_image.py runs the stub to 1010:61F3 and snapshots
-        # the decompressed machine; scripts/play_vmless.py drives that).
-        print(f"[verify] SKIP {demo.name}: cold-start demo, no start snapshot. "
-              f"The corpus covers the DECOMPRESSED image; boot coverage goes "
-              f"through artifacts/boot_image (scripts/build_boot_image.py).")
-        return 0
     pb_c = InputDemoPlayback.load(str(demo))
-    if _is_predecompression(pb_o):
+    cold = bool(getattr(pb_o, "is_cold_start", False))
+    if not cold and _is_predecompression(pb_o):
         print(f"[verify] SKIP {demo.name}: snapshot predates the packer's "
               f"self-decompression (1010:0000 is still the stub, not the game). "
               f"The corpus is lifted for the decompressed image, so there is "
               f"nothing here it could correctly run.")
         return 0
 
-    f_o, a_o, rt_o = build_oracle(demo, pb_o)
-    f_c, a_c, rt_c, installed = build_candidate(demo, pb_c, Path(args_cli.lift_dir))
-    print(f"[verify] demo={demo.name} frames={pb_o.end_boundary} "
-          f"mouse_present={pb_o.mouse_present_hint}")
-    print(f"[verify] corpus: {len(installed)} modules installed; wall armed")
+    if cold:
+        # THE REAL THING: no EXE on the candidate side at all.
+        f_o, a_o, rt_o = build_oracle_cold(demo, pb_o)
+        f_c, a_c, rt_c, manifest = build_candidate_cold(
+            demo, pb_c, Path(args_cli.boot_dir), Path(args_cli.lift_dir))
+        # boot_vmless_image installs the graph itself; count the dispatch
+        # points it registered (entries + every re-entry), not modules.
+        installed = None
+        print(f"[verify] demo={demo.name} COLD START, frames={pb_o.end_boundary} "
+              f"mouse_present={pb_o.mouse_present_hint}")
+        n = run_stub(rt_o.cpu, *CANONICAL_ENTRY)
+        print(f"[verify] oracle: ran the packer stub {n:,} steps to "
+              f"{CANONICAL_ENTRY[0]:04X}:{CANONICAL_ENTRY[1]:04X}; the candidate "
+              f"starts there by construction (its image IS that unpack, poisoned)")
+        poison = manifest["poison"]
+        print(f"[verify] candidate: BOOT IMAGE, no EXE -- "
+              f"{poison['poisoned_bytes']:,} code bytes zeroed over "
+              f"{poison['censused_functions']} functions; "
+              f"{poison['code_bytes_present_after']} original code bytes remain")
+    else:
+        f_o, a_o, rt_o = build_oracle(demo, pb_o)
+        f_c, a_c, rt_c, installed = build_candidate(demo, pb_c,
+                                                    Path(args_cli.lift_dir))
+        print(f"[verify] demo={demo.name} frames={pb_o.end_boundary} "
+              f"mouse_present={pb_o.mouse_present_hint}")
+    if installed is None:
+        print(f"[verify] corpus: {len(rt_c.cpu.replacement_hooks)} dispatch "
+              f"points registered (entries + re-entries); wall armed")
+    else:
+        print(f"[verify] corpus: {len(installed)} modules installed; wall armed")
 
     heads = read_heads(Path(args_cli.heads))
     print(f"[verify] frame cut: 2nd pass at any of {len(heads)} boundary heads, "
@@ -280,11 +388,28 @@ def main(argv=None) -> int:
                   f"first at row {first // 320} col {first % 320} "
                   f"(oracle={vo[first]:02X} corpus={vc[first]:02X})")
             return 1
+        # THE PALETTE IS STATE TOO, and diffing the plane alone does not see it:
+        # the plane holds INDICES, the DAC holds the colours those index. They
+        # are different memory -- vga_palette is device state, not mem.data --
+        # so a wholly wrong screen can be "pixel-identical". SkyRoads is the
+        # worst case for that: its fades are pure palette animation, and during
+        # one the index plane does not change AT ALL. A broken fade would have
+        # passed this gate silently, all 10,941 frames of it.
+        po, pc = rt_o.dos.vga_palette, rt_c.dos.vga_palette
+        if po != pc:
+            bad = [i for i, (a, b) in enumerate(zip(po, pc)) if a != b]
+            print(f"\n[verify] PALETTE DIVERGED at frame {frame}: "
+                  f"{len(bad)} of 256 DAC entries differ. The plane matched -- "
+                  f"this is colour, not layout.")
+            print(f"          indices: {bad}")
+            for i in bad[:12]:
+                print(f"            [{i:3d}] oracle={po[i]}  corpus={pc[i]}")
+            return 1
         if frame % 50 == 0:
-            print(f"  frame {frame:4d}: VGA identical")
+            print(f"  frame {frame:4d}: VGA + palette identical")
 
-    print(f"\n[verify] PASS -- {frame + 1} frames, the generated corpus is "
-          f"pixel-identical to the pure ASM oracle over {demo.name}")
+    print(f"\n[verify] PASS -- {frame + 1} frames: VGA plane AND DAC palette "
+          f"identical\n          to the pure ASM oracle over {demo.name}")
     return 0
 
 

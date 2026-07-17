@@ -4,16 +4,24 @@
 # Regenerate after any census change: an unlisted wait is an infinite
 # loop in the lifted corpus, not merely a wasted step budget.
 # 1010:0EF8  cmp ds:[1600] in a backward loop (fn 1010:0EEB)
+# 1010:0F1A  loop 0F1A..0F55 reads ds:[1600] (grp1) and never writes it (fn 1010:0F05)
 # 1010:20AD  cmp ds:[1600] in a backward loop (fn 1010:1FD9)
-# 1010:22F8  skyroads/pacing.py verified head
+# 1010:22F8  loop 22F8..2301 reads ds:[1600] (cmp) and never writes it (fn 1010:1FD9)
 # 1010:22FB  cmp ds:[1600] in a backward loop (fn 1010:1FD9)
-# 1010:434A  skyroads/pacing.py verified head
+# 1010:2317  loop 2317..2B05 reads ds:[1600] (mov) and never writes it (fn 1010:1FD9)
+# 1010:434A  loop 434A..4452 reads ds:[1600] (grp3) and never writes it (fn 1010:4331)
+# 1010:4465  loop 4465..447E reads ds:[1600] (cmp) and never writes it (fn 1010:4459)
 # 1010:4468  cmp ds:[1600] in a backward loop (fn 1010:4459)
-# 1010:47CD  skyroads/pacing.py verified head
+# 1010:47CD  loop 47CD..47D4 reads ds:[1600] (grp1) and never writes it (fn 1010:4591)
+# 1010:4866  loop 4866..48FF reads ds:[1600] (grp3) and never writes it (fn 1010:4591)
 1010:0EF8
+1010:0F1A
 1010:20AD
 1010:22F8
 1010:22FB
+1010:2317
 1010:434A
+1010:4465
 1010:4468
 1010:47CD
+1010:4866

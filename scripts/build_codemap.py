@@ -55,6 +55,7 @@ DEFAULT_DEMOS = (
     "demo_skyroads_20260713_160506",    # mouse-enabled menu navigation
     "demo_menu_3levels_20260713_144256",      # level-select -> 3 different levels
     "demo_skyroads_20260717_122736",          # menu navigation (Down/Enter/Right...)
+    "demo_intro_20260717_125403",       # cold start: full intro -> attract demo -> interrupt -> menu
 )
 
 #: The game's code segment. Entries outside it are DOS/BIOS/framework, not game

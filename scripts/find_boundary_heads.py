@@ -17,10 +17,33 @@ runner needs the COMPLETE set, and completeness is not something to eyeball --
 argument) was missed by hand and only surfaced as a MAX_ITERATIONS crash five
 screens into the boot.
 
-The rule: an instruction that COMPARES ``ds:[1600]`` and is followed, inside
-the same function, by a branch back to at or before itself. That is a spin on
-the tick counter by construction. Writes to [1600] (loop resets) and reads
-outside a loop are not heads.
+The rule: a loop that READS ``ds:[1600]`` and never writes it. Since the tick
+is architecturally constant for the whole frame, such a loop computes the same
+thing every iteration and cannot reach a tick-dependent exit -- by
+construction, not by observation.
+
+The rule used to say COMPARES, and that was too narrow in the expensive
+direction: it models a spin (``cmp ds:[1600],2; jnb``) and misses the FADE
+shape, which derives a value from the tick instead of comparing it --
+
+    1010:4860  mov word [1600],0     ; reset, OUTSIDE the loop
+    1010:4866  mov ax,013Fh          ; <- the head: the back-edge lands here
+    1010:4869  imul word [1600]      ; 319 * tick        <- a read, not a cmp
+    1010:4872  div cx                ;   / 18
+    1010:4877  sub cx,ax             ; x = 319 - that
+    1010:487C  cmp word [bp-2],0
+    1010:4880  jge ...               ; loop while x >= 0 -- i.e. until tick>=18
+
+-- a 319-pixel wipe paced over 18 ticks. Same shape as 1010:434A, the fade,
+which is why 434A had to be hand-listed in KNOWN_HEADS to begin with: the note
+there ("a couple read the tick in shapes the generic rule below does not
+model") was this gap, admitted but not closed. It cost a 100,000,000-iteration
+hang at frame 280 of the cold boot -- and note the stuck detector got it right,
+reporting "registers WERE still changing", which is exactly what separates this
+from a spin.
+
+Writes to [1600] are the loop's own reset and are not reads; a loop that writes
+the tick is not waiting on the ISR and is excluded.
 
 Usage:
     python scripts/find_boundary_heads.py            # -> artifacts/codemap/boundary_heads.txt
@@ -44,25 +67,99 @@ TICK_ADDR = 0x1600
 KNOWN_HEADS = (0x22F8, 0x434A, 0x47CD)
 
 
-def spin_heads(ir: dict) -> dict[int, str]:
-    """``head_ip -> evidence`` for every tick-compare inside a backward loop."""
+#: `mov word [1600],imm` (C7 06) and `mov [1600],ax` (A3) -- the loop RESETS.
+#: A write is not a wait: whoever writes the tick is not waiting on the ISR.
+_TICK_WRITE_PREFIXES = ("c706", "a3")
+
+
+def _touches_tick(inst: dict) -> bool:
+    return TICK_ADDR.to_bytes(2, "little") in bytes.fromhex(inst["bytes"])
+
+
+def _writes_tick(inst: dict) -> bool:
+    b = inst["bytes"]
+    if not _touches_tick(inst):
+        return False
+    return any(b.startswith(p) for p in _TICK_WRITE_PREFIXES)
+
+
+def _observable(inst: dict | None) -> bool:
+    """The emitter can only place an observer at a non-transfer instruction: a
+    park at a branch would have nowhere to resume (emit.py enforces this)."""
+    return inst is not None and inst["kind"] in ("seq", "call", "call_far",
+                                                 "call_ind", "int")
+
+
+def compare_heads(ir: dict) -> dict[int, str]:
+    """The ORIGINAL rule: a tick-COMPARE inside a backward loop.
+
+    Kept, and kept first, because it is the proven one -- this exact set drives
+    26 demos and 10,941 frames of pixel-identical replay. The read-loop rule
+    below is strictly ADDITIVE to it. They disagree about which instruction to
+    name (this one names the compare, that one the loop header), and both are
+    valid observation points, so union them rather than pick: a head that is
+    never reached twice in a frame is inert, but a head that is MISSING is an
+    infinite loop.
+    """
     out: dict[int, str] = {}
     for key, fn in ir["functions"].items():
         insts = {int(i["ip"], 16): i
                  for b in fn["blocks"] for i in b["instructions"]}
         for ip, inst in sorted(insts.items()):
-            raw = bytes.fromhex(inst["bytes"])
-            if not inst["mnemonic"].startswith("cmp"):
-                continue
-            # absolute [1600] operand (modrm mod=00 rm=110 + disp16)
-            if TICK_ADDR.to_bytes(2, "little") not in raw:
+            if not inst["mnemonic"].startswith("cmp") or not _touches_tick(inst):
                 continue
             loops_back = any(
                 j.get("target") and j["kind"] in ("jcc", "jmp")
                 and int(j["ip"], 16) > ip and int(j["target"], 16) <= ip
                 for j in insts.values())
-            if loops_back:
+            if loops_back and _observable(inst):
                 out[ip] = f"cmp ds:[{TICK_ADDR:04X}] in a backward loop (fn {key})"
+    return out
+
+
+def read_loop_heads(ir: dict) -> dict[int, str]:
+    """``head_ip -> evidence``: the header of every loop that READS the tick.
+
+    A back-edge (a jump to at or before itself) defines the loop; its body is
+    [target, branch]. If anything in that body reads ds:[1600] and nothing in
+    it writes the tick, the loop is waiting on the ISR -- and no ISR can run
+    inside a lifted function, so the header is a boundary head.
+
+    This is what catches the FADE shape, which derives a value from the tick
+    rather than comparing it (see the module docstring): 1010:434A had to be
+    hand-listed for exactly this reason, and 1010:4866 -- the same shape, in
+    the intro -- was simply missing until a cold-boot differential hung on it.
+
+    The head is the LOOP HEADER, not the reading instruction: every iteration
+    passes through it, so it is where a park observes the boundary once a pass.
+    """
+    out: dict[int, str] = {}
+    for key, fn in ir["functions"].items():
+        insts = {int(i["ip"], 16): i
+                 for b in fn["blocks"] for i in b["instructions"]}
+        for j in insts.values():
+            if not (j.get("target") and j["kind"] in ("jcc", "jmp")):
+                continue
+            back, head = int(j["ip"], 16), int(j["target"], 16)
+            if head > back:
+                continue                        # forward jump: not a loop
+            body = [i for ip, i in insts.items() if head <= ip <= back]
+            if any(_writes_tick(i) for i in body):
+                continue                        # writes its own tick: not a wait
+            reads = [i for i in body if _touches_tick(i)]
+            if not reads or not _observable(insts.get(head)):
+                continue
+            why = ", ".join(sorted({i["mnemonic"].split()[0] for i in reads}))
+            out[head] = (f"loop {head:04X}..{back:04X} reads ds:[{TICK_ADDR:04X}]"
+                         f" ({why}) and never writes it (fn {key})")
+    return out
+
+
+def spin_heads(ir: dict) -> dict[int, str]:
+    """Every derived head: the proven compare rule, plus the read-loop rule."""
+    out = dict(compare_heads(ir))
+    for ip, why in read_loop_heads(ir).items():
+        out.setdefault(ip, why)
     return out
 
 

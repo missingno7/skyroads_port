@@ -3,12 +3,16 @@
  "facts_applied": {
   "boundary_heads": [
    "1010:0EF8",
+   "1010:0F1A",
    "1010:20AD",
    "1010:22F8",
    "1010:22FB",
+   "1010:2317",
    "1010:434A",
+   "1010:4465",
    "1010:4468",
-   "1010:47CD"
+   "1010:47CD",
+   "1010:4866"
   ],
   "dispatch_entries": [
    "1010:0000",
@@ -10711,6 +10715,7 @@
     {
      "instructions": [
       {
+       "boundary_effect": true,
        "bytes": "a0da0b",
        "ip": "0F1A",
        "kind": "seq",
@@ -25592,6 +25597,7 @@
     {
      "instructions": [
       {
+       "boundary_effect": true,
        "bytes": "833ef69503",
        "ip": "2317",
        "kind": "seq",
@@ -47734,6 +47740,7 @@
     {
      "instructions": [
       {
+       "boundary_effect": true,
        "bytes": "8b4604",
        "ip": "4465",
        "kind": "seq",
@@ -50299,6 +50306,7 @@
     {
      "instructions": [
       {
+       "boundary_effect": true,
        "bytes": "b83f01",
        "ip": "4866",
        "kind": "seq",
