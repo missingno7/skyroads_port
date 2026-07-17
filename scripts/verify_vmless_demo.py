@@ -67,6 +67,21 @@ hand-written semantics, nothing that could leak the candidate's answer into the
 reference). The interpreter still decides everything the ASM does; the driver
 only decides when to stop watching.
 
+THE ONE KNOWN RESIDUAL is intro frame 1115 (demo_intro_20260717_125403): 9 DAC
+entries (161-169) differ -- the oracle has the logo gradient faded in, the
+candidate still black. It is NOT a lift defect, and it is not even a frame-1115
+event. Traced, both machines ENTER 1115 already a fraction of a blend apart: at
+the first arrival at 434A the oracle holds bx=B80A, the candidate bx=B822 -- the
+fade-buffer pointer. The 2nd-pass cut removed the gross 2-frame phase error, but
+a sub-frame remainder (the lifted head fires its park one blend-step off the raw
+head's IP hit) accumulates across ~1000 frames of one continuous fade and tips
+one blend cycle at 1115. The gate compares OBSERVABLE output -- plane + palette,
+what the player sees -- which stays identical the whole way up because the drift
+lives in the 31AB blend scratch, invisible until it crosses a palette boundary.
+Both machines run the same ASM correctly. Left strict (34/35) rather than
+papered over: masking a real divergence to hide a characterized cosmetic one
+would cost more than the one frame it buys.
+
 Usage:
     python scripts/verify_vmless_demo.py artifacts/demos/demo_skyroads_20260717_122736
     python scripts/verify_vmless_demo.py DEMO --frames 200 --dump-mismatch
