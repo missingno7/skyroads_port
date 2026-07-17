@@ -1,4 +1,4 @@
-"""Verified level-select grid navigation (skyroads.native.level_select).
+"""Verified level-select grid navigation (skyroads.recovered_native.level_select).
 
 The transitions asserted here are transcribed directly from the oracle
 derivation over ``demo_menu_3levels_20260713_144256`` -- the on-screen
@@ -9,7 +9,7 @@ covered by the explicit clamp tests below).
 """
 from __future__ import annotations
 
-from skyroads.native.level_select import (
+from skyroads.recovered_native.level_select import (
     ENTRIES_PER_COLUMN, LEVEL_COUNT, WORLD_NAMES, move_selection, road_of,
     split, world_of)
 

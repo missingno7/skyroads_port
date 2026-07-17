@@ -66,7 +66,7 @@ class MenuState(NamedTuple):
     # 0xC's call to 1010:03C2(0) when entered was 0 -- side calls this rule
     # doesn't reproduce (their own effects are on other state, not scroll_pos/
     # game_state/entered/the timers, but they ARE real ASM side effects).
-    merge_target="skyroads.native.menu (future)",
+    merge_target="skyroads.recovered_native.menu (future)",
 )
 def dispatch_menu_action(action: int, state: MenuState) -> MenuState:
     """Apply one level-select action (1010:1B49-1C63) and return the new state."""

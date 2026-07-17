@@ -50,9 +50,9 @@ def test_native_full_render_matches_vm_no_edge_ghosting() -> None:
     from dos_re.input_demo import InputDemoPlayback
     from dos_re.player import _use_real_console_input
 
-    from skyroads.native.frame import render_native_frame
-    from skyroads.native.image import NativeGameImage
-    from skyroads.native.state import DATA_SEG
+    from skyroads.recovered_native.frame import render_native_frame
+    from skyroads.recovered_native.image import NativeGameImage
+    from skyroads.recovered_native.state import DATA_SEG
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(

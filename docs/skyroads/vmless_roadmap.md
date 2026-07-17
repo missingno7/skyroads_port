@@ -78,7 +78,7 @@ the movement-pipeline proof — not as a statement of current state.
 
 ## Progress: the first native (VM-less) frame steppers (2026-07-11)
 
-`skyroads/native/` now composes the currently-recovered game-logic islands
+`skyroads/recovered_native/` now composes the currently-recovered game-logic islands
 into real, VM-free per-frame steppers over a `NativeGameState` (a plain
 `bytearray`, no VM) via a named `GameView` (`skyroads/bridge/dgroup_view.py`,
 using the shared `dos_re.state_view` machinery promoted from pre2_port). See
@@ -112,7 +112,7 @@ found and fixed. Honest state:
   `.lzs` decompressor and file reader first — see item -2 below, a new,
   properly-scoped subsystem, not a quick follow-up.
 - `native_gameplay_frame` — commits forward motion (real-demo-proven), then
-  raises one of three typed gaps (`skyroads/native/gaps.py`) on every real
+  raises one of three typed gaps (`skyroads/recovered_native/gaps.py`) on every real
   gameplay frame tested so far: the jump-impulse latch, the vertical-velocity
   gate outside one narrow verified envelope, or (always, since it's reached
   last) the movement-target block. No full native gameplay frame has
@@ -199,7 +199,7 @@ found and fixed. Honest state:
     `skyroads/recovered/road_column.py`, verified by FULL MEMORY DIFF (every
     byte a real call touched anywhere in the 1 MB address space, not sampled
     fields): 196/196 real calls matched exactly. Needed
-    `skyroads/native/image.py::NativeGameImage` (a full 1 MB image, additive —
+    `skyroads/recovered_native/image.py::NativeGameImage` (a full 1 MB image, additive —
     the existing DGROUP-only `NativeGameState` is untouched). This process
     caught and fixed two real bugs a sampled check would likely have missed: a
     missing scratch write, and an INVERTED bit15 semantic inherited from an
@@ -245,7 +245,7 @@ found and fixed. Honest state:
     entry for the full, honest account — nothing broken was committed; this
     is a documented map for a careful follow-up, not a shortcut to skip.
 
-0a. **FULL VMLESS NATIVE GAMEPLAY (2026-07-11).** `skyroads.native.loop.
+0a. **FULL VMLESS NATIVE GAMEPLAY (2026-07-11).** `skyroads.recovered_native.loop.
     NativeGameplayDriver` runs the recovered gameplay engine INDEFINITELY --
     through level-complete, respawn, and crash transitions, not just within
     one level -- with no VM ever consulted after an initial seed. Proof: seeded
@@ -262,7 +262,7 @@ found and fixed. Honest state:
     see run_status.md's "play_native.py proven on a SECOND level" entry.
 
 0. **ASSEMBLED (2026-07-11).** The recovered islands now compose into a running
-   native stepper: `skyroads.native.loop.native_gameplay_substep(view, scratch)`
+   native stepper: `skyroads.recovered_native.loop.native_gameplay_substep(view, scratch)`
    steps one COMPLETE gameplay sub-step (`2324-2AE2`) in ASM spine order over a
    session-persistent `GameplayScratch`, reproducing the full VM gameplay DGROUP
    **230/232 — including the forward advance of `ship_pos`/`lateral`**
@@ -288,8 +288,8 @@ found and fixed. Honest state:
    `JumpScratch` (`bp-8`/`bp-10`/`bp-6`). The perspective **classification**
    (`1010:2324-23BF`) that produces the `bp-14`/`bp-18` flags
    `step_jump_steer_gravity` needs is now ALSO recovered —
-   `skyroads.recovered.classify` / `skyroads.native.classify` (682/682 vs VM).
-   `skyroads.recovered.classify` / `skyroads.native.classify` (682/682 vs VM).
+   `skyroads.recovered.classify` / `skyroads.recovered_native.classify` (682/682 vs VM).
+   `skyroads.recovered.classify` / `skyroads.recovered_native.classify` (682/682 vs VM).
    And the post-move tail's **level-progression state machine**
    (`1010:2A35-2AE2`) is recovered too — `skyroads.recovered.progression`
    (682/682 vs VM): the level timers (`[5494]` distance/"fuel", `[B13C]`

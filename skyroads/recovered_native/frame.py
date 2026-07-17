@@ -19,10 +19,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from skyroads.native.image import NativeGameImage
-from skyroads.native.render_frame import run_34ae
-from skyroads.native.render_params import RenderDecision, compute_render_params
-from skyroads.native.tile_dispatch import render_tile_passes
+from skyroads.recovered_native.image import NativeGameImage
+from skyroads.recovered_native.render_frame import run_34ae
+from skyroads.recovered_native.render_params import RenderDecision, compute_render_params
+from skyroads.recovered_native.tile_dispatch import render_tile_passes
 from skyroads.recovered.present import sprite_blit
 from skyroads.recovered.tile_raster import tile_rasterize
 

@@ -10,7 +10,7 @@ selects the destination (off-screen `[5478]` when `[003C]!=0`, else the VGA
 page-flip pair `A000`/`A200` by `[9334]`), calls `2D1F`, and flips the page.
 
 Every callee was already recovered/lifted; this module just composes them:
-  * `0533` fall predicate → `skyroads.native.collision.ship_fell_off`
+  * `0533` fall predicate → `skyroads.recovered_native.collision.ship_fell_off`
   * `04C0` perspective    → `skyroads.recovered.renderer.perspective_row_offset`
   * `0BAF` pitch selector / `0BE9` row band — tiny leaves, ported inline below
   * `5D8C` ulong_div      → a plain 32-bit divide here
@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Callable, NamedTuple, Optional
 
-from skyroads.native.collision import ship_fell_off
+from skyroads.recovered_native.collision import ship_fell_off
 from skyroads.recovered.renderer import perspective_row_offset
 
 # DGROUP offsets (documented layout; see dgroup_view / run_status.md)

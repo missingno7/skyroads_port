@@ -27,7 +27,7 @@ class LevelEndTransition(SkyroadsGap):
 
 class FallDeathTransition(SkyroadsGap):
     """The ship fell off the road: the `1010:23CA-2421` out-of-bounds check fired
-    (``skyroads.native.collision.ship_fell_off`` is true past the `[41C0]`
+    (``skyroads.recovered_native.collision.ship_fell_off`` is true past the `[41C0]`
     lateral threshold while ``game_state == 0``), which in the VM calls the death
     handler `0F05` and exits the frame. The gameplay stepper stops here; the
     death consequence (respawn) is a separate subsystem."""
@@ -37,7 +37,7 @@ class MovementPhysicsGap(SkyroadsGap):
     """The lateral/vertical movement MATH is now COMPLETE and proven: the
     pipeline ``compute_movement_targets`` (``1010:2635-26E6``,
     skyroads.recovered.physics) -> ``resolve_move`` (``1010:186B``,
-    skyroads.recovered.movement) with the ``skyroads.native.collision``
+    skyroads.recovered.movement) with the ``skyroads.recovered_native.collision``
     predicate reproduces the real VM's post-move ``(lateral, af1c, af2c)``
     300/300 over real gameplay frames (tests/test_native_movement_pipeline.py;
     ``af1c_base_offset`` is the constant ``0x0618`` in all observed gameplay,
@@ -51,7 +51,7 @@ class MovementPhysicsGap(SkyroadsGap):
 
     The ``bp-14``/``bp-18`` classification flags ``step_jump_steer_gravity``
     needs are now RECOVERED too -- ``skyroads.recovered.classify`` /
-    ``skyroads.native.classify`` (the ``1010:2324-23BF`` block, 682/682 vs VM).
+    ``skyroads.recovered_native.classify`` (the ``1010:2324-23BF`` block, 682/682 vs VM).
     So the classification, dynamics, and movement pipeline are ALL recovered
     and proven. What remains before a full native frame can be stood up: the
     ``26E9-2B0B`` post-move TAIL state machine (drives ``bp-12`` and clears the
@@ -83,7 +83,7 @@ class JumpGateGap(SkyroadsGap):
     (descending) -- i.e. the landing/collision-resolved condition; recovering
     that block (the ``26E9-2B0B`` post-move tail) is the remaining island; and
     (b) the ``bp-14``/``bp-18`` classification flags the block needs -- now
-    RECOVERED (``skyroads.recovered.classify`` / ``skyroads.native.classify``,
+    RECOVERED (``skyroads.recovered.classify`` / ``skyroads.recovered_native.classify``,
     682/682 vs VM), leaving only ``bp-12`` (the gameplay-active latch that same
     tail state machine drives) as their upstream input. Confirmed earlier that
     the latch locals are

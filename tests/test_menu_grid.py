@@ -2,7 +2,7 @@
 run_cold_boot): row/column bands measured off GOMENU.LZS's own decoded green
 text pixels. Not ROM-recovered logic -- a UI affordance -- but its mapping
 from level index to screen position should stay correct and in sync with
-skyroads.native.world_load's level -> world/road convention."""
+skyroads.recovered_native.world_load's level -> world/road convention."""
 from pathlib import Path
 
 import pytest
@@ -32,7 +32,7 @@ def test_all_30_levels_map_to_distinct_in_bounds_boxes():
 
 
 def test_world_road_matches_world_load_convention():
-    from skyroads.native.world_load import world_for_level
+    from skyroads.recovered_native.world_load import world_for_level
     for level in range(30):
         assert world_for_level(level) == level // 3
 
@@ -42,8 +42,8 @@ def test_highlight_boxes_land_on_green_text():
     """Each level's box must overlap real green 'Road N' pixels in the
     decoded GOMENU background (catches a geometry regression, not just a
     self-consistency check)."""
-    from skyroads.native.level_load import read_game_file
-    from skyroads.native.boot import load_pict, parse_lzs_container
+    from skyroads.recovered_native.level_load import read_game_file
+    from skyroads.recovered_native.boot import load_pict, parse_lzs_container
 
     gm = read_game_file(ASSETS, "GOMENU.LZS")
     cmap, _, at, _, _, _ = parse_lzs_container(gm)

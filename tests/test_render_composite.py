@@ -1,6 +1,6 @@
 """Byte-exact verification of the native mode-0 road COMPOSITE.
 
-skyroads.native.render_frame.composite_mode0 runs the full mode-0 pass --
+skyroads.recovered_native.render_frame.composite_mode0 runs the full mode-0 pass --
 setup -> render_classify -> dispatch_variant_a -> road_column_strip per column
 -- writing composited road pixels into the destination buffer. Against a real
 VM capture (demo_e2e_20260710_132930), captured at the 39D4-finalize entry
@@ -17,8 +17,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skyroads.native.image import NativeGameImage
-from skyroads.native.render_frame import composite_mode0
+from skyroads.recovered_native.image import NativeGameImage
+from skyroads.recovered_native.render_frame import composite_mode0
 
 _FX = json.loads((Path(__file__).parent / "fixtures" / "render_composite_trace.json").read_text())
 

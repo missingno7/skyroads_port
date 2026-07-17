@@ -56,7 +56,7 @@ from skyroads.islands import oracle_link
              "dest[di]=p. BOTTOM bottom_count bytes: dest[di..] = A[di..]. Source "
              "A is read at the dest offset; source B sequentially.",
     status="ASM_MATCHED",  # full-memory-diff verified over real 1010:41A0 calls
-    merge_target="skyroads.native.present (future)",
+    merge_target="skyroads.recovered_native.present (future)",
 )
 def masked_blit(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
@@ -111,7 +111,7 @@ VGA_SCANLINE = 0x140
              "path of 1010:4201; the [003C]==0 fast-VGA branch to 1010:3D18 is a "
              "separate path not modelled here).",
     status="ASM_MATCHED",  # full-memory-diff verified over real 1010:4201 row-loop calls
-    merge_target="skyroads.native.present (future)",
+    merge_target="skyroads.recovered_native.present (future)",
 )
 def present_rect(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
@@ -155,7 +155,7 @@ _SPRITE_BLIT_ROW_SKIP = 0x0123  # 0x1D + 0x123 == 0x140 (one screen row)
              "(29 bytes/row, no padding). This is the gameplay ship/object "
              "compositor that draws DIRECTLY to VGA (see run_status.md).",
     status="ASM_MATCHED",  # full-memory-diff verified over real 1010:3A22 calls
-    merge_target="skyroads.native.present (future)",
+    merge_target="skyroads.recovered_native.present (future)",
 )
 def sprite_blit(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],

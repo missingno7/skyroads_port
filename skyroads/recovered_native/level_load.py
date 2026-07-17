@@ -107,7 +107,7 @@ _ROAD_ROW_BYTES = 14
 
 
 def native_level_load(state, level: int, *, game_root: str | Path) -> DecodedLevel:
-    """Populate ``state`` (a :class:`~skyroads.native.state.NativeGameState`)
+    """Populate ``state`` (a :class:`~skyroads.recovered_native.state.NativeGameState`)
     with level ``level``'s geometry seed, 100% VM-free, and return the decode.
     The caller then runs ``apply_level_init`` (player state) to reach a playable
     cold start — see ``scripts/play_native.py``.

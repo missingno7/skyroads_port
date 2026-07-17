@@ -1,4 +1,4 @@
-"""Unit tests for skyroads.native.collision.make_visible -- the wiring between
+"""Unit tests for skyroads.recovered_native.collision.make_visible -- the wiring between
 renderer.road_object_visible and its two DGROUP table lookups (the ``04C0``
 perspective table, the per-segment clip bound tables), mirroring
 skyroads/hooks.py's ``_persp_exit``/``_clip_exit`` (see that module's comment
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import random
 
-from skyroads.native.collision import make_visible
+from skyroads.recovered_native.collision import make_visible
 from skyroads.recovered.renderer import (
     SEG_BOUND_HIGH_TABLE,
     SEG_BOUND_LOW_TABLE,

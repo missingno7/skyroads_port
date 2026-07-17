@@ -46,7 +46,7 @@ PRESCALER_RELOAD = 0x09      # the prescaler is reset to this when it wraps
              "prescaler countdown, and the wrap->reset+BIOS-chain. Pure; the hook "
              "supplies the elapsed-tick counter, cursor, ports and ISR frame.",
     status="ASM_MATCHED",
-    merge_target="skyroads.native.timing (future)",
+    merge_target="skyroads.recovered_native.timing (future)",
 )
 def advance_music_timer(prescaler: int, note_word: int) -> TimerTick:
     emit_note = prescaler in (0, 5)

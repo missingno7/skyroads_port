@@ -1,4 +1,4 @@
-"""Proof of "full vmless native gameplay": skyroads.native.loop.NativeGameplayDriver
+"""Proof of "full vmless native gameplay": skyroads.recovered_native.loop.NativeGameplayDriver
 runs the recovered gameplay engine INDEFINITELY -- through level-complete,
 respawn, and crash transitions -- with no VM ever consulted after the initial
 seed.
@@ -19,8 +19,8 @@ from pathlib import Path
 import pytest
 
 from skyroads.bridge.dgroup_view import GameView
-from skyroads.native.loop import NativeGameplayDriver
-from skyroads.native.state import NativeGameState
+from skyroads.recovered_native.loop import NativeGameplayDriver
+from skyroads.recovered_native.state import NativeGameState
 
 
 def test_apply_level_init_zeroes_the_hud_gauge_caches() -> None:
@@ -30,7 +30,7 @@ def test_apply_level_init_zeroes_the_hud_gauge_caches() -> None:
     new value, e.g. oxy/fuel already 10 in a baseline snapshot) draws nothing
     and the gauges show only their empty outlines -- the 2026-07-13 user report.
     """
-    from skyroads.native.loop import apply_level_init
+    from skyroads.recovered_native.loop import apply_level_init
 
     view = GameView(NativeGameState())
     # stale caches, as a mid-game snapshot / a just-finished prior level leaves.

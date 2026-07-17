@@ -1,6 +1,6 @@
 """Enforce pitfall #17 (tools/audit_layers.py) on every pure layer: no
 dos_re/cpu/mem imports, no VM types. skyroads/recovered/__init__.py's own
-docstring documents this bar for that directory; skyroads/native and
+docstring documents this bar for that directory; skyroads/recovered_native and
 skyroads/bridge (added 2026-07-11 with the native frame-stepper work) hold
 the same bar -- see docs/state_mirrors.md.
 """
@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from audit_layers import audit_file  # noqa: E402
 
-PURE_ROOTS = ["skyroads/recovered", "skyroads/native", "skyroads/bridge"]
+PURE_ROOTS = ["skyroads/recovered", "skyroads/recovered_native", "skyroads/bridge"]
 
 
 def test_pure_layers_have_no_vm_leakage() -> None:

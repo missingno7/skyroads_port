@@ -2,7 +2,7 @@
 
 * the pure logic (skyroads.recovered.classify.classify_perspective) on
   hand-written cases covering each branch, and
-* the full native path (skyroads.native.classify.classify_ship, computing the
+* the full native path (skyroads.recovered_native.classify.classify_ship, computing the
   perspective word via renderer.perspective_row_offset + a DGROUP read) against
   the live ASM oracle over the real E2E demo -- 682/682 frames byte-exact on
   (class_skip, bp16, class_zero).
@@ -87,8 +87,8 @@ def test_native_classify_matches_asm_over_demo() -> None:
     from dos_re.input_demo import InputDemoPlayback
     from dos_re.player import _use_real_console_input
 
-    from skyroads.native.classify import classify_ship
-    from skyroads.native.state import NativeGameState
+    from skyroads.recovered_native.classify import classify_ship
+    from skyroads.recovered_native.state import NativeGameState
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(

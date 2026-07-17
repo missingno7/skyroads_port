@@ -7,7 +7,7 @@ onto the pure `stencil_blit` (`skyroads/recovered/blit.py`) primitive.
 A widget record is 4 bytes (`dest_off` word, `w` byte, `h` byte) + `w*h`
 palette-relative stencil bytes, addressed by a DGROUP `(offset, segment)`
 far pointer + a per-cell word from a 20/68-byte DGROUP cell table (loaded
-from the `*_DISP.DAT`/`SPEED.DAT` files — see `skyroads/native/boot.py`).
+from the `*_DISP.DAT`/`SPEED.DAT` files — see `skyroads/recovered_native/boot.py`).
 `0F8C(widget_ptr, flag)`:
 
 1. picks `(template_color, other_color)` from `flag` (offscreen mode, the

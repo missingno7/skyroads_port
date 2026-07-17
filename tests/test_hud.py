@@ -1,4 +1,4 @@
-"""Native HUD gauge updater (skyroads/native/hud.py), verified against a
+"""Native HUD gauge updater (skyroads/recovered_native/hud.py), verified against a
 compact fixture captured from real `1010:12F8` calls (VM-traced 2026-07-13;
 see run_status.md and the module docstring for the full recovery trail).
 
@@ -17,9 +17,9 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.native.hud import update_hud
-from skyroads.native.image import NativeGameImage
-from skyroads.native.state import DATA_SEG
+from skyroads.recovered_native.hud import update_hud
+from skyroads.recovered_native.image import NativeGameImage
+from skyroads.recovered_native.state import DATA_SEG
 
 FIXTURE = Path(__file__).parent / "fixtures" / "hud_gauge_calls.json"
 

@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from skyroads.native.image import NativeGameImage
+from skyroads.recovered_native.image import NativeGameImage
 from skyroads.recovered.rle_sprite import rle_sprite_backward, rle_sprite_forward
 
 HANDLER_TABLE = 0x0BAF     # DGROUP word table: tile type -> handler (16 entries)

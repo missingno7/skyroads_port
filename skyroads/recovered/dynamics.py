@@ -14,7 +14,7 @@ session-persistent jump state:
 
 It supersedes the earlier naive `player.decay_bounce` +
 `player.update_vertical_velocity` composition that
-`skyroads.native.gaps.VerticalVelocityGap` had to guard: those were an
+`skyroads.recovered_native.gaps.VerticalVelocityGap` had to guard: those were an
 attempt to capture the jump+gravity stage as a stateless function, but the
 real block is **gated by session-persistent stack locals** the earlier
 functions couldn't see (the jump latch `ss:[bp-8]`, jump-start height
@@ -81,7 +81,7 @@ def _s16(v: int) -> int:
     # zero branch was decoded but not exercised by the demo; the ASM also plays
     # a landing SFX (03C2(1), gated by a 0476 predicate) on some decay frames --
     # audio only, so not modelled here.
-    merge_target="skyroads.native.dynamics (future)",
+    merge_target="skyroads.recovered_native.dynamics (future)",
 )
 def gate_bounce_decay(
     bounce: int, af2c: int, tgt_af2c: int, cur_5496: int, scan_cell: int,
@@ -147,7 +147,7 @@ class DynamicsResult(NamedTuple):
     # (af2c<0x2800) branches are transcribed from the ASM; whether the demo
     # exercised each is asserted by tests/test_dynamics.py. The moving=False
     # (frozen) path is verified via the lockstep loop (test_native_loop_lockstep).
-    merge_target="skyroads.native.dynamics (future)",
+    merge_target="skyroads.recovered_native.dynamics (future)",
 )
 def step_jump_steer_gravity(
     scratch: JumpScratch, class_skip: int, class_zero: int,

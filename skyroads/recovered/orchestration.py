@@ -36,7 +36,7 @@ FRAME_CTR_GAMEPLAY_MAX = 0x6C
              "the transition (2B0B).",
     status="ASM_MATCHED",  # 571/571 real E2E-demo frames, incl. the game_state
     # 3 -> exit (transition) cases that end a level attempt.
-    merge_target="skyroads.native.orchestration (future)",
+    merge_target="skyroads.recovered_native.orchestration (future)",
 )
 def should_run_gameplay(game_state: int, f456a: int, frame_ctr: int) -> bool:
     """Whether the frame runs the gameplay sub-step (True) or exits to a

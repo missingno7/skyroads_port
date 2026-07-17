@@ -44,7 +44,7 @@ TERMINATOR = 0xFF
              "anchor+0x140. Returns si past the terminator.",
     status="ASM_MATCHED",  # the hook body this was promoted from ran under the
     # strict differential verifier for every rasterizer call in the suites
-    merge_target="skyroads.native.tile_dispatch",
+    merge_target="skyroads.recovered_native.tile_dispatch",
 )
 def rle_sprite_forward(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
@@ -75,7 +75,7 @@ def rle_sprite_forward(
              "bytes ENDING at es:di (written downward in the ASM -- same "
              "bytes), next row at anchor+0x140. Returns si past the 0xFF.",
     status="ASM_MATCHED",  # promoted from the differential-verified hook body
-    merge_target="skyroads.native.tile_dispatch",
+    merge_target="skyroads.recovered_native.tile_dispatch",
 )
 def rle_sprite_backward(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],

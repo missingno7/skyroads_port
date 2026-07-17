@@ -1,15 +1,19 @@
-"""play_native's music tempo matches the VM, PROVEN from the VM's own timing.
+"""The music tempo matches the VM, PROVEN from the VM's own timing.
 
 The OPL sequencer's tempo is set by how often `1010:5A55` (the music ISR) runs
 per second. That rate is the PIT channel-0 timer frequency: the game programs
 the PIT to a reload of 6628 -> 1193182/6628 = 180 Hz, and 5A55 fires once per
 timer IRQ. So the song must advance 180 `Engine.run_tick()` calls per second.
 
-play_native renders at ``GAME_FPS`` and calls ``run_tick`` ``MUSIC_TICKS_PER_
-FRAME`` times per frame, so its song rate is ``GAME_FPS * MUSIC_TICKS_PER_
-FRAME`` Hz. This test measures the VM's real timer rate + ISR cadence and
-asserts play_native reproduces it (regression for the 2026-07-13 "music plays
-slower than it should" bug, when it was 35 fps x 2 = 70 Hz -- 2.6x too slow).
+The runner presents at ``GAME_FPS`` and delivers ``TIMER_IRQS_PER_FRAME`` timer
+IRQs per frame, so its song rate is the product. This measures the VM's real
+timer rate + ISR cadence and asserts the runner reproduces it (regression for
+the 2026-07-13 "music plays slower than it should" bug, when it was 35 fps x 2
+= 70 Hz -- 2.6x too slow).
+
+Pointed at play_vmless (which carries the same two constants) when play_native
+was discarded: the FACT under test is the game's 180 Hz timing, not any one
+runner, and play_vmless is the runner that survived.
 """
 from __future__ import annotations
 
@@ -29,10 +33,10 @@ pytestmark = pytest.mark.skipif(
 PIT_INPUT_HZ = 1193182.0
 
 
-def test_play_native_music_rate_matches_the_vm_timer() -> None:
+def test_music_rate_matches_the_vm_timer() -> None:
     import sys
     sys.path.insert(0, str(ROOT / "scripts"))
-    import play_native
+    import play_vmless
 
     import scripts.play as sp
     from dos_re import player
@@ -93,9 +97,9 @@ def test_play_native_music_rate_matches_the_vm_timer() -> None:
     assert abs(timer_hz - 180.0) < 1.0, f"VM timer {timer_hz:.1f} Hz (expected 180)"
     assert isr_per_frame == 6, f"VM music ISR {isr_per_frame}x/frame (expected 6)"
 
-    # (2) play_native's song-advance rate reproduces that 180 Hz exactly.
-    native_hz = play_native.GAME_FPS * play_native.MUSIC_TICKS_PER_FRAME
-    assert native_hz == pytest.approx(timer_hz, abs=1.0), (
-        f"play_native music rate {native_hz} Hz "
-        f"(GAME_FPS={play_native.GAME_FPS} x MUSIC_TICKS_PER_FRAME="
-        f"{play_native.MUSIC_TICKS_PER_FRAME}) != VM {timer_hz:.1f} Hz")
+    # (2) the runner's song-advance rate reproduces that 180 Hz exactly.
+    runner_hz = play_vmless.GAME_FPS * play_vmless.TIMER_IRQS_PER_FRAME
+    assert runner_hz == pytest.approx(timer_hz, abs=1.0), (
+        f"runner music rate {runner_hz} Hz "
+        f"(GAME_FPS={play_vmless.GAME_FPS} x TIMER_IRQS_PER_FRAME="
+        f"{play_vmless.TIMER_IRQS_PER_FRAME}) != VM {timer_hz:.1f} Hz")

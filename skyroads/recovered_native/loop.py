@@ -12,15 +12,15 @@ Two steppers today, matching how much of the game is actually recovered
 * :func:`native_gameplay_frame` -- the per-frame gameplay update. Commits
   ONLY forward motion (``advance_ship``, real-demo-proven: 0 mismatches over
   8 real gameplay samples in the 2026-07-11 integration proof, see
-  run_status.md) and then raises a typed gap (skyroads.native.gaps) the
+  run_status.md) and then raises a typed gap (skyroads.recovered_native.gaps) the
   instant it reaches something not yet SAFE to compute -- not just "not
   recovered", but proven wrong when tried unconditionally (the
   ``decay_bounce``/``update_vertical_velocity`` composition; see
-  :class:`~skyroads.native.gaps.VerticalVelocityGap`), the jump latch, or the
+  :class:`~skyroads.recovered_native.gaps.VerticalVelocityGap`), the jump latch, or the
   movement step. Note the movement MATH is now complete and proven (the
   ``compute_movement_targets`` -> ``resolve_move`` pipeline, 300/300 vs VM,
   tests/test_native_movement_pipeline.py) -- the remaining
-  :class:`~skyroads.native.gaps.MovementPhysicsGap` is specifically its
+  :class:`~skyroads.recovered_native.gaps.MovementPhysicsGap` is specifically its
   ``lateral_accel`` input (stateful steering momentum), not the math. This is
   the honest current recovery ceiling, not a limitation of this module --
   every real gameplay frame hits one of these gaps today.
@@ -55,9 +55,9 @@ from __future__ import annotations
 from typing import NamedTuple
 
 from skyroads.bridge.dgroup_view import GameView
-from skyroads.native.classify import classify_ship
-from skyroads.native.collision import make_visible, ship_fell_off
-from skyroads.native.gaps import (
+from skyroads.recovered_native.classify import classify_ship
+from skyroads.recovered_native.collision import make_visible, ship_fell_off
+from skyroads.recovered_native.gaps import (
     FallDeathTransition,
     JumpGateGap,
     LevelEndTransition,
@@ -134,11 +134,11 @@ def native_menu_frame(view: GameView, action: int) -> None:
 def native_gameplay_frame(view: GameView) -> None:
     """Advance one gameplay frame (``1010:24A1`` onward) on ``view`` in place.
 
-    Raises :class:`~skyroads.native.gaps.SkyroadsGap` (loudly, before
+    Raises :class:`~skyroads.recovered_native.gaps.SkyroadsGap` (loudly, before
     committing anything the raised gap's own logic would need) the moment it
     reaches something not safe to compute yet -- see the module docstring.
     Once the movement-target gap closes, the next call this makes is
-    ``resolve_move(..., visible=skyroads.native.collision.make_visible(rw))``
+    ``resolve_move(..., visible=skyroads.recovered_native.collision.make_visible(rw))``
     for some DGROUP word-reader ``rw`` (a ``NativeGameState.rw`` or a VM's
     ``mem.rw`` bound to ``ds``).
     """
@@ -226,12 +226,12 @@ def native_gameplay_substep(
     Both the active-gameplay path (``game_state == 0``) and the frozen-ship path
     (``game_state != 0``: forward motion / steering / jump are skipped at
     ``24BA -> 25AC``) are handled. The out-of-bounds death check (`23CA-2421`)
-    is a boundary (raises :class:`~skyroads.native.gaps.FallDeathTransition`).
+    is a boundary (raises :class:`~skyroads.recovered_native.gaps.FallDeathTransition`).
 
     The ``1DFA`` effect (`25AC-25D6`, ~0.7% of real sub-steps, only ever seen
     airborne past ``af2c=0x3700``) rewrites ``lateral_accel`` in a way this
     module doesn't model -- by default this raises
-    :class:`~skyroads.native.gaps.MovementPhysicsGap` (the fail-loud, verified
+    :class:`~skyroads.recovered_native.gaps.MovementPhysicsGap` (the fail-loud, verified
     contract every test in this session relies on). Pass
     ``allow_unmodelled_effect=True`` to instead CONTINUE using
     ``step_jump_steer_gravity``'s own (verified, non-effect) ``lateral_accel`` --
@@ -414,7 +414,7 @@ def native_gameplay_substep(
 #: respawn/level-init flow at `1010:2B62-2B68` so the freshly-drawn (empty)
 #: dashboard gets re-FILLED from scratch by the next `12F8` delta pass. Without
 #: this, a level entered with stale caches (== the new value) draws nothing and
-#: the gauges show only their empty outlines -- see `skyroads/native/hud.py`.
+#: the gauges show only their empty outlines -- see `skyroads/recovered_native/hud.py`.
 _GAUGE_CACHES = (0x41BE, 0x456C, 0x960C, 0x455C)  # speed, oxygen, fuel [12F8], progress-bar column
 
 
@@ -478,8 +478,8 @@ class TickOutcome(NamedTuple):
 
 
 def _classify_transition(view: GameView, exc: Exception) -> str:
-    """Map a raised :class:`~skyroads.native.gaps.LevelEndTransition` /
-    :class:`~skyroads.native.gaps.FallDeathTransition` to a coarse,
+    """Map a raised :class:`~skyroads.recovered_native.gaps.LevelEndTransition` /
+    :class:`~skyroads.recovered_native.gaps.FallDeathTransition` to a coarse,
     caller-facing ``TickOutcome.kind``.
 
     VM-traced 2026-07-13 (``demo_skyroads_crash_20260713_085908``): a wall
@@ -549,7 +549,7 @@ class NativeGameplayDriver:
         self.transitions = 0
         #: optional callable(sfx_id) -- receives the `03C2` triggers the sim
         #: fires (0 touch-down / 1 bounce landing / 2 bump+crash); see
-        #: `skyroads.native.sfx` for the id map and the SFX.SND bank loader.
+        #: `skyroads.recovered_native.sfx` for the id map and the SFX.SND bank loader.
         self.on_sfx = on_sfx
         #: False: defer the post-transition ``apply_level_init`` to an
         #: explicit :meth:`respawn` call instead of running it inside

@@ -39,9 +39,9 @@ def test_native_runs_the_crash_settle_window_like_the_vm() -> None:
     from dos_re.player import _use_real_console_input
 
     from skyroads.bridge.dgroup_view import GameView
-    from skyroads.native.gaps import SkyroadsGap
-    from skyroads.native.loop import GameplayScratch, native_gameplay_substep
-    from skyroads.native.state import NativeGameState
+    from skyroads.recovered_native.gaps import SkyroadsGap
+    from skyroads.recovered_native.loop import GameplayScratch, native_gameplay_substep
+    from skyroads.recovered_native.state import NativeGameState
     from skyroads.recovered.dynamics import JumpScratch
 
     frontend = sp.SkyroadsFrontend(ROOT)

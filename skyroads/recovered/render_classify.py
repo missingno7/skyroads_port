@@ -78,7 +78,7 @@ class ColumnClass(NamedTuple):
              "e52=SHAPE[[bx+si+1]&7], e54=SHAPE[[bx+si-0xD]&7].",
     status="ASM_MATCHED",  # 80/80 fields of a real 34AE invocation (variant A,
     # record_base 0x16B8, demo_e2e_20260710_132930) reproduced byte-exact.
-    merge_target="skyroads.native.render (future)",
+    merge_target="skyroads.recovered_native.render (future)",
 )
 def render_classify(rb: Callable[[int], int], record_base: int) -> List[ColumnClass]:
     """Reproduce 34AE's classification loop over the road records read via

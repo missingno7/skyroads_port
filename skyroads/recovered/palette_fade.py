@@ -23,7 +23,7 @@ from skyroads.islands import oracle_link
     contract="blend_byte(a, b, percent) = b + trunc((a-b) * percent / 100), "
              "x86 IDIV truncates toward zero",
     status="VERIFIED",
-    merge_target="skyroads.native.palette (future)",
+    merge_target="skyroads.recovered_native.palette (future)",
 )
 def blend_byte(byte_a: int, byte_b: int, percent: int) -> int:
     delta = byte_a - byte_b

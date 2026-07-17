@@ -22,7 +22,7 @@ from skyroads.islands import oracle_link
              "(far-pointer source, ES:DI destination, SI/DI/CX/flags at exit) "
              "are VM-hook concerns, not game logic -- see skyroads/hooks.py.",
     status="ASM_MATCHED",  # matches the ASM's per-byte write value on all sampled calls
-    merge_target="skyroads.native.blit (future)",
+    merge_target="skyroads.recovered_native.blit (future)",
 )
 def stencil_blit(source: bytes, template_color: int, other_color: int) -> bytes:
     """Remap each source byte through the 3-entry stencil (1010:0F76-0F84)."""

@@ -186,7 +186,7 @@ class Engine:
                  "programming the OPL2, until a delay op arms [0C83]. Returns the "
                  "ordered (reg,val) OPL register writes for the tick.",
         status="VERIFIED",  # OPL write stream byte-exact vs ASM: 12,882/12,882 cold-sound-demo ticks
-        merge_target="skyroads.native.music (future)",
+        merge_target="skyroads.recovered_native.music (future)",
     )
     def run_tick(self) -> list[tuple[int, int]]:
         """Run one tick against the current memory; return its OPL ``(reg, val)`` writes.
@@ -245,7 +245,7 @@ class Engine:
                  "run_tick, then fixes the two percussion channels' pitch (A7/B7, "
                  "A8/B8). Returns the ordered (reg,val) OPL writes.",
         status="VERIFIED",  # byte-exact vs ASM: every occurrence in the cold-sound demo
-        merge_target="skyroads.native.music (future)",
+        merge_target="skyroads.recovered_native.music (future)",
     )
     def reset_opl(self) -> list[tuple[int, int]]:
         """Run the one-time OPL reset/init; return its ordered OPL writes."""

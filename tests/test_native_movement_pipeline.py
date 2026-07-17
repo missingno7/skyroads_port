@@ -6,7 +6,7 @@ reproduces the real VM's post-move (lateral, af1c, af2c) for real gameplay
 frames, end to end. The two halves are each already ASM_MATCHED on their own
 (skyroads/recovered/physics.py 682/682, movement.py 1760/1760); this proves
 their COMPOSITION -- compute's output feeding resolve_move's target inputs,
-with the collision predicate (skyroads/native/collision.make_visible) bound to
+with the collision predicate (skyroads/recovered_native/collision.make_visible) bound to
 a NativeGameState's DGROUP tables -- against the live oracle.
 
 Why this matters for the native port: it establishes that the lateral/vertical
@@ -16,7 +16,7 @@ which is stateful steering momentum updated mid-frame at 1010:2568 under
 jump-latch-gated conditions (60/682 real frames have lateral_accel != steer*29,
 e.g. -29 persisting a frame after the steer key released), so it cannot be
 derived from frame-start state without recovering that block. See
-skyroads.native.gaps.MovementPhysicsGap.
+skyroads.recovered_native.gaps.MovementPhysicsGap.
 
 Captures at IP=2635 (pre-move state + the real target-formula inputs + a DGROUP
 snapshot for the collision tables) and IP=26E9 (post-resolve_move axes), then
@@ -36,8 +36,8 @@ from dos_re.dos import ConsoleInputWouldBlock
 from dos_re.input_demo import InputDemoPlayback
 from dos_re.player import _use_real_console_input
 
-from skyroads.native.collision import make_visible
-from skyroads.native.state import NativeGameState
+from skyroads.recovered_native.collision import make_visible
+from skyroads.recovered_native.state import NativeGameState
 from skyroads.recovered.movement import resolve_move
 from skyroads.recovered.physics import compute_movement_targets
 

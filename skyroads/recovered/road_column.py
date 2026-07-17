@@ -14,7 +14,7 @@ length marker ends the column — bit15 only skips a bp/si synchronization
 pre-loop beforehand, it does not skip compositing.
 
 Ported here as a PURE function reading/writing through ``(seg, offset)``
-callbacks — the same shape `skyroads.native.image.NativeGameImage`'s own
+callbacks — the same shape `skyroads.recovered_native.image.NativeGameImage`'s own
 `rb`/`rw`/`ww` methods have, and the same shape a VM's `cpu.mem.rb`/`rw`/`ww`
 already have (see `hooks.py`'s ``_road_column_strip_hook``), so this one
 function runs over either unchanged, matching this session's established
@@ -72,7 +72,7 @@ COLUMN_DESCRIPTOR_SCRATCH = 0x0E74
     # This process caught two real bugs the first port had (a missing scratch
     # write, and the inverted SKIP_SYNC_LOOP_BIT semantic above) -- see
     # run_status.md's "road_column_strip ported to a pure function" entry.
-    merge_target="skyroads.native.road_column (future)",
+    merge_target="skyroads.recovered_native.road_column (future)",
 )
 def road_column_strip(
     rb: Callable[[int, int], int], rw: Callable[[int, int], int],
