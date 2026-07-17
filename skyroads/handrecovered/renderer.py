@@ -49,7 +49,7 @@ class PerspectiveResult(NamedTuple):
              "divides (ulong_div) then an unsigned multiply (ulong_mul, by 14), "
              "in sequence; then a 16-bit /46. Only low words feed the offset.",
     status="VERIFIED",
-    merge_target="skyroads.handrecovered_native.renderer (future)",
+    merge_target="skyroads.native.renderer (future)",
 )
 def perspective_row_offset(x_lo: int, x_hi: int, depth: int) -> PerspectiveResult:
     idx = (((depth & 0xFFFF) // 128) + 0xFFA1) & 0xFFFF
@@ -86,7 +86,7 @@ SEG_BOUND_HIGH_TABLE = 0x98
              "low_bound/high_bound are ds:[0x4C+2*seg]/ds:[0x98+2*seg].",
     status="ASM_MATCHED",  # 9,238/9,238 in-game calls matched (selectors 0x100/0x200/
                            # default exercised; 0x300/0x400/0x500 decoded, not yet hit)
-    merge_target="skyroads.handrecovered_native.renderer (future)",
+    merge_target="skyroads.native.renderer (future)",
 )
 def road_segment_clip(dir_sel: int, seg: int, coord: int,
                       low_bound: int, high_bound: int) -> int:
@@ -123,7 +123,7 @@ def road_segment_clip(dir_sel: int, seg: int, coord: int,
              "compares unsigned. persp_word(depth) = the 04C0 table word (0 if out "
              "of range); clip = road_segment_clip bound to this frame's tables.",
     status="ASM_MATCHED",  # validated vs ASM return over all in-game 1732 calls
-    merge_target="skyroads.handrecovered_native.renderer (future)",
+    merge_target="skyroads.native.renderer (future)",
 )
 def road_object_visible(persp_word, clip, x_lo: int, x_hi: int,
                         depth: int, screen_y: int) -> int:

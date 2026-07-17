@@ -10,7 +10,7 @@ chain (see run_status.md). The remainder of this module is the older mode-0
 subset (:func:`composite_mode0` etc.), kept for its tests and tooling:
 
 The off-screen COMPOSITE pass of `1010:34AE` (``mode == 0``), assembled over a
-:class:`~skyroads.handrecovered_native.image.NativeGameImage` from the individually-recovered
+:class:`~skyroads.native.image.NativeGameImage` from the individually-recovered
 stages, in the order `34AE` itself runs them:
 
     34AE setup (blocks 0-12, verified 6/6) -- computes the source/dest/dispatch
@@ -50,7 +50,7 @@ from __future__ import annotations
 
 from typing import Callable, List, NamedTuple, Tuple
 
-from skyroads.handrecovered_native.image import NativeGameImage
+from skyroads.native.image import NativeGameImage
 from skyroads.handrecovered.render_classify import ColumnClass, render_classify
 from skyroads.handrecovered.render_dispatch import (dispatch_variant_a,
                                                 dispatch_variant_b)

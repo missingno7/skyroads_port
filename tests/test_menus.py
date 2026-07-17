@@ -1,4 +1,4 @@
-"""Cold-boot screen state machine (skyroads.handrecovered_native.menus).
+"""Cold-boot screen state machine (skyroads.native.menus).
 
 Transitions assert the flow VERIFIED from demo_colde2e_full_20260713_144604
 (rendered-frame ground truth + recorded keydowns; see demo_manifest.md). Each
@@ -6,8 +6,8 @@ verified case notes the demo frame that proves it.
 """
 from __future__ import annotations
 
-from skyroads.handrecovered_native import menus
-from skyroads.handrecovered_native.menus import (CONTROLS, EXIT, GAMEPLAY, HELP, MAIN,
+from skyroads.native import menus
+from skyroads.native.menus import (CONTROLS, EXIT, GAMEPLAY, HELP, MAIN,
                                     SELECT, MenuModel)
 
 

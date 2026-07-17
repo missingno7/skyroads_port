@@ -73,7 +73,7 @@ from skyroads.islands import oracle_link
     # transcription (every other snapshot, including many with the same
     # e4e/e50/e52/e54 values but different e46, matched exactly). See
     # run_status.md.
-    merge_target="skyroads.handrecovered_native.render_dispatch (future)",
+    merge_target="skyroads.native.render_dispatch (future)",
 )
 def dispatch_variant_a(
     e44: int, e46: int, e4e: int, e50: int, e52: int, e54: int,
@@ -126,7 +126,7 @@ def dispatch_variant_a(
     # note describes (likely a third, unisolated call source), not a bug here:
     # every other snapshot -- including many exercising blocks D/F/G/I/J's
     # branches -- matched exactly. See run_status.md.
-    merge_target="skyroads.handrecovered_native.render_dispatch (future)",
+    merge_target="skyroads.native.render_dispatch (future)",
 )
 def dispatch_variant_b(
     e44: int, e46: int, e4e: int, e50: int, e52: int, e54: int,

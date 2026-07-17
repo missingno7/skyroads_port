@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.handrecovered_native.hud import grav_value
+from skyroads.native.hud import grav_value
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
@@ -36,9 +36,9 @@ def test_grav_meter_draw_is_byte_exact_vs_vm() -> None:
     from dos_re.dos import ConsoleInputWouldBlock
     from dos_re.input_demo import InputDemoPlayback
     from dos_re.player import _use_real_console_input
-    from skyroads.handrecovered_native.image import NativeGameImage
-    from skyroads.handrecovered_native.state import DATA_SEG
-    from skyroads.handrecovered_native.hud import (draw_grav_meter, GRAV_GRAVITY, GRAV_FONT,
+    from skyroads.native.image import NativeGameImage
+    from skyroads.native.state import DATA_SEG
+    from skyroads.native.hud import (draw_grav_meter, GRAV_GRAVITY, GRAV_FONT,
                                      GRAV_ROW, GRAV_COL, GRAV_WIDTH, GRAV_PITCH)
 
     frontend = sp.SkyroadsFrontend(ROOT)

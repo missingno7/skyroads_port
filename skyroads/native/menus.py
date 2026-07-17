@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from skyroads.handrecovered_native.level_select import move_selection
+from skyroads.native.level_select import move_selection
 
 MAIN = "main"
 SELECT = "select"
@@ -122,7 +122,7 @@ class MenuModel:
           from the start; control stays in gameplay (demo_skyroads_20260713_154259,
           f39 death -> f115-134 same-level restart). NOT a return to the menu.
 
-        ``kind`` is the :class:`~skyroads.handrecovered_native.loop.TickOutcome` kind.
+        ``kind`` is the :class:`~skyroads.native.loop.TickOutcome` kind.
         """
         if self.screen != GAMEPLAY:
             return

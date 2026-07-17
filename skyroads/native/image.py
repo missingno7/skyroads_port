@@ -3,7 +3,7 @@ owned without a VM.
 
 Mirrors pre2_port's ``pre2/native/state.py::NativeGameState`` (a 1 MB
 bytearray at REAL physical addresses) more closely than
-``skyroads.handrecovered_native.state.NativeGameState`` does -- that class deliberately
+``skyroads.native.state.NativeGameState`` does -- that class deliberately
 stays a 64 KB DGROUP-only image (see its own docstring) because every
 gameplay island recovered so far only ever touches DGROUP. The renderer is
 different: routines like ``road_column_strip`` (`1010:38BF`) read SEGMENT

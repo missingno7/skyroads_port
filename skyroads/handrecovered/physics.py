@@ -120,7 +120,7 @@ class MovementTargets(NamedTuple):
     # held, lateral_accel != 0) exact for all three targets with the default
     # af1c_base_offset=0x0618 (ss:[bp-16] probed as 0 at the decision point in
     # every one) -- see the module docstring for the full account.
-    merge_target="skyroads.handrecovered_native.physics (future)",
+    merge_target="skyroads.native.physics (future)",
 )
 def compute_movement_targets(
     ship_pos: int, lateral: int, af1c: int, af2c: int, vvel: int,

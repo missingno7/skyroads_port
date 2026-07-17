@@ -1,4 +1,4 @@
-"""Verify the pure tile-dispatch loop (`skyroads.handrecovered_native.tile_dispatch`,
+"""Verify the pure tile-dispatch loop (`skyroads.native.tile_dispatch`,
 = `1010:2D1F`'s road loop) against a captured VM frame.
 
 The capture (`artifacts/frame_2d1f`, produced by driving the level-select demo
@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from skyroads.handrecovered_native.image import NativeGameImage
-from skyroads.handrecovered_native.tile_dispatch import render_tile_passes
+from skyroads.native.image import NativeGameImage
+from skyroads.native.tile_dispatch import render_tile_passes
 
 CAPTURE = Path(__file__).resolve().parents[1] / "artifacts" / "frame_2d1f"
 

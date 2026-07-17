@@ -54,8 +54,8 @@ from the routines above; check before assuming either way.
 
 Layer rule (unchanged): this package imports skyroads.handrecovered + skyroads.bridge
 and composes them against a NativeGameState, never dos_re/cpu/mem. Audited by
-``python tools/audit_layers.py skyroads/handrecovered skyroads/handrecovered_native
+``python tools/audit_layers.py skyroads/handrecovered skyroads/native
 skyroads/bridge`` (pitfall #17; see tests/test_layer_audit.py). Where a per-frame
 step needs a routine that is not yet recovered, it raises a typed gap
-(skyroads.handrecovered_native.gaps) instead of guessing.
+(skyroads.native.gaps) instead of guessing.
 """

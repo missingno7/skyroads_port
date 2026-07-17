@@ -1,10 +1,10 @@
-"""Verify skyroads.handrecovered_native.image.NativeGameImage -- the full 1 MB real-mode
-address space (a separate, ADDITIVE class from skyroads.handrecovered_native.state.
+"""Verify skyroads.native.image.NativeGameImage -- the full 1 MB real-mode
+address space (a separate, ADDITIVE class from skyroads.native.state.
 NativeGameState, which stays DGROUP-only; see image.py's module docstring for
 why the renderer needs real physical segment addressing)."""
 from __future__ import annotations
 
-from skyroads.handrecovered_native.image import ADDR_SPACE, NativeGameImage
+from skyroads.native.image import ADDR_SPACE, NativeGameImage
 
 
 def test_default_is_zeroed_full_address_space() -> None:

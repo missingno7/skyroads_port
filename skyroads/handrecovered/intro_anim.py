@@ -71,7 +71,7 @@ class UnpackResult(NamedTuple):
     # transcription, not from reading the disassembly directly. Row-by-row
     # (si,di) cross-checked against the real ASM for all 1040 rows of a real
     # segment, byte-exact.
-    merge_target="skyroads.handrecovered_native.intro_anim (future)",
+    merge_target="skyroads.native.intro_anim (future)",
 )
 def unpack_animation_segment(
     rb: Callable[[int], int], wb: Callable[[int, int], None],

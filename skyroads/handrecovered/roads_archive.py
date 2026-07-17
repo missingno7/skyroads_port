@@ -112,7 +112,7 @@ def _entry_span(data: bytes, entries: List[Tuple[int, int]], index: int) -> Tupl
     status="ASM_MATCHED",  # 3/3 real live-VM-captured (gravity,fuel,oxygen)
     # triples matched exactly: index 16 -> (8,200,180), index 17 -> (7,175,60),
     # index 1 -> (8,150,180). See run_status.md.
-    merge_target="skyroads.handrecovered_native.menu (future)",
+    merge_target="skyroads.native.menu (future)",
 )
 def read_level_header(data: bytes, index: int) -> LevelHeader:
     entries = parse_directory(data)

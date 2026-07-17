@@ -1,12 +1,12 @@
-"""Native WORLD graphics + MUZAX song loading (skyroads/handrecovered_native/world_load.py)."""
+"""Native WORLD graphics + MUZAX song loading (skyroads/native/world_load.py)."""
 from pathlib import Path
 
 import pytest
 
-from skyroads.handrecovered_native.world_load import (
+from skyroads.native.world_load import (
     BACKGROUND_H, BACKGROUND_W, CMAP_DAC_BASE, GAMEPLAY_SONG_COUNT, load_song,
     load_world_assets, parse_muzax_directory, pick_gameplay_song, world_for_level)
-from skyroads.handrecovered_native.level_load import read_game_file
+from skyroads.native.level_load import read_game_file
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
@@ -71,8 +71,8 @@ def test_composed_level14_palette_matches_real_dac():
     """ROADS' 72 colours -> DAC 0..71 + CMAP's 114 -> DAC 142..255 over the
     baseline DAC must reproduce the level-14 snapshot's palette EXACTLY."""
     import json
-    from skyroads.handrecovered_native.level_load import decode_level_files
-    from skyroads.handrecovered_native.world_load import expand6
+    from skyroads.native.level_load import decode_level_files
+    from skyroads.native.world_load import expand6
     dac = [tuple(e) for e in json.loads(
         (SNAP.parent / "state.json").read_text())["dos"]["vga_palette"]]
     dec = decode_level_files(14, game_root=ASSETS)

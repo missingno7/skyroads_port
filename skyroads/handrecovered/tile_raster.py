@@ -42,7 +42,7 @@ def _sgn16(v: int) -> int:
              "center [0E28], clipped to the 29-column window, and fill it with "
              "1s. At dx==0x0A an extra ([0E34]-8)-row skip is applied.",
     status="ASM_MATCHED",  # promoted from the differential-verified hook body
-    merge_target="skyroads.handrecovered_native.tile_dispatch",
+    merge_target="skyroads.native.tile_dispatch",
 )
 def tile_mask_build(rw: Callable[[int], int], ww: Callable[[int, int], None],
                     wb: Callable[[int, int], None]) -> None:
@@ -108,7 +108,7 @@ def tile_mask_build(rw: Callable[[int], int], ww: Callable[[int, int], None],
              "(0x3D -> 0x40; 1..0xF -> +0x2D). Dest offset from "
              "(0x9D-[0E2C]+0x10+[0E34])*0x140 + [0E28] - 0x6E, stored [0E70].",
     status="ASM_MATCHED",  # promoted from the differential-verified hook body
-    merge_target="skyroads.handrecovered_native.tile_dispatch",
+    merge_target="skyroads.native.tile_dispatch",
 )
 def tile_shade(rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
                rw: Callable[[int], int], ww: Callable[[int, int], None],
@@ -152,7 +152,7 @@ def tile_shade(rb: Callable[[int, int], int], wb: Callable[[int, int, int], None
              "pixel where the mask permits, marking the mask byte 2; then "
              "shade (33FD).",
     status="ASM_MATCHED",  # promoted from the differential-verified hook body
-    merge_target="skyroads.handrecovered_native.tile_dispatch",
+    merge_target="skyroads.native.tile_dispatch",
 )
 def tile_rasterize(rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
                    rw: Callable[[int], int], ww: Callable[[int, int], None],

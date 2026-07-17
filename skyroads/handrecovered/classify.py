@@ -36,7 +36,7 @@ reader).
    advances `ds:[54AC]` (ship_pos) by `SCROLL_STEP` (`0x12F`) when
    `ds:[456A] == 0` (`1010:1BDC`). So a native stepper MUST apply
    `dispatch_menu_action(reduced_word, ...)` here — this is surfaced via
-   `calls_1b49`/`reduced_word`, and `skyroads.handrecovered_native.loop.native_gameplay_substep`
+   `calls_1b49`/`reduced_word`, and `skyroads.native.loop.native_gameplay_substep`
    does exactly that. (Verified: wiring it in took the assembled sub-step's
    VM match from 148/232 to 230/232, incl. ship_pos — see run_status.md.)
 """
@@ -77,7 +77,7 @@ class ClassifyResult(NamedTuple):
     # (class_skip, bp16, class_zero), computing persp_word natively via
     # renderer.perspective_row_offset + a DGROUP read and the table lookup via
     # the same reader. See tests/test_classify.py + run_status.md.
-    merge_target="skyroads.handrecovered_native.classify (future)",
+    merge_target="skyroads.native.classify (future)",
 )
 def classify_perspective(
     persp_word: int, af2c: int, bp12: int, class_skip_prev: int,

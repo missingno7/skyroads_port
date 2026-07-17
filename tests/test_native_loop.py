@@ -1,4 +1,4 @@
-"""Unit tests for skyroads.handrecovered_native.loop -- the frame steppers composing
+"""Unit tests for skyroads.native.loop -- the frame steppers composing
 currently-recovered islands against a GameView. No real demo needed here
 (synthetic states); the real-demo cross-check against the ASM oracle lives in
 test_native_loop_integration.py.
@@ -8,9 +8,9 @@ from __future__ import annotations
 import pytest
 
 from skyroads.bridge.dgroup_view import GameView
-from skyroads.handrecovered_native.gaps import JumpGateGap, MovementPhysicsGap, VerticalVelocityGap
-from skyroads.handrecovered_native.loop import native_gameplay_frame, native_menu_frame
-from skyroads.handrecovered_native.state import NativeGameState
+from skyroads.native.gaps import JumpGateGap, MovementPhysicsGap, VerticalVelocityGap
+from skyroads.native.loop import native_gameplay_frame, native_menu_frame
+from skyroads.native.state import NativeGameState
 from skyroads.handrecovered.player import GRAVITY_HEIGHT_GATE
 
 

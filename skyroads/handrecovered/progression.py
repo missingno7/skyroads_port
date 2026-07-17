@@ -84,7 +84,7 @@ def _tick_down(timer: int, dec: int) -> int:
     # (game_state, level_timer_a, level_timer_b, frame_ctr), including the real
     # 0->3 resume transitions. States 4/5 decoded from the ASM; whether the demo
     # drove a timer to 0 is asserted by tests/test_progression.py.
-    merge_target="skyroads.handrecovered_native.progression (future)",
+    merge_target="skyroads.native.progression (future)",
 )
 def step_level_progression(
     game_state: int, af2c: int, level_timer_a: int, level_timer_b: int,

@@ -21,7 +21,7 @@ CPython, and the wall-clock-sized fix) is the exact algorithm
 ``skyroads.audio.sink.SkyroadsAudioSink.pump`` already uses and documents at
 length; this class is that same algorithm minus the VM-bound Sound-Blaster/
 PC-speaker pieces (native SFX play as one-shot `pygame.Sound`s elsewhere --
-see ``skyroads/handrecovered_native/sfx.py`` -- not through this continuous OPL channel).
+see ``skyroads/native/sfx.py`` -- not through this continuous OPL channel).
 """
 from __future__ import annotations
 

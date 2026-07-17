@@ -6,7 +6,7 @@ track, this region resolves the leftover contact: lateral wall-bump nudges, a
 vertical centering scan, landing detection, and position milestones. It is
 `1732`-heavy (every probe is a `renderer.road_object_visible` cull), so each
 piece here takes the same ``visible(lateral32, depth, screen_y)`` predicate
-`resolve_move` uses (bind it with `skyroads.handrecovered_native.collision.make_visible`).
+`resolve_move` uses (bind it with `skyroads.native.collision.make_visible`).
 
 Recovered so far:
 
@@ -69,15 +69,15 @@ def _s16(v: int) -> int:
     # evaluations matched -- but NO real fall occurred in either demo (both are
     # clean runs / crashes, not falls), so only the negative (didn't-fall) case
     # is exercised; the positive branch is decoded from the ASM, not yet
-    # confirmed on a real death. See skyroads.handrecovered_native.gaps.FallDeathTransition.
-    merge_target="skyroads.handrecovered_native.collision_response (future)",
+    # confirmed on a real death. See skyroads.native.gaps.FallDeathTransition.
+    merge_target="skyroads.native.collision_response (future)",
 )
 def ship_fell_off(persp_word: int, af1c: int, af2c: int,
                   seg_low: int, seg_high: int) -> int:
     """The `1010:0533` pure fall predicate. ``persp_word`` is the 04C0 result;
     ``seg_low``/``seg_high`` are the per-segment clip bounds
     ``ds:[0x4C+2*seg]``/``ds:[0x98+2*seg]`` (the caller reads them once ``seg``
-    is known -- see ``skyroads.handrecovered_native.collision.ship_fell_off``)."""
+    is known -- see ``skyroads.native.collision.ship_fell_off``)."""
     if (persp_word & 0xF00) not in (0x100, 0x300, 0x500):
         return 0
     rem = (((af1c & 0xFFFF) // 128) + 0xFFCF) & 0xFFFF     # af1c/128 - 49
@@ -123,7 +123,7 @@ def fell_off_segment(af1c: int) -> int:
     # down-bump branch verified on a collision demo (demo_skyroads_20260710_
     # 213019: 511/511 incl. 1 real bump). The up-bump branch (2788) is decoded
     # from the ASM but was not itself triggered by any demo sampled.
-    merge_target="skyroads.handrecovered_native.collision_response (future)",
+    merge_target="skyroads.native.collision_response (future)",
 )
 def lateral_wall_bump(
     visible: Callable[[int, int, int], int],
@@ -159,7 +159,7 @@ def lateral_wall_bump(
              "unchanged if af1c == tgt_af1c.",
     status="ASM_MATCHED",  # 682/682 (E2E, mostly no-op) + 511/511 on a collision
     # demo (demo_skyroads_20260710_213019, 4 real af1c collisions exercised).
-    merge_target="skyroads.handrecovered_native.collision_response (future)",
+    merge_target="skyroads.native.collision_response (future)",
 )
 def af1c_contact_fixup(
     af1c: int, tgt_af1c: int, cur_5496: int, lateral_accel: int, ship_pos: int,
@@ -203,7 +203,7 @@ class LateralCrashResult(NamedTuple):
     # (f456a != 0) are decoded from the ASM but not exercised by any demo
     # sampled. The 2800-2828 SFX sub-branch touches only audio, so it does not
     # affect the returned game-state fields.
-    merge_target="skyroads.handrecovered_native.collision_response (future)",
+    merge_target="skyroads.native.collision_response (future)",
 )
 def resolve_lateral_crash(
     cur_lateral: int, tgt_lateral: int, ship_pos: int, f456a: int, game_state: int,
@@ -246,7 +246,7 @@ class LandingResult(NamedTuple):
     # trivial by construction (28E5/28EF jmp past everything). [af2e]/[af30]
     # were nonzero in only 1/224 frames -- the ship_pos back-off is a no-op in
     # practice but faithfully applied.
-    merge_target="skyroads.handrecovered_native.collision_response (future)",
+    merge_target="skyroads.native.collision_response (future)",
 )
 def resolve_landing(
     scratch: JumpScratch, tgt_af2c: int, af2c: int, bounce: int,
@@ -276,7 +276,7 @@ def resolve_landing(
     status="ASM_MATCHED",  # 314/314 real E2E-demo scans byte-exact on ds:[5496],
     # computing every probe through renderer.road_object_visible bound to the
     # frame's DGROUP tables. See tests/test_collision_response.py + run_status.md.
-    merge_target="skyroads.handrecovered_native.collision_response (future)",
+    merge_target="skyroads.native.collision_response (future)",
 )
 def vertical_center_nudge(
     visible: Callable[[int, int, int], int],

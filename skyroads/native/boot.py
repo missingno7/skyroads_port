@@ -19,8 +19,8 @@ from __future__ import annotations
 import struct
 from pathlib import Path
 
-from skyroads.handrecovered_native.exe_image import initial_dgroup
-from skyroads.handrecovered_native.level_load import read_game_file
+from skyroads.native.exe_image import initial_dgroup
+from skyroads.native.level_load import read_game_file
 
 CFG_OFF = 0x4516
 CFG_LEN = 66
@@ -170,7 +170,7 @@ def native_boot_dac(game_root: "str | Path") -> list:
     """The level-independent part of the gameplay palette: CARS' 20 colours
     at 72.. and DASHBRD's 50 at 92.. (6-bit VGA, expanded). ROADS' 72 and
     the WORLD 114 are per-level (see world_load / level_load)."""
-    from skyroads.handrecovered_native.world_load import expand6
+    from skyroads.native.world_load import expand6
     root = Path(game_root)
     dac = [(0, 0, 0)] * 256
     for name, base in (("CARS.LZS", DAC_CARS_BASE),
@@ -226,7 +226,7 @@ def native_boot_image(game_root: "str | Path") -> bytearray:
     """The full snapshot-free 1 MB boot image: program at ``LOAD_SEG``,
     DGROUP, and every asset bank at its (deterministic) segment. Enough for
     gameplay; the menu/intro screens have their own loads on top."""
-    from skyroads.handrecovered_native.exe_image import build_program_image
+    from skyroads.native.exe_image import build_program_image
     root = Path(game_root)
     img = bytearray(0x100000)
     prog = build_program_image(root / "SKYROADS.EXE", LOAD_SEG)

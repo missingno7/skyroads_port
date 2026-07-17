@@ -22,7 +22,7 @@ from skyroads.islands import oracle_link
              "1010:4062-4069 scan loop; the surrounding far-pointer/segment-wrap/"
              "multi-pass mechanics are VM-hook concerns -- see skyroads/hooks.py.",
     status="ASM_MATCHED",
-    merge_target="skyroads.handrecovered_native.relocate (future)",
+    merge_target="skyroads.native.relocate (future)",
 )
 def patch_nonzero_bytes(source: bytes, delta: int) -> bytes:
     """Add ``delta`` to every nonzero byte in ``source``, mod 256 (1010:4062-4069)."""

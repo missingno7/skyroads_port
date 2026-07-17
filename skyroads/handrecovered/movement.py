@@ -101,7 +101,7 @@ def _ulong_div(a: int, b: int) -> int:               # 1010:5D8C
              "new (lateral, af1c, af2c). All compares/divides match x86 "
              "unsigned/signed + truncate-toward-zero semantics.",
     status="ASM_MATCHED",  # 1760/1760 full-demo calls: outputs AND probe sequence exact
-    merge_target="skyroads.handrecovered_native.movement (future)",
+    merge_target="skyroads.native.movement (future)",
 )
 def resolve_move(lateral: int, af1c: int, af2c: int,
                  tgt_lateral: int, tgt_af1c: int, tgt_af2c: int,

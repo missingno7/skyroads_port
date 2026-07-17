@@ -43,7 +43,7 @@ import struct
 from typing import List, NamedTuple
 
 from skyroads.codecs.lzs import LzsWidths, decompress_block
-from skyroads.handrecovered_native.level_load import read_game_file
+from skyroads.native.level_load import read_game_file
 
 #: GRAPHICS are per-world: the background/palette a level shows is
 #: ``world_for_level(level) = level // 3`` (verified: WORLD<n>.LZS byte-exact).

@@ -253,8 +253,8 @@ def test_native_vertical_scan_matches_asm_over_demo() -> None:
     from dos_re.input_demo import InputDemoPlayback
     from dos_re.player import _use_real_console_input
 
-    from skyroads.handrecovered_native.collision import make_visible
-    from skyroads.handrecovered_native.state import NativeGameState
+    from skyroads.native.collision import make_visible
+    from skyroads.native.state import NativeGameState
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
@@ -331,8 +331,8 @@ def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
     from dos_re.input_demo import InputDemoPlayback
     from dos_re.player import _use_real_console_input
 
-    from skyroads.handrecovered_native.collision import make_visible
-    from skyroads.handrecovered_native.state import NativeGameState
+    from skyroads.native.collision import make_visible
+    from skyroads.native.state import NativeGameState
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(

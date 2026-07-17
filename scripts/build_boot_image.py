@@ -12,7 +12,7 @@ Game-specific half (the framework does the rest in ``dos_re.bootimage``):
 1. boot the interpreted runtime on the real EXE and run its packer stub to the
    CANONICAL POST-DECOMPRESSION ENTRY -- ``1010:61F3``, the far jump the stub
    makes once it has decompressed the ~30 KB program image and applied its three
-   relocations (see ``skyroads/handrecovered_native/exe_image.py``, which reproduces that
+   relocations (see ``skyroads/native/exe_image.py``, which reproduces that
    unpack from the file alone and is verified byte-exact at this exact moment);
 2. ``write_snapshot`` the whole 1 MB machine there;
 3. hand it to :func:`dos_re.bootimage.poison_snapshot_to_boot_image`, which
@@ -111,7 +111,7 @@ def main(argv=None) -> int:
             "ss": rt.cpu.s.ss, "sp": rt.cpu.s.sp,
             "loader_steps": steps,
             "note": "the packer stub's far jump: image decompressed + relocated, "
-                    "game not yet started (skyroads/handrecovered_native/exe_image.py)",
+                    "game not yet started (skyroads/native/exe_image.py)",
         },
         keep_code_as_data=KEEP_CODE_AS_DATA,
         poison=not args.no_poison,

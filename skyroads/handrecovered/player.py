@@ -68,7 +68,7 @@ def _s16(v: int) -> int:
              "a 32-bit value before the ulong_mul by 75, so a negative speed "
              "moves the ship backward.",
     status="ASM_MATCHED",  # reproduces the ASM post-clamp pos over all full-demo samples
-    merge_target="skyroads.handrecovered_native.player (future)",
+    merge_target="skyroads.native.player (future)",
 )
 def advance_ship(pos: int, speed: int) -> int:
     """The per-frame forward-motion rule (1010:24C4-2528).
@@ -94,7 +94,7 @@ def advance_ship(pos: int, speed: int) -> int:
              "bounce). Added to the view Y base to make the road bounce when the "
              "ship lands; decays to 0.",
     status="ASM_MATCHED",  # matches the ASM on the (rare) bounce events sampled (-1148->+574, -461->+230)
-    merge_target="skyroads.handrecovered_native.player (future)",
+    merge_target="skyroads.native.player (future)",
 )
 def decay_bounce(bounce: int) -> int:
     """The per-frame vertical landing-bounce decay (1010:24A1-24AE).
@@ -129,10 +129,10 @@ def decay_bounce(bounce: int) -> int:
     # several frames around a jump (ds:[9336] observed frozen for 8 straight
     # frames where this function's transcribed terminal-clamp branch would
     # predict an immediate change). See run_status.md's "first native
-    # (VM-less) frame steppers" entry and skyroads.handrecovered_native.gaps.VerticalVelocityGap,
-    # which is how skyroads/handrecovered_native/loop.py guards this.
+    # (VM-less) frame steppers" entry and skyroads.native.gaps.VerticalVelocityGap,
+    # which is how skyroads/native/loop.py guards this.
     status="ASM_MATCHED",
-    merge_target="skyroads.handrecovered_native.player (future)",
+    merge_target="skyroads.native.player (future)",
 )
 def update_vertical_velocity(vvel: int, jumped: bool, af2c: int,
                              gravity: int, grounded: bool) -> int:
@@ -187,7 +187,7 @@ RESUME_HEIGHT_GATE = 0x2800
     # earlier inverted reading (>= gate) that had wrongly inferred, from all 3
     # respawns writing exactly 0x2800, that 0x2800 "immediately satisfied" resume
     # -- the real `jb` needs af2c strictly below the gate.
-    merge_target="skyroads.handrecovered_native.player (future)",
+    merge_target="skyroads.native.player (future)",
 )
 def is_landed_for_resume(af2c: int) -> bool:
     """Whether the ship has descended enough (`ds:[AF2C]`) to resume gameplay
@@ -235,7 +235,7 @@ class RespawnState(NamedTuple):
              "and the level's post-completion timers -- unconditionally "
              "resetting to the (single, fixed) spawn point.",
     status="ASM_MATCHED",  # 3/3 real deaths-demo respawns byte-exact (all 19 fields)
-    merge_target="skyroads.handrecovered_native.player (future)",
+    merge_target="skyroads.native.player (future)",
 )
 def respawn() -> RespawnState:
     """The fixed post-death reset state (1010:201F-20A7)."""
@@ -251,7 +251,7 @@ def respawn() -> RespawnState:
              "(more negative) gravity.",
     status="ASM_MATCHED",  # matches the ASM's ax at 201C for the jump_gate
     # values the E2E demo inits with (8 -> 0xFF8D, 9 -> 0xFF7F).
-    merge_target="skyroads.handrecovered_native.player (future)",
+    merge_target="skyroads.native.player (future)",
 )
 def level_gravity(jump_level_gate: int) -> int:
     """The per-level gravity ``ds:[54AA]`` derived from ``jump_level_gate``

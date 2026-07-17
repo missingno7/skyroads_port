@@ -4,7 +4,7 @@ WHO WROTE IT is the distinction that matters here, so the names carry it:
 
     handrecovered/         HAND-WRITTEN. Pure logic over VALUES; imports nothing
                            (see its own docstring). dos_re Stage 4 shape.
-    handrecovered_native/  HAND-WRITTEN. Equally CPU-free, but addresses the DOS
+    native/  HAND-WRITTEN. Equally CPU-free, but addresses the DOS
                            memory image by raw offset. dos_re Stage 2 (CPULESS
                            LIFTED) shape, exactly.
 

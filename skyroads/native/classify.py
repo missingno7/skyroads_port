@@ -1,7 +1,7 @@
 """Native binding for the perspective classification
 (``skyroads.handrecovered.classify.classify_perspective``): computes the ship's
 own perspective word from a DGROUP word-reader and feeds the recovered pure
-logic, mirroring ``skyroads.handrecovered_native.collision.make_visible``.
+logic, mirroring ``skyroads.native.collision.make_visible``.
 
 VM-free: ``rw`` is an injected ``Callable[[int], int]`` DGROUP word-read (a
 ``NativeGameState.rw`` or a VM ``mem.rw`` bound to ``ds``).
