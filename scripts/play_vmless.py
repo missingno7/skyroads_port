@@ -46,6 +46,7 @@ sys.path.insert(0, str(ROOT))
 from dos_re.cpu import HaltExecution  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
 from dos_re.independence import boot_vmless_image, independence_report  # noqa: E402
+from dos_re.input_demo import mouse_sample  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
 # From runtime_core, NOT dos_re.runtime / skyroads.runtime / dos_re.player:
 # those reach create_runtime -> load_mz_program, and importing them here
@@ -298,6 +299,21 @@ def _window(rt, drv, args) -> int:
     if not audio.available:
         print("[vmless] audio unavailable -- running silent")
         audio = None
+
+    # THE MOUSE. build() reports one PRESENT (INT 33h answers), but presence is
+    # not position: something has to tell the driver where the pointer IS, every
+    # frame, or the game sees a mouse that exists and never moves. That is this.
+    #
+    # Map through the LETTERBOX, not the window: the frame does not fill the
+    # window whenever the aspects differ, so mapping against the window skews the
+    # cursor and offsets it by the bar size (dos_re 511f173). window_to_frame_norm
+    # maps against the rect draw_game actually drew into, and returns None until
+    # there is one.
+    #
+    # mouse_sample() quantizes exactly as the recorder does, so what the game
+    # sees here is what a demo would replay -- live play and replay cannot drift.
+    set_mouse = getattr(rt.dos, "set_mouse_norm", None)
+    mouse_btn = [0]           # Microsoft mask: bit0=left, bit1=right, bit2=middle
     running = True
     while running and (not args.frames or drv.frames < args.frames):
         for ev in pygame.event.get():
@@ -305,6 +321,13 @@ def _window(rt, drv, args) -> int:
                                           and ev.key == pygame.K_ESCAPE
                                           and pygame.key.get_mods() & pygame.KMOD_SHIFT):
                 running = False
+            elif ev.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
+                bit = {1: 0x01, 3: 0x02, 2: 0x04}.get(ev.button)
+                if bit:
+                    if ev.type == pygame.MOUSEBUTTONDOWN:
+                        mouse_btn[0] |= bit
+                    else:
+                        mouse_btn[0] &= ~bit
             elif ev.type in (pygame.KEYDOWN, pygame.KEYUP):
                 sc = scancodes.get(ev.key)
                 if sc is not None:
@@ -313,6 +336,12 @@ def _window(rt, drv, args) -> int:
                     rt.dos.current_scancode = sc if ev.type == pygame.KEYDOWN else (sc | 0x80)
                     rt.dos.kbd_output_buffer_full = True
                     deliver_interrupt(rt, 0x09)
+        # Every frame, changed or not: set_mouse_norm re-maps through the
+        # game's CURRENT INT 33h range, which the game itself changes.
+        if set_mouse is not None:
+            uv = disp.window_to_frame_norm(pygame.mouse.get_pos())
+            if uv is not None:
+                set_mouse(*mouse_sample(uv[0], uv[1], mouse_btn[0]))
         if not drv.frame():
             print(f"[vmless] program exited after {drv.frames} frames")
             break
