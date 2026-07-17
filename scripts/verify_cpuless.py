@@ -117,11 +117,12 @@ def _capture_cpuless(pb, heads, irqs, end):
     def deliver_key(_r, sc, regs):
         dos.current_scancode = sc & 0xFF
         dos.kbd_output_buffer_full = True
-        vec = (mem.rw(0, 0x26) << 16) | mem.rw(0, 0x24)
-        if vec != BIOS_INT9_ENTRY:
-            dos.note_bios_keystroke(sc & 0xFF)
-        kw = {k: regs[k] for k in _KEY_IN if k in regs}
-        func_1010_3bcc(mem, rt, **kw)
+        voff, vseg = mem.rw(0, 0x24), mem.rw(0, 0x26)
+        installed = (vseg, voff) != BIOS_INT9_ENTRY   # game's own INT 09h ISR?
+        dos.note_bios_keystroke(sc & 0xFF)            # fill the BIOS type-ahead buffer
+        if installed:
+            kw = {k: regs[k] for k in _KEY_IN if k in regs}
+            func_1010_3bcc(mem, rt, **kw)             # run the game's recovered ISR
 
     frames = []
     state = {"frame": 0, "seen": set()}
