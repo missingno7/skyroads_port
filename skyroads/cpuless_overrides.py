@@ -69,6 +69,8 @@ import importlib
 import sys
 from typing import Callable
 
+from skyroads.island_bodies import BODIES
+
 #: The package holding the autolifted corpus these overrides patch.
 RECOVERED_PKG = "skyroads.recovered"
 #: The game's CS for every recovered code address.
@@ -103,11 +105,20 @@ def generated(addr: str) -> Callable:
     return getattr(importlib.import_module(name), func_name(addr))
 
 
-#: address -> replacement callable.  EMPTY BY DESIGN: the seam lands first, absorption
-#: follows one evidence-gated address at a time.  With no entries the composite is
-#: bit-for-bit the generated program, which is what makes adopting the seam a no-op
-#: that the existing cold-start differential already proves.
-OVERRIDES: "dict[str, Callable]" = {}
+#: address -> replacement callable.  Absorption is one evidence-gated address at a
+#: time, and the gate is :mod:`dos_re.lift.shadow`: an entry may appear here only
+#: after its body has been shadow-VERIFIED against the generated one on real calls,
+#: comparing the WHOLE contract -- every output, flags, fmask, cost, and the ordered
+#: memory-write log.  So every entry is drawn from :mod:`skyroads.island_bodies`,
+#: which is what ``tests/test_cpuless_overrides.py`` pins.
+#:
+#: ``1010:04C0`` perspective_row_offset, admitted on:
+#:   6,000 seeded random states, both paths forced (3,228 in-range / 2,772 out);
+#:   demo_cold_20260718_003412    -- 14,802 calls  {104: 12822, 19: 1980};
+#:   demo_colde2e_full_20260713   -- 125,728 calls {104: 125604, 19: 124}.
+#: Two demos, deliberately: the spine demo NEVER takes the short path, so evidence
+#: gathered there alone yields the constant cost 104 and is silently wrong.
+OVERRIDES: "dict[str, Callable]" = dict(BODIES)
 
 
 def install_overrides(addrs=None) -> "list[str]":

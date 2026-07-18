@@ -19,14 +19,31 @@ import pytest
 from skyroads import cpuless_overrides as ov
 
 
-def test_empty_registry_is_a_provable_no_op():
-    """Nothing is shadowed, so the program is bit-for-bit the generated one."""
-    assert ov.OVERRIDES == {}, (
-        "an override landed without updating this test -- each one needs its own "
-        "evidence, see the module docstring's gating invariant")
+def test_every_override_is_a_shadow_PROVEN_body():
+    """The gating invariant, as a test rather than a docstring.
+
+    This used to assert the registry was EMPTY, which was a real gate only while
+    it was empty: the first entry would simply have edited it away. So the gate
+    is now the property that actually matters -- an address may drive only if the
+    exact callable driving it is one dos_re's shadow rung has compared against
+    the generated body on real calls, whole contract, no exemptions.
+
+    An override written by hand straight into this dict, with no counterpart in
+    island_bodies, is precisely the unproven swap the ladder exists to prevent.
+    """
+    from skyroads.island_bodies import BODIES
+
+    assert ov.OVERRIDES, "the registry is empty -- nothing is being absorbed"
+    for addr, impl in ov.OVERRIDES.items():
+        assert BODIES.get(addr) is impl, (
+            f"{addr} drives with a callable that is not the shadow-proven body "
+            f"from skyroads.island_bodies -- it has no evidence behind it")
+
+
+def test_installing_the_registry_reports_exactly_what_it_installed():
     installed = ov.install_overrides()
     try:
-        assert installed == []
+        assert sorted(installed) == sorted(ov.OVERRIDES)
     finally:
         ov.uninstall_overrides()
 

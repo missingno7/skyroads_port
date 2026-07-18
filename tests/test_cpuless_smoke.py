@@ -15,10 +15,13 @@ without assets), exactly like the native-sfx smoke.
 """
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -48,41 +51,92 @@ def _run(*args, **kw):
                           capture_output=True, **kw)
 
 
+#: THE CORPUS IS A SHARED MUTABLE ARTIFACT, and `build_recovered.py` starts by
+#: `shutil.rmtree`-ing it (deliberately: a stale module for a since-refused
+#: function would import-resolve to dead code). Under `pytest -n auto` the two
+#: tests below land on different workers, so the rebuild can delete the package
+#: directory WHILE the other test's subprocess is importing from it.
+#:
+#: The symptom is a ModuleNotFoundError for an arbitrary unrelated address, and
+#: it is worse than a plain missing file: CPython caches a FileFinder per
+#: directory, so a process that imported ANY corpus module before the rmtree
+#: keeps a stale directory listing and then cannot see modules that exist again.
+#: That is why the failure appeared only once `install_overrides` started
+#: importing a corpus module early -- the race was always here, the earlier
+#: import merely made a process hold a finder across the window.
+#:
+#: So the two serialize on a lock file. This is the honest fix: the resource
+#: really is exclusive, and a passing suite that depends on worker scheduling is
+#: not a passing suite.
+_LOCK = ROOT / "artifacts" / ".corpus-rebuild.lock"
+
+
+@contextlib.contextmanager
+def _corpus_lock(timeout: float = 900.0):
+    _LOCK.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.time() + timeout
+    while True:
+        try:
+            fd = os.open(str(_LOCK), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            # A crashed holder must not wedge the suite forever.
+            try:
+                if time.time() - _LOCK.stat().st_mtime > timeout:
+                    _LOCK.unlink()
+                    continue
+            except OSError:
+                pass
+            if time.time() > deadline:
+                raise TimeoutError(f"corpus lock held too long: {_LOCK}")
+            time.sleep(0.2)
+    try:
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        yield
+    finally:
+        try:
+            _LOCK.unlink()
+        except OSError:
+            pass
+
+
 @pytest.mark.skipif(not BOOT.exists(),
                     reason="boot image absent (needs the user's game files)")
 def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
-    # 1. regenerate the corpus from tracked inputs.
-    b = _run("scripts/build_recovered.py")
-    assert b.returncode == 0, b.stderr
+    with _corpus_lock():                            # the rebuild DELETES the corpus
+        # 1. regenerate the corpus from tracked inputs.
+        b = _run("scripts/build_recovered.py")
+        assert b.returncode == 0, b.stderr
 
-    # 2. expected function count + manifest.
-    n = len(list(CORPUS.glob("func_*.py")))
-    assert n == EXPECTED_FUNCTIONS, f"expected {EXPECTED_FUNCTIONS} funcs, got {n}"
-    man = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert man["counts"].get("generated-cpuless") == EXPECTED_FUNCTIONS
-    assert man["counts"].get("dead-unreachable", 0) == EXPECTED_DEAD_UNREACHABLE
-    # Nothing runtime-reachable may be left unpromoted: a fail-loud-unsupported
-    # here is the wall firing during play (that is how 1010:2F57 reached a
-    # player), so it is the assertion that actually protects the runner.
-    assert man["counts"].get("fail-loud-unsupported", 0) == 0
-    assert man["runtime_closure_complete"] is True
-    assert man["runtime_frontier"] == []          # closed vs the observed trace
+        # 2. expected function count + manifest.
+        n = len(list(CORPUS.glob("func_*.py")))
+        assert n == EXPECTED_FUNCTIONS, f"expected {EXPECTED_FUNCTIONS} funcs, got {n}"
+        man = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        assert man["counts"].get("generated-cpuless") == EXPECTED_FUNCTIONS
+        assert man["counts"].get("dead-unreachable", 0) == EXPECTED_DEAD_UNREACHABLE
+        # Nothing runtime-reachable may be left unpromoted: a fail-loud-unsupported
+        # here is the wall firing during play (that is how 1010:2F57 reached a
+        # player), so it is the assertion that actually protects the runner.
+        assert man["counts"].get("fail-loud-unsupported", 0) == 0
+        assert man["runtime_closure_complete"] is True
+        assert man["runtime_frontier"] == []          # closed vs the observed trace
 
-    # 3. purity lint: no CPU on any import path.
-    lint = _run("tools/lint_cpuless.py")
-    assert lint.returncode == 0, lint.stdout + lint.stderr
-    assert "PASS" in lint.stdout
+        # 3. purity lint: no CPU on any import path.
+        lint = _run("tools/lint_cpuless.py")
+        assert lint.returncode == 0, lint.stdout + lint.stderr
+        assert "PASS" in lint.stdout
 
-    # 4. the runner cold-boots from 61F3 with NO CPU / NO interpreter, runs the
-    #    whole C startup + intro decompression to the frame loop, and RENDERS
-    #    frames (timer IRQs delivered through the recovered INT 08h ISR).
-    play = _run("scripts/play_cpuless.py", "--headless", "--frames", "12",
-                timeout=600)
-    assert play.returncode == 0, (play.stdout + play.stderr)[-2000:]
-    assert "REACHED FIRST FRAME BOUNDARY" in play.stdout
-    assert FIRST_FRAME_BOUNDARY in play.stdout
-    m = re.search(r"rendered \d+ frames \(VGA nonzero px=(\d+)\)", play.stdout)
-    assert m and int(m.group(1)) > 0, "expected a rendered (nonzero) frame"
+        # 4. the runner cold-boots from 61F3 with NO CPU / NO interpreter, runs the
+        #    whole C startup + intro decompression to the frame loop, and RENDERS
+        #    frames (timer IRQs delivered through the recovered INT 08h ISR).
+        play = _run("scripts/play_cpuless.py", "--headless", "--frames", "12",
+                    timeout=600)
+        assert play.returncode == 0, (play.stdout + play.stderr)[-2000:]
+        assert "REACHED FIRST FRAME BOUNDARY" in play.stdout
+        assert FIRST_FRAME_BOUNDARY in play.stdout
+        m = re.search(r"rendered \d+ frames \(VGA nonzero px=(\d+)\)", play.stdout)
+        assert m and int(m.group(1)) > 0, "expected a rendered (nonzero) frame"
 
 
 #: Drive the INTERACTIVE runner (the default, user-facing path) off-screen: a
@@ -110,17 +164,17 @@ print("RC", rc, "PUMPS", n[0])
 @pytest.mark.skipif(not BOOT.exists(),
                     reason="boot image absent (needs the user's game files)")
 def test_interactive_runner_renders_and_quits_cleanly():
-    pytest.importorskip("pygame")
-    pytest.importorskip("numpy")
-    import os
-    env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
-    r = subprocess.run([sys.executable, "-u", "-c", _INTERACTIVE_DRIVER % 40],
-                       cwd=ROOT, text=True, capture_output=True, timeout=900,
-                       env=env)
-    assert r.returncode == 0, (r.stdout + r.stderr)[-2000:]
-    assert "NO CPU and NO interpreter" in r.stdout
-    # The window is sized for the GAME's framebuffer, not the boot text console.
-    assert "320x200" in r.stdout
-    m = re.search(r"quit after (\d+) frames", r.stdout)
-    assert m and int(m.group(1)) > 0, "interactive loop never advanced a frame"
-    assert "RC 0" in r.stdout
+    with _corpus_lock():                            # ... and this one IMPORTS it
+        pytest.importorskip("pygame")
+        pytest.importorskip("numpy")
+        env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
+        r = subprocess.run([sys.executable, "-u", "-c", _INTERACTIVE_DRIVER % 40],
+                           cwd=ROOT, text=True, capture_output=True, timeout=900,
+                           env=env)
+        assert r.returncode == 0, (r.stdout + r.stderr)[-2000:]
+        assert "NO CPU and NO interpreter" in r.stdout
+        # The window is sized for the GAME's framebuffer, not the boot text console.
+        assert "320x200" in r.stdout
+        m = re.search(r"quit after (\d+) frames", r.stdout)
+        assert m and int(m.group(1)) > 0, "interactive loop never advanced a frame"
+        assert "RC 0" in r.stdout

@@ -246,11 +246,25 @@ def main(argv=None) -> int:
     if args.frames:
         end = min(end, args.frames)
     args.shadow_islands = args.shadow_islands or args.shadow_only
+    # THE STITCH, before the corpus is imported: generated modules bind their
+    # callees at import time, so the module object is the only seam.
+    #
+    # This differential used to install NOTHING, which was harmless only while
+    # OVERRIDES was empty. The moment an override lands, a run that skips this
+    # exercises the pure generated corpus while reporting a PASS that reads like
+    # acceptance -- proof about code nobody is questioning. So the mode is
+    # installed explicitly and PRINTED, and the two modes are mutually exclusive
+    # per address by construction: a shadowed address is checked, not driven.
+    from skyroads.cpuless_overrides import OVERRIDES, install_overrides
+    shadowed: list = []
     if args.shadow_islands:
-        # BEFORE the corpus is imported: generated modules bind callees at import
-        # time, so the module object is the only seam.
         from skyroads.island_shadows import install_all
-        print(f"[verify-cpuless] shadowing islands: {', '.join(install_all())}")
+        shadowed = install_all()
+        print(f"[verify-cpuless] SHADOWING (generated drives, candidate checked): "
+              f"{', '.join(shadowed) or 'none'}")
+    driving = install_overrides([a for a in OVERRIDES if a not in shadowed])
+    print(f"[verify-cpuless] DRIVING (hand-recovered body IS the implementation): "
+          f"{', '.join(driving) or 'none'}")
     heads = read_heads(Path(args.heads))
     print(f"[verify-cpuless] demo={demo.name} frames={end} "
           f"mouse_present={pb_o.mouse_present_hint}; cut = 2nd pass at "

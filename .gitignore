@@ -73,3 +73,4 @@ artifacts/recovered_adapters/
 # a commit by `git add -A` (it was). Promoting one to a real coverage demo means
 # giving it a meaningful name -- which takes it out of this pattern.
 artifacts/demos/demo_cpuless_session_*/
+artifacts/.corpus-rebuild.lock
