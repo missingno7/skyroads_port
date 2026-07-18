@@ -55,6 +55,48 @@ Enforced by `tests/test_artifact_discipline.py`, which asserts that the emitter,
 runner, and verifier of each corpus resolve to one package path, and that no
 shipped code path reaches into `artifacts/`.
 
+## Skeleton and skin (the recovery model)
+
+**The generated corpus is the SKELETON. Hand-recovered code is SKIN.**
+
+The skeleton is the game's real control flow — not an approximation of it, but the
+flow itself, lifted from the original's own code and proven byte-exact against the
+oracle from cold start. It holds the program's shape: which routine calls which,
+in what order, across every screen transition.
+
+Skin is what makes a routine readable: a named, typed, portable implementation of
+what one address *means*. Skin never holds shape. It attaches to the skeleton at a
+single address, through the stitch seam
+([`skyroads/cpuless_overrides.py`](../skyroads/cpuless_overrides.py)), and every
+address with no skin is served by the generated body automatically. That is what
+lets the composite always run: there is no intermediate state where the program is
+half-converted, because the skeleton is complete on its own.
+
+Three rules follow, and each was learned the expensive way:
+
+1. **Skin may not re-implement flow.** The previous hand-written port did, and its
+   menu flow drifted: `skyroads/native/menus.py` and `level_select.py` carry ZERO
+   recovered-address anchors between them (`tools/absorption_ledger.py --native`).
+   Flow inferred from the screen cannot be compared against a cold-start demo;
+   flow lifted from the program is comparable by construction.
+2. **Skin earns its place by differential, not by reputation.** An island runs only
+   at `VERIFIED`/`CANONICAL`, and shadow mode
+   ([`skyroads/island_shadows.py`](../skyroads/island_shadows.py)) is how it gets
+   there: the generated body drives while the island is checked against it on every
+   real call. Both islands shadowed so far were correct and both checkers were
+   wrong — which is exactly the mistake a direct swap makes silently.
+3. **The skeleton is only as good as the gate that proves it.** It is proven
+   against the ORACLE, and a gate that runs one demo proves one demo. Running a
+   second cold demo exposed a frame-driver asymmetry (task #11) that a single-demo
+   gate had hidden indefinitely.
+
+The ladder above this: as ABI recovery and the Memory Schema advance, the skeleton
+grows real signatures and named state, the impedance that makes skin awkward to
+attach shrinks, and skin stops being a patch and becomes the source. Hand-written
+knowledge that anchors to no address at all — formats, helpers, data layouts, which
+is HALF of this port's islands — is never skin. It belongs in the schema and the
+docs, and it survives every rung.
+
 ## Framework module map
 
 All modules live flat in the `dos_re/` package (they are tightly coupled by
