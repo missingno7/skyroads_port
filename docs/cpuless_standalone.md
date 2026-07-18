@@ -93,6 +93,32 @@ less**: a 60-frame run measured only 5.4x (40.4 s → 7.5 s), because process
 start plus JIT warmup is then most of the run. PyPy pays off on the long gates,
 which is exactly where the cost is.
 
+### Measured gate timings (2026-07-18, 24-thread Windows box)
+
+Each run serially, so the numbers are not skewed by contention.
+
+| gate | CPython | PyPy | note |
+|---|---|---|---|
+| `check_all.py` (all 7) | ~6 min † | **1 m 50 s** | 7/7, the differentials on PyPy |
+| `check_all.py --quick` | ~70 s ‡ | — | suites; stays on CPython |
+| port suite (`-n auto`) | 46 s | — | 464 passed / 1 skipped |
+| dos_re suite | 23 s serial → **13 s** `-n auto` | — | was serial inside `check_all` |
+| `verify_cpuless` (672 f) | 134 s | **18 s** | 7.4x |
+| `verify_vmless` (672 f) | 142 s | **14 s** | 10.1x |
+| `verify_cpuless --shadow-only` | 17 s | 8 s | oracle-free rung |
+| `verify_cpuless` attract (5109 f) | 500.8 s | **47.3 s** | 10.6x |
+
+Everything unmarked was timed end-to-end this session. † is the previously
+recorded figure for the all-CPython run, carried forward, NOT re-measured here.
+‡ is the SUM of the four cheap gates' measured times (2+46+14+8), not a timed
+`--quick` run. Both are marked because an unmarked estimate becomes a quoted
+fact one handoff later.
+
+**What dominates**: the oracle. The three differential gates cost 293 s of the
+all-CPython run against 70 s for the four cheap ones, and PyPy takes those 293 s
+to 40 s. The cheap gates were never the problem, which is why the interpreter
+split targets exactly those three and leaves the suites alone.
+
 `coverage_audit.py` reads the game's own **dispatch tables** out of the boot
 image and reports any entry the census never executed — each one a fail-loud
 stop waiting to happen. For the block-type table it goes further and decodes

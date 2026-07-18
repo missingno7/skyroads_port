@@ -106,8 +106,9 @@ pypy3 -u scripts/verify_cpuless.py artifacts/demos/demo_attract_20260718_135434
 
 **`check_all.py` runs the differentials under PyPy automatically** (2026-07-18)
 and prints the interpreter per gate; `--no-pypy` forces CPython. Identical
-gates, ~10x faster — see [`cpuless_standalone.md`](cpuless_standalone.md) for
-the agreement evidence.
+gates, **7/7 in 1 m 50 s** (measured) against the ~6 min previously recorded —
+see [`cpuless_standalone.md`](cpuless_standalone.md) for the full timing table
+and the CPython/PyPy agreement evidence.
 
 **Pipeline order is load-bearing**: `build_codemap` → `close_vmless_wall` →
 `build_recovered`. Skipping the middle stage leaves new functions with no IR
