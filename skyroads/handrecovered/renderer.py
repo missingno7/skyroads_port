@@ -218,29 +218,160 @@ def road_segment_clip_detail(dir_sel: int, seg: int, coord: int,
              "clip the center edge, else clip the far edge at depth+delta. All "
              "compares unsigned. persp_word(depth) = the 04C0 table word (0 if out "
              "of range); clip = road_segment_clip bound to this frame's tables.",
-    status="ASM_MATCHED",  # validated vs ASM return over all in-game 1732 calls
+    # Byte-exact against the generated 1010:1732 -- itself byte-exact against
+    # the interpreted ASM oracle from cold start -- on the WHOLE contract: all
+    # seven output registers, exit flags, fmask, virtual-time cost and the
+    # ordered byte-write log, with NO exemptions. Two populations, and the claim
+    # is exactly their union and no wider:
+    #
+    #  * dos_re.lift.shadow over 66,144 REAL calls -- demo_cold_20260718_003412
+    #    (6,878) + demo_colde2e_full_20260713_144604 (59,266). MEASURED block
+    #    coverage: 15 distinct basic-block paths reaching 26 of the function's
+    #    27 blocks. The two demos are BOTH needed, and on a knife edge: they
+    #    share six paths, the E2E demo contributes eight of its own, and the
+    #    cold demo contributes exactly ONE -- on exactly ONE call in 672 frames
+    #    -- which is the only real-playthrough evidence that the SECOND 1631
+    #    call can succeed (block 22 -> 24). The E2E demo takes 22 -> 23, the
+    #    failing side of that same test, 907 times and never once the other.
+    #  * tests/test_island_bodies.py forced states: 42 distinct block paths,
+    #    27 of 27 blocks, 20 randomized register sets each.
+    #
+    # So block 7 (the 1797 jump) has never run in a real playthrough; it is
+    # proven against the generated body, not observed in the game. A companion
+    # test proves by exhaustion over all 65,536 screen_y values that every path
+    # through it falls straight into the 17A5 cull, so it contributes a fixed 1
+    # to the cost and can change no answer.
+    status="VERIFIED",
     merge_target="skyroads.native.renderer (future)",
 )
 def road_object_visible(persp_word, clip, x_lo: int, x_hi: int,
                         depth: int, screen_y: int) -> int:
-    r1 = persp_word((depth + 0x700) & 0xFFFF)   # near edge (1740 add ax,0x700)
-    r2 = persp_word((depth - 0x700) & 0xFFFF)   # far edge  (1755 add ax,0xF900)
-    if ((r1 & 0xF) or (r2 & 0xF)) and screen_y < 0x2800 \
-            and ((screen_y + 0x600) & 0xFFFF) > 0x2480:
-        return 1                                 # 179A: straddles the near band
-    if ((screen_y + 0x680) & 0xFFFF) <= 0x2800:  # 17A5 ja not taken
-        return 0
-    if not ((r2 & 0xF00) or (r1 & 0xF00)):       # 17AD/17BB both 0xF00 nibbles 0
-        return 0
-    r3 = persp_word(depth & 0xFFFF)              # 17D0 center edge
-    rem = (((depth & 0xFFFF) >> 7) + 0xFFCF) & 0xFFFF
-    rem %= 46                                     # 17DC-17EA: (depth/128 - 49) mod 46
-    seg = (0x17 - rem) & 0xFFFF                    # 17EC 23 - rem
-    delta = 0xE900                                 # 17F4 [bp-10]
-    if seg == 0 or seg > 0x7FFF:                   # 17F9 <=0 (signed) -> mirror
-        seg = (1 - seg) & 0xFFFF                    # 180C 1 - seg
-        delta = 0x1700                             # 1815 neg (0xE900 -> 0x1700)
-    if clip(r3, seg, screen_y):                    # 1824 near/center clip
-        return 1
-    r4 = persp_word((depth + delta) & 0xFFFF)      # 1846 far edge at depth+delta
-    return 1 if clip(r4, (0x2F - seg) & 0xFFFF, screen_y) else 0  # 184D
+    """The pure 0/1 decision; see :func:`road_object_visible_detail` for the
+    ABI-shaped variant that also reports the block path and the exit compare."""
+    return road_object_visible_detail(persp_word, clip, x_lo, x_hi,
+                                      depth, screen_y).result
+
+
+class RoadObjectResult(NamedTuple):
+    """1010:1732's answer plus the structure its ABI adapter cannot re-derive.
+
+    ``path`` is the sequence of the ASM's own basic blocks, in execution order,
+    named by the generated body's block indices (``bb == n`` in
+    ``skyroads/recovered/func_1010_1732.py``). It exists because 1732's
+    virtual-time cost is NOT a small table keyed on the answer: seven exits, a
+    branch prefix that costs 1 or 4 depending on WHICH edge's low nibble was
+    nonzero, and a mirror prefix worth 3, 7 or 8 multiply out to dozens of
+    static totals on top of four variable callee costs. Summing the blocks the
+    island actually walked is the same derivation the generated body performs,
+    per call, instead of a table that has to be enumerated correctly.
+
+    ``cmp_lhs``/``cmp_rhs`` are the operands of the LAST compare executed --
+    the flags 1732 returns. Like 1631's, they must come from here: the same
+    ``result`` is produced by exits whose flags differ (0 from 17A5, from 17BB
+    and from 1858; 1 from 179A, from 182F and from 185B).
+    """
+
+    result: int
+    path: tuple        # ASM basic blocks visited, in order
+    cmp_lhs: int
+    cmp_rhs: int
+
+
+def road_object_visible_detail(persp_word, clip, x_lo: int, x_hi: int,
+                               depth: int, screen_y: int,
+                               on_segment=None) -> RoadObjectResult:
+    """1010:1732 with its block-level control flow exposed.
+
+    ``persp_word`` and ``clip`` are called exactly where -- and as often as --
+    the ASM calls 04C0 and 1631, so an adapter that counts memory traffic and
+    callee cost through them sees what the original does.
+
+    ``on_segment(seg, delta, rem)`` is the same idea for a point that is not a
+    call: the ASM stores the segment index and the x-delta into its own frame
+    at 17EC/17F4 and, when it mirrors, stores both AGAIN at 180C/1815. Those
+    four writes sit BETWEEN the center-edge projection and the first clip, so
+    an adapter reproducing the ordered write log cannot emit them after the
+    fact. ``rem`` is the mod-46 divide remainder the ASM leaves live in DX
+    there, and it is unchanged by the mirror. Optional: the pure predicate has
+    no use for it.
+    """
+    depth &= 0xFFFF
+    screen_y &= 0xFFFF
+    path = [0]                                   # 1732: prologue + both edges
+    r1 = persp_word((depth + 0x700) & 0xFFFF)    # near edge (1740 add ax,0x700)
+    r2 = persp_word((depth + 0xF900) & 0xFFFF)   # far edge  (1755 add ax,0xF900)
+
+    if r1 & 0xF:                                 # 176E test [bp-6],0xF
+        path.append(1)                           # 1773
+        near_nibble = True
+    else:
+        path.append(2)                           # 1776 test [bp-4],0xF
+        near_nibble = bool(r2 & 0xF)
+        if not near_nibble:
+            path.append(3)                       # 1781
+
+    if near_nibble:
+        path.append(4)                           # 1784 cmp di,0x2800
+        if screen_y < 0x2800:
+            path.append(6)                       # 178D
+            edge = (screen_y + 0x600) & 0xFFFF
+            if edge > 0x2480:
+                path += [8, 26]                  # 179A: mov ax,1
+                return RoadObjectResult(1, tuple(path), edge, 0x2480)
+            path.append(7)                       # 1797
+        else:
+            path.append(5)                       # 178A
+
+    path.append(9)                               # 17A0
+    band = (screen_y + 0x680) & 0xFFFF
+    if band <= 0x2800:                           # 17A5 ja not taken
+        path += [10, 25, 26]                     # 1861: mov ax,0
+        return RoadObjectResult(0, tuple(path), band, 0x2800)
+
+    path.append(11)                              # 17AD test [bp-4],0xF00
+    if r2 & 0xF00:
+        path.append(12)                          # 17B8
+    else:
+        path.append(13)                          # 17BB test [bp-6],0xF00
+        hi1 = r1 & 0xF00
+        if not hi1:
+            path += [14, 25, 26]                 # 17C6 -> 1861
+            return RoadObjectResult(0, tuple(path), hi1, 0)
+
+    path.append(15)                              # 17C9
+    r3 = persp_word(depth)                       # 17D0 center edge
+    rem = ((depth >> 7) + 0xFFCF) & 0xFFFF
+    rem %= 46                                    # 17DC-17EA: (depth/128 - 49) mod 46
+    seg = (0x17 - rem) & 0xFFFF                  # 17EC 23 - rem
+    delta = 0xE900                               # 17F4 [bp-10]
+    if on_segment is not None:
+        on_segment(seg, delta, rem)              # 17EC/17F4 store both slots
+    if seg > 0x7FFF:                             # 17F9 cmp [bp-8],0x7FFF ja
+        path.append(16)                          # 1800
+        mirror = True
+    else:
+        path.append(17)                          # 1803 cmp [bp-8],0
+        mirror = seg == 0
+        if not mirror:
+            path.append(18)                      # 1809
+    if mirror:
+        path.append(19)                          # 180C 1-seg, neg delta
+        seg = (1 - seg) & 0xFFFF
+        delta = 0x1700
+        if on_segment is not None:
+            on_segment(seg, delta, rem)          # 180C/1815 store both again
+
+    path.append(20)                              # 181D near/center clip
+    a1 = clip(r3, seg, screen_y) & 0xFFFF
+    if a1:
+        path += [21, 24, 26]                     # 182F -> 185B: mov ax,1
+        return RoadObjectResult(1, tuple(path), a1, 0)
+
+    path.append(22)                              # 1832 far edge at depth+delta
+    r4 = persp_word((depth + delta) & 0xFFFF)    # 1846
+    a2 = clip(r4, (0x2F - seg) & 0xFFFF, screen_y) & 0xFFFF
+    if a2:
+        path += [24, 26]                         # 185B: mov ax,1
+        return RoadObjectResult(1, tuple(path), a2, 0)
+    path += [23, 25, 26]                         # 1858 -> 1861: mov ax,0
+    return RoadObjectResult(0, tuple(path), a2, 0)

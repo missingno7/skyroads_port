@@ -35,7 +35,8 @@ from skyroads.handrecovered.collision_response import (
     FELL_ARM_DECIDED, FELL_ARM_NO_SEGMENT, FELL_ARM_SEG_CULLED, MIRROR_NEGATIVE,
     MIRROR_NONE, MIRROR_ZERO, ship_fell_off_detail)
 from skyroads.handrecovered.renderer import (
-    ARM_CULLED, ARM_DEFAULT, perspective_row_offset, road_segment_clip_detail)
+    ARM_CULLED, ARM_DEFAULT, perspective_row_offset, road_object_visible_detail,
+    road_segment_clip_detail)
 
 #: parity of the low byte, as the emitter computes it (PF is set from bits 0-7).
 _PARITY = tuple((1 - bin(v).count('1') % 2) == 1 for v in range(256))
@@ -282,20 +283,29 @@ FELL_FMASK = 0x8D5
 #: ds-relative bases of the per-segment bound tables, indexed by ``seg*2``.
 _FELL_T_LOW, _FELL_T_HIGH = 76, 152
 
-_GEN_04C0_CACHE = []
+_GEN_CACHE: dict = {}
 
 
-def _gen_04c0():
-    """The GENERATED 1010:04C0, resolved on first use.
+def _gen(addr: str):
+    """The GENERATED body for ``addr``, resolved on first use.
 
     Lazily, because importing the corpus at this module's import time would pull
     it in before ``install_overrides`` has run -- and this module is imported by
     the registry that does the installing.
     """
-    if not _GEN_04C0_CACHE:
+    fn = _GEN_CACHE.get(addr)
+    if fn is None:
         from dos_re.lift.standalone import generated
-        _GEN_04C0_CACHE.append(generated("skyroads.recovered", "1010:04C0"))
-    return _GEN_04C0_CACHE[0]
+        fn = _GEN_CACHE[addr] = generated("skyroads.recovered", addr)
+    return fn
+
+
+def _gen_04c0():
+    return _gen("1010:04C0")
+
+
+def _gen_1631():
+    return _gen("1010:1631")
 
 #: The two divisors 0533 leaves in CX at its earlier exits (0x2E after the
 #: segment divide at 0583; 04C0's own 0x80 if the function never got that far).
@@ -375,8 +385,142 @@ def func_1010_0533(mem, *, bp=0, bx=0, di=0, ds=0, dx=0, si=0, sp=0, ss=0):
             {'flags': flags & FELL_FMASK, 'fmask': FELL_FMASK, 'cost': cost})
 
 
+# --- 1010:1732 road_object_visible -------------------------------------------
+#
+# The compound one: up to FOUR 04C0 calls and TWO 1631 calls, and 27 basic
+# blocks. Both callees are reached through :func:`_gen`, for the reason spelled
+# out above 0533 -- an evidence counter that moves depending on which OTHER
+# shadows happen to be installed is not a counter worth reading.
+
+#: Per-block virtual-time cost, DERIVED by reading the generated body's own
+#: ``_cost += n`` at the tail of each ``bb == n`` arm, and summed over the
+#: blocks the island reports it walked. This is a per-call derivation rather
+#: than a table keyed on the answer because 1732 has SEVEN exits, a prefix
+#: worth 1 or 4 depending on which edge's low nibble was nonzero, and a mirror
+#: prefix worth 3, 7 or 8 -- dozens of static totals, on top of four variable
+#: callee costs. Callee cost is deliberately absent here and added from what
+#: each call actually reports.
+OBJ_BLOCK_COST = {0: 25, 1: 1, 2: 4, 3: 1, 4: 2, 5: 1, 6: 4, 7: 1, 8: 2,
+                  9: 4, 10: 1, 11: 4, 12: 1, 13: 4, 14: 1, 15: 20, 16: 1,
+                  17: 2, 18: 1, 19: 6, 20: 7, 21: 1, 22: 16, 23: 1, 24: 2,
+                  25: 2, 26: 4}
+
+#: Every block that touches flags contributes exactly 0x8D5, block 0 is on
+#: every path, and both callees contribute 0x8D5 -- so the mask is this
+#: constant on all seven exits and the callees widen nothing.
+OBJ_FMASK = 0x8D5
+
+#: What block 15 leaves in CX and DX: the mod-46 divisor and its remainder.
+#: They are the registers the FIRST 1631 call receives, and nothing between
+#: 17EA and 181D touches either.
+_OBJ_SEG_DIVISOR = 0x2E
+
+#: Return addresses pushed for the first three 04C0 calls (1740, 1755, 17C9).
+_OBJ_PERSP_RET = (0x174D, 0x1762, 0x17D3)
+
+
+def func_1010_1732(mem, *, bp=0, bx=0, di=0, ds=0, dx=0, si=0, sp=0, ss=0):
+    """``1010:1732`` road_object_visible, driven by the island.
+
+    Four stack arguments at ``[bp+4..bp+10]`` -- relative to the ENTRY sp,
+    ``+2 +4 +6 +8`` -- x_lo, x_hi, depth (kept in SI), screen_y (kept in DI).
+
+    THE FRAME, because every write below is an offset into it. ``push bp`` then
+    ``sub sp,10`` then ``push si; push di`` gives, from the entry SP: -2 saved
+    BP, -4 the center-edge word [bp-2], -6 the far edge [bp-4], -8 the near
+    edge [bp-6], -10 the segment index [bp-8], -12 the x-delta [bp-10], -14
+    saved SI, -16 saved DI, and the call area from -18 down.
+
+    BP, SI and DI are CALLEE-SAVED (pushed at 1732/1736/1737, popped at 1867),
+    so the depth and screen_y this works in are internal and never observables.
+    BX, CX and DX are not saved and 1732 never writes BX at all: all three are
+    simply whatever the LAST callee left live, except in block 15, whose two
+    divides set CX and DX -- and those are consumed by the 1631 call that
+    always follows, so they never reach an exit.
+    """
+    x_lo = mem.rw(ss, (sp + 2) & 0xFFFF)
+    x_hi = mem.rw(ss, (sp + 4) & 0xFFFF)
+    depth = mem.rw(ss, (sp + 6) & 0xFFFF)
+    screen_y = mem.rw(ss, (sp + 8) & 0xFFFF)
+
+    frame = (sp - 2) & 0xFFFF
+    mem.ww(ss, frame, bp)
+    mem.ww(ss, (sp - 14) & 0xFFFF, si)
+    mem.ww(ss, (sp - 16) & 0xFFFF, di)
+
+    # CX has no entry value: the generated body's local is unbound until the
+    # first 04C0 call assigns it, and that call precedes every read.
+    st = {"bx": bx & 0xFFFF, "cx": 0, "dx": dx & 0xFFFF, "cost": 0,
+          "seg": 0, "persp": 0, "clips": 0}
+
+    def _push(*words):
+        """``push`` each word at its entry-SP-relative slot, in ASM order."""
+        for delta, val in words:
+            mem.ww(ss, (sp - delta) & 0xFFFF, val & 0xFFFF)
+
+    def _persp(arg_depth):
+        """One ``call 04C0``: its argument words, the call, then its result slot."""
+        st["persp"] += 1
+        n = st["persp"]
+        if n <= 3:
+            # 1740/1755/17C9: push depth-arg, [bp+6], [bp+4], return address.
+            _push((18, arg_depth), (20, x_hi), (22, x_lo),
+                  (24, _OBJ_PERSP_RET[n - 1]))
+            inner = (sp - 24) & 0xFFFF
+        else:
+            # 1832: block 22 pushes DI and 0x2F-seg FIRST -- they are the second
+            # 1631 call's arguments and outlive this one -- so 04C0's own frame
+            # sits four words deeper.
+            _push((18, screen_y), (20, (0x2F - st["seg"]) & 0xFFFF),
+                  (22, arg_depth), (24, x_hi), (26, x_lo), (28, 0x1849))
+            inner = (sp - 28) & 0xFFFF
+        o, c = _gen_04c0()(mem, bp=frame, bx=st["bx"], di=screen_y, ds=ds,
+                           dx=st["dx"], si=depth, sp=inner, ss=ss)
+        st["bx"], st["cx"], st["dx"] = o["bx"], o["cx"], o["dx"]
+        st["cost"] += c["cost"]
+        if n <= 3:
+            # 174D/1762/17D3 store the word at [bp-6]/[bp-4]/[bp-2]; the fourth
+            # call's AX is pushed straight back out and never lands in a slot.
+            mem.ww(ss, (sp - (8, 6, 4)[n - 1]) & 0xFFFF, o["ax"])
+        return o["ax"]
+
+    def _on_segment(seg, delta, rem):
+        """17EC/17F4 (and again 180C/1815): the two frame slots, then DX/CX."""
+        st["seg"] = seg
+        mem.ww(ss, (sp - 10) & 0xFFFF, seg & 0xFFFF)
+        mem.ww(ss, (sp - 12) & 0xFFFF, delta & 0xFFFF)
+        st["cx"], st["dx"] = _OBJ_SEG_DIVISOR, rem & 0xFFFF
+
+    def _clip(dir_sel, seg, coord):
+        """One ``call 1631``: its argument words, then the call."""
+        st["clips"] += 1
+        if st["clips"] == 1:
+            _push((18, coord), (20, seg), (22, dir_sel), (24, 0x1827))  # 181D
+        else:
+            # 1849: DI and 0x2F-seg were pushed back in block 22, so only the
+            # projected word and the return address go down here.
+            _push((22, dir_sel), (24, 0x1850))
+        o, c = _gen_1631()(mem, bp=frame, bx=st["bx"], cx=st["cx"], di=screen_y,
+                           ds=ds, dx=st["dx"], si=depth,
+                           sp=(sp - 24) & 0xFFFF, ss=ss)
+        st["bx"], st["cx"], st["dx"] = o["bx"], o["cx"], o["dx"]
+        st["cost"] += c["cost"]
+        return o["ax"]
+
+    r = road_object_visible_detail(_persp, _clip, x_lo, x_hi, depth, screen_y,
+                                   on_segment=_on_segment)
+
+    _, flags = _sub16(r.cmp_lhs & 0xFFFF, r.cmp_rhs & 0xFFFF)
+    cost = st["cost"] + sum(OBJ_BLOCK_COST[b] for b in r.path)
+    return ({'ax': r.result & 0xFFFF, 'bp': bp & 0xFFFF, 'bx': st["bx"],
+             'cx': st["cx"], 'di': di & 0xFFFF, 'dx': st["dx"],
+             'si': si & 0xFFFF},
+            {'flags': flags & OBJ_FMASK, 'fmask': OBJ_FMASK, 'cost': cost})
+
+
 #: address -> island-driven body. This is what may be shadowed, and -- once a
 #: shadow has VERIFIED it over demos exercising every path -- what may drive.
 BODIES = {"1010:04C0": func_1010_04c0,
           "1010:1631": func_1010_1631,
-          "1010:0533": func_1010_0533}
+          "1010:0533": func_1010_0533,
+          "1010:1732": func_1010_1732}

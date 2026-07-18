@@ -65,6 +65,13 @@ RECOVERED_PKG = "skyroads.recovered"
 #:   E2E cold differential vs the pure ASM oracle with it DRIVING -- 261 and 672 frames.
 #: Two demos deliberately: the spine demo NEVER takes the short path, so evidence
 #: gathered there alone yields the constant cost 104 and is silently wrong.
+#:
+#: Each later admission carries its own evidence on its island's ``oracle_link``
+#: -- the call population AND the arm/block coverage it was proven over, stated
+#: narrowly -- rather than being restated here where it would drift:
+#:   ``1010:1631`` road_segment_clip     -- skyroads/handrecovered/renderer.py
+#:   ``1010:0533`` ship_fell_off         -- .../collision_response.py
+#:   ``1010:1732`` road_object_visible   -- skyroads/handrecovered/renderer.py
 OVERRIDES: "dict[str, Callable]" = dict(BODIES)
 
 

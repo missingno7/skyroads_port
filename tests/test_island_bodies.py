@@ -426,3 +426,159 @@ def test_0533_cost_pieces_add_up_to_the_observed_values():
     assert decided + _FELL_NIBBLE_COST[0x100] + _FELL_MIRROR_COST[MIRROR_NONE] == 160
     assert decided + _FELL_NIBBLE_COST[0x100] + _FELL_MIRROR_COST[MIRROR_NEGATIVE] == 161
     assert decided + _FELL_NIBBLE_COST[0x300] + _FELL_MIRROR_COST[MIRROR_NONE] == 162
+
+
+# --- 1010:1732 road_object_visible --------------------------------------------
+#
+# The compound one: 27 basic blocks, up to four 04C0 calls and two 1631 calls.
+# Its arguments do not reach the decisions directly -- every value it branches on
+# comes back through 04C0 from the ds perspective table -- so a forced state has
+# to steer the CALLEES. With x_lo = x_hi = 0 the table offset collapses to
+# 0x162C + 2*(idx // 46), so poking two words there controls all four
+# projections, and the segment-bound tables steer both 1631 calls.
+
+from skyroads.island_bodies import OBJ_BLOCK_COST                    # noqa: E402
+from skyroads.island_bodies import func_1010_1732 as ISLAND_1732     # noqa: E402
+from skyroads.recovered.func_1010_1732 import func_1010_1732 as GEN_1732  # noqa: E402
+from skyroads.handrecovered import renderer as _renderer            # noqa: E402
+
+#: The grid the forced cases are drawn from. Depths are 128-steps from the
+#: bottom of 04C0's window (so idx = depth/128 - 95 walks 0..59, crossing the
+#: /46 bucket boundary and running the ±0x700 edges in and out of range);
+#: screen_y sits on both sides of every band threshold (0x1E80, 0x2180, 0x2800);
+#: the table words carry every low/0xF00 nibble combination the branches test.
+_OBJ_DEPTHS = tuple(95 * 128 + 128 * k for k in range(60))
+_OBJ_YS = (0x0000, 0x1000, 0x1E80, 0x1F00, 0x2180, 0x2200, 0x2500, 0x2900, 0x3000)
+_OBJ_WORDS = (0x0000, 0x0001, 0x0100, 0x0101, 0x0301, 0x0500)
+_OBJ_BOUNDS = ((0x0000, 0x0020), (0x0064, 0x0020), (0x0000, 0x0002))
+_OBJ_TABLE = 0x162C
+
+
+def _obj_build(rng, depth, screen_y, w0, w1, low, high):
+    ss, ds = rng.randrange(0x1000, 0x8000), rng.randrange(0x1000, 0x8000)
+    regs = dict(bp=rng.randrange(0x10000), bx=rng.randrange(0x10000),
+                di=rng.randrange(0x10000), dx=rng.randrange(0x10000),
+                si=rng.randrange(0x10000), ds=ds, ss=ss,
+                sp=rng.randrange(0x0100, 0xFF00) & ~1)
+
+    def build():
+        m = Mem()
+        for i, w in enumerate((0, 0, depth, screen_y)):  # x_lo, x_hi, depth, screen_y
+            m.ww(ss, (regs["sp"] + 2 + 2 * i) & 0xFFFF, w)
+        m.ww(ds, _OBJ_TABLE, w0)                    # idx // 46 == 0
+        m.ww(ds, _OBJ_TABLE + 2, w1)                # idx // 46 == 1
+        for s in range(0x30):                       # both 1631 calls' bounds
+            m.ww(ds, (_CLIP_T_LOW + 2 * s) & 0xFFFF, low)
+            m.ww(ds, (_CLIP_T_HIGH + 2 * s) & 0xFFFF, high)
+        m.log.clear()
+        return m
+
+    return regs, build
+
+
+def _obj_path(rng, args):
+    """The block path the island walks for ``args`` -- measured, not predicted."""
+    seen = []
+    real = _renderer.road_object_visible_detail
+
+    def spy(*a, **kw):
+        r = real(*a, **kw)
+        seen.append(r.path)
+        return r
+
+    import skyroads.island_bodies as _ib
+    _ib.road_object_visible_detail = spy
+    try:
+        regs, build = _obj_build(rng, *args)
+        ISLAND_1732(build(), **regs)
+    finally:
+        _ib.road_object_visible_detail = real
+    return seen[0]
+
+
+def _obj_cases():
+    """One state per DISTINCT block path the grid can reach, keyed by that path.
+
+    Deduplicating by path rather than taking the whole grid keeps the case list
+    honest: 9,720 states that all walk the same six blocks are one piece of
+    evidence, not 9,720, and the key names exactly what each case establishes.
+    """
+    rng = random.Random(0x1732)
+    out = {}
+    for depth in _OBJ_DEPTHS:
+        for screen_y in _OBJ_YS:
+            for w0 in _OBJ_WORDS:
+                for w1 in _OBJ_WORDS:
+                    for low, high in _OBJ_BOUNDS:
+                        args = (depth, screen_y, w0, w1, low, high)
+                        out.setdefault(_obj_path(rng, args), args)
+    return out
+
+
+_OBJ_CASES = _obj_cases()
+
+
+@pytest.mark.parametrize("path", sorted(_OBJ_CASES, key=str),
+                         ids=lambda p: "-".join(str(b) for b in p))
+def test_1732_island_body_reproduces_the_full_contract_on_every_block_path(path):
+    """FORCED-STATE evidence, distinct from the shadow's real-call evidence.
+
+    It is what covers block 7 (the 1797 jump), which no recorded demo reaches:
+    it needs a screen_y at or below 0x1E80 while an edge's low nibble is set,
+    and every such state falls straight through 17A5 to the cull -- so 1797 is
+    structurally always followed by 17AA and can never change an answer.
+    """
+    rng = random.Random(0x1732 ^ (hash(path) & 0xFFFF))
+    for _ in range(20):
+        regs, build = _obj_build(rng, *_OBJ_CASES[path])
+        g = build()
+        go, gc = GEN_1732(g, **regs)
+        i = build()
+        io, ic = ISLAND_1732(i, **regs)
+        ctx = ("path=" + ",".join(str(b) for b in path) + " "
+               + " ".join(f"{k}={v:04X}" for k, v in sorted(regs.items())))
+        assert set(io) == set(go), f"output SET differs; {ctx}"
+        for name in OUTPUTS:
+            assert io[name] == go[name], (
+                f"output {name}: generated={go[name]:04X} island={io[name]:04X}; {ctx}")
+        for name in ("flags", "fmask", "cost"):
+            assert ic[name] == gc[name], (
+                f"compat {name}: generated={gc[name]:#x} island={ic[name]:#x}; {ctx}")
+        assert i.log == g.log, (
+            f"the stack residue differs -- the words the body leaves BELOW the "
+            f"returned SP are observable; {ctx}")
+
+
+def test_the_1732_forced_cases_reach_every_basic_block():
+    """Cases are coverage only if they collectively walk the whole function.
+
+    27 of 27, against the generated body's own ``bb ==`` dispatch -- so this
+    also fails if a regeneration adds a block, rather than silently proving a
+    smaller function than the one that ships.
+    """
+    reached = set()
+    for path in _OBJ_CASES:
+        reached |= set(path)
+    assert reached == set(OBJ_BLOCK_COST), (
+        f"forced cases miss block(s) {sorted(set(OBJ_BLOCK_COST) - reached)}")
+    assert set(OBJ_BLOCK_COST) == set(range(27)), (
+        "the cost table no longer mirrors the generated body's block set")
+
+
+def test_1732_block_7_is_always_followed_by_the_cull():
+    """WHY the one block no demo reaches cannot matter, proven by exhaustion.
+
+    1797 is reached when screen_y < 0x2800 and (screen_y + 0x600) & 0xFFFF is at
+    or below 0x2480 -- i.e. screen_y <= 0x1E80 -- and 17A5 then tests
+    screen_y + 0x680 against 0x2800, which for the same screen_y is at most
+    0x2500. So every path through block 7 exits at 1861 with AX = 0, and the
+    block contributes a fixed 1 to the cost and nothing else. Asserted over all
+    65,536 screen_y values rather than argued.
+    """
+    reachable = [y for y in range(0x10000)
+                 if y < 0x2800 and ((y + 0x600) & 0xFFFF) <= 0x2480]
+    assert reachable, "block 7 is unreachable for every screen_y -- re-derive"
+    for y in reachable:
+        assert ((y + 0x680) & 0xFFFF) <= 0x2800, (
+            f"screen_y={y:#06x} reaches block 7 without falling into the cull")
+    assert OBJ_BLOCK_COST[7] == 1
