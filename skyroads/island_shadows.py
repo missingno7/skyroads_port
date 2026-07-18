@@ -33,6 +33,35 @@ NOT SHADOWED: ``1010:3A96`` unpack_animation_segment
     by preceding passes; that specific figure is NOT re-measured here and is
     recorded as a caution, not a result. Either way it is further out than 04C0
     and is deliberately left alone.
+
+NOT SHADOWABLE AT ALL: ``1010:1B49`` and ``1010:3B17``
+    Their bodies reach ``1010:03C2``, which does ``inp(0x61)``/``outp(0x61, 3)``
+    on the PC speaker. :class:`dos_re.lift.shadow._NoEffectPlat` refuses every
+    platform attribute precisely so this surfaces as an error on the first call
+    rather than as a run perturbed by a doubled device write that every compared
+    observable agrees about. An address whose body performs platform I/O is not
+    shadowable by this instrument, and that is a recorded limit, not a to-do.
+
+NEXT UP, and what it will cost -- ``1010:41A0`` masked_blit (read, not attempted)
+    Eight blocks, no callees, and an island already exists, so it looks like the
+    natural successor to 3A22. Three things make it more than that, all read off
+    the generated body rather than guessed:
+
+      * it is SELF-MODIFYING. 41A0 writes the low threshold byte into its OWN
+        code at ``cs:41E9`` and the middle loop re-reads it from there on every
+        pixel. The write is just another entry in the log, but a candidate that
+        uses the threshold as a value instead of re-reading it is making an
+        assumption the ASM does not (it holds only while ES != 0x1010).
+      * the middle band is a ``loop``, so a computed count of 0 means 65,536
+        pixels; the top and bottom bands are ``rep movsb``, where 0 means none.
+        Two opposite readings of a zero count in one function.
+      * ``masked_blit`` takes its thresholds eagerly and its bands as counts, so
+        both would have to become lazy -- and ``present_rect`` (1010:4201) and
+        ``skyroads/native/frame.py`` call it as it stands.
+
+    Also worth pinning when it is attempted: the middle-band pixel count is read
+    from ``ss:[0x9612]``, not ds -- the two are equal in this program, so a body
+    that used ds would agree on every real call and still be wrong.
 """
 from __future__ import annotations
 
