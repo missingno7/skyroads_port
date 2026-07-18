@@ -177,3 +177,97 @@ def test_every_declared_body_matches_its_generated_signature():
         gen = getattr(importlib.import_module(f"skyroads.recovered.{name}"), name)
         assert inspect.signature(body) == inspect.signature(gen), (
             f"{addr}: island body signature differs from the generated one")
+
+
+# --- 1010:1631 road_segment_clip ---------------------------------------------
+#
+# The demos leave three of the ten (arm, second_test) combinations UNTOUCHED --
+# (0x300, False), (0x500, False) and (0x500, True) -- so no amount of replay
+# proves them. These forced states do, against the same authority and with the
+# same total comparison, which is what lets the body drive without its
+# unexercised arms being taken on trust.
+
+from skyroads.island_bodies import CLIP_COST                # noqa: E402
+from skyroads.island_bodies import func_1010_1631 as ISLAND_1631     # noqa: E402
+from skyroads.recovered.func_1010_1631 import func_1010_1631 as GEN_1631  # noqa: E402
+from skyroads.handrecovered.renderer import (                        # noqa: E402
+    ARM_CULLED, ARM_DEFAULT, road_segment_clip_detail)
+
+#: (arm, second_test) -> a (dir_sel, seg, coord, low, high) that FORCES it.
+#: row = ((coord + 0xDE00) & 0xFFFF) >> 7, so coord 0x2200 + 128*r gives row r.
+_CLIP_CASES = {
+    (ARM_CULLED, False):  (0x0100, 0x0026, 0x3000, 0x0000, 0x0040),
+    (ARM_DEFAULT, False): (0x0700, 0x0010, 0x3000, 0x0000, 0x0040),
+    (0x0100, False):      (0x0100, 0x0010, 0x2200 + 128 * 20, 0x0005, 0x0010),
+    (0x0100, True):       (0x0100, 0x0010, 0x2200 + 128 * 20, 0x0005, 0x0040),
+    (0x0200, False):      (0x0200, 0x0010, 0x3000, 0x0000, 0x0040),
+    (0x0300, False):      (0x0300, 0x0010, 0x3300, 0x0000, 0x0040),
+    (0x0300, True):       (0x0300, 0x0010, 0x3100, 0x0005, 0x0040),
+    (0x0400, False):      (0x0400, 0x0010, 0x3000, 0x0000, 0x0040),
+    (0x0500, False):      (0x0500, 0x0010, 0x3D00, 0x0000, 0x0040),
+    (0x0500, True):       (0x0500, 0x0010, 0x3B00, 0x0005, 0x0040),
+}
+_CLIP_T_LOW, _CLIP_T_HIGH = 76, 152
+
+
+def _clip_state(rng, case):
+    """A full pre-state that forces ``case``; registers are randomized so a body
+    that leaked an input into the wrong output cannot hide behind a zero."""
+    dir_sel, seg, coord, low, high = case
+    ss, ds = rng.randrange(0x1000, 0x8000), rng.randrange(0x1000, 0x8000)
+    regs = dict(bp=rng.randrange(0x10000), bx=rng.randrange(0x10000),
+                cx=rng.randrange(0x10000), di=rng.randrange(0x10000),
+                dx=rng.randrange(0x10000), si=rng.randrange(0x10000),
+                ds=ds, ss=ss, sp=rng.randrange(0x0100, 0xFF00) & ~1)
+
+    def build():
+        m = Mem()
+        for i, w in enumerate((dir_sel, seg, coord)):
+            m.ww(ss, (regs["sp"] + 2 + 2 * i) & 0xFFFF, w)
+        bx = (seg << 1) & 0xFFFF
+        m.ww(ds, (bx + _CLIP_T_LOW) & 0xFFFF, low)
+        m.ww(ds, (bx + _CLIP_T_HIGH) & 0xFFFF, high)
+        m.log.clear()
+        return m
+
+    return regs, build
+
+
+@pytest.mark.parametrize("case", sorted(_CLIP_CASES, key=str))
+def test_1631_island_body_reproduces_the_full_contract_on_every_arm(case):
+    rng = random.Random(0x1631 ^ (hash(case) & 0xFFFF))
+    for _ in range(50):
+        regs, build = _clip_state(rng, _CLIP_CASES[case])
+        g = build()
+        go, gc = GEN_1631(g, **regs)
+        i = build()
+        io, ic = ISLAND_1631(i, **regs)
+        ctx = (f"case={case} " + " ".join(f"{k}={v:04X}"
+                                          for k, v in sorted(regs.items())))
+        assert set(io) == set(go), f"output SET differs; {ctx}"
+        for name in OUTPUTS:
+            assert io[name] == go[name], (
+                f"output {name}: generated={go[name]:04X} island={io[name]:04X}; {ctx}")
+        for name in ("flags", "fmask", "cost"):
+            assert ic[name] == gc[name], (
+                f"compat {name}: generated={gc[name]:#x} island={ic[name]:#x}; {ctx}")
+        assert i.log == g.log, f"the stack residue differs; {ctx}"
+
+
+def test_every_1631_arm_is_actually_forced_by_its_case():
+    """The table above is only evidence if each entry reaches the arm it names --
+    otherwise ten parametrized cases can all exercise the same path and read as
+    complete coverage. This asserts the mapping is onto."""
+    rng = random.Random(4242)
+    seen = set()
+    for case, args in _CLIP_CASES.items():
+        dir_sel, seg, coord, low, high = args
+        r = road_segment_clip_detail(dir_sel, seg, coord,
+                                     lambda: low, lambda: high)
+        assert (r.arm, r.second_test) == case, (
+            f"case {case} actually reaches {(r.arm, r.second_test)}")
+        regs, build = _clip_state(rng, args)
+        assert GEN_1631(build(), **regs)[1]["cost"] == CLIP_COST[case], (
+            f"case {case}: the generated body disagrees with the cost table")
+        seen.add(case)
+    assert seen == set(CLIP_COST), "an arm in the cost table has no forcing case"

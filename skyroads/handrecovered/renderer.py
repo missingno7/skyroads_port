@@ -75,6 +75,45 @@ SEG_BOUND_LOW_TABLE = 0x4C
 SEG_BOUND_HIGH_TABLE = 0x98
 
 
+#: ``arm`` values of :class:`SegmentClipResult` -- WHICH tail 1010:1631 ran.
+#: The five selector arms are the selector value itself, so an arm doubles as
+#: the ``dir_sel & 0xF00`` that chose it; the two structural arms are negative
+#: so they can never collide with one.
+ARM_CULLED = -1        # 1642: seg > 0x25, `mov ax,0` and straight out
+ARM_DEFAULT = -2       # 172B: no selector matched, AX left holding the selector
+
+
+class SegmentClipResult(NamedTuple):
+    """Everything 1010:1631's caller -- and its ABI adapter -- needs.
+
+    ``result`` is the returned AX and is the whole SEMANTIC answer; the rest is
+    the structure an exact-state adapter needs and cannot re-derive without
+    duplicating the decision the island just made. Nothing here is virtual time
+    or a flag: the island owns the CONTROL FLOW, the adapter owns the ABI.
+
+    ``second_test`` says whether the arm ran its SECOND comparison (the bound
+    read at 1696/16BB/16E5). It is what discriminates the two costs an arm can
+    have, and it also names which compare set the exit flags -- so it must come
+    from here rather than being guessed from ``result``: on the 0x100 arm
+    ``result == 0`` is produced by BOTH the short exit (row >= high) and the
+    long one (row < low), at different costs.
+
+    ``cmp_lhs``/``cmp_rhs`` are the operands of the LAST compare executed, whose
+    flags are the ones the function returns. ``bx`` is ``seg*2`` when a bound
+    was actually read (the `shl bx,1` at 1696/16BB/16D6/16E5 leaves it live) and
+    None when no read happened, because BX is otherwise untouched.
+    """
+
+    result: int
+    arm: int
+    second_test: bool
+    row: int           # DI inside the body: (coord - 0x2200) / 128, unsigned
+    rem128: int        # DX at return: the same divide's remainder
+    bx: "int | None"   # seg*2 if a bound table was read, else BX is unmodified
+    cmp_lhs: int
+    cmp_rhs: int
+
+
 @oracle_link(
     boundary="1010:1631",
     contract="road_segment_clip(dir_sel, seg, coord, low_bound, high_bound): "
@@ -84,29 +123,86 @@ SEG_BOUND_HIGH_TABLE = 0x98
              "0x400 -> coord<0x3C00; 0x500 -> coord<0x3C00 and di>=low; "
              "else -> the selector value itself. All compares unsigned. "
              "low_bound/high_bound are ds:[0x4C+2*seg]/ds:[0x98+2*seg].",
-    status="ASM_MATCHED",  # 9,238/9,238 in-game calls matched (selectors 0x100/0x200/
-                           # default exercised; 0x300/0x400/0x500 decoded, not yet hit)
+    # Byte-exact against the generated 1010:1631 -- which is itself byte-exact
+    # against the interpreted ASM oracle from cold start -- on the WHOLE
+    # contract: all seven output registers, exit flags, fmask, virtual-time cost
+    # and the ordered byte-write log, with NO exemptions. Two populations, and
+    # the claim is exactly their union and no wider:
+    #
+    #  * dos_re.lift.shadow over 1,851 REAL calls -- demo_cold_20260718_003412
+    #    (2) + demo_colde2e_full_20260713_144604 (1,849). MEASURED arm coverage,
+    #    7 of the 10 (arm, second_test) combinations: CULLED 774, 0x300+second
+    #    399, 0x100+second 372, DEFAULT 134, 0x100 short 103, 0x200 68,
+    #    0x400 1. The two demos are BOTH needed: 0x400 occurs only in the cold
+    #    demo, everything else only in the E2E one.
+    #  * tests/test_island_bodies.py forced states for all 10 arms, 50 randomized
+    #    register sets each -- which is the only evidence covering the three no
+    #    demo reaches: (0x300, no-second), (0x500, no-second), (0x500, second).
+    #
+    # So the 0x500 arm has never run in a real playthrough; it is proven against
+    # the generated body, not observed in the game.
+    status="VERIFIED",
     merge_target="skyroads.native.renderer (future)",
 )
 def road_segment_clip(dir_sel: int, seg: int, coord: int,
                       low_bound: int, high_bound: int) -> int:
+    """The pure predicate. Bounds are supplied eagerly; see
+    :func:`road_segment_clip_detail` for the lazy-read, ABI-shaped variant."""
+    return road_segment_clip_detail(dir_sel, seg, coord,
+                                    lambda: low_bound, lambda: high_bound).result
+
+
+def road_segment_clip_detail(dir_sel: int, seg: int, coord: int,
+                             read_low, read_high) -> SegmentClipResult:
+    """1010:1631 with its decision structure exposed, and the bounds read LAZILY.
+
+    ``read_low``/``read_high`` are zero-argument accessors for
+    ``ds:[0x4C + 2*seg]`` / ``ds:[0x98 + 2*seg]``. They are called only on the
+    arms that really touch those tables, and in the ASM's own order, so a caller
+    that counts memory traffic sees what the original does.
+    """
     seg &= 0xFFFF
-    if seg > 0x25:  # `cmp si,0x25; ja` at 163A — >37 culled
-        return 0
-    di = ((coord - 0x2200) & 0xFFFF) >> 7  # (coord-0x2200)/128, unsigned
     coord &= 0xFFFF
+    if seg > 0x25:  # `cmp si,0x25; ja` at 163A — >37 culled
+        return SegmentClipResult(0, ARM_CULLED, False, 0, 0, None, seg, 0x25)
+
+    # 1648: ax = coord + 0xDE00 (i.e. coord - 0x2200); xor dx,dx; div cx(0x80).
+    biased = (coord + 0xDE00) & 0xFFFF
+    row, rem128 = biased >> 7, biased & 0x7F
+    bx = (seg << 1) & 0xFFFF
     sel = dir_sel & 0x0F00
-    if sel == 0x0100:
-        return 1 if (low_bound <= di < high_bound) else 0
-    if sel == 0x0200:
-        return 1 if coord < 0x3200 else 0
-    if sel == 0x0300:
-        return 1 if (coord < 0x3200 and di >= low_bound) else 0
-    if sel == 0x0400:
-        return 1 if coord < 0x3C00 else 0
-    if sel == 0x0500:
-        return 1 if (coord < 0x3C00 and di >= low_bound) else 0
-    return sel  # default path: the ASM falls through returning AX = the selector
+
+    if sel == 0x0100:                              # 16D6: two-sided band
+        high = read_high()
+        if row >= high:                            # 16E0 jb not taken -> ax = 0
+            return SegmentClipResult(0, sel, False, row, rem128, bx, row, high)
+        low = read_low()                           # 16E5: re-`shl`, read t4C
+        return SegmentClipResult(1 if row >= low else 0, sel, True,
+                                 row, rem128, bx, row, low)
+    if sel == 0x0200:                              # 1660
+        return SegmentClipResult(1 if coord < 0x3200 else 0, sel, False,
+                                 row, rem128, None, coord, 0x3200)
+    if sel == 0x0300:                              # 168C
+        if coord >= 0x3200:
+            return SegmentClipResult(0, sel, False, row, rem128, None,
+                                     coord, 0x3200)
+        low = read_low()                           # 1696
+        return SegmentClipResult(1 if row >= low else 0, sel, True,
+                                 row, rem128, bx, row, low)
+    if sel == 0x0400:                              # 1676
+        return SegmentClipResult(1 if coord < 0x3C00 else 0, sel, False,
+                                 row, rem128, None, coord, 0x3C00)
+    if sel == 0x0500:                              # 16B1
+        if coord >= 0x3C00:
+            return SegmentClipResult(0, sel, False, row, rem128, None,
+                                     coord, 0x3C00)
+        low = read_low()                           # 16BB
+        return SegmentClipResult(1 if row >= low else 0, sel, True,
+                                 row, rem128, bx, row, low)
+    # 172B: the ASM falls off the selector chain returning AX = the selector,
+    # with the flags of the last compare in that chain (`cmp ax,0x500`).
+    return SegmentClipResult(sel, ARM_DEFAULT, False, row, rem128, None,
+                             sel, 0x500)
 
 
 @oracle_link(

@@ -31,7 +31,8 @@ WHY THE STACK WRITES ARE HERE, spelled out because they look like noise:
 """
 from __future__ import annotations
 
-from skyroads.handrecovered.renderer import perspective_row_offset
+from skyroads.handrecovered.renderer import (
+    ARM_CULLED, ARM_DEFAULT, perspective_row_offset, road_segment_clip_detail)
 
 #: parity of the low byte, as the emitter computes it (PF is set from bits 0-7).
 _PARITY = tuple((1 - bin(v).count('1') % 2) == 1 for v in range(256))
@@ -160,6 +161,86 @@ def func_1010_04c0(mem, *, bp=0, bx=0, di=0, ds=0, dx=0, si=0, sp=0, ss=0):
             {'flags': flags & FMASK, 'fmask': FMASK, 'cost': COST_IN_RANGE})
 
 
+# --- 1010:1631 road_segment_clip ---------------------------------------------
+#
+#: ds-relative bases of the two per-segment bound tables (76 = 0x4C low,
+#: 152 = 0x98 high), indexed by ``seg*2``.
+_T_LOW, _T_HIGH = 76, 152
+
+#: Virtual-time cost per (arm, second_test). DERIVED BY SUMMING the generated
+#: body's own per-block ``_cost += n`` along each path -- the generated body is
+#: the authority, not a fit to observed data -- and then CONFIRMED against it:
+#: the union of the two demos produced exactly {12, 30, 31, 34, 36, 37} and no
+#: value outside this table, and every one of those is re-proven on every
+#: shadowed call. Two arms are absent from that set and their entries are
+#: therefore derivation only, flagged here rather than left to look measured:
+#: the 0x500 arm (both costs) and, indistinguishably, ARM_DEFAULT -- whose 31
+#: collides with the 0x100 short exit, so an observed 31 does not witness it.
+CLIP_COST = {
+    (ARM_CULLED, False): 12,     # 1642: `mov ax,0` straight out
+    (ARM_DEFAULT, False): 31,    # 172B: fell off the selector chain  [DERIVED]
+    (0x0100, False): 31,         # 16D6 -> 16E0 jb not taken
+    (0x0100, True): 36,          # 16D6 -> 16E5 second bound read
+    (0x0200, False): 30,         # 1660
+    (0x0300, False): 32,         # 168C, coord >= 0x3200        [DERIVED]
+    (0x0300, True): 37,          # 168C -> 1696
+    (0x0400, False): 34,         # 1676
+    (0x0500, False): 36,         # 16B1, coord >= 0x3C00        [DERIVED]
+    (0x0500, True): 41,          # 16B1 -> 16BB                 [DERIVED]
+}
+
+#: Every path accumulates exactly the same six-flag mask (no block contributes
+#: DF or IF, and the `shl bx,1` arms contribute 0x8C5, a strict subset).
+CLIP_FMASK = 0x8D5
+
+#: The divisor left in CX by the row divide -- live at return on every arm but
+#: ARM_CULLED, which exits before `mov cx,0x80` at 164E.
+CLIP_DIVISOR = 0x80
+
+
+def func_1010_1631(mem, *, bp=0, bx=0, cx=0, di=0, ds=0, dx=0, si=0, sp=0, ss=0):
+    """``1010:1631`` road_segment_clip, driven by the island.
+
+    Arguments are on the stack: the body opens ``push bp; mov bp,sp; sub sp,2``
+    and reads ``[bp+4] [bp+6] [bp+8]`` -- relative to the ENTRY sp, ``+2 +4 +6``
+    -- dir_sel, seg, coord.
+
+    BP, SI and DI are CALLEE-SAVED (pushed at 1631/1637/1638, popped at 172E),
+    so the row this computes in DI and the seg it holds in SI are internal steps
+    and never observables. CX and DX are NOT saved: the row divide leaves the
+    divisor and the remainder live, and both are returned -- except on the culled
+    arm, which exits before the divide runs at all.
+
+    The one local slot (``sub sp,2`` at 1635) is never stored to on any path, so
+    unlike 04C0 this body's entire memory footprint is the three pushes.
+    """
+    dir_sel = mem.rw(ss, (sp + 2) & 0xFFFF)
+    seg = mem.rw(ss, (sp + 4) & 0xFFFF)
+    coord = mem.rw(ss, (sp + 6) & 0xFFFF)
+
+    r = road_segment_clip_detail(
+        dir_sel, seg, coord,
+        lambda: mem.rw(ds, (((seg << 1) & 0xFFFF) + _T_LOW) & 0xFFFF),
+        lambda: mem.rw(ds, (((seg << 1) & 0xFFFF) + _T_HIGH) & 0xFFFF))
+
+    # `push bp; mov bp,sp; sub sp,2; push si; push di` -- the local slot at
+    # sp-4 is skipped because nothing ever writes it.
+    mem.ww(ss, (sp - 2) & 0xFFFF, bp)
+    mem.ww(ss, (sp - 6) & 0xFFFF, si)
+    mem.ww(ss, (sp - 8) & 0xFFFF, di)
+
+    _, flags = _sub16(r.cmp_lhs & 0xFFFF, r.cmp_rhs & 0xFFFF)
+    culled = r.arm == ARM_CULLED
+    return ({'ax': r.result & 0xFFFF, 'bp': bp & 0xFFFF,
+             'bx': bx & 0xFFFF if r.bx is None else r.bx,
+             'cx': cx & 0xFFFF if culled else CLIP_DIVISOR,
+             'di': di & 0xFFFF, 'dx': dx & 0xFFFF if culled else r.rem128,
+             'si': si & 0xFFFF},
+            {'flags': flags & CLIP_FMASK, 'fmask': CLIP_FMASK,
+             'cost': CLIP_COST[(r.arm, r.second_test)]})
+
+
 #: address -> island-driven body. This is what may be shadowed, and -- once a
 #: shadow has VERIFIED it over demos exercising every path -- what may drive.
-BODIES = {"1010:04C0": func_1010_04c0}
+BODIES = {"1010:04C0": func_1010_04c0,
+          "1010:1631": func_1010_1631}
