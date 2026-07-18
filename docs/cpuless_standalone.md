@@ -82,5 +82,33 @@ Two pieces make the cold boot work:
   the game's own recovered INT 08h ISR (`func_1010_3b17`), advancing `ds:[1600]`
   so the tick-wait exits and the recovered body renders the next frame.
 
-**Next:** demo-input replay (recovered INT 09h) for full interactivity, and a
-frame-exact `verify_cpuless` differential against the oracle.
+## Frame-exact verification (`verify_cpuless.py`)
+
+`scripts/verify_cpuless.py` is the CPUless analogue of `verify_vmless_demo.py`:
+it drives the committed `skyroads/recovered/` corpus through
+`CPUlessPlatformRuntime` (NO CPU) and diffs every frame's VGA plane + DAC palette
+against the interpreted ASM oracle over a cold demo.
+
+```sh
+python scripts/verify_cpuless.py artifacts/demos/demo_cold_20260718_003412
+```
+
+It **PASSES all 672 frames** of the full cold playthrough (intro → menu → level
+select → play → die → leave → intro), byte-exact, with no CPU / no interpreter /
+no lifted graph. Three mechanisms make an interactive playthrough reproduce
+frame-exact:
+
+- **Input timing**: each frame's demo input is applied to the upcoming frame at
+  the boundary that captured the previous one, so input *N* affects frame *N*'s
+  render (matching the oracle's apply-before-run).
+- **Blocking reads**: a press-any-key `INT 21h AH=07` on an empty buffer must
+  *wait*. The harness clears `console_input_fallback` (no phantom Esc) and
+  installs `CPUlessPlatformRuntime.blocking_read_cb`, which advances a frame in
+  place (frozen screen + IRQ-driven palette fade) until the awaited key arrives,
+  then the read retries — the CPUless equivalent of a flat CPU rewinding its IP.
+- **Boundary-model coverage**: the cold demo is timed to the 2nd-pass boundary
+  cut, so `build_codemap.py` observes `BOUNDARY_DEMOS` through the same
+  `run_to_cut` model the runtime reproduces (not the steps-per-frame front-end,
+  which diverges). Without it the census misses the real end-game code and the
+  recovered build fail-loud-stubs reachable exits (`1010:2EFC`, …) as
+  runtime-dead.
