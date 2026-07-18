@@ -181,6 +181,17 @@ class VmlessDriver:
             parks={f"{k:04X}": v for k, v in sorted(self.parks.items())})
         print(f"\n[vmless] CRASHED at frame {self.frames}: "
               f"{type(exc).__name__}: {str(exc)[:200]}")
+        # The lifted call chain is the game's own path to the fault; CS:IP in the
+        # snapshot names one instruction, this names how it got there.
+        from dos_re.crash import recovered_call_chain, witness_address
+        addr, chain = witness_address(exc), recovered_call_chain(exc)
+        if addr:
+            print(f"[vmless] refused at {addr}")
+        if chain:
+            shown = chain[-12:]
+            lead = "" if len(chain) == len(shown) else \
+                f"... ({len(chain) - len(shown)} more) -> "
+            print(f"[vmless] lifted call chain: {lead}{' -> '.join(shown)}")
         print(f"[vmless] machine saved -> {out}")
         print(f"[vmless] resume it (you land ON the fault, no replay):\n"
               f"           from dos_re.snapshot_headless import load_snapshot_headless\n"

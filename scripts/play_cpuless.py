@@ -102,6 +102,27 @@ def _vga_nonzero(mem) -> int:
     return sum(1 for b in mem.data[base:base + 64000] if b)
 
 
+def _end_session(recorder, frame: int, keep: bool) -> None:
+    """Finish a session that did NOT crash.
+
+    The recording only exists to reproduce a crash, so a clean run drops it --
+    otherwise every play session litters artifacts/demos with a demo nobody
+    asked for.  ``--keep-demo`` keeps it (useful for capturing a coverage demo
+    on purpose: play the path, keep it, feed it to build_codemap)."""
+    if recorder is None or not getattr(recorder, "active", False):
+        return
+    demo_dir = recorder.demo_dir
+    try:
+        recorder.stop(boundary=frame)
+    except Exception:                                # noqa: BLE001
+        return
+    if keep:
+        print(f"[cpuless] session demo kept: {demo_dir}")
+        return
+    import shutil
+    shutil.rmtree(demo_dir, ignore_errors=True)
+
+
 class _Done(Exception):
     """Frame budget reached (headless)."""
 
@@ -177,6 +198,7 @@ def run_headless(frames: int, rebuild: bool) -> int:
     """No window, no input, frame-capped: the CI/agent probe."""
     from skyroads.cpuless_driver import CPUlessFrameDriver
     from skyroads.recovered.func_1010_3b17 import func_1010_3b17
+    from dos_re.x86 import HaltExecution          # CPU-FREE shared leaf
 
     mem, dos, rt, regs0 = _boot(rebuild, mouse_present=False)
     limit = frames or 30
@@ -202,19 +224,35 @@ def run_headless(frames: int, rebuild: bool) -> int:
     except _Done:
         print(f"[cpuless] rendered {done['n']} frames (VGA nonzero "
               f"px={_vga_nonzero(mem)}) CPU-free -- no CPU, no interpreter")
+    except HaltExecution:                # int 21h/4Ch: the game itself exited
+        print(f"[cpuless] the game exited (int 21/4C) after {done['n']} "
+              f"frame(s) -- no CPU, no interpreter")
+    except BaseException as e:           # noqa: BLE001 -- report ANY stop, then re-raise
+        # No input source here, so no demo to record; the machine state and the
+        # recovered call chain are still worth having.
+        from skyroads.crash_report import write_crash_bundle, print_crash_summary
+        bundle = write_crash_bundle(ROOT / "artifacts" / "crashes", e, mem=mem,
+                                    dos=dos, frame=driver.frame, head=driver.head,
+                                    stage="cpuless-headless")
+        print_crash_summary(bundle, e, frame=driver.frame)
+        raise
     return 0
 
 
 def run_interactive(scale: int, square_pixels: bool, present_hz: int,
-                    rebuild: bool) -> int:
+                    rebuild: bool, keep_demo: bool = False) -> int:
     """The playable window: live keyboard, running until you quit."""
     import numpy as np
     import pygame
     from dos_re.display import Display
     from dos_re.framebuffer import WIDTH, HEIGHT, decode_frame_default
     from dos_re.keyboard import KeyDispatcher, scancode_table
-    from skyroads.cpuless_driver import CPUlessFrameDriver
+    from dos_re.input_demo import InputDemoRecorder          # CPU-free data layer
+    from skyroads.cpuless_driver import (CPUlessFrameDriver,
+                                         TIMER_IRQS_PER_FRAME)
     from skyroads.recovered.func_1010_3b17 import func_1010_3b17
+    from skyroads.crash_report import write_crash_bundle, print_crash_summary
+    from dos_re.x86 import HaltExecution          # CPU-FREE shared leaf
 
     mem, dos, rt, regs0 = _boot(rebuild, mouse_present=True)
     shim = _RtShim(dos, mem)
@@ -237,7 +275,30 @@ def run_interactive(scale: int, square_pixels: bool, present_hz: int,
     # cleared before the game polls it (see dos_re.keyboard).  The dispatcher
     # defers each break by a frame; ``regs`` is rebound per frame below.
     live = {"regs": {}}
-    dispatcher = KeyDispatcher(lambda sc: deliver(sc, live["regs"]))
+
+    # Record EVERY session, unconditionally.  A hard-wall stop is a coverage
+    # bug, and the cheapest way to fix one is to replay the exact session that
+    # found it -- impossible if recording were opt-in, because nobody opts in
+    # before the crash they did not expect.  A cold-start demo needs no start
+    # snapshot (we boot from the C-startup root every time) and no CPU.
+    recorder = InputDemoRecorder(
+        root=ROOT / "artifacts" / "demos", name="cpuless_session",
+        metadata={"game": "skyroads", "exe": "SKYROADS.EXE", "command_tail": "",
+                  "timer_irqs_per_frame": TIMER_IRQS_PER_FRAME,
+                  "mouse_present": True, "runner": "play_cpuless"})
+    recorder.start(None, boundary=0, write_start_snapshot=False)
+
+    def deliver_and_record(sc: int) -> None:
+        # Record at the frame the key is DELIVERED at, not when it was pressed:
+        # the dispatcher defers breaks, and a replay re-delivers at the recorded
+        # boundary, so recording the press frame would shift held keys by a frame.
+        recorder.record_scan(boundary=driver.frame, scancode=sc)
+        deliver(sc, live["regs"])
+
+    # A key must be HELD for at least one frame or a quick tap can be set and
+    # cleared before the game polls it (see dos_re.keyboard).  The dispatcher
+    # defers each break by a frame; ``regs`` is rebound per frame below.
+    dispatcher = KeyDispatcher(deliver_and_record)
 
     def pump_events():
         for event in pygame.event.get():
@@ -274,11 +335,26 @@ def run_interactive(scale: int, square_pixels: bool, present_hz: int,
           f"close the window to quit")
     try:
         _enter(rt, regs0)
+        _end_session(recorder, driver.frame, keep_demo)
         print(f"[cpuless] the game exited normally after {driver.frame} frames "
               f"-- no CPU, no interpreter")
+    except HaltExecution:                # int 21h/4Ch: the game itself exited
+        _end_session(recorder, driver.frame, keep_demo)
+        print(f"[cpuless] the game exited (int 21/4C) after {driver.frame} "
+              f"frames -- no CPU, no interpreter")
     except _Quit:
+        _end_session(recorder, driver.frame, keep_demo)
         print(f"[cpuless] quit after {driver.frame} frames -- no CPU, "
               f"no interpreter")
+    except BaseException as e:           # noqa: BLE001 -- report ANY stop, then re-raise
+        # Includes the fail-loud hard wall.  The bundle is written HERE, where
+        # the machine and the session recording are still in scope; run() below
+        # only formats the frontier message.
+        bundle = write_crash_bundle(ROOT / "artifacts" / "crashes", e, mem=mem,
+                                    dos=dos, frame=driver.frame, head=driver.head,
+                                    recorder=recorder, stage="cpuless")
+        print_crash_summary(bundle, e, frame=driver.frame)
+        raise
     finally:
         pygame.quit()
     return 0
@@ -297,7 +373,7 @@ def run(args) -> int:
         if args.headless:
             return run_headless(args.frames, args.rebuild)
         return run_interactive(args.scale, args.square_pixels,
-                               args.present_hz, args.rebuild)
+                               args.present_hz, args.rebuild, args.keep_demo)
     except (UnsupportedPlatformEffect, *([UnknownDispatchTarget]
                                          if UnknownDispatchTarget else [])) as e:
         print(f"\n[cpuless] HARD-WALL FRONTIER (fail-loud, by design):\n  {e}")
@@ -326,6 +402,9 @@ def main(argv=None) -> int:
                     help="1:1 pixels instead of the 1.2 CRT aspect")
     ap.add_argument("--present-hz", type=int, default=PRESENT_HZ,
                     help="frames presented per second")
+    ap.add_argument("--keep-demo", action="store_true",
+                    help="keep the session's input demo after a clean run "
+                         "(a crash always keeps it, in the crash bundle)")
     ap.add_argument("--rebuild", action="store_true",
                     help="regenerate the standalone corpus first")
     return run(ap.parse_args(argv))
