@@ -70,6 +70,11 @@ def _norm(addr: str) -> str:
 #: native/ modules that hold FLOW rather than a routine -- the wrong stitches.
 #: The skeleton supersedes these; anything depending on one is sewn to flow that
 #: was inferred from the screen instead of lifted from the program.
+#:
+#: ``menus`` and ``level_select`` have since been DELETED (they were the pair
+#: with zero recovered-address anchors between them). Their names stay in this
+#: set deliberately: it is a classification of what counts as flow, so it should
+#: still fire if either is ever reintroduced.
 FLOW_MODULES = {"menus", "level_select", "state", "boot", "classify", "loop",
                 "frame"}
 

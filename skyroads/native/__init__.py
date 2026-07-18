@@ -14,9 +14,11 @@ and verified against the oracle, each named for the address it came from:
     tile_dispatch.py  1010:2D1F, the road-tile dispatch loop, transcribed
     render_frame.py   1010:34AE, the road render
     sfx.py            1010:03C2, the SFX trigger + the SFX.SND sample bank
-    menus.py          cold-boot screen/menu transitions, VERIFIED against the
-                      oracle demo
-    level_select.py   the level-select grid, semantics VERIFIED against oracle
+    (menus.py and level_select.py were REMOVED: they held screen-to-screen
+     FLOW inferred from rendered frames, with zero recovered-address anchors
+     between them -- the generated corpus holds the program's real flow, and a
+     second, invented copy of it can only drift. The measured level-grid
+     ENCODING they carried is preserved in docs/skyroads/run_status.md.)
     exe_image.py      the game's own packer stub, reimplemented -- and
                       scripts/build_boot_image.py depends on it reproducing the
                       unpack byte-exactly

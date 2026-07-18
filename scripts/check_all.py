@@ -53,7 +53,11 @@ def main(argv=None) -> int:
     print("[check] cheap gates first")
     results.append(_run("cpuless purity (no path reaches a CPU)",
                         ["tools/lint_cpuless.py"], expect="PASS"))
-    results.append(_run("port test suite", ["-m", "pytest", "tests/", "-q"]))
+    # `-n auto` is a free ~5x on this suite (263s serial -> ~54s). It also means
+    # the corpus-rebuilding smoke test races the corpus-importing one, which is
+    # why those two now serialize on a lock file rather than on luck.
+    results.append(_run("port test suite", ["-m", "pytest", "tests/", "-q",
+                                            "-n", "auto"]))
     results.append(_run("dos_re test suite",
                         ["-m", "pytest", "dos_re/tests/", "-q"]))
     results.append(_run("play_cpuless boots (no CPU)",
@@ -61,11 +65,24 @@ def main(argv=None) -> int:
                         expect="REACHED FIRST FRAME BOUNDARY"))
 
     if not args.quick:
+        # The shadow rung, GATED. It used to run only when a human typed
+        # --shadow-islands, which means a checker could rot indefinitely without
+        # anything going red -- and the checker it replaced HAD rotted, comparing
+        # one register out of a ten-part contract.
+        #
+        # It runs oracle-free (--shadow-only) because a shadow compares the
+        # candidate against the generated body IN PROCESS: the oracle proves
+        # nothing extra about it and is most of the wall clock. This is also the
+        # gate that catches an override which is never CALLED -- that reports
+        # INCONCLUSIVE, not success.
+        results.append(_run("island shadows (candidates vs generated, full contract)",
+                            ["scripts/verify_cpuless.py", args.demo, "--shadow-only"],
+                            expect="PASS"))
         print("[check] frame-exact differentials (the ones that actually prove it)")
         results.append(_run("verify_vmless  (lifted corpus vs ASM oracle)",
                             ["scripts/verify_vmless_demo.py", args.demo],
                             expect="PASS"))
-        results.append(_run("verify_cpuless (recovered corpus, NO CPU)",
+        results.append(_run("verify_cpuless (recovered corpus, NO CPU, overrides DRIVING)",
                             ["scripts/verify_cpuless.py", args.demo],
                             expect="PASS"))
     else:

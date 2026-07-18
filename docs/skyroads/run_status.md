@@ -627,11 +627,21 @@ give the rules:
 - LEFT/RIGHT switch **column** preserving the vertical (row+road) position.
 
 This **refutes the shipped `--boot` model** (`road = (road±1)%3`;
-`world = (world±1)%10`), which was an explicit guess. Recovered as
-`skyroads/native/level_select.py::move_selection` (+ grid encoding), wired into
-`play_native.run_cold_boot`, guarded by `tests/test_level_select.py` (7 cases
-transcribed from the demo trace). The grid layout/`level_box` geometry the boot
-path already had matches the rendered grid and is unchanged.
+`world = (world±1)%10`), which was an explicit guess.
+
+**The grid encoding, transcribed here when `skyroads/native/level_select.py`
+was removed** (see the CPUless-absorption note below): the module was deleted as
+host-created flow, but this part is a MEASURED DATA LAYOUT read off the rendered
+grid, not inferred control flow, so it is kept:
+
+```
+level = column*15 + entry,  entry = row*3 + road,  planet = column*5 + row
+column 0 (left, top->bottom):  Red Heat, Into the Sun, Blue Planet, Satellite, Misty
+column 1 (right, top->bottom): Asteroid Belt, Crab Nebula, Over the Base, The Earth, Druidia
+```
+
+The grid layout/`level_box` geometry the boot path already had matches the
+rendered grid and is unchanged.
 
 **Follow-up oracle (same day): `demo_colde2e_full_20260713_144604`** — a full
 end-to-end cold session (intro → main menu → several levels → Help → exit),
