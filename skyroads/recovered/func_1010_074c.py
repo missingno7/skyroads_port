@@ -7,24 +7,14 @@ The second return value (_compat) is generated compatibility metadata
 generated CPU-ABI adapter -- it is not part of the recovered API.
 """
 
-from skyroads.recovered.func_1010_06a4 import func_1010_06a4
-from skyroads.recovered.func_1010_06b9 import func_1010_06b9
 from skyroads.recovered.func_1010_5d8c import func_1010_5d8c
 
 _PARITY = tuple((1 - bin(v).count('1') % 2) == 1 for v in range(256))
 
 
-def func_1010_074c(mem, plat, *, _base=0, _flags_in=2, bp=0, bx=0, cx=0, di=0, ds=0, dx=0, es=0, si=0, sp=0, ss=0):
+def func_1010_074c(mem, *, bp=0, bx=0, cx=0, di=0, ds=0, dx=0, si=0, sp=0, ss=0):
     _cost = 0
     cf = pf = af = zf = sf = of = df = intf = False
-    af = (_flags_in & 0x10) != 0
-    cf = (_flags_in & 0x1) != 0
-    df = (_flags_in & 0x400) != 0
-    intf = (_flags_in & 0x200) != 0
-    of = (_flags_in & 0x800) != 0
-    pf = (_flags_in & 0x4) != 0
-    sf = (_flags_in & 0x80) != 0
-    zf = (_flags_in & 0x40) != 0
     _fmask = 0
     cs = 0x1010
     bb = 0
@@ -784,58 +774,7 @@ def func_1010_074c(mem, plat, *, _base=0, _flags_in=2, bp=0, bx=0, cx=0, di=0, d
         if bb == 54:  # 1010:0906
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x0)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0x090B)
-            _o, _c = func_1010_06b9(mem, plat, _base=_base + _cost + 2, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
-            ax = _o['ax']
-            bp = _o['bp']
-            bx = _o['bx']
-            cx = _o['cx']
-            di = _o['di']
-            ds = _o['ds']
-            dx = _o['dx']
-            es = _o['es']
-            si = _o['si']
-            _gm = _c['fmask']
-            if _gm:
-                _gf = _c['flags']
-                if _gm & 0x1: cf = (_gf & 0x1) != 0
-                if _gm & 0x4: pf = (_gf & 0x4) != 0
-                if _gm & 0x10: af = (_gf & 0x10) != 0
-                if _gm & 0x40: zf = (_gf & 0x40) != 0
-                if _gm & 0x80: sf = (_gf & 0x80) != 0
-                if _gm & 0x800: of = (_gf & 0x800) != 0
-                if _gm & 0x200: intf = (_gf & 0x200) != 0
-                if _gm & 0x400: df = (_gf & 0x400) != 0
-                _fmask |= _gm
-            _cost += _c['cost']
-            sp = (sp + 2) & 0xFFFF
-            _a = sp
-            _b = 0x2
-            _t = _a + _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t > 0xFFFF
-            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            sp = (_t) & 0xFFFF
-            _a = ax
-            _b = 0x96
-            _t = _a - _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t < 0
-            of = (((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            _cost += 5
-            _fmask |= 0x10 | 0x1 | 0x800 | 0x4 | 0x80 | 0x40
-            if cf:
-                bb = 56
-                continue
-            bb = 55
-            continue
+            raise RuntimeError('CPUless: unrecovered call to 1010:06B9 reached -- frontier witness (untested code path)')
         if bb == 55:  # 1010:0913
             _cost += 1
             bb = 57
@@ -854,58 +793,7 @@ def func_1010_074c(mem, plat, *, _base=0, _flags_in=2, bp=0, bx=0, cx=0, di=0, d
             mem.ww(ss, ((bp + -8) & 0xFFFF), (ax) & 0xFFFF)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x0)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0x0927)
-            _o, _c = func_1010_06b9(mem, plat, _base=_base + _cost + 3, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
-            ax = _o['ax']
-            bp = _o['bp']
-            bx = _o['bx']
-            cx = _o['cx']
-            di = _o['di']
-            ds = _o['ds']
-            dx = _o['dx']
-            es = _o['es']
-            si = _o['si']
-            _gm = _c['fmask']
-            if _gm:
-                _gf = _c['flags']
-                if _gm & 0x1: cf = (_gf & 0x1) != 0
-                if _gm & 0x4: pf = (_gf & 0x4) != 0
-                if _gm & 0x10: af = (_gf & 0x10) != 0
-                if _gm & 0x40: zf = (_gf & 0x40) != 0
-                if _gm & 0x80: sf = (_gf & 0x80) != 0
-                if _gm & 0x800: of = (_gf & 0x800) != 0
-                if _gm & 0x200: intf = (_gf & 0x200) != 0
-                if _gm & 0x400: df = (_gf & 0x400) != 0
-                _fmask |= _gm
-            _cost += _c['cost']
-            sp = (sp + 2) & 0xFFFF
-            _a = sp
-            _b = 0x2
-            _t = _a + _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t > 0xFFFF
-            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            sp = (_t) & 0xFFFF
-            _a = ax
-            _b = 0xAA
-            _t = _a - _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t < 0
-            of = (((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            _cost += 6
-            _fmask |= 0x10 | 0x1 | 0x800 | 0x4 | 0x80 | 0x40
-            if not (cf or zf):
-                bb = 60
-                continue
-            bb = 59
-            continue
+            raise RuntimeError('CPUless: unrecovered call to 1010:06B9 reached -- frontier witness (untested code path)')
         if bb == 59:  # 1010:092F
             _cost += 1
             bb = 61
@@ -935,58 +823,7 @@ def func_1010_074c(mem, plat, *, _base=0, _flags_in=2, bp=0, bx=0, cx=0, di=0, d
             mem.ww(ds, 0x95F4, ax & 0xFFFF)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x1)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0x0948)
-            _o, _c = func_1010_06b9(mem, plat, _base=_base + _cost + 5, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
-            ax = _o['ax']
-            bp = _o['bp']
-            bx = _o['bx']
-            cx = _o['cx']
-            di = _o['di']
-            ds = _o['ds']
-            dx = _o['dx']
-            es = _o['es']
-            si = _o['si']
-            _gm = _c['fmask']
-            if _gm:
-                _gf = _c['flags']
-                if _gm & 0x1: cf = (_gf & 0x1) != 0
-                if _gm & 0x4: pf = (_gf & 0x4) != 0
-                if _gm & 0x10: af = (_gf & 0x10) != 0
-                if _gm & 0x40: zf = (_gf & 0x40) != 0
-                if _gm & 0x80: sf = (_gf & 0x80) != 0
-                if _gm & 0x800: of = (_gf & 0x800) != 0
-                if _gm & 0x200: intf = (_gf & 0x200) != 0
-                if _gm & 0x400: df = (_gf & 0x400) != 0
-                _fmask |= _gm
-            _cost += _c['cost']
-            sp = (sp + 2) & 0xFFFF
-            _a = sp
-            _b = 0x2
-            _t = _a + _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t > 0xFFFF
-            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            sp = (_t) & 0xFFFF
-            _a = ax
-            _b = 0xB9
-            _t = _a - _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t < 0
-            of = (((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            _cost += 8
-            _fmask |= 0x10 | 0x1 | 0x800 | 0x4 | 0x80 | 0x40
-            if not (cf or zf):
-                bb = 64
-                continue
-            bb = 63
-            continue
+            raise RuntimeError('CPUless: unrecovered call to 1010:06B9 reached -- frontier witness (untested code path)')
         if bb == 63:  # 1010:0950
             _cost += 1
             bb = 65
@@ -1005,58 +842,7 @@ def func_1010_074c(mem, plat, *, _base=0, _flags_in=2, bp=0, bx=0, cx=0, di=0, d
             mem.ww(ss, ((bp + -8) & 0xFFFF), (ax) & 0xFFFF)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x1)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0x0964)
-            _o, _c = func_1010_06b9(mem, plat, _base=_base + _cost + 3, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
-            ax = _o['ax']
-            bp = _o['bp']
-            bx = _o['bx']
-            cx = _o['cx']
-            di = _o['di']
-            ds = _o['ds']
-            dx = _o['dx']
-            es = _o['es']
-            si = _o['si']
-            _gm = _c['fmask']
-            if _gm:
-                _gf = _c['flags']
-                if _gm & 0x1: cf = (_gf & 0x1) != 0
-                if _gm & 0x4: pf = (_gf & 0x4) != 0
-                if _gm & 0x10: af = (_gf & 0x10) != 0
-                if _gm & 0x40: zf = (_gf & 0x40) != 0
-                if _gm & 0x80: sf = (_gf & 0x80) != 0
-                if _gm & 0x800: of = (_gf & 0x800) != 0
-                if _gm & 0x200: intf = (_gf & 0x200) != 0
-                if _gm & 0x400: df = (_gf & 0x400) != 0
-                _fmask |= _gm
-            _cost += _c['cost']
-            sp = (sp + 2) & 0xFFFF
-            _a = sp
-            _b = 0x2
-            _t = _a + _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t > 0xFFFF
-            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            sp = (_t) & 0xFFFF
-            _a = ax
-            _b = 0xF
-            _t = _a - _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t < 0
-            of = (((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            _cost += 6
-            _fmask |= 0x10 | 0x1 | 0x800 | 0x4 | 0x80 | 0x40
-            if cf:
-                bb = 68
-                continue
-            bb = 67
-            continue
+            raise RuntimeError('CPUless: unrecovered call to 1010:06B9 reached -- frontier witness (untested code path)')
         if bb == 67:  # 1010:096C
             _cost += 1
             bb = 69
@@ -1086,125 +872,7 @@ def func_1010_074c(mem, plat, *, _base=0, _flags_in=2, bp=0, bx=0, cx=0, di=0, d
             mem.ww(ds, 0x9330, ax & 0xFFFF)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x2)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0x0985)
-            _o, _c = func_1010_06b9(mem, plat, _base=_base + _cost + 5, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
-            ax = _o['ax']
-            bp = _o['bp']
-            bx = _o['bx']
-            cx = _o['cx']
-            di = _o['di']
-            ds = _o['ds']
-            dx = _o['dx']
-            es = _o['es']
-            si = _o['si']
-            _gm = _c['fmask']
-            if _gm:
-                _gf = _c['flags']
-                if _gm & 0x1: cf = (_gf & 0x1) != 0
-                if _gm & 0x4: pf = (_gf & 0x4) != 0
-                if _gm & 0x10: af = (_gf & 0x10) != 0
-                if _gm & 0x40: zf = (_gf & 0x40) != 0
-                if _gm & 0x80: sf = (_gf & 0x80) != 0
-                if _gm & 0x800: of = (_gf & 0x800) != 0
-                if _gm & 0x200: intf = (_gf & 0x200) != 0
-                if _gm & 0x400: df = (_gf & 0x400) != 0
-                _fmask |= _gm
-            _cost += _c['cost']
-            sp = (sp + 2) & 0xFFFF
-            _a = sp
-            _b = 0x2
-            _t = _a + _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t > 0xFFFF
-            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            sp = (_t) & 0xFFFF
-            mem.ww(ds, 0x547A, ax & 0xFFFF)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0x1)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0x0990)
-            _o, _c = func_1010_06b9(mem, plat, _base=_base + _cost + 9, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
-            ax = _o['ax']
-            bp = _o['bp']
-            bx = _o['bx']
-            cx = _o['cx']
-            di = _o['di']
-            ds = _o['ds']
-            dx = _o['dx']
-            es = _o['es']
-            si = _o['si']
-            _gm = _c['fmask']
-            if _gm:
-                _gf = _c['flags']
-                if _gm & 0x1: cf = (_gf & 0x1) != 0
-                if _gm & 0x4: pf = (_gf & 0x4) != 0
-                if _gm & 0x10: af = (_gf & 0x10) != 0
-                if _gm & 0x40: zf = (_gf & 0x40) != 0
-                if _gm & 0x80: sf = (_gf & 0x80) != 0
-                if _gm & 0x800: of = (_gf & 0x800) != 0
-                if _gm & 0x200: intf = (_gf & 0x200) != 0
-                if _gm & 0x400: df = (_gf & 0x400) != 0
-                _fmask |= _gm
-            _cost += _c['cost']
-            sp = (sp + 2) & 0xFFFF
-            _a = sp
-            _b = 0x2
-            _t = _a + _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t > 0xFFFF
-            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            sp = (_t) & 0xFFFF
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, ax)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0xA0)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0x099A)
-            _o, _c = func_1010_06a4(mem, plat, _base=_base + _cost + 13, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, di=di, ds=ds, es=es, si=si, sp=sp, ss=ss)
-            ax = _o['ax']
-            bp = _o['bp']
-            bx = _o['bx']
-            cx = _o['cx']
-            di = _o['di']
-            ds = _o['ds']
-            dx = _o['dx']
-            es = _o['es']
-            si = _o['si']
-            _gm = _c['fmask']
-            if _gm:
-                _gf = _c['flags']
-                if _gm & 0x1: cf = (_gf & 0x1) != 0
-                if _gm & 0x4: pf = (_gf & 0x4) != 0
-                if _gm & 0x10: af = (_gf & 0x10) != 0
-                if _gm & 0x40: zf = (_gf & 0x40) != 0
-                if _gm & 0x80: sf = (_gf & 0x80) != 0
-                if _gm & 0x800: of = (_gf & 0x800) != 0
-                if _gm & 0x200: intf = (_gf & 0x200) != 0
-                if _gm & 0x400: df = (_gf & 0x400) != 0
-                _fmask |= _gm
-            _cost += _c['cost']
-            sp = (sp + 2) & 0xFFFF
-            _a = sp
-            _b = 0x4
-            _t = _a + _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t > 0xFFFF
-            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            sp = (_t) & 0xFFFF
-            _cost += 15
-            _fmask |= 0x10 | 0x1 | 0x800 | 0x4 | 0x80 | 0x40
-            bb = 98
-            continue
+            raise RuntimeError('CPUless: unrecovered call to 1010:06B9 reached -- frontier witness (untested code path)')
         if bb == 71:  # 1010:09A0
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x1)
@@ -1804,5 +1472,5 @@ def func_1010_074c(mem, plat, *, _base=0, _flags_in=2, bp=0, bx=0, cx=0, di=0, d
             break
         raise AssertionError('unreachable dispatch')
     _flags = ((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask
-    return {'ax': ax & 0xFFFF, 'bp': bp & 0xFFFF, 'bx': bx & 0xFFFF, 'cx': cx & 0xFFFF, 'di': di & 0xFFFF, 'ds': ds & 0xFFFF, 'dx': dx & 0xFFFF, 'es': es & 0xFFFF, 'si': si & 0xFFFF}, {'flags': _flags, 'fmask': _fmask, 'cost': _cost}
+    return {'ax': ax & 0xFFFF, 'bp': bp & 0xFFFF, 'bx': bx & 0xFFFF, 'cx': cx & 0xFFFF, 'di': di & 0xFFFF, 'dx': dx & 0xFFFF, 'si': si & 0xFFFF}, {'flags': _flags, 'fmask': _fmask, 'cost': _cost}
 

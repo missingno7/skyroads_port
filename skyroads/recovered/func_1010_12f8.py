@@ -11,6 +11,7 @@ from skyroads.recovered.func_1010_03c2 import func_1010_03c2
 from skyroads.recovered.func_1010_0f8c import func_1010_0f8c
 from skyroads.recovered.func_1010_1073 import func_1010_1073
 from skyroads.recovered.func_1010_1218 import func_1010_1218
+from skyroads.recovered.func_1010_1282 import func_1010_1282
 from skyroads.recovered.func_1010_5d80 import func_1010_5d80
 from skyroads.recovered.func_1010_5d8c import func_1010_5d8c
 from skyroads.recovered.func_1010_5e5a import func_1010_5e5a
@@ -780,7 +781,57 @@ def func_1010_12f8(mem, plat, *, _base=0, _df=0, bp=0, di=0, ds=0, dx=0, es=0, s
             mem.ww(ss, sp, 0xA1)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0xA0)
-            raise RuntimeError('CPUless: unrecovered call to 1010:1282 reached -- frontier witness (untested code path)')
+            sp = (sp - 2) & 0xFFFF
+            mem.ww(ss, sp, 0x148D)
+            _o, _c = func_1010_1282(mem, bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
+            ax = _o['ax']
+            bp = _o['bp']
+            bx = _o['bx']
+            cx = _o['cx']
+            di = _o['di']
+            dx = _o['dx']
+            es = _o['es']
+            si = _o['si']
+            _gm = _c['fmask']
+            if _gm:
+                _gf = _c['flags']
+                if _gm & 0x1: cf = (_gf & 0x1) != 0
+                if _gm & 0x4: pf = (_gf & 0x4) != 0
+                if _gm & 0x10: af = (_gf & 0x10) != 0
+                if _gm & 0x40: zf = (_gf & 0x40) != 0
+                if _gm & 0x80: sf = (_gf & 0x80) != 0
+                if _gm & 0x800: of = (_gf & 0x800) != 0
+                if _gm & 0x200: intf = (_gf & 0x200) != 0
+                if _gm & 0x400: df = (_gf & 0x400) != 0
+                _fmask |= _gm
+            _cost += _c['cost']
+            sp = (sp + 2) & 0xFFFF
+            _a = sp
+            _b = 0xC
+            _t = _a + _b
+            zf = (_t & 0xFFFF) == 0
+            sf = (_t & 0x8000) != 0
+            pf = _PARITY[_t & 0xFF]
+            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
+            cf = _t > 0xFFFF
+            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
+            sp = (_t) & 0xFFFF
+            _a = di
+            _b = 0x0
+            _t = _a - _b
+            zf = (_t & 0xFFFF) == 0
+            sf = (_t & 0x8000) != 0
+            pf = _PARITY[_t & 0xFF]
+            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
+            cf = _t < 0
+            of = (((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
+            _cost += 9
+            _fmask |= 0x10 | 0x1 | 0x800 | 0x4 | 0x80 | 0x40
+            if not zf:
+                bb = 58
+                continue
+            bb = 57
+            continue
         if bb == 57:  # 1010:1495
             _cost += 1
             bb = 59
@@ -1218,7 +1269,57 @@ def func_1010_12f8(mem, plat, *, _base=0, _df=0, bp=0, di=0, ds=0, dx=0, es=0, s
             mem.ww(ss, sp, 0xA9)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x9B)
-            raise RuntimeError('CPUless: unrecovered call to 1010:1282 reached -- frontier witness (untested code path)')
+            sp = (sp - 2) & 0xFFFF
+            mem.ww(ss, sp, 0x1576)
+            _o, _c = func_1010_1282(mem, bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
+            ax = _o['ax']
+            bp = _o['bp']
+            bx = _o['bx']
+            cx = _o['cx']
+            di = _o['di']
+            dx = _o['dx']
+            es = _o['es']
+            si = _o['si']
+            _gm = _c['fmask']
+            if _gm:
+                _gf = _c['flags']
+                if _gm & 0x1: cf = (_gf & 0x1) != 0
+                if _gm & 0x4: pf = (_gf & 0x4) != 0
+                if _gm & 0x10: af = (_gf & 0x10) != 0
+                if _gm & 0x40: zf = (_gf & 0x40) != 0
+                if _gm & 0x80: sf = (_gf & 0x80) != 0
+                if _gm & 0x800: of = (_gf & 0x800) != 0
+                if _gm & 0x200: intf = (_gf & 0x200) != 0
+                if _gm & 0x400: df = (_gf & 0x400) != 0
+                _fmask |= _gm
+            _cost += _c['cost']
+            sp = (sp + 2) & 0xFFFF
+            _a = sp
+            _b = 0xC
+            _t = _a + _b
+            zf = (_t & 0xFFFF) == 0
+            sf = (_t & 0x8000) != 0
+            pf = _PARITY[_t & 0xFF]
+            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
+            cf = _t > 0xFFFF
+            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
+            sp = (_t) & 0xFFFF
+            _a = di
+            _b = 0x0
+            _t = _a - _b
+            zf = (_t & 0xFFFF) == 0
+            sf = (_t & 0x8000) != 0
+            pf = _PARITY[_t & 0xFF]
+            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
+            cf = _t < 0
+            of = (((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
+            _cost += 9
+            _fmask |= 0x10 | 0x1 | 0x800 | 0x4 | 0x80 | 0x40
+            if not zf:
+                bb = 93
+                continue
+            bb = 92
+            continue
         if bb == 92:  # 1010:157E
             _cost += 1
             bb = 94

@@ -30,7 +30,14 @@ CORPUS = ROOT / "skyroads" / "recovered"
 
 #: the standalone corpus's expected recovered-function count (every
 #: runtime-reachable IR function). Bump deliberately when the census changes.
-EXPECTED_FUNCTIONS = 182
+#:
+#: 182 -> 180 when the block-type coverage demos landed: censusing block types 3
+#: and 5 (levels 14 and 8) regenerated the IR, which reclassified two functions
+#: as dead-unreachable -- they are proven unreachable, not missing. The runtime
+#: closure stays COMPLETE, which is the property that actually matters.
+EXPECTED_FUNCTIONS = 180
+#: IR functions proven unreachable at runtime (emitted as nothing, not stubs).
+EXPECTED_DEAD_UNREACHABLE = 2
 #: the boundary head the CPU-free cold boot reaches (C startup + intro
 #: decompression + first frame render, all with no CPU).
 FIRST_FRAME_BOUNDARY = "434A"
@@ -53,6 +60,11 @@ def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
     assert n == EXPECTED_FUNCTIONS, f"expected {EXPECTED_FUNCTIONS} funcs, got {n}"
     man = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert man["counts"].get("generated-cpuless") == EXPECTED_FUNCTIONS
+    assert man["counts"].get("dead-unreachable", 0) == EXPECTED_DEAD_UNREACHABLE
+    # Nothing runtime-reachable may be left unpromoted: a fail-loud-unsupported
+    # here is the wall firing during play (that is how 1010:2F57 reached a
+    # player), so it is the assertion that actually protects the runner.
+    assert man["counts"].get("fail-loud-unsupported", 0) == 0
     assert man["runtime_closure_complete"] is True
     assert man["runtime_frontier"] == []          # closed vs the observed trace
 

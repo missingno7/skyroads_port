@@ -11,7 +11,6 @@ from skyroads.recovered.func_1010_03c2 import func_1010_03c2
 from skyroads.recovered.func_1010_0476 import func_1010_0476
 from skyroads.recovered.func_1010_04c0 import func_1010_04c0
 from skyroads.recovered.func_1010_0533 import func_1010_0533
-from skyroads.recovered.func_1010_06a4 import func_1010_06a4
 from skyroads.recovered.func_1010_074c import func_1010_074c
 from skyroads.recovered.func_1010_0c98 import func_1010_0c98
 from skyroads.recovered.func_1010_0ed0 import func_1010_0ed0
@@ -83,46 +82,7 @@ def func_1010_1fd9(mem, plat, *, _base=0, _df=0, _flags_in=2, ax=0, bp=0, bx=0, 
             mem.ww(ss, sp, 0x64)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0xA0)
-            sp = (sp - 2) & 0xFFFF
-            mem.ww(ss, sp, 0x1FF1)
-            _o, _c = func_1010_06a4(mem, plat, _base=_base + _cost + 3, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, di=di, ds=ds, es=es, si=si, sp=sp, ss=ss)
-            ax = _o['ax']
-            bp = _o['bp']
-            bx = _o['bx']
-            cx = _o['cx']
-            di = _o['di']
-            ds = _o['ds']
-            dx = _o['dx']
-            es = _o['es']
-            si = _o['si']
-            _gm = _c['fmask']
-            if _gm:
-                _gf = _c['flags']
-                if _gm & 0x1: cf = (_gf & 0x1) != 0
-                if _gm & 0x4: pf = (_gf & 0x4) != 0
-                if _gm & 0x10: af = (_gf & 0x10) != 0
-                if _gm & 0x40: zf = (_gf & 0x40) != 0
-                if _gm & 0x80: sf = (_gf & 0x80) != 0
-                if _gm & 0x800: of = (_gf & 0x800) != 0
-                if _gm & 0x200: intf = (_gf & 0x200) != 0
-                if _gm & 0x400: df = (_gf & 0x400) != 0
-                _fmask |= _gm
-            _cost += _c['cost']
-            sp = (sp + 2) & 0xFFFF
-            _a = sp
-            _b = 0x4
-            _t = _a + _b
-            zf = (_t & 0xFFFF) == 0
-            sf = (_t & 0x8000) != 0
-            pf = _PARITY[_t & 0xFF]
-            af = ((_a) ^ (_b) ^ _t) & 0x10 != 0
-            cf = _t > 0xFFFF
-            of = (~((_a) ^ (_b)) & ((_a) ^ _t) & 0x8000) != 0
-            sp = (_t) & 0xFFFF
-            _cost += 4
-            _fmask |= 0x10 | 0x1 | 0x800 | 0x4 | 0x80 | 0x40
-            bb = 3
-            continue
+            raise RuntimeError('CPUless: unrecovered call to 1010:06A4 reached -- frontier witness (untested code path)')
         if bb == 3:  # 1010:1FF4
             mem.ww(ds, 0x516E, (0x0) & 0xFFFF)
             ax = mem.rw(ds, 0x4562)
@@ -1650,15 +1610,13 @@ def func_1010_1fd9(mem, plat, *, _base=0, _df=0, _flags_in=2, ax=0, bp=0, bx=0, 
         if bb == 85:  # 1010:2311
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x2314)
-            _o, _c = func_1010_074c(mem, plat, _base=_base + _cost + 1, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
+            _o, _c = func_1010_074c(mem, bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, si=si, sp=sp, ss=ss)
             ax = _o['ax']
             bp = _o['bp']
             bx = _o['bx']
             cx = _o['cx']
             di = _o['di']
-            ds = _o['ds']
             dx = _o['dx']
-            es = _o['es']
             si = _o['si']
             _gm = _c['fmask']
             if _gm:
@@ -1729,15 +1687,13 @@ def func_1010_1fd9(mem, plat, *, _base=0, _df=0, _flags_in=2, ax=0, bp=0, bx=0, 
         if bb == 89:  # 1010:2321
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x2324)
-            _o, _c = func_1010_074c(mem, plat, _base=_base + _cost + 1, _flags_in=((_flags_in & ~_fmask) | (((0x1 if cf else 0) | (0x4 if pf else 0) | (0x10 if af else 0) | (0x40 if zf else 0) | (0x80 if sf else 0) | (0x800 if of else 0) | (0x400 if df else 0) | (0x200 if intf else 0)) & _fmask)), bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
+            _o, _c = func_1010_074c(mem, bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, si=si, sp=sp, ss=ss)
             ax = _o['ax']
             bp = _o['bp']
             bx = _o['bx']
             cx = _o['cx']
             di = _o['di']
-            ds = _o['ds']
             dx = _o['dx']
-            es = _o['es']
             si = _o['si']
             _gm = _c['fmask']
             if _gm:

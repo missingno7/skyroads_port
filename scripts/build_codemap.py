@@ -57,6 +57,16 @@ DEFAULT_DEMOS = (
     "demo_skyroads_20260717_122736",          # menu navigation (Down/Enter/Right...)
     "demo_intro_20260717_125403",       # cold start: full intro -> attract demo -> interrupt -> menu
     "demo_cold_20260718_003412",        # full cold playthrough: intro -> menu -> select -> play -> die -> leave -> intro
+    # The block-handler table at 1686:0BAF is indexed by a road cell's LOW
+    # NIBBLE (1010:2DCC-2DD4: `mov bl,[bp+1]; and bx,0x0F; shl bx,1; call
+    # [bx+0BAF]`).  Slots 0/1/2/4 appear on the roads the demos above drive;
+    # slots 3 and 5 do NOT, so their handlers (1010:2EFD, 1010:2FCC) stayed
+    # entirely unobserved and the recovered build fail-loud-stubbed their exits
+    # -- 1010:2F57 is what a player hit in live play.  These two demos were
+    # built by decoding ROADS.LZS to find which levels actually carry those
+    # cells (level 14: 35 slot-3 cells; level 8: 30 slot-5) and driving there.
+    "demo_blockslot3_L14_20260718_090000",   # block type 3 -> 1010:2EFD (+ its 2F57 ret)
+    "demo_blockslot5_L8_20260718_090000",    # block type 5 -> 1010:2FCC
 )
 
 #: The game's code segment. Entries outside it are DOS/BIOS/framework, not game
@@ -108,8 +118,12 @@ def observe_demo(demo_dir: Path, *, max_frames: int = 0,
         if max_frames:
             end = min(end, max_frames)
         while frames < end and not pb.finished(frames):
-            pb.apply_to_runtime(frames, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
+            # apply_to_runtime STEPS THE CPU (it runs the INT 09h delivery), so a
+            # blocking console read can surface from it, not only from the frame
+            # advance -- an escape here killed the whole census mid-demo.
             try:
+                pb.apply_to_runtime(frames, rt,
+                                    deliver=lambda r, sc: frontend.deliver_input(r, sc))
                 frontend.advance_frame(rt, args, frames)
             except ConsoleInputWouldBlock:
                 pass
@@ -140,7 +154,13 @@ def observe_demo(demo_dir: Path, *, max_frames: int = 0,
 #: then fail-loud-stubs those reachable exits as runtime-dead (e.g. 1010:2EFC,
 #: the plain `ret` tail of 1010:2EBB).  Observing them through the boundary
 #: model closes that false-dead gap.
-BOUNDARY_DEMOS = frozenset({"demo_cold_20260718_003412"})
+BOUNDARY_DEMOS = frozenset({
+    "demo_cold_20260718_003412",
+    # Measured through the boundary model (that is how their coverage was
+    # confirmed), so census them the same way or the census misses it.
+    "demo_blockslot3_L14_20260718_090000",
+    "demo_blockslot5_L8_20260718_090000",
+})
 
 
 def observe_demo_boundary(demo_dir: Path, *, executed: set, call_targets: Counter,
@@ -158,9 +178,13 @@ def observe_demo_boundary(demo_dir: Path, *, executed: set, call_targets: Counte
     pb = InputDemoPlayback.load(str(demo_dir))
     if pb.is_cold_start or _is_predecompression(pb):
         frontend, _a, rt = build_oracle_cold(demo_dir, pb)
+        # ONLY a cold demo runs the packer stub to the C-startup hand-off.  A
+        # snapshot demo resumes mid-game, where there is no stub left to run:
+        # driving from CANONICAL_ENTRY there re-enters the C startup and blocks
+        # on its first console read, which escaped and killed the census.
+        run_stub(rt.cpu, *CANONICAL_ENTRY)
     else:
         frontend, _a, rt = build_oracle(demo_dir, pb)
-    run_stub(rt.cpu, *CANONICAL_ENTRY)
 
     orig_step = CPU8086.step
     ex_add, ct = executed.add, call_targets
@@ -191,11 +215,17 @@ def observe_demo_boundary(demo_dir: Path, *, executed: set, call_targets: Counte
     try:
         end = pb.end_boundary or 100000
         while frames < end and not pb.finished(frames):
-            pb.apply_to_runtime(frames, rt,
-                                deliver=lambda r, sc: frontend.deliver_input(r, sc))
-            for _ in range(6):
-                deliver_interrupt(rt, 0x08)
+            # Input delivery and IRQ delivery STEP THE CPU too, so a blocking
+            # console read (INT 21h AH=07 on an empty buffer -- every
+            # press-any-key screen) can surface from any of the three, not just
+            # the run.  Wrapping only the run let it escape and kill the whole
+            # census mid-demo.  A block simply ends the frame, as it does for the
+            # verification oracles.
             try:
+                pb.apply_to_runtime(frames, rt,
+                                    deliver=lambda r, sc: frontend.deliver_input(r, sc))
+                for _ in range(6):
+                    deliver_interrupt(rt, 0x08)
                 run_to_cut(rt.cpu, step_budget)
             except (ConsoleInputWouldBlock, HaltExecution):
                 pass

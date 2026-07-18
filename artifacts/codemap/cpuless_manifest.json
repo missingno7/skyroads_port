@@ -3,14 +3,17 @@
  "import_base": "skyroads.recovered",
  "canonical_entry": "1010:61F3",
  "counts": {
-  "generated-cpuless": 182
+  "dead-unreachable": 2,
+  "generated-cpuless": 180
  },
  "runtime_frontier": [],
  "runtime_closure_complete": true,
  "static_only_addresses": [
   "1010:05F6",
   "1010:0672",
-  "1010:1282",
+  "1010:068B",
+  "1010:06A4",
+  "1010:06B9",
   "1010:2B0F",
   "1010:336B",
   "1010:3A3F",
@@ -55,15 +58,6 @@
   "1010:0533": {
    "status": "generated-cpuless"
   },
-  "1010:068B": {
-   "status": "generated-cpuless"
-  },
-  "1010:06A4": {
-   "status": "generated-cpuless"
-  },
-  "1010:06B9": {
-   "status": "generated-cpuless"
-  },
   "1010:0707": {
    "status": "generated-cpuless"
   },
@@ -81,6 +75,10 @@
   },
   "1010:0C98": {
    "status": "generated-cpuless"
+  },
+  "1010:0EC4": {
+   "status": "dead-unreachable",
+   "refusal": "leave-without-enter"
   },
   "1010:0ED0": {
    "status": "generated-cpuless"
@@ -110,6 +108,9 @@
    "status": "generated-cpuless"
   },
   "1010:1218": {
+   "status": "generated-cpuless"
+  },
+  "1010:1282": {
    "status": "generated-cpuless"
   },
   "1010:12F8": {
@@ -147,6 +148,10 @@
   },
   "1010:2D1F": {
    "status": "generated-cpuless"
+  },
+  "1010:2E43": {
+   "status": "dead-unreachable",
+   "refusal": "leave-without-enter"
   },
   "1010:2E6C": {
    "status": "generated-cpuless"
