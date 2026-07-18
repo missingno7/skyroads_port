@@ -137,6 +137,18 @@ class _Quit(Exception):
 def _boot(rebuild: bool, *, mouse_present: bool):
     """Build the CPU-free runtime: boot image + device model + platform."""
     _ensure_corpus(rebuild)
+    # THE STITCH, before anything imports the corpus.  Generated modules bind
+    # their callees with direct imports at import time, so the module object is
+    # the only seam and it must be shadowed first.  With no overrides registered
+    # this is a provable no-op -- the composite stays bit-for-bit the generated
+    # program -- which is why adopting the seam needs no new gate: the existing
+    # cold-start differential already covers it.
+    from skyroads.cpuless_overrides import install_overrides
+    stitched = install_overrides()
+    if stitched:
+        print(f"[cpuless] stitched {len(stitched)} hand-recovered override(s): "
+              f"{', '.join(stitched)}")
+
     from dos_re.lift.platform import CPUlessPlatformRuntime
     from dos_re.dos import DOSMachine
     from dos_re.snapshot_headless import _restore_dos_state   # runtime CPU-free
