@@ -125,6 +125,35 @@ def install_overrides(addrs=None) -> "list[str]":
     return installed
 
 
+def install_shadow(addr: str, checker: Callable) -> None:
+    """Run an island in SHADOW against the generated body -- the rung below running.
+
+    The generated function still drives: it computes the outputs, the flags and the
+    virtual-time cost, and its result is returned unchanged, so behaviour is provably
+    untouched. The island is invoked alongside it and ``checker`` asserts they agree.
+
+    This exists because of a constraint the first absorption hit immediately. An
+    island computes a VALUE; it cannot produce a cycle COST, and cost feeds the
+    frame scheduler that the cold-start differential compares. So an island cannot
+    simply take over a body without a virtual-time contract. But it can be PROVEN
+    against every real call the game makes -- which is a far stronger claim than the
+    captured-case diffing behind ``ASM_MATCHED``, and it costs nothing but runtime.
+
+    ``checker(mem, kwargs_in, outputs, compat)`` must raise on disagreement. Shadows
+    are a verification mode: install them from a gate, never from the shipped runner.
+    """
+    gen = generated(addr)
+
+    def shadowed(mem, *args, **kw):
+        out, compat = gen(mem, *args, **kw)
+        checker(mem, kw, out, compat)          # raises on disagreement
+        return out, compat
+
+    shadowed.__name__ = func_name(addr)
+    OVERRIDES[addr] = shadowed
+    install_overrides([addr])
+
+
 def uninstall_overrides() -> None:
     """Restore every shadowed module (tests that need the pristine corpus)."""
     for name, real in _INSTALLED.items():

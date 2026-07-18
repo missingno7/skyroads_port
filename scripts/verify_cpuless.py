@@ -176,6 +176,10 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("demo")
     ap.add_argument("--frames", type=int, default=0)
+    ap.add_argument("--shadow-islands", action="store_true",
+                    help="check hand-recovered islands against the generated "
+                         "bodies on every call (skyroads/island_shadows.py). The "
+                         "generated code still drives; a disagreement raises.")
     ap.add_argument("--irqs", type=int, default=6)
     ap.add_argument("--step-budget", type=int, default=4_000_000)
     ap.add_argument("--heads", default=str(ROOT / "artifacts" / "codemap"
@@ -191,6 +195,11 @@ def main(argv=None) -> int:
     end = pb_o.end_boundary or 100000
     if args.frames:
         end = min(end, args.frames)
+    if args.shadow_islands:
+        # BEFORE the corpus is imported: generated modules bind callees at import
+        # time, so the module object is the only seam.
+        from skyroads.island_shadows import install_all
+        print(f"[verify-cpuless] shadowing islands: {', '.join(install_all())}")
     heads = read_heads(Path(args.heads))
     print(f"[verify-cpuless] demo={demo.name} frames={end} "
           f"mouse_present={pb_o.mouse_present_hint}; cut = 2nd pass at "
@@ -203,6 +212,9 @@ def main(argv=None) -> int:
     cand = _capture_cpuless(pb_c, heads, args.irqs, end)
     print(f"[verify-cpuless] candidate captured {len(cand)} frames")
 
+    if args.shadow_islands:
+        from skyroads.island_shadows import report
+        print(f"[verify-cpuless] island shadows -- {report()}")
     n = min(len(oracle), len(cand))
     for i in range(n):
         vo, po = oracle[i]
