@@ -125,7 +125,7 @@ def install_overrides(addrs=None) -> "list[str]":
     return installed
 
 
-def install_shadow(addr: str, checker: Callable) -> None:
+def install_shadow(addr: str, checker: Callable, snapshot: Callable = None) -> None:
     """Run an island in SHADOW against the generated body -- the rung below running.
 
     The generated function still drives: it computes the outputs, the flags and the
@@ -139,14 +139,21 @@ def install_shadow(addr: str, checker: Callable) -> None:
     against every real call the game makes -- which is a far stronger claim than the
     captured-case diffing behind ``ASM_MATCHED``, and it costs nothing but runtime.
 
-    ``checker(mem, kwargs_in, outputs, compat)`` must raise on disagreement. Shadows
-    are a verification mode: install them from a gate, never from the shipped runner.
+    ``checker(mem, kwargs_in, outputs, compat, pre)`` must raise on disagreement.
+    An island that WRITES memory cannot be checked from the post-state alone -- the
+    generated body has already overwritten its own inputs -- so ``snapshot(mem, kw)``
+    runs BEFORE the call and its result is handed to the checker as ``pre``. That is
+    what lets a decompressor be re-run independently and its output compared.
+
+    Shadows are a verification mode: install them from a gate, never from the
+    shipped runner.
     """
     gen = generated(addr)
 
     def shadowed(mem, *args, **kw):
+        pre = snapshot(mem, kw) if snapshot is not None else None
         out, compat = gen(mem, *args, **kw)
-        checker(mem, kw, out, compat)          # raises on disagreement
+        checker(mem, kw, out, compat, pre)     # raises on disagreement
         return out, compat
 
     shadowed.__name__ = func_name(addr)
