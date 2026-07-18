@@ -30,6 +30,36 @@ An override must match the generated interface and import nothing outside the
 recovered package (the purity lint enforces this). None are needed today — the
 generator covers all runtime-reachable functions.
 
+## Working on it: three commands
+
+```sh
+python scripts/rebuild_all.py      # the pipeline, in the one correct order
+python scripts/check_all.py        # every gate, one verdict (--quick to skip diffs)
+python scripts/coverage_audit.py   # find coverage gaps before a player does
+```
+
+**Order matters and used to be tribal knowledge.** The stages are
+`build_codemap` → `close_vmless_wall` → `build_recovered`, each consuming the
+previous one's output. Skipping the middle one is silent: functions the new
+census discovered get no IR entry, every caller of one refuses `contains-call`,
+and that cascaded to five refusals including `1010:61F3` — the C-startup root —
+leaving the runner unable to import its entry point. The output said
+"5 refused", not "you skipped a stage". `rebuild_all.py` owns the order, and
+`build_recovered.py` independently refuses to build against an IR older than the
+census, so the mistake is caught from both sides.
+
+`check_all.py` runs the cheap gates first, then the two frame-exact
+differentials — which are the ones that actually prove the port and therefore
+the ones most likely to be skipped by hand. (It earned its place immediately by
+catching a test that only passed when run from one directory.)
+
+`coverage_audit.py` reads the game's own **dispatch tables** out of the boot
+image and reports any entry the census never executed — each one a fail-loud
+stop waiting to happen. For the block-type table it goes further and decodes
+`ROADS.LZS` to name the levels carrying an uncovered block type, so a closing
+demo can be aimed rather than guessed. This is the generalisation of how
+`1010:2F57` was diagnosed, turned from a session of detective work into a report.
+
 ## Reproduction (clean checkout)
 
 Requires your own game files under `assets/` and a built boot image

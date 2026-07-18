@@ -162,7 +162,39 @@ def _write_manifest(overrides: set[str]) -> dict:
     return manifest
 
 
+def _require_fresh_ir() -> None:
+    """Refuse to build a corpus from an IR older than the census it came from.
+
+    The pipeline is ORDERED -- ``build_codemap.py`` (observed.json) ->
+    ``close_vmless_wall.py`` (entries.txt -> recovery_ir.json -> lifted corpus)
+    -> this script -- and skipping the middle step is silent and expensive:
+    functions the new census discovered have no IR entry, so every caller of one
+    refuses ``contains-call``.  That cascaded to FIVE refusals including
+    1010:61F3, the C-startup root, which left play_cpuless unable to import its
+    entry point at all.  Nothing in the output said "stale IR"; it looked like a
+    capability regression and was diagnosed the long way.
+
+    Mtime is a heuristic (a touch defeats it), so this is a guard-rail, not a
+    proof -- but it fires exactly where the mistake is made.
+    """
+    if not (IR.exists() and OBSERVED.exists()):
+        return
+    if IR.stat().st_mtime >= OBSERVED.stat().st_mtime:
+        return
+    raise SystemExit(
+        f"[standalone] STALE IR: {IR.name} is older than {OBSERVED.name}.\n"
+        f"  The census changed but the IR was not regenerated, so functions it\n"
+        f"  discovered have no IR entry and their callers will refuse\n"
+        f"  'contains-call' (this is how 1010:61F3 dropped out and broke the\n"
+        f"  runner). Regenerate the IR first:\n\n"
+        f"      python scripts/close_vmless_wall.py\n\n"
+        f"  Full order: build_codemap.py -> close_vmless_wall.py -> "
+        f"build_recovered.py\n"
+        f"  (or just: python scripts/rebuild_all.py)")
+
+
 def build() -> int:
+    _require_fresh_ir()
     # 1. per-site dispatch evidence, OBSERVED-filtered (standalone corpus).
     subprocess.run([sys.executable, str(ROOT / "scripts/find_dispatch_evidence.py"),
                     "--observed", str(OBSERVED), "--out", str(DYN_OBS)], check=True)

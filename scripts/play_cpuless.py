@@ -23,7 +23,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import builtins
 import json
 import subprocess
 import sys
@@ -31,26 +30,27 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-#: The interpreter and every CPU-carrying surface the standalone runtime must
-#: never reach.  x86 is the CPU-FREE shared leaf (constants + HaltExecution) and
-#: is allowed; dos_re.cpu is the interpreter and is not.
-_FORBIDDEN = ("dos_re.cpu", "skyroads.lifted")
+#: This port's own CPU-carrying surface, on top of the framework's BASE_FORBIDDEN
+#: (dos_re.cpu / cpu386 / lift.install / lift.runtime / runtime).  x86 is the
+#: CPU-FREE shared leaf (constants + HaltExecution) and stays allowed.
+_EXTRA_FORBIDDEN = ("skyroads.lifted",)
 
 
 def _arm_import_guard() -> None:
-    """Hook ``__import__`` so any attempt to pull the interpreter (or a
-    CPU-carrying corpus) fails loud.  The STATIC proof is tools/lint_cpuless.py;
-    this is the runtime backstop for a path the static walk cannot see."""
-    real_import = builtins.__import__
+    """Arm the CPUless wall via the framework's shared guard.
 
-    def guarded(name, *a, **k):
-        if any(name == m or name.startswith(m + ".") for m in _FORBIDDEN):
-            raise ImportError(
-                f"CPUless hard wall: the standalone runner must never import "
-                f"{name!r} (a CPU/interpreter carrier)")
-        return real_import(name, *a, **k)
+    This used to be a hand-rolled hook that matched only the ``name`` argument.
+    That has a BLIND SPOT: a relative ``from .cpu import CPU8086`` inside dos_re
+    arrives as ``name='cpu', level=1`` WITHOUT the package, so it never matched
+    'dos_re.cpu' and sailed straight through -- exactly where the framework's own
+    intra-package imports live.  (Verified against this runner before switching:
+    the relative form passed the old guard.)  ``install_import_guard`` resolves
+    the absolute dotted name first, so the wall actually holds.
 
-    builtins.__import__ = guarded
+    Fires only on an EXECUTED import; tools/lint_cpuless.py remains the STATIC
+    proof for paths a given run does not take."""
+    from dos_re.lift.standalone import install_import_guard
+    install_import_guard(extra_forbidden=_EXTRA_FORBIDDEN)
 
 
 CANONICAL_ENTRY = (0x1010, 0x61F3)
@@ -361,9 +361,11 @@ def run_interactive(scale: int, square_pixels: bool, present_hz: int,
 
 
 def run(args) -> int:
-    _arm_import_guard()
+    # Path first: the guard itself now lives in dos_re (the shared standalone
+    # host), so it must be importable before we arm it.
     sys.path.insert(0, str(ROOT / "dos_re"))
     sys.path.insert(0, str(ROOT))
+    _arm_import_guard()
     from dos_re.lift.platform import UnsupportedPlatformEffect
     try:
         from skyroads.recovered._dyncall import UnknownDispatchTarget
