@@ -217,6 +217,14 @@ def main(argv=None) -> int:
                     help="check hand-recovered islands against the generated "
                          "bodies on every call (skyroads/island_shadows.py). The "
                          "generated code still drives; a disagreement raises.")
+    ap.add_argument("--shadow-only", action="store_true",
+                    help="run ONLY the shadow check: the CPUless corpus alone, "
+                         "no oracle, no frame comparison. Implies "
+                         "--shadow-islands. A shadow compares the candidate "
+                         "against the generated body IN PROCESS, so the oracle "
+                         "proves nothing extra about it and costs most of the "
+                         "runtime -- this is the same evidence for a quarter of "
+                         "the wall clock, which is what makes it gateable.")
     ap.add_argument("--irqs", type=int, default=6)
     # 4_000_000 was sized for the (contaminated) hooked oracle.  A genuinely
     # pure oracle interprets the real blitters/decompressors instead of calling
@@ -237,6 +245,7 @@ def main(argv=None) -> int:
     end = pb_o.end_boundary or 100000
     if args.frames:
         end = min(end, args.frames)
+    args.shadow_islands = args.shadow_islands or args.shadow_only
     if args.shadow_islands:
         # BEFORE the corpus is imported: generated modules bind callees at import
         # time, so the module object is the only seam.
@@ -247,16 +256,31 @@ def main(argv=None) -> int:
           f"mouse_present={pb_o.mouse_present_hint}; cut = 2nd pass at "
           f"{len(heads)} boundary heads")
 
-    print("[verify-cpuless] running the interpreted ASM oracle ...")
-    oracle = _capture_oracle(demo, pb_o, heads, args.irqs, args.step_budget, end)
-    print(f"[verify-cpuless] oracle captured {len(oracle)} frames")
+    if args.shadow_only:
+        oracle = []
+    else:
+        print("[verify-cpuless] running the interpreted ASM oracle ...")
+        oracle = _capture_oracle(demo, pb_o, heads, args.irqs, args.step_budget, end)
+        print(f"[verify-cpuless] oracle captured {len(oracle)} frames")
     print("[verify-cpuless] running the NO-CPU recovered corpus ...")
     cand = _capture_cpuless(pb_c, heads, args.irqs, end)
     print(f"[verify-cpuless] candidate captured {len(cand)} frames")
 
     if args.shadow_islands:
-        from skyroads.island_shadows import report
+        from skyroads.island_shadows import Verdict, report, verdict
         print(f"[verify-cpuless] island shadows -- {report()}")
+        # GATED, not merely printed. Anything short of VERIFIED is a failure,
+        # INCONCLUSIVE included: a shadow that was never called established
+        # nothing, and a zero that reads like a pass is the false green this
+        # project has produced twice.
+        if verdict() is not Verdict.VERIFIED:
+            print("[verify-cpuless] FAIL -- island shadows did not verify")
+            return 1
+        if args.shadow_only:
+            print(f"[verify-cpuless] PASS -- island shadows VERIFIED over "
+                  f"{demo.name} ({len(cand)} frames, NO oracle: this gate proves "
+                  f"the candidates, not the corpus)")
+            return 0
     n = min(len(oracle), len(cand))
     for i in range(n):
         vo, po = oracle[i]
