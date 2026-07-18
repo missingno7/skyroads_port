@@ -53,6 +53,46 @@ differentials — which are the ones that actually prove the port and therefore
 the ones most likely to be skipped by hand. (It earned its place immediately by
 catching a test that only passed when run from one directory.)
 
+### The interpreter split (2026-07-18) — the differentials run under PyPy
+
+The oracle-stepping gates are pure-Python instruction interpretation, PyPy's
+best case; the test suites are fixture-bound and want CPython + `-n auto`
+instead (every PyPy worker re-pays JIT warmup). `check_all.py` therefore picks
+`pypy3` off PATH for the differentials automatically and prints the choice per
+gate (`(48s, pypy)`), CPython for everything else. Nothing else changes: same
+script, same demo, same comparison, same exit status. `--no-pypy` forces
+CPython everywhere; `SKYROADS_PYPY=` (empty) opts out via the environment.
+
+Run a differential by hand the same way — `pypy3` is a drop-in, and `-u` keeps
+the progress heartbeat live:
+
+```sh
+pypy3 -u scripts/verify_cpuless.py artifacts/demos/demo_attract_20260718_135434
+```
+
+**This is an optimisation, never a gate change, and it is only allowed because
+the two interpreters were proven to agree.** Measured 2026-07-18 on the full
+5,109-frame attract differential, run end-to-end under each:
+
+| | wall clock | verdict |
+|---|---|---|
+| CPython 3.11 | **500.8 s** (8m21) | PASS, 5109 frames |
+| PyPy 3.11 v7.3.20 | **47.3 s** | PASS, 5109 frames |
+| | **10.6x** | sha1 of output **identical** |
+
+Excluding only the timing heartbeats (which carry elapsed seconds by
+construction), the two logs hash the same: `1da10d27…` — every per-frame line,
+the `oracle peak 17126327 steps/frame` figure, and the verdict. **Re-run that
+comparison after a PyPy upgrade before trusting the fast path.**
+
+Two cautions on the number. **10.6x is the whole-harness figure, not the
+~13–17x `dos_re/docs/performance.md` quotes** for steady-state raw
+interpretation; the harness also builds 5,109 64 KB frame snapshots and
+compares them, work that does not speed up as much. And **short runs gain far
+less**: a 60-frame run measured only 5.4x (40.4 s → 7.5 s), because process
+start plus JIT warmup is then most of the run. PyPy pays off on the long gates,
+which is exactly where the cost is.
+
 `coverage_audit.py` reads the game's own **dispatch tables** out of the boot
 image and reports any entry the census never executed — each one a fail-loud
 stop waiting to happen. For the block-type table it goes further and decodes

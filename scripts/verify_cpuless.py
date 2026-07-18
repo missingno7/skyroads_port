@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 import types
 from pathlib import Path
 
@@ -113,9 +114,22 @@ def _capture_oracle(demo, pb, heads, irqs, step_budget, end):
             f"oracle's truncation.  Raise --step-budget.")
 
     frames = []
+    t0 = time.time()
     for frame in range(end):
         if pb.finished(frame):
             break
+        # PROGRESS, unconditionally flushed.  The oracle phase used to print
+        # NOTHING between "running the interpreted ASM oracle ..." and its
+        # summary -- minutes to hours of silence on a long demo.  An agent read
+        # that empty tail as "still working" and, on another occasion, as
+        # "finished"; neither is observable from the log.  A heartbeat with a
+        # frame index and a rate makes the difference between a live run, a
+        # wedged one and a finished one visible without guessing.
+        if frame and frame % 25 == 0:
+            dt = time.time() - t0
+            print(f"  [oracle] frame {frame}/{end}  {frame / dt:.1f} fps  "
+                  f"elapsed {dt:.0f}s  eta {(end - frame) * dt / frame:.0f}s",
+                  flush=True)
         pb.apply_to_runtime(frame, rt, deliver=lambda r, sc: f.deliver_input(r, sc))
         for _ in range(irqs):
             deliver_interrupt(rt, 0x08)
@@ -168,11 +182,19 @@ def _capture_cpuless(pb, heads, irqs, end):
 
     frames = []
     done = _Stop
+    t0 = time.time()
 
     def present(frame):
         """Capture the frame that just finished (the candidate's 'display')."""
         frames.append((bytes(mem.data[VGA:VGA + VGA_LEN]),
                        tuple(map(tuple, dos.vga_palette))))
+        # Same heartbeat contract as the oracle phase: a long run must be
+        # distinguishable from a WEDGED one without attaching a debugger.
+        # This phase was silent for ~60s of the 5109-frame CPython run.
+        if frame and frame % 100 == 0:
+            dt = time.time() - t0
+            print(f"  [candidate] frame {frame}/{end}  {frame / dt:.1f} fps  "
+                  f"elapsed {dt:.0f}s", flush=True)
         if frame + 1 >= end or pb.finished(frame):
             raise done()
 

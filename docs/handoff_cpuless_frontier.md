@@ -96,10 +96,18 @@ HEAD: `a0904a4`.
 
 ```sh
 python scripts/rebuild_all.py     # THE pipeline, in the only correct order
-python scripts/check_all.py       # all 6 gates, one verdict (--quick skips diffs)
+python scripts/check_all.py       # every gate, one verdict (--quick skips diffs)
 python scripts/coverage_audit.py  # dispatch-table gaps before a player finds them
 python tools/absorption_ledger.py [--native|--unstitch]
+
+# a differential by hand: pypy3 is a drop-in, -u keeps the heartbeat live
+pypy3 -u scripts/verify_cpuless.py artifacts/demos/demo_attract_20260718_135434
 ```
+
+**`check_all.py` runs the differentials under PyPy automatically** (2026-07-18)
+and prints the interpreter per gate; `--no-pypy` forces CPython. Identical
+gates, ~10x faster — see [`cpuless_standalone.md`](cpuless_standalone.md) for
+the agreement evidence.
 
 **Pipeline order is load-bearing**: `build_codemap` → `close_vmless_wall` →
 `build_recovered`. Skipping the middle stage leaves new functions with no IR
@@ -118,7 +126,7 @@ exhaustion. Do not lower it to make something fast.
 | demo | frames | role |
 |---|---|---|
 | `demo_cold_20260718_134357` | 261 | spine; **PASSES**; fast acceptance vehicle (~160 s now) |
-| `demo_attract_20260718_135434` | 5109 | **ZERO input**; passes frames 0–1299; **frames 1300+ NEVER RUN** — §4 |
+| `demo_attract_20260718_135434` | 5109 | **ZERO input**; **PASSES ALL 5109 frames** (2026-07-18, both interpreters) — §4. 47 s under PyPy, so it is now cheap enough to gate |
 | `demo_cold_20260718_003412` | 672 | older spine; passes (the `verify_vmless` gate demo) |
 | `demo_intro_20260717_125403` | 1832 | older attract; previously "failed f1115" — same misdiagnosis |
 
@@ -212,12 +220,45 @@ accepted at face value:
 Row 2 is the important one: it proves the fade hook was never the frame-0 cause,
 and sent the investigation to the step budget instead of back into the candidate.
 
-### THE NEW FRONTIER — UNKNOWN beyond frame 1300
+### RESOLVED 2026-07-18 — the attract demo passes ALL 5,109 frames
 
-**The frontier is not "none". It is UNKNOWN, and the distinction is the whole
-point of this section.**
+**The 3,809 unrun frames have now been run.** Under both interpreters,
+end-to-end, no truncation:
 
-What was actually **observed**, and nothing more:
+```
+[verify-cpuless] demo=demo_attract_20260718_135434 frames=5109 mouse_present=True;
+                 cut = 2nd pass at 11 boundary heads
+[verify-cpuless] oracle peak 17126327 steps/frame (budget 64000000)
+[verify-cpuless] oracle captured 5109 frames
+[verify-cpuless] candidate captured 5109 frames
+[verify-cpuless] PASS -- 5109 frames: VGA plane AND DAC palette identical to the
+                 ASM oracle, NO CPU, over demo_attract_20260718_135434
+```
+
+| run | wall clock | verdict |
+|---|---|---|
+| CPython 3.11 | 500.8 s (8m21) | PASS, 5109 frames |
+| PyPy 3.11 v7.3.20 | **47.3 s** | PASS, 5109 frames |
+
+Both logs hash identically (sha1 `1da10d27…`, timing heartbeats excluded), so
+this is one result observed twice, not two results. The **20–50 min** estimate
+recorded below was wrong in both directions: CPython came in under it, and PyPy
+turns the whole thing into a 47-second gate.
+
+**What this does and does not establish.** It establishes that over these 5,109
+frames the CPUless corpus is byte-identical to a *proven-pure* oracle in both
+the VGA index plane and the DAC palette, with `1010:04C0` DRIVING. It does NOT
+establish that the corpus is clean: this is one demo with **zero input events**,
+so it exercises the attract path and nothing a player does. §10's lesson stands
+— "672 frames byte-exact" was restated as a general claim once already and a
+second demo then found a divergence. The honest statement is **"no known
+frontier remains on the demos that have been run"**, and the lever on that is
+DEMO BREADTH, not more frames of this one.
+
+<details><summary>The superseded section, kept because its reasoning still applies</summary>
+
+The frontier was not "none", it was UNKNOWN, and the distinction was the whole
+point. What had been **observed**:
 
 | claim | status |
 |---|---|
@@ -227,11 +268,16 @@ What was actually **observed**, and nothing more:
 | attract demo, frames 1300–5108 | **NOT RUN — NOTHING IS KNOWN** |
 
 The full-length run was started and then **abandoned before producing any
-output**; no partial result beyond frame 1300 was ever observed, so none is
-recorded here. `--frames 1300` was chosen originally only because the alleged
-frontier sat at 1115 — it is a cut inherited from a misdiagnosis, not a
-meaningful boundary. **3,809 of the attract demo's 5,109 frames have never been
-compared against a pure oracle.**
+output**; no partial result beyond frame 1300 was ever observed, so none was
+recorded. `--frames 1300` was chosen originally only because the alleged
+frontier sat at 1115 — a cut inherited from a misdiagnosis, not a meaningful
+boundary. That "abandoned before producing any output" is itself a fixed bug:
+the oracle phase printed NOTHING for its entire duration, so a live run, a
+wedged run and a finished run all looked the same. `verify_cpuless.py` now
+emits a flushed `[oracle]`/`[candidate]` heartbeat with frame index, rate and
+ETA — run it with `-u` and you can see it working.
+
+</details>
 
 This document previously reported "672 frames byte-exact" as though it were a
 general claim; it was demo-specific and a second demo then found a divergence.
@@ -486,10 +532,13 @@ than rediscovering §4 independently.
 
 ## 9. Open tasks
 
-1. **Frontier**: run `demo_attract_20260718_135434` to its full 5,109 frames.
-   3,809 of its frames have never been compared against a pure oracle, so the
-   frontier is *unknown*, not *absent*. Est. 20–50 min, still not run. See §4.
-   **This is now the top item** — item 2 below is done.
+1. ~~**Frontier**: run `demo_attract_20260718_135434` to its full 5,109
+   frames.~~ **DONE 2026-07-18** — PASS on all 5,109 frames under CPython
+   (500.8 s) and PyPy (47.3 s), byte-identical output. See §4. The frontier is
+   now *absent on the demos that have been run*, which is not the same as
+   *absent*: this demo has ZERO input events. **The successor top item is DEMO
+   BREADTH** — a demo that exercises player input end-to-end would prove
+   something this one structurally cannot.
 2. ~~**Acceptance** with `OVERRIDES` driving.~~ **DONE** — see §7. `1010:04C0`
    drives, and both cold differentials pass with it driving. Note carefully what
    that does and does not prove: it is ONE address, and the E2E differential is
