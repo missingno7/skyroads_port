@@ -84,6 +84,9 @@ skyroads/native/             21 subsystem modules, NOT address-keyed, 0 register
 
 Manifest: 180 generated-cpuless, runtime frontier 0, closure complete.
 
+**`OVERRIDES` IS NO LONGER EMPTY.** `1010:04C0` drives, so a PASS below is no
+longer a statement about generated code alone — for that one address. See §7.
+
 **Both differentials pass, against a PROVEN-pure oracle**, over the frame ranges
 they were actually run on (§4 — the attract demo's frames 1300+ were not among
 them). `check_all` 6/6; port suite 475 passed / 1 skipped; lint passed. Port
@@ -344,14 +347,24 @@ by the same mechanism in two different subsystems, and both failed silently. If 
 switch is meant to gate behaviour, gate the behaviour — not the import that
 precedes it.
 
-`skyroads/cpuless_overrides.py` still carries the same fix locally and can be
-reduced to a thin wrapper over the shared version (§9 item 4). It was left alone
-so the frontier investigation was not disturbed mid-flight; that reason has now
-expired.
+`skyroads/cpuless_overrides.py` is **now a thin registry** over the shared seam
+(226 → 107 lines) and carries no mechanism of its own. The shared version was
+already the better one: it normalises addresses through `int(x, 16)`, so
+`'1010:4C0'` and `'1010:04C0'` name the same module where the local
+string-lowercase silently did not, and it restores bindings **by name** rather
+than by attribute presence.
+
+Do **not** route a port through `run_recovered`: it calls `fn(mem, plat, **regs)`
+and this port's pure-compute bodies take no `plat`.
+
+**`dos_re/lift/shadow.py` is the other half of the seam** — see §7. Overkill
+should adopt it rather than write a checker: the callback shape it replaces is
+what let a checker compare one register out of ten and report a five-figure
+agreement count.
 
 ---
 
-## 7. Islands / absorption
+## 7. Islands / absorption — 04C0 NOW DRIVES
 
 42 islands: **3 VERIFIED, 39 ASM_MATCHED**. 20 anchor to an IR function; **22
 anchor to nothing** — formats, helpers, data layouts. Those 22 are knowledge for
@@ -359,31 +372,88 @@ the Memory Schema (M4), never override bodies.
 
 `ASM_MATCHED` ("diffed on captured cases") is **weaker** than the byte-exact
 standard the generated corpus already meets, so stitching them on recorded status
-would LOWER the proof standard.
+would LOWER the proof standard. **Shadow mode is the rung between**, and it now
+lives in `dos_re/lift/shadow.py` (Overkill needs it too).
 
-**Shadow mode** is the rung between: `verify_cpuless <demo> --shadow-islands` runs
-the generated body (so behaviour is provably unchanged) with the island checked
-against it on every real call, reporting calls-agreed and cost distribution.
+### The shadow rung, rebuilt — read this before trusting any "calls agreed" number
 
-```
-1010:04C0  perspective_row_offset     14,802 + 49,461 + 1,765 calls agreed
-1010:3A96  unpack_animation_segment   full 64 KB segment byte-exact + cursors
-```
+The old shadow took a `checker(mem, kw, outputs, compat)` **callback**, which left
+each port free to compare whatever it liked. The 04C0 checker compared **AX and
+nothing else** — not the other six outputs, not flags, not fmask, and not the 25
+words the body leaves on the stack — while tallying cost into a counter that *read*
+like an assertion and asserted nothing. Its "14,802 calls agreed" was true of AX
+alone. **A checker that quietly compares less is indistinguishable from one that
+compares everything**; that is why the callback is gone.
 
-Both islands were **correct**; both times the defect shadow mode found was in my
-**checker** (asserting a callee-saved register; binding the wrong segment because
-the body reloads `ds`). That is exactly the mistake a direct swap makes silently.
+A candidate is now a **drop-in** with the generated signature returning the
+generated `(outputs, compat)` pair (`skyroads/island_bodies.py`), and
+`dos_re.lift.shadow` does the comparing — total by construction, and the artifact
+under proof is the artifact that ships. Comparing less requires an `Exemption`
+whose `reason` is REQUIRED (an empty one raises). Memory is an ordered byte-write
+log; the candidate runs first on an overlay proxy so it sees the exact pre-state
+and cannot perturb the run. Verdicts come from `abi_diff`'s lattice, and **a
+shadow that was never called is INCONCLUSIVE, never VERIFIED.**
 
-**Virtual time is not the blocker it looked like.** `04C0`'s cost is two-valued
-(104 / 19) and the island already computes the discriminant (`in_range`). But note
-the trap: on the *spine* demo the cost is a single constant, because the short path
-never occurs there — deriving the model from one demo would pass acceptance and be
-silently wrong. Validate against both.
+That last rule earned itself immediately: the first negative control for 04C0 ran
+over 120 frames, and 04C0 **is not called before frame ~200**. The control proved
+nothing and looked like a pass; INCONCLUSIVE is what caught it.
 
-Still required before any island drives: reproduce the **full** contract —
-outputs `ax/bp/bx/cx/di/dx/si` plus `flags` and `fmask` — not just `AX`.
+### 1010:04C0 perspective_row_offset — ABSORBED, DRIVING
 
----
+The contract, derived from the body and then measured:
+
+| | out of range (idx ≥ 0x142) | in range |
+|---|---|---|
+| ax | 0 | `ds:[offset]` |
+| bx | **caller's** (never written) | offset |
+| cx | 0x80 | offset |
+| dx | depth % 128 | idx % 46 |
+| bp, si, di | caller's — callee-saved on BOTH paths | same |
+| flags | from `cmp si,0x142` | from the final `add cx,ax` |
+| fmask | 0x8D5 | 0x8D5 |
+| cost | 19 | 104 |
+| memory | 3 frame saves | + 15 argument words + 4 callee prologue saves |
+
+**The "one genuinely unknown quantity" is measured and it widens nothing.** On the
+frames 04C0 builds, 5D8C's divisor high word is always 0 and 5D4C's multiplicand
+high word is always 0, so both always take their short path: fmask 0x8C5 / cost 21
+and 0x8C5 / 12. The union 0x8C5 is a strict **subset** of 0x8D5 — neither ever
+writes AF, neither touches DF or IF — and 12+34+4+21+21+12 = 104 exactly.
+
+Evidence, all against the FULL contract, zero disagreements:
+
+- 6,000 seeded random states, both paths forced (3,228 / 2,772) — `tests/test_island_bodies.py`
+- `demo_cold_20260718_003412` — 14,802 calls `{104: 12822, 19: 1980}`
+- `demo_colde2e_full_20260713_144604` — 125,728 calls `{104: 125604, 19: 124}`
+- **E2E cold differential with it DRIVING**: 261 frames and 672 frames, VGA plane
+  and DAC palette identical to the pure ASM oracle.
+
+**Validating on the spine demo alone would have been useless**: it never takes the
+short path, so its cost model is the constant 104 and is silently wrong.
+
+### The negative control, and what the E2E differential CANNOT see
+
+"Installed" and "reached" are different claims, so the override was perturbed:
+
+| perturbation | result |
+|---|---|
+| in-range AX + 1 | **VGA DIVERGES at frame 307** — the body is genuinely on the path |
+| short-path cost 19 → 20 | no divergence (only 53 of 4,065 calls in the window take it) |
+| one exit flag bit | no divergence (flags are merged by the caller, not branched on) |
+
+So **acceptance proves 04C0's VALUE and not its flags or its short-path cost.**
+The shadow proves those, exactly, on all 140,530 real calls. The two gates are not
+redundant, and `check_all` now runs both.
+
+### 1010:3A96 — LEFT ALONE, and its status overstates its evidence
+
+Do not stitch it. It has no drop-in body, and the checker that stood in for one
+compared **one 64 KB segment per call** (the one named by the post-state `es`) and
+**no register, flag, fmask or cost at all**. Its recorded "full 64 KB segment
+byte-exact" is materially narrower than VERIFIED suggests. An inherited survey also
+reports the pre-state snapshot overlooking ~39 KB of overlap accumulated by
+preceding passes; **that figure was NOT re-measured here** and is recorded as a
+caution, not a result.
 
 ## 8. Coordinating with Overkill
 
@@ -416,25 +486,25 @@ than rediscovering §4 independently.
 
 ## 9. Open tasks
 
-1. ~~**Frontier**: `1010:6168`'s write loop.~~ **WITHDRAWN** — misdiagnosis, see
-   §4. **Replaced by, and this is the first thing to do:** run
-   `demo_attract_20260718_135434` to its full 5,109 frames. 3,809 of its frames
-   have never been compared against a pure oracle, so the frontier is *unknown*,
-   not *absent*. Est. 20–50 min, not yet run. See §4, "THE NEW FRONTIER".
-2. **Acceptance — NOW THE TOP PRIORITY.** Derive `04C0`'s full output+flag
-   mapping, declare cost from `in_range`, put it in `OVERRIDES`, rerun the spine
-   demo with it *driving*. This is **the** bar: with `OVERRIDES` empty the
-   composite is bit-for-bit the generated program, so every "PASS" recorded in
-   this document — including the 1300-frame one — is a proof about generated code
-   only. Nothing has yet been proven with a hand-recovered body driving. With the
-   frontier withdrawn, nothing competes with this.
+1. **Frontier**: run `demo_attract_20260718_135434` to its full 5,109 frames.
+   3,809 of its frames have never been compared against a pure oracle, so the
+   frontier is *unknown*, not *absent*. Est. 20–50 min, still not run. See §4.
+   **This is now the top item** — item 2 below is done.
+2. ~~**Acceptance** with `OVERRIDES` driving.~~ **DONE** — see §7. `1010:04C0`
+   drives, and both cold differentials pass with it driving. Note carefully what
+   that does and does not prove: it is ONE address, and the E2E differential is
+   insensitive to its flags and short-path cost (§7's control table). The corpus
+   remains overwhelmingly generated.
 3. Add `demo_attract_20260718_135434` to `check_all.py` so the gate covers two
-   cold demos. Weigh the runtime cost (§3) first — the gate is already ~9 min.
-4. Reduce `skyroads/cpuless_overrides.py` to a wrapper over
-   `dos_re.lift.standalone` (§6). Still open; its "leave it alone" justification
-   has expired.
-
----
+   cold demos. `check_all` is now **7/7 in ~6 min** (the port suite moved to
+   `-n auto`, 263s → 47s, which paid for the new shadow gate at 17s).
+4. ~~Reduce `skyroads/cpuless_overrides.py` to a wrapper.~~ **DONE** — 226 → 107
+   lines over `dos_re.lift.standalone`.
+5. **Next absorption candidate**: nothing is queued. The bar for the second one
+   is the same as the first — a drop-in body, shadow-VERIFIED on demos that
+   exercise every path, then driving. Note that 39 of the 42 islands are
+   `ASM_MATCHED` and 22 anchor to no IR function at all, so the pool of
+   absorbable addresses is much smaller than "42".
 
 ## 10. Things I got wrong (so they are not repeated)
 
