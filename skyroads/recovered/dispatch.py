@@ -166,6 +166,7 @@ DISPATCH = {
     '1010:6053': ('skyroads.recovered.func_1010_6053', 'func_1010_6053', None, ('ax', 'di', 'ds', 'dx', 'es', 'si', 'sp', 'ss'), False, True, False),
     '1010:609F': ('skyroads.recovered.func_1010_609f', 'func_1010_609f', None, ('ax', 'bp', 'cx', 'di', 'ds', 'dx', 'es', 'si', 'sp', 'ss'), True, False, True),
     '1010:60AB': ('skyroads.recovered.func_1010_60ab', 'func_1010_60ab', None, ('ax', 'bp', 'bx', 'cx', 'di', 'ds', 'dx', 'es', 'si', 'sp', 'ss'), True, False, True),
+    '1010:60E9': ('skyroads.recovered.func_1010_60e9', 'func_1010_60e9', None, ('bp', 'bx', 'cx', 'di', 'ds', 'dx', 'es', 'si', 'sp', 'ss'), True, False, True),
     '1010:60EE': ('skyroads.recovered.func_1010_60ee', 'func_1010_60ee', None, ('ax', 'bp', 'di', 'ds', 'es', 'si', 'sp', 'ss'), True, False, True),
     '1010:6151': ('skyroads.recovered.func_1010_6151', 'func_1010_6151', None, ('ax', 'ss'), True, False, False),
     '1010:6168': ('skyroads.recovered.func_1010_6168', 'func_1010_6168', None, ('ax', 'bp', 'cx', 'di', 'ds', 'dx', 'es', 'si', 'sp', 'ss'), True, True, True),
