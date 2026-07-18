@@ -1,21 +1,22 @@
 """play_cpuless.py -- the TRUE standalone CPUless runner (NO CPU, NO interpreter).
 
-Starts at the C-startup root ``1010:61F3`` and drives the recovered corpus
-through :class:`dos_re.lift.platform.CPUlessPlatformRuntime` -- pure Python over
-the boot-image memory + a device model + a virtual clock.  It NEVER imports or
-instantiates the interpreter (``dos_re.cpu``); a runtime import guard is the
-dynamic backstop and ``tools/lint_cpuless.py`` is the static proof.
+Starts at the C-startup root ``1010:61F3`` and drives the recovered corpus in
+``skyroads/recovered/`` through :class:`dos_re.lift.platform.CPUlessPlatformRuntime`
+-- pure Python over the boot-image memory + a device model + a virtual clock.  It
+NEVER imports or instantiates the interpreter (``dos_re.cpu``); a runtime import
+guard is the dynamic backstop and ``tools/lint_cpuless.py`` is the static proof.
 
-CURRENT STATE -- fails loud at the recorded cold-start frontier.  The
-``--observed`` probe trace does not yet cover the earliest C-startup low-level
-init, so a from-61F3 cold boot reaches code the corpus marked runtime-dead and
-the hard wall fires (a fail-loud raise / UnknownDispatchTarget), by design --
-never a silent fallback.  Closing it needs a fuller startup capture (the
-cold-boot capture -> close -> promote loop).  The runner reports exactly where
-it stopped.
+This is a PLAYABLE game, not a boot probe: the default is an interactive pygame
+window with live keyboard, running until you quit.  ``--headless`` is the opt-in
+for agents/CI (no window, frame-capped, no input source).
+
+The frame model is the one proven byte-exact by ``scripts/verify_cpuless.py``
+over a full 672-frame cold playthrough, and both share the single implementation
+in :mod:`skyroads.cpuless_driver` so they cannot drift.
 
 Usage:
-    python scripts/play_cpuless.py --headless          # boot; report stop point
+    python scripts/play_cpuless.py                     # play it (window)
+    python scripts/play_cpuless.py --scale 4
     python scripts/play_cpuless.py --headless --frames 30
     python scripts/play_cpuless.py --rebuild           # regenerate the corpus
 """
@@ -55,8 +56,9 @@ def _arm_import_guard() -> None:
 CANONICAL_ENTRY = (0x1010, 0x61F3)
 BOOT_DIR = ROOT / "artifacts" / "boot_image"
 STANDALONE_DIR = ROOT / "skyroads" / "recovered"
-#: the recovered INT 08h timer ISR's contract inputs (dispatch.py HANDLERS).
-_TIMER_INPUTS = ("ax", "bp", "bx", "cx", "di", "ds", "dx", "es", "si", "sp", "ss")
+#: SkyRoads presents at 30 Hz with 6 IRQ0 ticks per frame (= 180 Hz IRQ0), the
+#: ratio every recorded demo carries as ``timer_irqs_per_frame``.
+PRESENT_HZ = 30
 
 
 def _ensure_corpus(rebuild: bool) -> None:
@@ -80,12 +82,19 @@ def _load_boot():
 
 
 class _RtShim:
-    """Minimal (mem, dos) view so the CPU-free _restore_dos_state can apply the
-    snapshot's device + memory-arena state onto our standalone runtime."""
+    """Minimal ``(cpu.mem, dos)`` view of the CPU-free runtime.
+
+    Two dos_re helpers navigate a Runtime by attribute path but never step a CPU:
+    ``snapshot_headless._restore_dos_state`` (``rt.program.memory``/``rt.dos``)
+    and ``framebuffer.decode_frame_default`` (``rt.cpu.mem``/``rt.dos``).  This
+    shim satisfies both without a CPU existing -- ``.cpu`` here is a namespace
+    holding the memory, nothing more."""
+
     def __init__(self, dos, mem):
         import types
         self.dos = dos
         self.program = types.SimpleNamespace(memory=mem)
+        self.cpu = types.SimpleNamespace(mem=mem)
 
 
 def _vga_nonzero(mem) -> int:
@@ -93,23 +102,20 @@ def _vga_nonzero(mem) -> int:
     return sum(1 for b in mem.data[base:base + 64000] if b)
 
 
-def run(frames: int, rebuild: bool) -> int:
-    _arm_import_guard()
-    _ensure_corpus(rebuild)
-    sys.path.insert(0, str(ROOT / "dos_re"))
-    sys.path.insert(0, str(ROOT))
+class _Done(Exception):
+    """Frame budget reached (headless)."""
 
-    import inspect
-    from dos_re.lift.platform import (CPUlessPlatformRuntime,
-                                      UnsupportedPlatformEffect)
+
+class _Quit(Exception):
+    """The player closed the window."""
+
+
+def _boot(rebuild: bool, *, mouse_present: bool):
+    """Build the CPU-free runtime: boot image + device model + platform."""
+    _ensure_corpus(rebuild)
+    from dos_re.lift.platform import CPUlessPlatformRuntime
     from dos_re.dos import DOSMachine
     from dos_re.snapshot_headless import _restore_dos_state   # runtime CPU-free
-    from skyroads.recovered.func_1010_61f3 import func_1010_61f3
-    from skyroads.recovered.func_1010_3b17 import func_1010_3b17
-    try:
-        from skyroads.recovered._dyncall import UnknownDispatchTarget
-    except Exception:                       # noqa: BLE001
-        UnknownDispatchTarget = ()
 
     mem, regs0, dos_meta, boot_manifest = _load_boot()
     poisoned = boot_manifest.get("code_bytes_present_after")
@@ -123,76 +129,206 @@ def run(frames: int, rebuild: bool) -> int:
     # allocation (int 21/48h) fails against a fresh arena and the startup takes
     # its out-of-memory error path -- the real reason the cold boot diverged.
     _restore_dos_state(_RtShim(dos, mem), dos_meta)
+    dos.mouse_present = mouse_present
+    # A console read on an empty type-ahead buffer must WAIT for the player, not
+    # synthesise the DOSMachine's default 0x011B (Esc) -- that phantom key makes
+    # every press-any-key screen quit the game.  The frame driver services the
+    # wait through blocking_read_cb.
+    dos.console_input_fallback = None
     rt = CPUlessPlatformRuntime(mem, game_root=ROOT, dos=dos)
+    return mem, dos, rt, regs0
 
-    #: SYNCHRONOUS frame scheduler.  A boundary head is a plat.boundary call
-    #: from INSIDE the running recovered program; this callback IS the per-frame
-    #: loop.  SkyRoads paces off ds:[1600], the tick its INT 08h ISR bumps once
-    #: per 6 IRQs; a frame is: deliver this frame's timer IRQs through the game's
-    #: OWN recovered INT 08h ISR (func_1010_3b17), which advances the tick so the
-    #: boundary's tick-wait exits, then let the recovered body render the frame.
-    #: NO CPU, NO interpreter -- the ISR is recovered Python.
-    TIMER_IRQS_PER_FRAME = 6
-    state = {"frames": 0}
+
+def _enter(rt, regs0):
+    """Call the recovered C-startup root -- the whole game runs inside this."""
+    import inspect
+    from skyroads.recovered.func_1010_61f3 import func_1010_61f3
+    kw = {k: v for k, v in regs0.items()
+          if k in inspect.signature(func_1010_61f3).parameters}
+    kw["_flags_in"] = regs0.get("flags", 2)
+    return rt.call(func_1010_61f3, **kw)
+
+
+def _key_deliverer(mem, dos, rt):
+    """CPU-free equivalent of ``dos_re.interrupts.deliver_scancode``.
+
+    Present the code on port 60h and update BIOS-visible keyboard state.  If the
+    game installed its OWN INT 09h, also run it -- recovered, no CPU.  (SkyRoads
+    does not: IVT[9] stays at the power-on BIOS entry and its menus read the
+    type-ahead buffer via INT 21h/16h, while gameplay polls port 60h.)"""
+    from dos_re.keyboard import BIOS_INT9_ENTRY          # CPU-free leaf
+    from skyroads.recovered.func_1010_3bcc import func_1010_3bcc
+    #: the recovered INT 09h ISR is NOT flags-live -- never pass it _flags_in.
+    key_in = ("ax", "bp", "bx", "cx", "di", "ds", "dx", "si", "sp", "ss")
+
+    def deliver(scancode: int, regs: dict) -> None:
+        dos.current_scancode = scancode & 0xFF
+        dos.kbd_output_buffer_full = True
+        dos.note_bios_keystroke(scancode & 0xFF)
+        voff, vseg = mem.rw(0, 0x24), mem.rw(0, 0x26)
+        if (vseg, voff) != BIOS_INT9_ENTRY:             # game's own ISR installed
+            kw = {k: regs[k] for k in key_in if k in regs}
+            func_1010_3bcc(mem, rt, **kw)
+
+    return deliver
+
+
+def run_headless(frames: int, rebuild: bool) -> int:
+    """No window, no input, frame-capped: the CI/agent probe."""
+    from skyroads.cpuless_driver import CPUlessFrameDriver
+    from skyroads.recovered.func_1010_3b17 import func_1010_3b17
+
+    mem, dos, rt, regs0 = _boot(rebuild, mouse_present=False)
     limit = frames or 30
+    done = {"n": 0}                 # frames actually presented
 
-    def boundary_cb(head_cs, head_ip, resume_ip, regs, cost):
-        state["frames"] += 1
-        for _ in range(TIMER_IRQS_PER_FRAME):
-            kw = {k: regs[k] for k in _TIMER_INPUTS if k in regs}
-            kw["_flags_in"] = regs.get("_flags_in", 2)
-            func_1010_3b17(mem, rt, **kw)         # advances ds:[1600] (recovered)
-        if state["frames"] == 1:
-            print(f"[cpuless] REACHED FIRST FRAME BOUNDARY {head_cs:04X}:"
-                  f"{head_ip:04X} -- CPU-free cold boot to the frame loop")
-        if state["frames"] >= limit:
+    def present(frame):
+        if frame == 0:
+            cs, ip = driver.head or (0, 0)
+            print(f"[cpuless] REACHED FIRST FRAME BOUNDARY {cs:04X}:{ip:04X} "
+                  f"-- CPU-free cold boot to the frame loop")
+        done["n"] = frame + 1
+        if done["n"] >= limit:
             raise _Done()
-        return regs, regs.get("_flags_in", 2), 0
-    rt.boundary_cb = boundary_cb
 
-    entry_kw = {k: v for k, v in regs0.items()
-                if k in inspect.signature(func_1010_61f3).parameters}
-    entry_kw["_flags_in"] = regs0.get("flags", 2)
-    print(f"[cpuless] boot: CPUlessPlatformRuntime.call(1010:61F3) -- NO CPU, "
-          f"NO interpreter (guard armed)")
+    driver = CPUlessFrameDriver(mem, rt, func_1010_3b17,
+                                present=present).install(rt)
+    print("[cpuless] boot: CPUlessPlatformRuntime.call(1010:61F3) -- NO CPU, "
+          "NO interpreter (guard armed)")
     try:
-        out, _ = rt.call(func_1010_61f3, **entry_kw)
-        print(f"[cpuless] program terminated after {state['frames']} frame(s) "
+        _enter(rt, regs0)
+        print(f"[cpuless] program terminated after {done['n']} frame(s) "
               f"-- no CPU, no interpreter")
-        return 0
     except _Done:
-        print(f"[cpuless] rendered {state['frames']} frames (VGA nonzero "
+        print(f"[cpuless] rendered {done['n']} frames (VGA nonzero "
               f"px={_vga_nonzero(mem)}) CPU-free -- no CPU, no interpreter")
-        return 0
+    return 0
+
+
+def run_interactive(scale: int, square_pixels: bool, present_hz: int,
+                    rebuild: bool) -> int:
+    """The playable window: live keyboard, running until you quit."""
+    import numpy as np
+    import pygame
+    from dos_re.display import Display
+    from dos_re.framebuffer import WIDTH, HEIGHT, decode_frame_default
+    from dos_re.keyboard import KeyDispatcher, scancode_table
+    from skyroads.cpuless_driver import CPUlessFrameDriver
+    from skyroads.recovered.func_1010_3b17 import func_1010_3b17
+
+    mem, dos, rt, regs0 = _boot(rebuild, mouse_present=True)
+    shim = _RtShim(dos, mem)
+    deliver = _key_deliverer(mem, dos, rt)
+
+    pygame.init()
+    par = 1.0 if square_pixels else 1.2
+    # Size the window for the GAME's framebuffer (mode 13h, 320x200), NOT for
+    # whatever the first decode returns: we boot at the C-startup root, where the
+    # machine is still in TEXT mode, so decoding now yields an 80x25 text render
+    # (640x400) and would size the window to the boot console.  draw_game
+    # letterboxes whatever arrives, so the brief text-mode phase still shows.
+    display = Display((WIDTH * scale, int(HEIGHT * par) * scale),
+                      title="SkyRoads -- CPUless (recovered, no CPU)")
+    display.par = par
+    scancodes = scancode_table(pygame)
+    clock = pygame.time.Clock()
+
+    # A key must be HELD for at least one frame or a quick tap can be set and
+    # cleared before the game polls it (see dos_re.keyboard).  The dispatcher
+    # defers each break by a frame; ``regs`` is rebound per frame below.
+    live = {"regs": {}}
+    dispatcher = KeyDispatcher(lambda sc: deliver(sc, live["regs"]))
+
+    def pump_events():
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                raise _Quit()
+            if event.type == pygame.VIDEORESIZE:
+                display.resize(event.w, event.h)
+            elif event.type in (pygame.KEYDOWN, pygame.KEYUP):
+                sc = scancodes.get(event.key)
+                if sc is None:
+                    continue
+                if event.type == pygame.KEYDOWN:
+                    dispatcher.post_down(sc)
+                else:
+                    dispatcher.post_up(sc)
+
+    def present(frame):
+        rgb = np.asarray(decode_frame_default(shim), np.uint8)
+        display.draw_game(rgb)
+        display.flip()
+        pygame.display.set_caption(
+            f"SkyRoads -- CPUless (no CPU) | frame={frame}")
+        clock.tick(present_hz)
+        pump_events()
+
+    def supply_input(frame, regs):
+        live["regs"] = regs        # the ISR needs the live bundle at delivery
+        dispatcher.pump()          # makes now, deferred breaks when due
+
+    driver = CPUlessFrameDriver(mem, rt, func_1010_3b17, present=present,
+                                supply_input=supply_input).install(rt)
+    print(f"[cpuless] SkyRoads running with NO CPU and NO interpreter "
+          f"(guard armed) -- {WIDTH}x{HEIGHT} @ {present_hz} Hz, "
+          f"close the window to quit")
+    try:
+        _enter(rt, regs0)
+        print(f"[cpuless] the game exited normally after {driver.frame} frames "
+              f"-- no CPU, no interpreter")
+    except _Quit:
+        print(f"[cpuless] quit after {driver.frame} frames -- no CPU, "
+              f"no interpreter")
+    finally:
+        pygame.quit()
+    return 0
+
+
+def run(args) -> int:
+    _arm_import_guard()
+    sys.path.insert(0, str(ROOT / "dos_re"))
+    sys.path.insert(0, str(ROOT))
+    from dos_re.lift.platform import UnsupportedPlatformEffect
+    try:
+        from skyroads.recovered._dyncall import UnknownDispatchTarget
+    except Exception:                       # noqa: BLE001
+        UnknownDispatchTarget = ()
+    try:
+        if args.headless:
+            return run_headless(args.frames, args.rebuild)
+        return run_interactive(args.scale, args.square_pixels,
+                               args.present_hz, args.rebuild)
     except (UnsupportedPlatformEffect, *([UnknownDispatchTarget]
                                          if UnknownDispatchTarget else [])) as e:
         print(f"\n[cpuless] HARD-WALL FRONTIER (fail-loud, by design):\n  {e}")
-        print("[cpuless] the cold boot reached code beyond the current "
-              "--observed coverage; close it with a fuller startup capture.")
+        print("[cpuless] the run reached code beyond the current --observed "
+              "coverage; close it with a fuller capture (see "
+              "docs/cpuless_standalone.md).")
         return 3
     except RuntimeError as e:
         if "CPUless" in str(e):
             print(f"\n[cpuless] HARD-WALL FRONTIER (fail-loud, by design):\n  {e}")
             print("[cpuless] a runtime-dead path (per the current --observed "
-                  "trace) was reached; close it with a fuller startup capture.")
+                  "trace) was reached; close it with a fuller capture.")
             return 3
         raise
-
-
-class _Done(Exception):
-    pass
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--headless", action="store_true",
-                    help="no window (the only mode until the frame driver lands)")
+                    help="no window, no input, frame-capped (agents/CI); "
+                         "default is the interactive window")
     ap.add_argument("--frames", type=int, default=0,
-                    help="stop after N frame boundaries (0 = run to end/frontier)")
+                    help="headless: stop after N frames (0 = 30)")
+    ap.add_argument("--scale", type=int, default=3, help="window pixel scale")
+    ap.add_argument("--square-pixels", action="store_true",
+                    help="1:1 pixels instead of the 1.2 CRT aspect")
+    ap.add_argument("--present-hz", type=int, default=PRESENT_HZ,
+                    help="frames presented per second")
     ap.add_argument("--rebuild", action="store_true",
                     help="regenerate the standalone corpus first")
-    args = ap.parse_args(argv)
-    return run(args.frames, args.rebuild)
+    return run(ap.parse_args(argv))
 
 
 if __name__ == "__main__":

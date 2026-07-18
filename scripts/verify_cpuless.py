@@ -48,12 +48,13 @@ from dos_re.x86 import HaltExecution   # noqa: E402
 from dos_re.memory import Memory   # noqa: E402
 from dos_re.lift.platform import CPUlessPlatformRuntime   # noqa: E402
 from dos_re.snapshot_headless import _restore_dos_state   # noqa: E402
-from dos_re.runtime import BIOS_INT9_ENTRY   # noqa: E402
+from dos_re.keyboard import BIOS_INT9_ENTRY   # noqa: E402  (CPU-free leaf)
+from skyroads.cpuless_driver import CPUlessFrameDriver   # noqa: E402
 import json   # noqa: E402
 
 BOOT_DIR = ROOT / "artifacts" / "boot_image"
-#: the recovered INT 08h timer ISR (flags_livein) + INT 09h keyboard ISR (not).
-_TIMER_IN = ("ax", "bp", "bx", "cx", "di", "ds", "dx", "es", "si", "sp", "ss")
+#: the recovered INT 09h keyboard ISR is NOT flags-live (the timer ISR is; the
+#: shared driver owns that bundle -- see skyroads.cpuless_driver.TIMER_INPUTS).
 _KEY_IN = ("ax", "bp", "bx", "cx", "di", "ds", "dx", "si", "sp", "ss")
 
 
@@ -95,10 +96,9 @@ def _capture_oracle(demo, pb, heads, irqs, step_budget, end):
 def _capture_cpuless(pb, heads, irqs, end):
     """Run the NO-CPU candidate; return [(vga_bytes, palette_tuple)] per frame.
 
-    The boundary_cb is the per-frame loop.  Park-on-re-arrival: the 1st pass at
-    a head this frame lets the tick-wait body run (return, deliver nothing); the
-    2nd pass IS the frame -- apply input once, deliver this frame's timer IRQs
-    through the recovered INT 08h ISR (advancing ds:[1600]), capture, advance.
+    Frames are driven by :class:`skyroads.cpuless_driver.CPUlessFrameDriver` --
+    the SAME model the shipped runner uses -- so this differential proves the
+    runner's behaviour, not a verification-only lookalike.
     """
     from skyroads.recovered.func_1010_61f3 import func_1010_61f3
     from skyroads.recovered.func_1010_3b17 import func_1010_3b17
@@ -130,42 +130,28 @@ def _capture_cpuless(pb, heads, irqs, end):
             func_1010_3bcc(mem, rt, **kw)             # run the game's recovered ISR
 
     frames = []
-    state = {"frame": 0, "seen": set()}
     done = _Stop
 
-    def _advance(regs):
-        """One frame boundary: capture the frame that just finished, then
-        prepare the NEXT frame -- apply ITS input before it renders (so input N
-        affects frame N, matching the oracle's apply-before-run) and deliver its
-        timer IRQs through the recovered INT 08h ISR.  Shared by the tick-wait
-        boundary (2nd pass) AND the blocking-read wait, so both frame drivers
-        keep one counter and one capture rule."""
-        f = state["frame"]
+    def present(frame):
+        """Capture the frame that just finished (the candidate's 'display')."""
         frames.append((bytes(mem.data[VGA:VGA + VGA_LEN]),
                        tuple(map(tuple, dos.vga_palette))))
-        state["frame"] = f + 1
-        state["seen"].clear()           # each frame starts a fresh pass count
-        if state["frame"] >= end or pb.finished(f):
+        if frame + 1 >= end or pb.finished(frame):
             raise done()
-        pb.apply_to_runtime(state["frame"], rt,
-                            deliver=lambda r, sc: deliver_key(r, sc, regs))
-        for _ in range(irqs):
-            kw = {k: regs[k] for k in _TIMER_IN if k in regs}
-            kw["_flags_in"] = regs.get("_flags_in", 2)
-            func_1010_3b17(mem, rt, **kw)
 
-    def boundary_cb(hcs, hip, rip, regs, cost):
-        key = (hcs, hip)
-        if key not in state["seen"]:
-            state["seen"].add(key)          # 1st pass: let the body run
-            return regs, regs.get("_flags_in", 2), 0
-        _advance(regs)                      # 2nd pass -> a frame just rendered
-        return regs, regs.get("_flags_in", 2), 0
-    rt.boundary_cb = boundary_cb
-    #: a blocking console read (press-any-key) advances a frame in place so the
-    #: awaited demo key can arrive; the frozen screen + IRQ-driven palette fade
-    #: are captured per frame exactly as the oracle captures its blocked frames.
-    rt.blocking_read_cb = _advance
+    def supply_input(frame, regs):
+        pb.apply_to_runtime(frame, rt,
+                            deliver=lambda r, sc: deliver_key(r, sc, regs))
+
+    # The SAME frame model the shipped runner uses (skyroads.cpuless_driver):
+    # park-on-2nd-pass at a boundary head, input applied before the frame it
+    # affects, timer IRQs through the recovered INT 08h ISR, and blocking console
+    # reads serviced by advancing a frame in place.  Sharing one implementation
+    # is the point -- a differential that proves a DIFFERENT model than the one
+    # that ships proves nothing about the shipped runner.
+    driver = CPUlessFrameDriver(mem, rt, func_1010_3b17, present=present,
+                                supply_input=supply_input,
+                                irqs=irqs).install(rt)
 
     regs0 = st["cpu"]
     import inspect
@@ -178,7 +164,7 @@ def _capture_cpuless(pb, heads, irqs, end):
         pass
     except HaltExecution:
         print(f"[verify-cpuless] candidate program terminated (int 21/4C) "
-              f"after {state['frame']} frames")
+              f"after {driver.frame} frames")
     return frames
 
 

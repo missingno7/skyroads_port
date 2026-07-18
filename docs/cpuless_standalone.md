@@ -10,6 +10,7 @@ corpus with **no CPU, no interpreter, no lifted graph** — the true hard wall.
 | **Source** — census inputs | `artifacts/codemap/{recovery_ir,observed}.json`, `boundary_heads.txt`, dispatch tables | yes |
 | **Source** — manual overrides | `skyroads/recovered_overrides/func_CCCC_IIII.py` (address-keyed) | yes |
 | **Source** — runner + tools | `scripts/play_cpuless.py`, `scripts/build_recovered.py`, `tools/lint_cpuless.py` | yes |
+| **Source** — shared frame model | `skyroads/cpuless_driver.py` (runner *and* verifier) | yes |
 | **Committed record** — manifest | `artifacts/codemap/cpuless_manifest.json` | yes |
 | **Committed** — recovered corpus | `skyroads/recovered/` (the recorded no-CPU port surface) | **yes** |
 | **Generated** — scratch adapters | `artifacts/recovered_adapters/` (hybrid-only, unused here) | no |
@@ -41,12 +42,43 @@ python scripts/build_recovered.py
 # 2. prove the hard wall: no import path reaches a CPU (static AST proof)
 python tools/lint_cpuless.py
 
-# 3. boot the no-CPU runner from 1010:61F3 (fails loud at the recorded frontier)
-python scripts/play_cpuless.py --headless
+# 3. PLAY it -- interactive window, live keyboard, no CPU anywhere
+python scripts/play_cpuless.py
 
 # one-shot: all of the above + count/manifest/frontier checks
 python -m pytest tests/test_cpuless_smoke.py -q
 ```
+
+## Playing it
+
+`scripts/play_cpuless.py` is a playable game, not a boot probe. The default is an
+interactive pygame window with live keyboard, running until you close it:
+
+```sh
+python scripts/play_cpuless.py                 # play (320x200, 3x, 30 Hz)
+python scripts/play_cpuless.py --scale 4 --square-pixels
+python scripts/play_cpuless.py --headless --frames 30   # agents/CI: no window
+```
+
+Everything on screen is produced by the recovered corpus. The runner imports no
+CPU: an `__import__` guard is the runtime backstop and `tools/lint_cpuless.py` is
+the static proof. Presentation borrows only CPU-free dos_re leaves
+(`display`, `framebuffer`, `keyboard`).
+
+Two details the window path depends on:
+
+- **Keys** go through `dos_re.keyboard.KeyDispatcher`, which holds each make for
+  at least one frame before delivering its break — SkyRoads polls its key state
+  once per frame, so an un-deferred tap would be set and cleared unseen.
+- **Window size** comes from the game's framebuffer (320x200), not the first
+  decoded frame: the runner boots at the C-startup root while the machine is
+  still in *text* mode, so decoding then would size the window to the boot
+  console. `Display.draw_game` letterboxes whatever arrives, so the brief
+  text-mode phase still displays.
+
+The runner and the `verify_cpuless` differential share one frame model
+(`skyroads/cpuless_driver.py`). That is deliberate: a differential that proved a
+verification-only lookalike would prove nothing about the shipped runner.
 
 ## The manifest
 

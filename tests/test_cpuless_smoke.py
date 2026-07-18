@@ -71,3 +71,44 @@ def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
     assert FIRST_FRAME_BOUNDARY in play.stdout
     m = re.search(r"rendered \d+ frames \(VGA nonzero px=(\d+)\)", play.stdout)
     assert m and int(m.group(1)) > 0, "expected a rendered (nonzero) frame"
+
+
+#: Drive the INTERACTIVE runner (the default, user-facing path) off-screen: a
+#: dummy SDL video driver plus an injected QUIT, so CI exercises the real window
+#: loop -- Display sizing, frame decode, key dispatch, quit handling -- without a
+#: display.  The headless test above cannot cover any of that.
+_INTERACTIVE_DRIVER = """
+import sys
+sys.path.insert(0, "scripts"); sys.path.insert(0, "."); sys.path.insert(0, "dos_re")
+import pygame
+import play_cpuless as P
+n = [0]
+real_get = pygame.event.get
+def fake_get(*a, **k):
+    n[0] += 1
+    if n[0] >= %d:
+        return [pygame.event.Event(pygame.QUIT)]
+    return real_get(*a, **k)
+pygame.event.get = fake_get
+rc = P.run_interactive(2, False, 1000, False)   # high present-hz: no pacing stall
+print("RC", rc, "PUMPS", n[0])
+"""
+
+
+@pytest.mark.skipif(not BOOT.exists(),
+                    reason="boot image absent (needs the user's game files)")
+def test_interactive_runner_renders_and_quits_cleanly():
+    pytest.importorskip("pygame")
+    pytest.importorskip("numpy")
+    import os
+    env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
+    r = subprocess.run([sys.executable, "-u", "-c", _INTERACTIVE_DRIVER % 40],
+                       cwd=ROOT, text=True, capture_output=True, timeout=900,
+                       env=env)
+    assert r.returncode == 0, (r.stdout + r.stderr)[-2000:]
+    assert "NO CPU and NO interpreter" in r.stdout
+    # The window is sized for the GAME's framebuffer, not the boot text console.
+    assert "320x200" in r.stdout
+    m = re.search(r"quit after (\d+) frames", r.stdout)
+    assert m and int(m.group(1)) > 0, "interactive loop never advanced a frame"
+    assert "RC 0" in r.stdout
