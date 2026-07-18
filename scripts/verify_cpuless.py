@@ -230,6 +230,20 @@ def main(argv=None) -> int:
             bad = [j for j, (a, b) in enumerate(zip(po, pc)) if a != b]
             print(f"\n[verify-cpuless] PALETTE DIVERGED at frame {i}: "
                   f"{len(bad)} DAC entries differ.")
+            # WHICH entries, and by how much. A contiguous run points at one
+            # fade/load writing a block; scattered singles point at timing.
+            for j in bad[:12]:
+                o, c = po[j], pc[j]
+                print(f"    DAC[{j:3d}] oracle={tuple(o)} corpus={tuple(c)} "
+                      f"delta={tuple(int(a) - int(b) for a, b in zip(o, c))}")
+            if len(bad) > 12:
+                print(f"    ... and {len(bad) - 12} more")
+            print(f"    indices: {bad}")
+            # Was the previous frame clean?  If so this is the FIRST bad frame
+            # and the write that caused it happened during it.
+            if i and oracle[i - 1][1] == cand[i - 1][1]:
+                print(f"    (frame {i - 1} palette was identical -- the "
+                      f"divergent write happened during frame {i})")
             return 1
         if i % 50 == 0:
             print(f"  frame {i:4d}: VGA + palette identical")
