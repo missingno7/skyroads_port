@@ -23,6 +23,11 @@ from skyroads.cpuless_overrides import install_shadow
 #: "agrees on 41,000 calls across a cold playthrough" is a different claim from
 #: "diffed on captured cases", which is what ASM_MATCHED means.
 CALLS: "collections.Counter[str]" = collections.Counter()
+#: address -> observed virtual-time costs. An island computes a VALUE and has no
+#: cycle count, so it can only DRIVE a body whose cost it can declare. If the set
+#: collapses to one value the cost is static and declarable; if it spreads, the
+#: island needs a cost model before it may take over.
+COSTS: "dict[str, collections.Counter]" = collections.defaultdict(collections.Counter)
 
 
 def _check_04c0(mem, kw, out, compat, pre=None) -> None:
@@ -48,6 +53,7 @@ def _check_04c0(mem, kw, out, compat, pre=None) -> None:
     depth = mem.rw(ss, (sp + 6) & 0xFFFF)
 
     CALLS['1010:04C0'] += 1
+    COSTS['1010:04C0'][compat.get('cost')] += 1
     r = perspective_row_offset(x_lo, x_hi, depth)
     want_ax = mem.rw(ds, r.offset) if r.in_range else 0
     got_ax = out.get("ax", 0) & 0xFFFF
@@ -139,4 +145,13 @@ def report() -> str:
     """One line per shadow: how many real calls it agreed on."""
     if not CALLS:
         return "no shadowed island was called (wrong demo for these addresses?)"
-    return "; ".join(f"{a}: {n:,} calls agreed" for a, n in sorted(CALLS.items()))
+    out = []
+    for a, n in sorted(CALLS.items()):
+        c = COSTS.get(a)
+        cost = ""
+        if c:
+            top = c.most_common(4)
+            cost = ("  cost=" + ("STATIC " + str(top[0][0]) if len(c) == 1
+                    else f"{len(c)} distinct {dict(top)}"))
+        out.append(f"{a}: {n:,} calls agreed{cost}")
+    return "; ".join(out)
