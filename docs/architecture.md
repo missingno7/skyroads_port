@@ -28,6 +28,33 @@ If a piece of code mentions a concrete address, video mode, or file format, it
 belongs in the adapter — never in `dos_re`. This boundary is what makes the VM a
 reusable oracle instead of part of one game.
 
+## The artifact boundary (the second hard rule)
+
+**`artifacts/` must never contain live or authoritative code.**
+
+It may hold generated outputs, recordings, snapshots, diagnostics, temporary
+corpora, and reproducible build products. It must not hold anything the shipped
+runtime imports, or anything a verifier treats as the source of truth.
+
+* every executable module and every **canonical generated corpus** lives at its
+  proper package location (`<game>/lifted/functions/`, `<game>/recovered/`,
+  `<game>/native/`) — committed, inspectable, and imported by name;
+* **every gate verifies exactly the artifact that ships.** A generator, its
+  runner, and its differential must name the *same* path.
+
+The rule exists because the failure is silent. `verify_vmless_demo` defaulted its
+`--lift-dir` to `artifacts/lifted_full`, a path nothing had written since the
+dos_re 2.0 rename, while the generator emitted to and the runner imported from
+`skyroads/lifted/functions`. The two directories agreed byte-for-byte on all 182
+shared modules, so the gate stayed green — until a census added three functions
+to the shipped corpus and not to the orphan. Nothing failed; the gate had simply
+stopped covering what it claimed to. A gate that proves a different artifact than
+the one that ships is not a gate.
+
+Enforced by `tests/test_artifact_discipline.py`, which asserts that the emitter,
+runner, and verifier of each corpus resolve to one package path, and that no
+shipped code path reaches into `artifacts/`.
+
 ## Framework module map
 
 All modules live flat in the `dos_re/` package (they are tightly coupled by
