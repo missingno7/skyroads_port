@@ -97,7 +97,7 @@ def func_1010_1b49(mem, plat, *, _base=0, bp=0, bx=0, cx=0, di=0, ds=0, dx=0, es
             mem.ww(ss, sp, 0x0)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x1B7D)
-            _o, _c = func_1010_03c2(mem, plat, _base=_base + _cost + 2, bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
+            _o, _c = func_1010_03c2(mem, plat, _base=_base + _cost + 3, bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
             ax = _o['ax']
             bp = _o['bp']
             bx = _o['bx']
@@ -206,7 +206,7 @@ def func_1010_1b49(mem, plat, *, _base=0, bp=0, bx=0, cx=0, di=0, ds=0, dx=0, es
             mem.ww(ss, sp, 0x4)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x1BA8)
-            _o, _c = func_1010_03c2(mem, plat, _base=_base + _cost + 1, bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
+            _o, _c = func_1010_03c2(mem, plat, _base=_base + _cost + 2, bp=bp, bx=bx, cx=cx, di=di, ds=ds, dx=dx, es=es, si=si, sp=sp, ss=ss)
             ax = _o['ax']
             bp = _o['bp']
             bx = _o['bx']

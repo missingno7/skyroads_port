@@ -28,7 +28,7 @@ def func_1010_58cd(mem, plat, *, _base=0, bx=0, ds=0, sp=0, ss=0):
         if bb == 0:  # 1010:58CD
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x58D0)
-            _o, _c = func_1010_58a5(mem, plat, _base=_base + _cost, ds=ds, sp=sp, ss=ss)
+            _o, _c = func_1010_58a5(mem, plat, _base=_base + _cost + 1, ds=ds, sp=sp, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -49,7 +49,7 @@ def func_1010_58cd(mem, plat, *, _base=0, bx=0, ds=0, sp=0, ss=0):
             ax = 0x2001
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x58D6)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 2, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 3, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -70,7 +70,7 @@ def func_1010_58cd(mem, plat, *, _base=0, bx=0, ds=0, sp=0, ss=0):
             ax = 0x8
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x58DC)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 4, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 5, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -91,7 +91,7 @@ def func_1010_58cd(mem, plat, *, _base=0, bx=0, ds=0, sp=0, ss=0):
             ax = 0xE0BD
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x58E2)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 6, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 7, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -119,7 +119,7 @@ def func_1010_58cd(mem, plat, *, _base=0, bx=0, ds=0, sp=0, ss=0):
             mem.ww(ss, sp, ax)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x58EF)
-            _o, _c = func_1010_5919(mem, plat, _base=_base + _cost + 1, ax=ax, bx=bx, cx=cx, ds=ds, dx=dx, sp=sp, ss=ss)
+            _o, _c = func_1010_5919(mem, plat, _base=_base + _cost + 2, ax=ax, bx=bx, cx=cx, ds=ds, dx=dx, sp=sp, ss=ss)
             ax = _o['ax']
             bx = _o['bx']
             cx = _o['cx']
@@ -180,7 +180,7 @@ def func_1010_58cd(mem, plat, *, _base=0, bx=0, ds=0, sp=0, ss=0):
             ax = 0xACA8
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x5901)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 1, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 2, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -201,7 +201,7 @@ def func_1010_58cd(mem, plat, *, _base=0, bx=0, ds=0, sp=0, ss=0):
             ax = 0xCB8
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x5907)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 3, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 4, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -222,7 +222,7 @@ def func_1010_58cd(mem, plat, *, _base=0, bx=0, ds=0, sp=0, ss=0):
             ax = 0x2A7
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x590D)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 5, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 6, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -243,7 +243,7 @@ def func_1010_58cd(mem, plat, *, _base=0, bx=0, ds=0, sp=0, ss=0):
             ax = 0xDB7
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x5913)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 7, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 8, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']

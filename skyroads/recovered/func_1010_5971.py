@@ -29,7 +29,7 @@ def func_1010_5971(mem, plat, *, _base=0, ax=0, bx=0, cx=0, ds=0, dx=0, sp=0, ss
             mem.ww(ss, sp, ax)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x5975)
-            _o, _c = func_1010_59cf(mem, plat, _base=_base + _cost + 1, ax=ax, cx=cx, ds=ds, dx=dx, ss=ss)
+            _o, _c = func_1010_59cf(mem, plat, _base=_base + _cost + 2, ax=ax, cx=cx, ds=ds, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -125,7 +125,7 @@ def func_1010_5971(mem, plat, *, _base=0, ax=0, bx=0, cx=0, ds=0, dx=0, sp=0, ss
             ax = (ax & 0x00FF) | (((mem.rb(ds, ((bx + 3179) & 0xFFFF))) & 0xFF) << 8)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x599B)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 10, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 11, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -209,7 +209,7 @@ def func_1010_5971(mem, plat, *, _base=0, ax=0, bx=0, cx=0, ds=0, dx=0, sp=0, ss
             ax = (ax & 0x00FF) | (((_t) & 0xFF) << 8)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x59B2)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 1, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 2, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -235,7 +235,7 @@ def func_1010_5971(mem, plat, *, _base=0, ax=0, bx=0, cx=0, ds=0, dx=0, sp=0, ss
         if bb == 3:  # 1010:59B4
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x59B7)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 1, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -299,7 +299,7 @@ def func_1010_5971(mem, plat, *, _base=0, ax=0, bx=0, cx=0, ds=0, dx=0, sp=0, ss
             ax = (ax & 0xFF00) | ((0xBD) & 0xFF)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x59CE)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 8, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 9, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']

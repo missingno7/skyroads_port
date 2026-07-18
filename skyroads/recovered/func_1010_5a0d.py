@@ -233,7 +233,7 @@ def func_1010_5a0d(mem, plat, *, _base=0, ax=0, bx=0, ds=0, dx=0, sp=0, ss=0):
             si = (_t) & 0xFFFF
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x5A35)
-            _o, _c = func_1010_59ef(mem, plat, _base=_base + _cost + 2, ax=ax, bx=bx, di=di, ds=ds, dx=dx, si=si, ss=ss)
+            _o, _c = func_1010_59ef(mem, plat, _base=_base + _cost + 3, ax=ax, bx=bx, di=di, ds=ds, dx=dx, si=si, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']

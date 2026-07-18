@@ -244,7 +244,7 @@ def func_1010_1114(mem, plat, *, _base=0, _df=0, bp=0, bx=0, cx=0, di=0, ds=0, d
             mem.ww(ss, sp, ax)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x117A)
-            _o, _c = func_1010_1073(mem, plat, _base=_base + _cost + 24, _df=(1 if df else 0), bp=bp, bx=bx, di=di, ds=ds, si=si, sp=sp, ss=ss)
+            _o, _c = func_1010_1073(mem, plat, _base=_base + _cost + 25, _df=(1 if df else 0), bp=bp, bx=bx, di=di, ds=ds, si=si, sp=sp, ss=ss)
             ax = _o['ax']
             bp = _o['bp']
             bx = _o['bx']

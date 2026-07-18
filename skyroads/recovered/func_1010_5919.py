@@ -29,7 +29,7 @@ def func_1010_5919(mem, plat, *, _base=0, ax=0, bx=0, cx=0, ds=0, dx=0, sp=0, ss
             mem.ww(ss, sp, ax)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x591D)
-            _o, _c = func_1010_59cf(mem, plat, _base=_base + _cost + 1, ax=ax, cx=cx, ds=ds, dx=dx, ss=ss)
+            _o, _c = func_1010_59cf(mem, plat, _base=_base + _cost + 2, ax=ax, cx=cx, ds=ds, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -121,7 +121,7 @@ def func_1010_5919(mem, plat, *, _base=0, ax=0, bx=0, cx=0, ds=0, dx=0, sp=0, ss
             ax = (ax & 0xFF00) | ((_t) & 0xFF)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x5944)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 3, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 4, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -186,7 +186,7 @@ def func_1010_5919(mem, plat, *, _base=0, ax=0, bx=0, cx=0, ds=0, dx=0, sp=0, ss
         if bb == 3:  # 1010:5956
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x5959)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 1, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']
@@ -264,7 +264,7 @@ def func_1010_5919(mem, plat, *, _base=0, ax=0, bx=0, cx=0, ds=0, dx=0, sp=0, ss
             ax = (ax & 0x00FF) | (((mem.rb(ds, ((bx + si) & 0xFFFF))) & 0xFF) << 8)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x5970)
-            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 2, ax=ax, dx=dx, ss=ss)
+            _o, _c = func_1010_5892(mem, plat, _base=_base + _cost + 3, ax=ax, dx=dx, ss=ss)
             ax = _o['ax']
             cx = _o['cx']
             dx = _o['dx']

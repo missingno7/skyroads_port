@@ -57,7 +57,7 @@ def func_1010_5b76(mem, plat, *, _base=0, ax=0, bp=0, bx=0, cx=0, ds=0, dx=0, sp
             dx = mem.rw(ss, ((bp + 4) & 0xFFFF))
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x5B8E)
-            _o, _c = func_1010_5b39(mem, plat, _base=_base + _cost + 4, bx=bx, cx=cx, ds=ds, dx=dx, ss=ss)
+            _o, _c = func_1010_5b39(mem, plat, _base=_base + _cost + 5, bx=bx, cx=cx, ds=ds, dx=dx, ss=ss)
             ax = _o['ax']
             bx = _o['bx']
             dx = _o['dx']

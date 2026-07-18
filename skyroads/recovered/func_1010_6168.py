@@ -193,7 +193,7 @@ def func_1010_6168(mem, plat, *, _base=0, _df=0, _flags_in=2, ax=0, bp=0, cx=0, 
             ax = (ax & 0x00FF) | (((0x0) & 0xFF) << 8)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x61B9)
-            _o, _c = func_1010_6151(mem, plat, _base=_base + _cost + 1, ax=ax, ss=ss)
+            _o, _c = func_1010_6151(mem, plat, _base=_base + _cost + 2, ax=ax, ss=ss)
             ax = _o['ax']
             dx = _o['dx']
             _gm = _c['fmask']
@@ -258,7 +258,7 @@ def func_1010_6168(mem, plat, *, _base=0, _df=0, _flags_in=2, ax=0, bp=0, cx=0, 
             ax = (ax & 0x00FF) | (((0x20) & 0xFF) << 8)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x61CD)
-            _o, _c = func_1010_6151(mem, plat, _base=_base + _cost + 4, ax=ax, ss=ss)
+            _o, _c = func_1010_6151(mem, plat, _base=_base + _cost + 5, ax=ax, ss=ss)
             ax = _o['ax']
             dx = _o['dx']
             _gm = _c['fmask']
@@ -283,7 +283,7 @@ def func_1010_6168(mem, plat, *, _base=0, _df=0, _flags_in=2, ax=0, bp=0, cx=0, 
             ax = (ax & 0x00FF) | (((0x0) & 0xFF) << 8)
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x61D4)
-            _o, _c = func_1010_6151(mem, plat, _base=_base + _cost + 1, ax=ax, ss=ss)
+            _o, _c = func_1010_6151(mem, plat, _base=_base + _cost + 2, ax=ax, ss=ss)
             ax = _o['ax']
             dx = _o['dx']
             _gm = _c['fmask']

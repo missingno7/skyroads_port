@@ -172,7 +172,7 @@ def func_1010_1073(mem, plat, *, _base=0, _df=0, bp=0, bx=0, di=0, ds=0, si=0, s
         if bb == 6:  # 1010:10D1
             sp = (sp - 2) & 0xFFFF
             mem.ww(ss, sp, 0x10D4)
-            _o, _c = func_1010_3c9a(mem, plat, _base=_base + _cost, ax=ax, ds=ds, dx=dx, ss=ss)
+            _o, _c = func_1010_3c9a(mem, plat, _base=_base + _cost + 1, ax=ax, ds=ds, dx=dx, ss=ss)
             ax = _o['ax']
             dx = _o['dx']
             _gm = _c['fmask']
