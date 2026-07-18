@@ -67,12 +67,63 @@ def _norm(addr: str) -> str:
     return addr.strip().upper()
 
 
+def _native_triage() -> int:
+    """Split skyroads/native/ into LEAF candidates and FLOW to retire.
+
+    ``native/`` was assembled bottom-up from hooks and observation, and its
+    control flow was never proven against the original -- it has unit tests but
+    no cold-start differential, and unit tests over the wrong wiring are coverage
+    of the wrong thing. The generated CPUless program is the only artifact whose
+    FLOW is proven (672 frames byte-exact from cold start), so it is the frame.
+
+    A native module that anchors to real recovered addresses is a LEAF: it can be
+    re-hosted inside that frame, one address at a time, each step gated by the
+    differential that already exists. A module that anchors to nothing is FLOW --
+    the part the frame supersedes, and the part most likely to be wrong. Its
+    value is its naming and state model, which belongs in the Memory Schema, not
+    in a second control path.
+    """
+    import re
+    ir = set(json.loads((CODEMAP / "recovery_ir.json").read_text())["functions"])
+    observed = set(json.loads((CODEMAP / "observed.json").read_text())["executed"])
+    pat = re.compile(r"1010:[0-9A-Fa-f]{4}")
+    leaves, flow = [], []
+    for path in sorted((ROOT / "skyroads" / "native").glob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        addrs = {_norm(a) for a in pat.findall(path.read_text(encoding="utf-8"))}
+        anchored = sorted(a for a in addrs if a in ir)
+        (leaves if anchored else flow).append((path.name, addrs, anchored))
+    print("[native triage] the generated CPUless program is the FRAME "
+          "(only artifact with proven cold-start flow)\n")
+    print(f"LEAF candidates -- anchor to recovered functions, re-hostable "
+          f"inside the frame ({len(leaves)}):")
+    for name, addrs, anchored in sorted(leaves, key=lambda t: -len(t[2])):
+        live = sum(1 for a in anchored if a in observed)
+        print(f"    {name:22s} {len(anchored):2d} IR-anchored "
+              f"({live} executed) of {len(addrs)} mentioned")
+    print(f"\nFLOW / unanchored -- superseded by the frame; keep the KNOWLEDGE, "
+          f"retire the control path ({len(flow)}):")
+    for name, addrs, _ in sorted(flow):
+        print(f"    {name:22s} {len(addrs)} address mention(s), 0 IR-anchored")
+    print("\n[native triage] none of these are registered with @oracle_link, so "
+          "none is visible to the ledger or to any gate -- registering them is "
+          "the prerequisite to absorbing any of it.")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--full", action="store_true", help="list every island")
     ap.add_argument("--orphans", action="store_true",
                     help="only islands whose address is not an IR function")
+    ap.add_argument("--native", action="store_true",
+                    help="triage skyroads/native/: which modules are LEAF "
+                         "candidates (address-anchored) vs FLOW superseded by "
+                         "the generated frame")
     args = ap.parse_args(argv)
+    if args.native:
+        return _native_triage()
 
     islands, ir, observed, manifest = _load()
     generated = set(manifest.get("functions", {})) or ir
