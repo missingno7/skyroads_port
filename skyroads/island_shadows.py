@@ -91,21 +91,23 @@ def _check_3a96(mem, kw, out, compat, pre) -> None:
     """
     from skyroads.handrecovered.intro_anim import unpack_animation_segment
 
-    ds = kw.get("ds", 0) & 0xFFFF
-    es = out.get("es", 0) & 0xFFFF          # the body picks it; read it back
-    src = pre[ds * 16:ds * 16 + SEGMENT_BYTES]
-    buf = bytearray(pre[es * 16:es * 16 + SEGMENT_BYTES])
+    # The body REPLACES ds: `bx ^= bx` then `ds = es = ss:[3702]`. So the working
+    # segment is neither the caller's ds nor a second buffer -- both sides are the
+    # SAME segment, exactly as the island's contract says. Bind both to it.
+    seg = out.get("es", 0) & 0xFFFF
+    src = pre[seg * 16:seg * 16 + SEGMENT_BYTES]
+    buf = bytearray(src)
     r = unpack_animation_segment(lambda o: src[o & 0xFFFF],
                                  lambda o, v: buf.__setitem__(o & 0xFFFF, v & 0xFF))
     CALLS["1010:3A96"] += 1
 
-    got = mem.data[es * 16:es * 16 + SEGMENT_BYTES]
+    got = mem.data[seg * 16:seg * 16 + SEGMENT_BYTES]
     if bytes(buf) != bytes(got):
         first = next(i for i in range(SEGMENT_BYTES) if buf[i] != got[i])
         n = sum(1 for i in range(SEGMENT_BYTES) if buf[i] != got[i])
         raise AssertionError(
             f"island unpack_animation_segment disagrees with generated 1010:3A96 "
-            f"in segment {es:04X}: {n} bytes differ, first at +{first:04X} "
+            f"in segment {seg:04X}: {n} bytes differ, first at +{first:04X} "
             f"(island={buf[first]:02X} generated={got[first]:02X})")
     want_si, want_di = out.get("si", 0) & 0xFFFF, out.get("di", 0) & 0xFFFF
     if (r.cursor_si, r.cursor_di) != (want_si, want_di):
@@ -120,23 +122,9 @@ def _check_3a96(mem, kw, out, compat, pre) -> None:
 #: address -> (checker, snapshot-or-None)
 SHADOWS = {
     "1010:04C0": (_check_04c0, None),
-    # "1010:3A96": (_check_3a96, _snap_3a96),   # BLOCKED -- see below.
+    "1010:3A96": (_check_3a96, _snap_3a96),
 }
 
-#: 1010:3A96 is written and ready, but its INPUT MAPPING is not solved, and
-#: shadow mode is what proved that. The island reads its self-referential header
-#: as ``rb(0)/rb(1)`` -- it models a segment whose animation data begins at
-#: OFFSET 0. The real call does not: it reads through ds=1686, the game's whole
-#: DGROUP, so the data starts at some offset INSIDE that segment. Bound naively
-#: the two disagree on 28,143 bytes from the very first one (island 00,
-#: generated 70) -- the signature of a correct algorithm fed from the wrong base.
-#:
-#: So this island is NOT wrong; its declared boundary is under-specified. Its
-#: contract omits where the segment's data actually begins, which is precisely
-#: the kind of gap that stays invisible while an island is only "diffed on
-#: captured cases" with hand-chosen inputs. Re-enable once the source base is
-#: recovered from the body (the offset feeding the first movsw) and the contract
-#: records it.
 
 
 def install_all() -> list:
