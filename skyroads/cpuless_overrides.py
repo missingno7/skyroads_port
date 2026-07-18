@@ -72,6 +72,7 @@ RECOVERED_PKG = "skyroads.recovered"
 #:   ``1010:1631`` road_segment_clip     -- skyroads/handrecovered/renderer.py
 #:   ``1010:0533`` ship_fell_off         -- .../collision_response.py
 #:   ``1010:1732`` road_object_visible   -- skyroads/handrecovered/renderer.py
+#:   ``1010:0F62`` stencil_blit          -- skyroads/handrecovered/blit.py
 OVERRIDES: "dict[str, Callable]" = dict(BODIES)
 
 

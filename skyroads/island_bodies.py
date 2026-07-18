@@ -31,6 +31,7 @@ WHY THE STACK WRITES ARE HERE, spelled out because they look like noise:
 """
 from __future__ import annotations
 
+from skyroads.handrecovered.blit import stencil_blit_steps
 from skyroads.handrecovered.collision_response import (
     FELL_ARM_DECIDED, FELL_ARM_NO_SEGMENT, FELL_ARM_SEG_CULLED, MIRROR_NEGATIVE,
     MIRROR_NONE, MIRROR_ZERO, ship_fell_off_detail)
@@ -518,9 +519,129 @@ def func_1010_1732(mem, *, bp=0, bx=0, di=0, ds=0, dx=0, si=0, sp=0, ss=0):
             {'flags': flags & OBJ_FMASK, 'fmask': OBJ_FMASK, 'cost': cost})
 
 
+# --- 1010:0F62 stencil_blit ---------------------------------------------------
+#
+# The first LOOP absorbed here, and the first body with a hidden compat input:
+# ``_df`` is the caller's direction flag, and it steers BOTH pointers. So the
+# island is fed a generator that walks the source in DF order and the adapter
+# writes the destination the same way -- and it does so in lockstep, one byte
+# at a time, because the source and destination are unrelated caller-chosen far
+# pointers and nothing here can prove them disjoint.
+
+def _or8(b: int) -> int:
+    """``or al,al`` -- five flags. AF is NOT among them: ``or`` leaves it
+    alone, which is why the exit AF can belong to an earlier byte."""
+    return ((_PF if _PARITY[b & 0xFF] else 0)
+            | (_ZF if (b & 0xFF) == 0 else 0)
+            | (_SF if b & 0x80 else 0))
+
+
+def _cmp8(b: int) -> int:
+    """``cmp al,1`` -- all six, at BYTE width."""
+    t = b - 1
+    return ((_CF if t < 0 else 0)
+            | (_PF if _PARITY[t & 0xFF] else 0)
+            | (_AF if (b ^ 1 ^ t) & 0x10 else 0)
+            | (_ZF if (t & 0xFF) == 0 else 0)
+            | (_SF if t & 0x80 else 0)
+            | (_OF if ((b ^ 1) & (b ^ t) & 0x80) else 0))
+
+
+#: ds-relative pointer to the destination SEGMENT, read once at 0F68.
+_STENCIL_ES_PTR = 0xAF2A
+
+#: Virtual-time cost, DERIVED by summing the generated body's own per-block
+#: ``_cost +=``: 8 for the prologue, 5 for the epilogue, and per source byte
+#: 0F75(3) + 0F84(2), plus 0F7A(3) for a nonzero byte and 0F81(1) for a byte
+#: that is neither 0 nor 1. So the cost is a linear function of the source's
+#: byte census -- not a table -- which is why this island has to report the
+#: census rather than just the mapped bytes.
+STENCIL_COST_FIXED = 13
+STENCIL_COST_ZERO, STENCIL_COST_ONE, STENCIL_COST_OTHER = 5, 8, 9
+
+#: 0F62/0F75 contribute this; ``cmp al,1`` at 0F7A adds AF on top. So unlike
+#: every other body here the mask is NOT constant: a source of nothing but
+#: zeros never runs the compare and reports 0x8C5.
+STENCIL_FMASK = 0x8C5
+STENCIL_FMASK_COMPARED = 0x8D5
+
+
+def func_1010_0f62(mem, *, _df=0, ax=0, bp=0, di=0, ds=0, si=0, sp=0, ss=0):
+    """``1010:0F62`` stencil_blit, driven by the island.
+
+    Five stack arguments at ``[bp+4..bp+12]`` -- relative to the ENTRY sp,
+    ``+2 +4 +6 +8 +10`` -- the source far pointer (offset, segment), the byte
+    count, and the two colour words. The destination is ``ds:[0xAF2A]:0``,
+    read once at entry through the CALLER's ds, before ``lds si,[bp+4]``
+    replaces it.
+
+    BP, SI, DI and DS are all CALLEE-SAVED (pushed at 0F62/0F66/0F67/0F6E,
+    popped at 0F87), so the source cursor and the destination cursor are
+    internal and never observables -- SI is NOT the final read position, which
+    is the first thing that looks true here and is not. CX is 0 on every exit:
+    that is ``loop``'s own postcondition. Only AX, CX and ES change at all.
+
+    A count of 0 means 65,536 iterations, not none: ``loop`` decrements FIRST.
+    """
+    src_off = mem.rw(ss, (sp + 2) & 0xFFFF)
+    src_seg = mem.rw(ss, (sp + 4) & 0xFFFF)
+    count = mem.rw(ss, (sp + 6) & 0xFFFF)
+    template = mem.rw(ss, (sp + 8) & 0xFFFF)
+    other = mem.rw(ss, (sp + 10) & 0xFFFF)
+    es = mem.rw(ds, _STENCIL_ES_PTR)             # 0F68, through the CALLER's ds
+
+    # `push bp; mov bp,sp; push si; push di` ... `push ds`. The ds push is
+    # AFTER the es load and the `xor di,di`, and it saves the caller's ds --
+    # `lds si,[bp+4]` has not run yet.
+    mem.ww(ss, (sp - 2) & 0xFFFF, bp)
+    mem.ww(ss, (sp - 4) & 0xFFFF, si)
+    mem.ww(ss, (sp - 6) & 0xFFFF, di)
+    mem.ww(ss, (sp - 8) & 0xFFFF, ds)
+
+    step = -1 if _df else 1
+    n = count or 0x10000
+
+    def _source():
+        """``lodsb`` -- pulled one byte at a time, so each read follows the
+        previous byte's ``stosb`` exactly as the original interleaves them."""
+        off = src_off
+        for _ in range(n):
+            yield mem.rb(src_seg, off & 0xFFFF)
+            off = (off + step) & 0xFFFF
+
+    dest = 0
+    cost = STENCIL_COST_FIXED
+    last = 0
+    last_compared = None
+    for s in stencil_blit_steps(_source(), template, other, ax):
+        mem.wb(es, dest & 0xFFFF, s.value)       # 0F84 stosb
+        dest = (dest + step) & 0xFFFF
+        ax = s.ax
+        last = s.byte
+        if s.compared:
+            last_compared = s.byte
+            cost += STENCIL_COST_ONE if s.byte == 1 else STENCIL_COST_OTHER
+        else:
+            cost += STENCIL_COST_ZERO
+
+    # The exit flags are the LAST byte's own comparison -- `or al,al` for a
+    # zero byte, `cmp al,1` otherwise -- except AF, which the `or` does not
+    # write and which therefore still belongs to the last NONZERO byte.
+    flags = _cmp8(last) if last else _or8(last)
+    fmask = STENCIL_FMASK
+    if last_compared is not None:
+        fmask = STENCIL_FMASK_COMPARED
+        if not last:
+            flags |= _cmp8(last_compared) & _AF
+    return ({'ax': ax & 0xFFFF, 'bp': bp & 0xFFFF, 'cx': 0, 'di': di & 0xFFFF,
+             'ds': ds & 0xFFFF, 'es': es & 0xFFFF, 'si': si & 0xFFFF},
+            {'flags': flags & fmask, 'fmask': fmask, 'cost': cost})
+
+
 #: address -> island-driven body. This is what may be shadowed, and -- once a
 #: shadow has VERIFIED it over demos exercising every path -- what may drive.
 BODIES = {"1010:04C0": func_1010_04c0,
           "1010:1631": func_1010_1631,
           "1010:0533": func_1010_0533,
-          "1010:1732": func_1010_1732}
+          "1010:1732": func_1010_1732,
+          "1010:0F62": func_1010_0f62}

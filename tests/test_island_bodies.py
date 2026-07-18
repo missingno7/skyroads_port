@@ -582,3 +582,146 @@ def test_1732_block_7_is_always_followed_by_the_cull():
         assert ((y + 0x680) & 0xFFFF) <= 0x2800, (
             f"screen_y={y:#06x} reaches block 7 without falling into the cull")
     assert OBJ_BLOCK_COST[7] == 1
+
+
+# --- 1010:0F62 stencil_blit ---------------------------------------------------
+#
+# The first LOOP absorbed, and the only body whose fmask is not constant. Three
+# things a recorded demo cannot establish and these cases must: the DF-set
+# direction (both demos enter with DF clear on all 347 calls), an all-zero
+# source (so `cmp al,1` never runs and the mask is 0x8C5 instead of 0x8D5), and
+# a count of 0 -- which `loop` turns into 65,536 iterations, not none.
+
+from skyroads.island_bodies import (                               # noqa: E402
+    STENCIL_COST_FIXED, STENCIL_COST_ONE, STENCIL_COST_OTHER, STENCIL_COST_ZERO,
+    STENCIL_FMASK, STENCIL_FMASK_COMPARED, _STENCIL_ES_PTR)
+from skyroads.island_bodies import func_1010_0f62 as ISLAND_0F62   # noqa: E402
+from skyroads.recovered.func_1010_0f62 import func_1010_0f62 as GEN_0F62  # noqa: E402
+
+_ST_SRC_SEG, _ST_ES = 0x6000, 0x8000
+_ST_OUTPUTS = ("ax", "bp", "cx", "di", "ds", "es", "si")
+
+
+def _stencil_state(rng, source, *, df, count=None, src_off=0x0400):
+    """A pre-state whose source run is ``source``, laid out in DF order.
+
+    The segments are fixed and mutually disjoint (source 0x60000, destination
+    0x80000, ds/ss below 0x50000) so that a difference between the two bodies is
+    a difference in what they compute, not an artefact of an overlap the test
+    happened to construct.
+    """
+    ss, ds = rng.randrange(0x1000, 0x4000), rng.randrange(0x1000, 0x4000)
+    regs = dict(ax=rng.randrange(0x10000), bp=rng.randrange(0x10000),
+                di=rng.randrange(0x10000), ds=ds, si=rng.randrange(0x10000),
+                ss=ss, sp=rng.randrange(0x0100, 0xF000) & ~1,
+                _df=1 if df else 0)
+    step = -1 if df else 1
+    n = len(source) if count is None else count
+    tc, oc = rng.randrange(0x10000), rng.randrange(0x10000)
+
+    def build():
+        m = Mem()
+        for i, w in enumerate((src_off, _ST_SRC_SEG, n, tc, oc)):
+            m.ww(ss, (regs["sp"] + 2 + 2 * i) & 0xFFFF, w)
+        m.ww(ds, _STENCIL_ES_PTR, _ST_ES)
+        for i, b in enumerate(source):
+            m.wb(_ST_SRC_SEG, (src_off + i * step) & 0xFFFF, b)
+        m.log.clear()
+        return m
+
+    return regs, build
+
+
+def _stencil_cases():
+    """(id, source, df, count) covering every per-byte class, both tail shapes
+    that decide AX and AF, both fmasks, and both directions."""
+    mixed = bytes([0, 1, 2, 0, 7, 1, 0, 0, 255, 1, 3])
+    trailing = bytes([1, 2, 0, 5, 0, 0, 0, 0])           # ends in zeros AFTER a hit
+    return [
+        ("mixed_forward", mixed, False, None),
+        ("mixed_backward", mixed, True, None),
+        ("trailing_zeros_forward", trailing, False, None),
+        ("trailing_zeros_backward", trailing, True, None),
+        ("all_zero", bytes(24), False, None),
+        ("all_zero_backward", bytes(24), True, None),
+        ("all_one", bytes([1] * 24), False, None),
+        ("all_other", bytes([9] * 24), False, None),
+        ("no_ones", bytes([0, 4, 0, 200, 0]), False, None),
+        ("single_zero", bytes([0]), False, None),
+        ("single_one", bytes([1]), False, None),
+        ("single_other", bytes([0xFE]), False, None),
+        ("leading_zero_run", bytes([0] * 20 + [1]), False, None),
+    ]
+
+
+@pytest.mark.parametrize("name,source,df,count", _stencil_cases(),
+                         ids=[c[0] for c in _stencil_cases()])
+def test_0f62_island_body_reproduces_the_full_contract(name, source, df, count):
+    rng = random.Random(0x0F62 ^ (hash(name) & 0xFFFF))
+    for _ in range(20):
+        regs, build = _stencil_state(rng, source, df=df, count=count)
+        g = build()
+        go, gc = GEN_0F62(g, **regs)
+        i = build()
+        io, ic = ISLAND_0F62(i, **regs)
+        ctx = f"{name} " + " ".join(f"{k}={v:04X}" for k, v in sorted(regs.items()))
+        assert set(io) == set(go), f"output SET differs; {ctx}"
+        for out in _ST_OUTPUTS:
+            assert io[out] == go[out], (
+                f"output {out}: generated={go[out]:04X} island={io[out]:04X}; {ctx}")
+        for c in ("flags", "fmask", "cost"):
+            assert ic[c] == gc[c], (
+                f"compat {c}: generated={gc[c]:#x} island={ic[c]:#x}; {ctx}")
+        assert i.log == g.log, f"the byte-write log differs; {ctx}"
+
+
+def test_0f62_count_zero_means_65536_iterations_not_none():
+    """``loop`` decrements BEFORE testing, so CX = 0 is the longest run there is.
+
+    Separated from the parametrized cases because it is the one state whose
+    whole point is its size, and because reading it as "no iterations" is the
+    natural mistake: it would make the body return with AX untouched and write
+    nothing at all, and no recorded demo would ever contradict it (both demos'
+    counts run 18..150).
+    """
+    rng = random.Random(0x0F62)
+    src = bytes(range(256)) * 4          # every byte class, in bulk
+    regs, build = _stencil_state(rng, src, df=False, count=0)
+    g = build()
+    go, gc = GEN_0F62(g, **regs)
+    i = build()
+    io, ic = ISLAND_0F62(i, **regs)
+    assert len(g.log) == 0x10000 + 8, (
+        f"expected 65,536 stosb bytes plus four pushed words, got {len(g.log)}")
+    assert i.log == g.log
+    for out in _ST_OUTPUTS:
+        assert io[out] == go[out], f"output {out} differs on the CX=0 run"
+    for c in ("flags", "fmask", "cost"):
+        assert ic[c] == gc[c], f"compat {c} differs on the CX=0 run"
+
+
+def test_0f62_fmask_is_NOT_constant_and_the_cases_prove_both_values():
+    """Unique to this body: an all-zero source never reaches ``cmp al,1``, so it
+    reports 0x8C5 and not the 0x8D5 every other absorbed address returns. A
+    body that hard-coded one mask would pass on all 347 recorded calls."""
+    rng = random.Random(7)
+    seen = set()
+    for name, source, df, count in _stencil_cases():
+        regs, build = _stencil_state(rng, source, df=df, count=count)
+        seen.add(GEN_0F62(build(), **regs)[1]["fmask"])
+    assert seen == {STENCIL_FMASK, STENCIL_FMASK_COMPARED}, (
+        f"the cases no longer force both masks: {sorted(hex(m) for m in seen)}")
+
+
+def test_0f62_cost_is_linear_in_the_source_byte_census():
+    """The cost model, checked against the generated body on constructed runs
+    rather than fitted to observed totals."""
+    rng = random.Random(0xC057)
+    for source in (bytes(30), bytes([1] * 30), bytes([5] * 30),
+                   bytes([0, 1, 5] * 10)):
+        regs, build = _stencil_state(rng, source, df=False)
+        want = STENCIL_COST_FIXED + sum(
+            STENCIL_COST_ZERO if b == 0 else
+            STENCIL_COST_ONE if b == 1 else STENCIL_COST_OTHER for b in source)
+        assert GEN_0F62(build(), **regs)[1]["cost"] == want, (
+            f"cost model disagrees with the generated body on {source[:6]!r}...")
