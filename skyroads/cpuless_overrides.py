@@ -19,11 +19,25 @@ WHY THIS SHAPE (the constraint that picks it):
 
     A generated module binds its callees AT IMPORT TIME with direct imports --
         from skyroads.recovered.func_1010_2e6c import func_1010_2e6c
-    -- so there is no per-call resolver to hook.  The only seam is the MODULE OBJECT,
-    and it only works if the override is installed BEFORE anything imports it.  Hence
-    :func:`install_overrides` shadows ``sys.modules`` ahead of the corpus load.  Dynamic
-    transfers route through ``_dyncall`` -> ``DISPATCH``, which imports BY MODULE NAME,
-    so the same shadow serves those too.
+    -- so there is no per-call resolver to hook.  The primary seam is therefore the
+    MODULE OBJECT: :func:`install_overrides` shadows ``sys.modules`` ahead of the
+    corpus load.
+
+    Shadowing alone is NOT sufficient, and the gap was silent.  It only affects
+    imports that have not happened yet, so any caller imported earlier keeps a
+    direct reference to the original and the override does nothing for every call
+    through it.  That is not hypothetical: :func:`install_shadow` itself imports
+    the module (via :func:`generated`), which eagerly binds THAT module's callees,
+    so installing along a call chain (4591, then 4331, then 6168) guarantees the
+    later installs miss.  A counter built exactly that way reported ZERO calls for
+    functions a traceback proved were executing.
+
+    So installation also RETRO-PATCHES already-bound references (:func:`_retro_patch`)
+    and clears ``_dyncall._cache`` -- the latter because DISPATCH stores module and
+    function NAMES (resolved late, which is fine) but ``_dyncall`` memoises the
+    resolved closure on first call, so a shadow installed after the first dynamic
+    transfer would never be seen.  With both, installation order stops mattering;
+    ``tests/test_cpuless_overrides.py`` pins the caller-imported-first case.
 
 INVARIANTS:
 
@@ -116,13 +130,47 @@ def install_overrides(addrs=None) -> "list[str]":
                 f"({name}). The corpus was regenerated and this address is no longer "
                 f"in it -- fix or drop the override; it must not silently stop "
                 f"applying.") from e
+        fname = func_name(addr)
+        original = getattr(real, fname)
         shadow = types.ModuleType(name)
         shadow.__dict__.update(real.__dict__)
-        setattr(shadow, func_name(addr), impl)
+        setattr(shadow, fname, impl)
         _INSTALLED[name] = real
         sys.modules[name] = shadow
+        _retro_patch(fname, original, impl)
         installed.append(addr)
     return installed
+
+
+def _retro_patch(fname: str, original, impl) -> None:
+    """Rebind ALREADY-IMPORTED callers, and drop the dynamic-dispatch cache.
+
+    Shadowing ``sys.modules`` only affects imports that have not happened yet,
+    and a generated module binds its callees at import time
+    (``from ...func_1010_XXXX import func_1010_XXXX``). So any caller imported
+    before the shadow keeps a direct reference to the original and the override
+    silently does nothing -- silently being the whole problem.
+
+    That is not a theoretical edge: :func:`install_shadow` calls
+    :func:`generated`, which IMPORTS the module, which eagerly binds ITS callees.
+    Installing along a call chain (4591, then 4331, then 6168) therefore
+    guarantees the later installs miss, because importing 4591 already bound the
+    real 4331. A counter built that way read ZERO calls for functions a traceback
+    proved were running.
+
+    ``_dyncall`` needs the same treatment for a different reason: DISPATCH stores
+    module/function NAMES (so it resolves late, which is fine), but ``_dyncall``
+    memoises the resolved closure in ``_cache`` on first call. A shadow installed
+    after the first dynamic transfer to an address would never be seen.
+    """
+    for mod in list(sys.modules.values()):
+        if mod is None or not getattr(mod, "__name__", "").startswith(RECOVERED_PKG):
+            continue
+        if getattr(mod, fname, None) is original:
+            setattr(mod, fname, impl)
+    dyn = sys.modules.get(f"{RECOVERED_PKG}._dyncall")
+    if dyn is not None and hasattr(dyn, "_cache"):
+        dyn._cache.clear()
 
 
 def install_shadow(addr: str, checker: Callable, snapshot: Callable = None) -> None:
@@ -165,4 +213,14 @@ def uninstall_overrides() -> None:
     """Restore every shadowed module (tests that need the pristine corpus)."""
     for name, real in _INSTALLED.items():
         sys.modules[name] = real
+        fname = name.rsplit(".", 1)[1]
+        impl_now = None
+        for mod in list(sys.modules.values()):
+            if mod is None or not getattr(mod, "__name__", "").startswith(RECOVERED_PKG):
+                continue
+            if getattr(mod, fname, None) is not None and mod is not real:
+                setattr(mod, fname, getattr(real, fname))
+    dyn = sys.modules.get(f"{RECOVERED_PKG}._dyncall")
+    if dyn is not None and hasattr(dyn, "_cache"):
+        dyn._cache.clear()
     _INSTALLED.clear()

@@ -71,3 +71,36 @@ def test_shadow_replaces_only_the_named_function():
     finally:
         ov.OVERRIDES.pop("1010:04C0", None)
         ov.uninstall_overrides()
+
+
+def test_override_reaches_callers_imported_BEFORE_installation():
+    """The failure mode that made a counter read zero, pinned as a test.
+
+    A generated module binds its callees at import time, so shadowing
+    sys.modules only helps imports that have not happened yet. install_shadow
+    itself imports the module (via generated()), which eagerly binds ITS callees
+    -- so installing along a call chain guarantees the later installs miss
+    unless already-bound references are retro-patched.
+    """
+    import importlib
+
+    # Import a CALLER first, so it binds the real callee before we install.
+    caller = importlib.import_module("skyroads.recovered.func_1010_4331")
+    callee_name = "func_1010_6168"
+    if not hasattr(caller, callee_name):
+        pytest.skip("1010:4331 does not bind 1010:6168 directly in this corpus")
+    original = getattr(caller, callee_name)
+
+    def fake(*a, **k):
+        return ({}, {"flags": 0, "fmask": 0, "cost": 0})
+
+    ov.OVERRIDES["1010:6168"] = fake
+    try:
+        ov.install_overrides(["1010:6168"])
+        assert getattr(caller, callee_name) is fake, (
+            "the already-imported caller still holds the ORIGINAL callee -- the "
+            "override would silently do nothing for every call through it")
+    finally:
+        ov.OVERRIDES.pop("1010:6168", None)
+        ov.uninstall_overrides()
+    assert getattr(caller, callee_name) is original, "uninstall must restore"
