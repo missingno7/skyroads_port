@@ -279,7 +279,16 @@ def run_stub(cpu, entry_cs: int, entry_ip: int, limit: int = 5_000_000) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("demo")
-    ap.add_argument("--lift-dir", default=str(ROOT / "artifacts" / "lifted_full"))
+    # The SHIPPED corpus -- the same directory close_vmless_wall.py emits and
+    # play_vmless.py/hooks.py import.  This defaulted to the 1.0-era
+    # artifacts/lifted_full, which nothing has written since the dos_re 2.0
+    # rename: the differential was proving an orphaned snapshot rather than the
+    # code that runs.  It happened to be harmless (the 182 shared modules were
+    # byte-identical) right up until a census added three functions to the
+    # shipped corpus and not to the snapshot -- a gate that proves a different
+    # artifact than the one that ships is not a gate.
+    ap.add_argument("--lift-dir",
+                    default=str(ROOT / "skyroads" / "lifted" / "functions"))
     ap.add_argument("--frames", type=int, default=0, help="stop after N frames")
     ap.add_argument("--irqs", type=int, default=6)
     ap.add_argument("--step-budget", type=int, default=4_000_000)
