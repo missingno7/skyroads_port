@@ -112,6 +112,11 @@ def _capture_cpuless(pb, heads, irqs, end):
     _restore_dos_state(types.SimpleNamespace(
         dos=dos, program=types.SimpleNamespace(memory=mem)), st["dos"])
     dos.mouse_present = pb.mouse_present_hint
+    # A console read (INT 21h AH=07 "press any key") must BLOCK on an empty
+    # buffer -- as the oracle does -- not synthesise the phantom Esc that the
+    # DOSMachine default (0x011B) leaks into the boot snapshot.  The harness's
+    # blocking_read_cb below advances frames until the awaited key arrives.
+    dos.console_input_fallback = None
     rt = CPUlessPlatformRuntime(mem, game_root=ROOT, dos=dos)
 
     def deliver_key(_r, sc, regs):
@@ -128,19 +133,18 @@ def _capture_cpuless(pb, heads, irqs, end):
     state = {"frame": 0, "seen": set()}
     done = _Stop
 
-    def boundary_cb(hcs, hip, rip, regs, cost):
-        key = (hcs, hip)
-        if key not in state["seen"]:
-            state["seen"].add(key)          # 1st pass: let the body run
-            return regs, regs.get("_flags_in", 2), 0
-        # 2nd pass -> a frame just rendered.  Capture it, THEN prepare the NEXT
-        # frame: apply ITS input before it renders (so input N affects frame N,
-        # matching the oracle's apply-before-run), then deliver its timer IRQs.
+    def _advance(regs):
+        """One frame boundary: capture the frame that just finished, then
+        prepare the NEXT frame -- apply ITS input before it renders (so input N
+        affects frame N, matching the oracle's apply-before-run) and deliver its
+        timer IRQs through the recovered INT 08h ISR.  Shared by the tick-wait
+        boundary (2nd pass) AND the blocking-read wait, so both frame drivers
+        keep one counter and one capture rule."""
         f = state["frame"]
         frames.append((bytes(mem.data[VGA:VGA + VGA_LEN]),
                        tuple(map(tuple, dos.vga_palette))))
         state["frame"] = f + 1
-        state["seen"].clear()
+        state["seen"].clear()           # each frame starts a fresh pass count
         if state["frame"] >= end or pb.finished(f):
             raise done()
         pb.apply_to_runtime(state["frame"], rt,
@@ -149,8 +153,19 @@ def _capture_cpuless(pb, heads, irqs, end):
             kw = {k: regs[k] for k in _TIMER_IN if k in regs}
             kw["_flags_in"] = regs.get("_flags_in", 2)
             func_1010_3b17(mem, rt, **kw)
+
+    def boundary_cb(hcs, hip, rip, regs, cost):
+        key = (hcs, hip)
+        if key not in state["seen"]:
+            state["seen"].add(key)          # 1st pass: let the body run
+            return regs, regs.get("_flags_in", 2), 0
+        _advance(regs)                      # 2nd pass -> a frame just rendered
         return regs, regs.get("_flags_in", 2), 0
     rt.boundary_cb = boundary_cb
+    #: a blocking console read (press-any-key) advances a frame in place so the
+    #: awaited demo key can arrive; the frozen screen + IRQ-driven palette fade
+    #: are captured per frame exactly as the oracle captures its blocked frames.
+    rt.blocking_read_cb = _advance
 
     regs0 = st["cpu"]
     import inspect

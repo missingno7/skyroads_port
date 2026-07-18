@@ -56,6 +56,7 @@ DEFAULT_DEMOS = (
     "demo_menu_3levels_20260713_144256",      # level-select -> 3 different levels
     "demo_skyroads_20260717_122736",          # menu navigation (Down/Enter/Right...)
     "demo_intro_20260717_125403",       # cold start: full intro -> attract demo -> interrupt -> menu
+    "demo_cold_20260718_003412",        # full cold playthrough: intro -> menu -> select -> play -> die -> leave -> intro
 )
 
 #: The game's code segment. Entries outside it are DOS/BIOS/framework, not game
@@ -130,6 +131,80 @@ def observe_demo(demo_dir: Path, *, max_frames: int = 0,
     return {"frames": frames, "ivt": ivt}
 
 
+#: Demos timed to the 2nd-pass BOUNDARY cut rather than steps-per-frame.  The
+#: verification differentials (verify_vmless / verify_cpuless) drive these with
+#: run_to_cut, and the recovered runtime reproduces exactly that execution;
+#: replaying them through the steps-per-frame front-end diverges (it quits early
+#: at a press-any-key screen), so the real end-game code -- the exact addresses
+#: the no-CPU runtime executes -- never gets censused, and the recovered build
+#: then fail-loud-stubs those reachable exits as runtime-dead (e.g. 1010:2EFC,
+#: the plain `ret` tail of 1010:2EBB).  Observing them through the boundary
+#: model closes that false-dead gap.
+BOUNDARY_DEMOS = frozenset({"demo_cold_20260718_003412"})
+
+
+def observe_demo_boundary(demo_dir: Path, *, executed: set, call_targets: Counter,
+                          heads: set, step_budget: int = 4_000_000) -> dict:
+    """Replay one demo through the boundary-head PARK model -- the faithful
+    reproduction the recovered runtime targets (see :data:`BOUNDARY_DEMOS`).
+
+    A frame delivers its input + 6 timer IRQs then runs until a boundary head is
+    reached the 2nd time; this matches verify_vmless_demo's oracle exactly, so
+    the census covers precisely the code the CPU-free candidate executes."""
+    from verify_vmless_demo import (build_oracle_cold, build_oracle, run_stub,
+                                    CANONICAL_ENTRY, _is_predecompression)
+    from dos_re.interrupts import deliver_interrupt
+
+    pb = InputDemoPlayback.load(str(demo_dir))
+    if pb.is_cold_start or _is_predecompression(pb):
+        frontend, _a, rt = build_oracle_cold(demo_dir, pb)
+    else:
+        frontend, _a, rt = build_oracle(demo_dir, pb)
+    run_stub(rt.cpu, *CANONICAL_ENTRY)
+
+    orig_step = CPU8086.step
+    ex_add, ct = executed.add, call_targets
+
+    def step(self):
+        s = self.s
+        ex_add((s.cs, s.ip))
+        depth = self.call_depth
+        r = orig_step(self)
+        if self.call_depth > depth:
+            s2 = self.s
+            ct[(s2.cs, s2.ip)] += 1
+        return r
+
+    def run_to_cut(cpu, budget):
+        hit = {}
+        for _ in range(budget):
+            key = (cpu.s.cs, cpu.s.ip)
+            if key in heads:
+                hit[key] = hit.get(key, 0) + 1
+                if hit[key] >= 2:
+                    cpu.step()
+                    return
+            cpu.step()
+
+    CPU8086.step = step
+    frames = 0
+    try:
+        end = pb.end_boundary or 100000
+        while frames < end and not pb.finished(frames):
+            pb.apply_to_runtime(frames, rt,
+                                deliver=lambda r, sc: frontend.deliver_input(r, sc))
+            for _ in range(6):
+                deliver_interrupt(rt, 0x08)
+            try:
+                run_to_cut(rt.cpu, step_budget)
+            except (ConsoleInputWouldBlock, HaltExecution):
+                pass
+            frames += 1
+    finally:
+        CPU8086.step = orig_step
+    return {"frames": frames}
+
+
 def observe_cold_boot(*, frames: int, executed: set, call_targets: Counter) -> dict:
     """Observe a genuine from-EXE COLD BOOT -- the game's own startup path.
 
@@ -202,16 +277,27 @@ def main(argv=None) -> int:
         print(f"[codemap] cold boot (from EXE): {info['frames']} frames, "
               f"{len(executed)} addrs -- the startup path no demo covers")
 
+    heads = None
     for demo in demos:
         if not demo.exists():
             print(f"[codemap] SKIP (missing): {demo.name}")
             continue
         before = len(executed)
-        info = observe_demo(demo, max_frames=args.max_frames, executed=executed,
-                            call_targets=call_targets, int_entries=int_entries)
-        ivt_all.update(info["ivt"])
+        if demo.name in BOUNDARY_DEMOS:
+            if heads is None:
+                from verify_vmless_demo import read_heads
+                heads = read_heads(ROOT / "artifacts" / "codemap"
+                                   / "boundary_heads.txt")
+            info = observe_demo_boundary(demo, executed=executed,
+                                         call_targets=call_targets, heads=heads)
+            tag = " [boundary model]"
+        else:
+            info = observe_demo(demo, max_frames=args.max_frames, executed=executed,
+                                call_targets=call_targets, int_entries=int_entries)
+            ivt_all.update(info["ivt"])
+            tag = ""
         print(f"[codemap] {demo.name}: {info['frames']} frames, "
-              f"+{len(executed) - before} new addrs (total {len(executed)})")
+              f"+{len(executed) - before} new addrs (total {len(executed)}){tag}")
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
