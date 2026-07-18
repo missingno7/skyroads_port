@@ -65,11 +65,29 @@ def _s16(v: int) -> int:
              "-> 0. row = (af2c - 0x2200)/128 (unsigned). mid = "
              "((seg_high + seg_low) & 0xFFFF)/2 where seg_high/seg_low are "
              "ds:[0x98+2*seg]/ds:[0x4C+2*seg]. Return 1 (fell) iff row < mid.",
-    status="ASM_MATCHED",  # 682/682 (E2E) + 511/511 (collision demo) death-check
-    # evaluations matched -- but NO real fall occurred in either demo (both are
-    # clean runs / crashes, not falls), so only the negative (didn't-fall) case
-    # is exercised; the positive branch is decoded from the ASM, not yet
-    # confirmed on a real death. See skyroads.native.gaps.FallDeathTransition.
+    # Byte-exact against the generated 1010:0533 -- itself byte-exact against
+    # the interpreted ASM oracle from cold start -- on the WHOLE contract: all
+    # seven output registers, exit flags, fmask, virtual-time cost and the
+    # ordered byte-write log, no exemptions. Two populations:
+    #
+    #  * dos_re.lift.shadow over 1,432 REAL calls -- demo_cold_20260718_003412
+    #    (230) + demo_colde2e_full_20260713_144604 (1,202). MEASURED shapes:
+    #    NO_SEGMENT 1,376 (nibbles 0x000 and 0x200); DECIDED/no-mirror/0x300
+    #    fell 17; DECIDED/no-mirror/0x100 fell 15; DECIDED/mirror-negative/0x100
+    #    didn't-fall 12; DECIDED/no-mirror/0x100 didn't-fall 4.
+    #  * tests/test_island_bodies.py forced states for every reachable shape --
+    #    all three mirror cases x all three accepted nibbles x both outcomes,
+    #    plus 04C0 in and out of range -- 30 randomized register sets each.
+    #
+    # CORRECTION, measured. This record previously said no real fall occurred in
+    # any demo and that the positive branch was ASM-derived only. That is FALSE:
+    # the predicate returns 1 on 32 calls in demo_colde2e_full, and those calls
+    # are byte-exact. The unexercised-in-game shapes are the 0x500 nibble, the
+    # MIRROR_ZERO case, and mirror-negative-with-fall -- forced states only.
+    #
+    # The 0x25 segment cull at 05A4 is DEAD CODE, proven by exhaustion over all
+    # 65,536 af1c values: the post-mirror index is always 1..23.
+    status="VERIFIED",
     merge_target="skyroads.native.collision_response (future)",
 )
 def ship_fell_off(persp_word: int, af1c: int, af2c: int,
@@ -78,24 +96,92 @@ def ship_fell_off(persp_word: int, af1c: int, af2c: int,
     ``seg_low``/``seg_high`` are the per-segment clip bounds
     ``ds:[0x4C+2*seg]``/``ds:[0x98+2*seg]`` (the caller reads them once ``seg``
     is known -- see ``skyroads.native.collision.ship_fell_off``)."""
-    if (persp_word & 0xF00) not in (0x100, 0x300, 0x500):
-        return 0
-    rem = (((af1c & 0xFFFF) // 128) + 0xFFCF) & 0xFFFF     # af1c/128 - 49
-    rem %= 46
-    seg = (0x17 - rem) & 0xFFFF                             # 23 - rem
-    if seg == 0 or seg > 0x7FFF:                            # <= 0 signed -> mirror
-        seg = (1 - seg) & 0xFFFF
-    if seg > 0x25:
-        return 0
-    row = ((af2c + 0xDE00) & 0xFFFF) // 128                 # (af2c - 0x2200)/128
-    mid = ((seg_high + seg_low) & 0xFFFF) // 2
-    return 1 if row < mid else 0
+    return ship_fell_off_detail(persp_word, af1c, af2c,
+                                lambda _s: seg_low, lambda _s: seg_high).result
 
 
 #: The ship-fell segment index maps into these per-segment clip tables (same
 #: tables road_segment_clip reads; 1010:05C2/05CB).
 FELL_SEG_LOW_TABLE = 0x4C
 FELL_SEG_HIGH_TABLE = 0x98
+
+#: ``arm`` values of :class:`FellOffResult` -- WHERE 1010:0533 left the function.
+FELL_ARM_NO_SEGMENT = 0    # 05EC: the 0xF00 nibble is not 0x100/0x300/0x500
+FELL_ARM_SEG_CULLED = 1    # 05AA -> 05EC: the mirrored segment exceeded 0x25
+FELL_ARM_DECIDED = 2       # 05AD: the row-vs-midpoint comparison actually ran
+
+#: ``mirror`` values -- HOW 23-rem reached the `1 - seg` fix-up at 059B, which
+#: is reached from two different compares and so costs two different amounts.
+MIRROR_NONE = 0            # 0592 `cmp [bp-4],0` non-zero: straight to 05A4
+MIRROR_NEGATIVE = 1        # 058F: `cmp [bp-4],0x7FFF` above -> seg was negative
+MIRROR_ZERO = 2            # 0592: `cmp [bp-4],0` equal -> seg was exactly 0
+
+
+class FellOffResult(NamedTuple):
+    """1010:0533's answer plus the structure its ABI adapter cannot re-derive.
+
+    ``result`` is the whole semantic answer -- 1 iff the ship fell. Everything
+    else exists because the generated body leaves live, observable state that
+    depends on WHICH way it got there, and re-deriving that in the adapter would
+    duplicate the decision this function just made.
+
+    ``arm`` and ``mirror`` together pick the virtual-time cost and the set of
+    stack slots written. ``rem46``, ``row`` and ``parity`` are the three divide
+    residues left in registers at the various exits; ``cmp_lhs``/``cmp_rhs`` are
+    the operands of the LAST compare, whose flags the function returns.
+
+    ``seg`` is the post-mirror segment index; it is None on the no-segment arm,
+    which exits before the segment is ever computed.
+    """
+
+    result: int
+    arm: int
+    mirror: int
+    nibble: int          # persp_word & 0xF00
+    seg: "int | None"    # post-mirror index, and BX/2 on the decided arm
+    rem46: int           # DX after 0576's `div 46`
+    row: "int | None"    # CX on the decided arm: (af2c - 0x2200) / 128
+    mid: "int | None"    # AX on the decided arm: (high + low) / 2
+    parity: "int | None"  # DX on the decided arm: (high + low) & 1
+    cmp_lhs: int
+    cmp_rhs: int
+
+
+def ship_fell_off_detail(persp_word: int, af1c: int, af2c: int,
+                         read_low, read_high) -> FellOffResult:
+    """:func:`ship_fell_off` with its decision structure exposed and the two
+    bound-table words read LAZILY, only on the arm that reaches 05AD.
+
+    ``read_low(seg)``/``read_high(seg)`` are accessors for
+    ``ds:[0x4C + 2*seg]``/``ds:[0x98 + 2*seg]``. They take the segment index as
+    an argument rather than closing over it because -- unlike 1631's -- it is
+    computed HERE, three compares into the function.
+    """
+    nibble = persp_word & 0x0F00
+    if nibble not in (0x0100, 0x0300, 0x0500):
+        # 0562 `cmp [bp-2],0x500` is the last compare on the way out, whichever
+        # of the three tests failed -- the chain falls through it.
+        return FellOffResult(0, FELL_ARM_NO_SEGMENT, MIRROR_NONE, nibble, None,
+                             0, None, None, None, nibble, 0x0500)
+
+    rem46 = ((((af1c & 0xFFFF) // 128) + 0xFFCF) & 0xFFFF) % 46
+    seg = (0x17 - rem46) & 0xFFFF
+    if seg > 0x7FFF:                      # 058F: above 0x7FFF -> negative
+        mirror, seg = MIRROR_NEGATIVE, (1 - seg) & 0xFFFF
+    elif seg == 0:                        # 0592: exactly zero
+        mirror, seg = MIRROR_ZERO, 1
+    else:
+        mirror = MIRROR_NONE
+
+    if seg > 0x25:                        # 05A4 `cmp [bp-4],0x25`, above -> out
+        return FellOffResult(0, FELL_ARM_SEG_CULLED, mirror, nibble, seg,
+                             rem46, None, None, None, seg, 0x25)
+
+    row = ((af2c + 0xDE00) & 0xFFFF) // 128
+    total = (read_high(seg) + read_low(seg)) & 0xFFFF  # 05C2 then 05CB, in order
+    mid, parity = total // 2, total & 1
+    return FellOffResult(1 if row < mid else 0, FELL_ARM_DECIDED, mirror, nibble,
+                         seg, rem46, row, mid, parity, row, mid)
 
 
 def fell_off_segment(af1c: int) -> int:

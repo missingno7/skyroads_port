@@ -271,3 +271,158 @@ def test_every_1631_arm_is_actually_forced_by_its_case():
             f"case {case}: the generated body disagrees with the cost table")
         seen.add(case)
     assert seen == set(CLIP_COST), "an arm in the cost table has no forcing case"
+
+
+# --- 1010:0533 ship_fell_off --------------------------------------------------
+#
+# 0533's first act is to call 04C0 with its own first three arguments, so the
+# perspective word it switches on comes back through ds -- which means a forced
+# state has to steer 04C0 too. af1c is [bp+8], the SAME word 04C0 projects as
+# depth, so the segment index and the range test are not independently
+# choosable; the depths below are picked to land both.
+
+from skyroads.island_bodies import func_1010_0533 as ISLAND_0533   # noqa: E402
+from skyroads.island_bodies import (                               # noqa: E402
+    _FELL_ARM_COST, _FELL_MIRROR_COST, _FELL_NIBBLE_COST, _FELL_NO_SEGMENT)
+from skyroads.recovered.func_1010_0533 import func_1010_0533 as GEN_0533  # noqa: E402
+from skyroads.handrecovered.collision_response import (             # noqa: E402
+    FELL_ARM_DECIDED, FELL_ARM_NO_SEGMENT, FELL_ARM_SEG_CULLED, MIRROR_NEGATIVE,
+    MIRROR_NONE, MIRROR_ZERO, ship_fell_off_detail)
+
+#: depth values whose 04C0 row index is in range AND whose (depth/128 - 49) mod
+#: 46 lands on the residue that produces each mirror case. All three project to
+#: table offset 0x162C (idx // 46 == 0), so one poked word steers every case.
+_FELL_DEPTH = {MIRROR_NONE: 95 * 128,       # rem 0  -> seg 23, no fix-up
+               MIRROR_ZERO: 118 * 128,      # rem 23 -> seg 0   -> mirrored to 1
+               MIRROR_NEGATIVE: 119 * 128}  # rem 24 -> seg -1  -> mirrored to 2
+_FELL_SEG = {MIRROR_NONE: 23, MIRROR_ZERO: 1, MIRROR_NEGATIVE: 2}
+#: a depth whose row index is BELOW the window, so 04C0 returns AX = 0
+_FELL_DEPTH_OUT = 32 * 128
+_FELL_TABLE = 0x162C
+
+
+def _fell_state(rng, *, depth, persp, af2c, low, high, seg):
+    ss, ds = rng.randrange(0x1000, 0x8000), rng.randrange(0x1000, 0x8000)
+    regs = dict(bp=rng.randrange(0x10000), bx=rng.randrange(0x10000),
+                di=rng.randrange(0x10000), dx=rng.randrange(0x10000),
+                si=rng.randrange(0x10000), ds=ds, ss=ss,
+                sp=rng.randrange(0x0100, 0xFF00) & ~1)
+
+    def build():
+        m = Mem()
+        for i, w in enumerate((0, 0, depth, af2c)):   # x_lo, x_hi, af1c, af2c
+            m.ww(ss, (regs["sp"] + 2 + 2 * i) & 0xFFFF, w)
+        m.ww(ds, _FELL_TABLE, persp)                  # what 04C0 will read back
+        m.ww(ds, ((seg << 1) + 76) & 0xFFFF, low)
+        m.ww(ds, ((seg << 1) + 152) & 0xFFFF, high)
+        m.log.clear()
+        return m
+
+    return regs, build
+
+
+def _fell_cases():
+    """(id, kwargs) for every REACHABLE (arm, mirror, nibble, result) shape.
+
+    SEG_CULLED is absent on purpose -- see the unreachability test below.
+    """
+    out = [("no_segment_04c0_out",
+            dict(depth=_FELL_DEPTH_OUT, persp=0x0100, af2c=0x2300,
+                 low=0x40, high=0x40, seg=23)),
+           ("no_segment_04c0_in",
+            dict(depth=_FELL_DEPTH[MIRROR_NONE], persp=0x0200, af2c=0x2300,
+                 low=0x40, high=0x40, seg=23)),
+           ("no_segment_nibble_F00",
+            dict(depth=_FELL_DEPTH[MIRROR_NONE], persp=0x0F00, af2c=0x2300,
+                 low=0x40, high=0x40, seg=23))]
+    for mirror in (MIRROR_NONE, MIRROR_ZERO, MIRROR_NEGATIVE):
+        for nibble in (0x0100, 0x0300, 0x0500):
+            # mid is (0x40 + 0x40) / 2 = 64, so row must clear 64 to NOT fall:
+            # row = (af2c - 0x2200) / 128, i.e. af2c >= 0x4200.
+            for fell, af2c in ((1, 0x2300), (0, 0x5000)):
+                out.append((f"decided_{mirror}_{nibble:#05x}_fell{fell}",
+                            dict(depth=_FELL_DEPTH[mirror], persp=nibble,
+                                 af2c=af2c, low=0x40, high=0x40,
+                                 seg=_FELL_SEG[mirror])))
+    return out
+
+
+@pytest.mark.parametrize("name,kw", _fell_cases(), ids=[c[0] for c in _fell_cases()])
+def test_0533_island_body_reproduces_the_full_contract(name, kw):
+    rng = random.Random(0x0533 ^ (hash(name) & 0xFFFF))
+    for _ in range(30):
+        regs, build = _fell_state(rng, **kw)
+        g = build()
+        go, gc = GEN_0533(g, **regs)
+        i = build()
+        io, ic = ISLAND_0533(i, **regs)
+        ctx = f"{name} " + " ".join(f"{k}={v:04X}" for k, v in sorted(regs.items()))
+        assert set(io) == set(go), f"output SET differs; {ctx}"
+        for out in OUTPUTS:
+            assert io[out] == go[out], (
+                f"output {out}: generated={go[out]:04X} island={io[out]:04X}; {ctx}")
+        for c in ("flags", "fmask", "cost"):
+            assert ic[c] == gc[c], (
+                f"compat {c}: generated={gc[c]:#x} island={ic[c]:#x}; {ctx}")
+        assert i.log == g.log, f"the stack residue differs; {ctx}"
+
+
+def test_0533_forced_cases_cover_every_reachable_shape():
+    """The cases are evidence only if they reach what they name, and only if
+    together they leave nothing reachable uncovered."""
+    seen = set()
+    for name, kw in _fell_cases():
+        # What 0533 switches on is 04C0's RETURN, not the word poked into the
+        # table: out of range, 04C0 answers 0 and the poked word is never read.
+        in_range = ((kw["depth"] // 128) + 0xFFA1) & 0xFFFF < 0x142
+        persp = kw["persp"] if in_range else 0
+        r = ship_fell_off_detail(persp, kw["depth"], kw["af2c"],
+                                 lambda _s: kw["low"], lambda _s: kw["high"])
+        seen.add((r.arm, r.mirror, r.nibble, r.result))
+        if name.startswith("decided"):
+            assert r.arm == FELL_ARM_DECIDED, f"{name} reached arm {r.arm}"
+            assert r.seg == _FELL_SEG[r.mirror], f"{name}: seg {r.seg}"
+            assert str(r.result) == name[-1], f"{name}: result {r.result}"
+        else:
+            assert r.arm == FELL_ARM_NO_SEGMENT, f"{name} reached arm {r.arm}"
+    # every mirror case, every accepted nibble, and BOTH outcomes
+    assert {m for a, m, _n, _r in seen if a == FELL_ARM_DECIDED} == {
+        MIRROR_NONE, MIRROR_ZERO, MIRROR_NEGATIVE}
+    assert {n for a, _m, n, _r in seen if a == FELL_ARM_DECIDED} == {
+        0x0100, 0x0300, 0x0500}
+    assert {r for a, _m, _n, r in seen if a == FELL_ARM_DECIDED} == {0, 1}
+
+
+def test_the_0533_segment_cull_is_UNREACHABLE_in_the_original():
+    """`cmp [bp-4],0x25 ; ja` at 05A4 is dead code, proven by exhaustion.
+
+    The residue of the /46 spans 0..45, so 23-rem spans -22..23; every value at
+    or below 0 is mirrored to 1-x, which maps -22..0 onto 1..23. The post-mirror
+    index is therefore always 1..23 and can never exceed the 0x25 threshold.
+
+    This is asserted over ALL 65,536 af1c values rather than argued, because the
+    consequence is load-bearing: FELL_ARM_SEG_CULLED has a cost entry that no
+    input can ever select, and a forced case for it would have to fabricate a
+    state the program cannot reach. Recording the arm and proving it dead is
+    honest; quietly dropping it, or claiming it covered, is not.
+    """
+    segs = set()
+    for af1c in range(0x10000):
+        r = ship_fell_off_detail(0x0100, af1c, 0x2300,
+                                 lambda _s: 0x40, lambda _s: 0x40)
+        assert r.arm != FELL_ARM_SEG_CULLED
+        segs.add(r.seg)
+    assert segs == set(range(1, 24)), f"segment range moved: {min(segs)}..{max(segs)}"
+    assert FELL_ARM_SEG_CULLED in _FELL_ARM_COST, (
+        "the dead arm stays in the cost table -- it is in the original, and a "
+        "table that silently omits it no longer mirrors the code it models")
+
+
+def test_0533_cost_pieces_add_up_to_the_observed_values():
+    """The cost table is built from the generated body's own per-block sums; these
+    are the four totals two full playthroughs actually produced."""
+    decided = _FELL_ARM_COST[FELL_ARM_DECIDED]
+    assert _FELL_NO_SEGMENT == {19: 42, 104: 127}
+    assert decided + _FELL_NIBBLE_COST[0x100] + _FELL_MIRROR_COST[MIRROR_NONE] == 160
+    assert decided + _FELL_NIBBLE_COST[0x100] + _FELL_MIRROR_COST[MIRROR_NEGATIVE] == 161
+    assert decided + _FELL_NIBBLE_COST[0x300] + _FELL_MIRROR_COST[MIRROR_NONE] == 162

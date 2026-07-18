@@ -31,6 +31,9 @@ WHY THE STACK WRITES ARE HERE, spelled out because they look like noise:
 """
 from __future__ import annotations
 
+from skyroads.handrecovered.collision_response import (
+    FELL_ARM_DECIDED, FELL_ARM_NO_SEGMENT, FELL_ARM_SEG_CULLED, MIRROR_NEGATIVE,
+    MIRROR_NONE, MIRROR_ZERO, ship_fell_off_detail)
 from skyroads.handrecovered.renderer import (
     ARM_CULLED, ARM_DEFAULT, perspective_row_offset, road_segment_clip_detail)
 
@@ -240,7 +243,140 @@ def func_1010_1631(mem, *, bp=0, bx=0, cx=0, di=0, ds=0, dx=0, si=0, sp=0, ss=0)
              'cost': CLIP_COST[(r.arm, r.second_test)]})
 
 
+# --- 1010:0533 ship_fell_off -------------------------------------------------
+#
+# The one body here that CALLS another address. 0533 opens by pushing its three
+# arguments straight back out and calling 04C0, and everything after that is
+# conditioned on 04C0's answer -- so the candidate cannot avoid the call.
+#
+# It calls the GENERATED 04C0 rather than resolving whatever is installed. Both
+# are correct (the island 04C0 is proven byte-identical to it, which is why it
+# drives at all) but only this one is INDEPENDENT of what else is installed: if
+# the candidate resolved through the module the way the generated body does,
+# then with 04C0 shadowed too every 0533 call would run 04C0's comparison twice
+# and inflate its recorded call count. An evidence counter that depends on which
+# other shadows happen to be installed is not a counter worth reading.
+
+#: Cost of the two arms that exit before the segment is computed, keyed by
+#: whether 04C0 came back in range. Both are ``c04c0 + 23``.
+_FELL_NO_SEGMENT = {19: 42, 104: 127}
+
+#: What the selector chain costs before reaching 0576, per matched nibble:
+#: 0x100 takes one test, 0x300 two, 0x500 three.
+_FELL_NIBBLE_COST = {0x0100: 1, 0x0300: 3, 0x0500: 4}
+
+#: What the mirror fix-up costs, by how 059B was reached.
+_FELL_MIRROR_COST = {MIRROR_NONE: 3, MIRROR_NEGATIVE: 4, MIRROR_ZERO: 5}
+
+#: Fixed remainder of each arm past the mirror: the 0576 block, the 05A4 test,
+#: and the tail. DECIDED adds 05AD's 18 and its 7-cost two-way finish; the
+#: culled arm adds 05AA/05EC instead. Both are 04C0-in-range only, because the
+#: out-of-range answer is AX = 0 and 0 & 0xF00 matches no selector.
+_FELL_ARM_COST = {FELL_ARM_DECIDED: 104 + 12 + 13 + 2 + 18 + 7,
+                  FELL_ARM_SEG_CULLED: 104 + 12 + 13 + 2 + 1 + 2 + 4}
+
+#: Same six-flag mask as every other body here; 0533 contributes 0x8D5 directly
+#: and 04C0 folds in its own 0x8D5, so the union does not widen.
+FELL_FMASK = 0x8D5
+
+#: ds-relative bases of the per-segment bound tables, indexed by ``seg*2``.
+_FELL_T_LOW, _FELL_T_HIGH = 76, 152
+
+_GEN_04C0_CACHE = []
+
+
+def _gen_04c0():
+    """The GENERATED 1010:04C0, resolved on first use.
+
+    Lazily, because importing the corpus at this module's import time would pull
+    it in before ``install_overrides`` has run -- and this module is imported by
+    the registry that does the installing.
+    """
+    if not _GEN_04C0_CACHE:
+        from dos_re.lift.standalone import generated
+        _GEN_04C0_CACHE.append(generated("skyroads.recovered", "1010:04C0"))
+    return _GEN_04C0_CACHE[0]
+
+#: The two divisors 0533 leaves in CX at its earlier exits (0x2E after the
+#: segment divide at 0583; 04C0's own 0x80 if the function never got that far).
+_FELL_CX_AFTER_SEG = 0x2E
+
+
+def func_1010_0533(mem, *, bp=0, bx=0, di=0, ds=0, dx=0, si=0, sp=0, ss=0):
+    """``1010:0533`` ship_fell_off, driven by the island.
+
+    Four stack arguments at ``[bp+4..bp+10]`` -- relative to the ENTRY sp,
+    ``+2 +4 +6 +8`` -- x_lo, x_hi, af1c, af2c. The first three are pushed
+    straight back out as 04C0's arguments (that is what 0533 opens with), and
+    af1c doubles as the depth 04C0 projects.
+
+    BP, SI and DI are callee-saved. CX and DX are not: each divide leaves its
+    divisor and remainder live, and WHICH divide ran last is what the island's
+    ``arm`` and ``mirror`` fields decide.
+    """
+    x_lo = mem.rw(ss, (sp + 2) & 0xFFFF)
+    x_hi = mem.rw(ss, (sp + 4) & 0xFFFF)
+    af1c = mem.rw(ss, (sp + 6) & 0xFFFF)
+    af2c = mem.rw(ss, (sp + 8) & 0xFFFF)
+
+    # `push bp; mov bp,sp; sub sp,6; push si; push di`, then 04C0's three
+    # argument words and the return address -- seven words, in this order.
+    frame = (sp - 2) & 0xFFFF
+    mem.ww(ss, frame, bp)
+    mem.ww(ss, (sp - 10) & 0xFFFF, si)
+    mem.ww(ss, (sp - 12) & 0xFFFF, di)
+    for delta, val in ((14, af1c), (16, x_hi), (18, x_lo), (20, 0x0545)):
+        mem.ww(ss, (sp - delta) & 0xFFFF, val)
+
+    inner_sp = (sp - 20) & 0xFFFF
+    o4, c4 = _gen_04c0()(mem, bp=frame, bx=bx, di=di, ds=ds, dx=dx, si=si,
+                         sp=inner_sp, ss=ss)
+    persp = o4['ax']
+
+    # 054B `and ax,0xF00` then `mov [bp-2],ax` -- the nibble is STORED, and that
+    # store is observable residue like any other.
+    nibble = persp & 0x0F00
+    mem.ww(ss, (sp - 4) & 0xFFFF, nibble)
+
+    r = ship_fell_off_detail(
+        persp, af1c, af2c,
+        lambda s: mem.rw(ds, (((s << 1) & 0xFFFF) + _FELL_T_LOW) & 0xFFFF),
+        lambda s: mem.rw(ds, (((s << 1) & 0xFFFF) + _FELL_T_HIGH) & 0xFFFF))
+
+    if r.arm == FELL_ARM_NO_SEGMENT:
+        _, flags = _sub16(nibble, 0x0500)
+        return ({'ax': 0, 'bp': bp & 0xFFFF, 'bx': o4['bx'], 'cx': o4['cx'],
+                 'di': di & 0xFFFF, 'dx': o4['dx'], 'si': si & 0xFFFF},
+                {'flags': flags & FELL_FMASK, 'fmask': FELL_FMASK,
+                 'cost': _FELL_NO_SEGMENT[c4['cost']]})
+
+    # 0576 stores 23-rem; 059B stores the mirrored value OVER it, so on a
+    # mirrored path the slot is written twice and both writes are in the log.
+    mem.ww(ss, (sp - 6) & 0xFFFF, (0x17 - r.rem46) & 0xFFFF)
+    if r.mirror != MIRROR_NONE:
+        mem.ww(ss, (sp - 6) & 0xFFFF, r.seg)
+
+    cost = (_FELL_ARM_COST[r.arm] + _FELL_NIBBLE_COST[r.nibble]
+            + _FELL_MIRROR_COST[r.mirror])
+    if r.arm == FELL_ARM_SEG_CULLED:
+        _, flags = _sub16(r.seg, 0x25)
+        return ({'ax': 0, 'bp': bp & 0xFFFF, 'bx': o4['bx'],
+                 'cx': _FELL_CX_AFTER_SEG, 'di': di & 0xFFFF, 'dx': r.rem46,
+                 'si': si & 0xFFFF},
+                {'flags': flags & FELL_FMASK, 'fmask': FELL_FMASK, 'cost': cost})
+
+    # 05AD: the row divide stores its quotient at [bp-6]; AX ends holding the
+    # midpoint, CX the row, DX the sum's low bit, BX the doubled segment index.
+    mem.ww(ss, (sp - 8) & 0xFFFF, r.row)
+    _, flags = _sub16(r.row, r.mid)
+    return ({'ax': r.result, 'bp': bp & 0xFFFF, 'bx': (r.seg << 1) & 0xFFFF,
+             'cx': r.row, 'di': di & 0xFFFF, 'dx': r.parity,
+             'si': si & 0xFFFF},
+            {'flags': flags & FELL_FMASK, 'fmask': FELL_FMASK, 'cost': cost})
+
+
 #: address -> island-driven body. This is what may be shadowed, and -- once a
 #: shadow has VERIFIED it over demos exercising every path -- what may drive.
 BODIES = {"1010:04C0": func_1010_04c0,
-          "1010:1631": func_1010_1631}
+          "1010:1631": func_1010_1631,
+          "1010:0533": func_1010_0533}
