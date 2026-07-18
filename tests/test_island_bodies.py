@@ -725,3 +725,153 @@ def test_0f62_cost_is_linear_in_the_source_byte_census():
             STENCIL_COST_ONE if b == 1 else STENCIL_COST_OTHER for b in source)
         assert GEN_0F62(build(), **regs)[1]["cost"] == want, (
             f"cost model disagrees with the generated body on {source[:6]!r}...")
+
+
+# --- 1010:3A22 sprite_blit ----------------------------------------------------
+#
+# No stack frame at all: 3A22 pushes nothing and takes every argument in a
+# register, so SI, DI and BX are live outputs. Three things the two demos never
+# produce and these cases must: a mask with NO transparent column (all 8,634
+# real calls are either mixed or fully transparent), a final `add si,0x123`
+# that CARRIES (every real call exits with CF clear), and DX = 0.
+
+from skyroads.island_bodies import (                               # noqa: E402
+    SPRITE_COST_COL, SPRITE_COST_OPAQUE, SPRITE_COST_RET, SPRITE_COST_ROW,
+    SPRITE_FMASK)
+from skyroads.island_bodies import func_1010_3a22 as ISLAND_3A22   # noqa: E402
+from skyroads.recovered.func_1010_3a22 import func_1010_3a22 as GEN_3A22  # noqa: E402
+from skyroads.handrecovered.present import SPRITE_BLIT_WIDTH       # noqa: E402
+
+_SP_SRC, _SP_MASK, _SP_DEST = 0x5000, 0x6000, 0x8000
+_SP_OUTPUTS = ("ax", "bx", "cx", "di", "dx", "si")
+
+
+def _sprite_state(rng, *, rows, mask_of, src_off=0x0100, mask_off=0x0080):
+    """A pre-state for ``rows`` rows whose mask byte at column i is ``mask_of(i)``.
+
+    The three segments are fixed and disjoint (source 0x50000, mask 0x60000,
+    destination 0x80000) so a disagreement is a disagreement in what the bodies
+    compute, not an artefact of an overlap the test built by accident.
+    """
+    regs = dict(ax=rng.randrange(0x10000), bx=mask_off, ds=_SP_SRC,
+                dx=rows, es=_SP_DEST, si=src_off, ss=_SP_MASK)
+
+    def build():
+        m = Mem()
+        # Only 64 KB of mask exists; a longer run re-reads it from the wrap.
+        n = min((rows or 0x10000) * SPRITE_BLIT_WIDTH, 0x10000)
+        for i in range(n):
+            m.wb(_SP_MASK, (mask_off + i) & 0xFFFF, mask_of(i))
+        for i in range(0x10000):
+            m.wb(_SP_SRC, i, (i * 7 + 3) & 0xFF)
+        m.log.clear()
+        return m
+
+    return regs, build
+
+
+def _sprite_cases():
+    return [
+        ("mixed_24_rows", 24, lambda i: (2, 0, 5, 2)[i % 4], 0x0100),
+        ("mixed_9_rows", 9, lambda i: (2, 0, 5, 2)[i % 4], 0x0100),
+        ("fully_opaque", 6, lambda i: 2, 0x0100),
+        ("fully_transparent", 6, lambda i: 0, 0x0100),
+        ("single_row", 1, lambda i: (2, 0)[i % 2], 0x0100),
+        ("trailing_transparent_columns", 3,
+         lambda i: 2 if i % SPRITE_BLIT_WIDTH < 4 else 0, 0x0100),
+        # the LAST row's `add si,0x123` carries -- unobserved in both demos
+        ("carry_out_of_the_row_add", 1, lambda i: (2, 0)[i % 2], 0xFFE0),
+        ("carry_multi_row", 3, lambda i: (2, 0)[i % 2], 0xFD00),
+        # mask bytes that are neither 0 nor 2: only ==2 is opaque
+        ("mask_values_other_than_0_and_2", 4, lambda i: (1, 2, 3, 0xFF)[i % 4],
+         0x0100),
+    ]
+
+
+@pytest.mark.parametrize("name,rows,mask_of,src_off", _sprite_cases(),
+                         ids=[c[0] for c in _sprite_cases()])
+def test_3a22_island_body_reproduces_the_full_contract(name, rows, mask_of, src_off):
+    rng = random.Random(0x3A22 ^ (hash(name) & 0xFFFF))
+    for _ in range(10):
+        regs, build = _sprite_state(rng, rows=rows, mask_of=mask_of,
+                                    src_off=src_off)
+        g = build()
+        go, gc = GEN_3A22(g, **regs)
+        i = build()
+        io, ic = ISLAND_3A22(i, **regs)
+        ctx = f"{name} " + " ".join(f"{k}={v:04X}" for k, v in sorted(regs.items()))
+        assert set(io) == set(go), f"output SET differs; {ctx}"
+        for out in _SP_OUTPUTS:
+            assert io[out] == go[out], (
+                f"output {out}: generated={go[out]:04X} island={io[out]:04X}; {ctx}")
+        for c in ("flags", "fmask", "cost"):
+            assert ic[c] == gc[c], (
+                f"compat {c}: generated={gc[c]:#x} island={ic[c]:#x}; {ctx}")
+        assert i.log == g.log, f"the byte-write log differs; {ctx}"
+
+
+def test_3a22_forced_cases_force_the_two_exits_no_demo_produces():
+    """The cases are evidence only if they reach what they name.
+
+    Both demos run ONLY mixed and fully transparent masks, and every one of
+    their 8,634 calls exits with CF clear -- so a body that hard-coded either
+    would pass on the whole recorded population.
+    """
+    rng = random.Random(11)
+    carries, masks = set(), set()
+    for name, rows, mask_of, src_off in _sprite_cases():
+        regs, build = _sprite_state(rng, rows=rows, mask_of=mask_of,
+                                    src_off=src_off)
+        _o, c = GEN_3A22(build(), **regs)
+        carries.add(bool(c["flags"] & 0x1))
+        total = rows * SPRITE_BLIT_WIDTH
+        hits = sum(1 for i in range(total) if mask_of(i) == 2)
+        masks.add("none" if hits == 0 else "all" if hits == total else "some")
+        assert c["fmask"] == SPRITE_FMASK
+    assert carries == {False, True}, "no case makes the final `add si,0x123` carry"
+    assert masks == {"none", "all", "some"}, f"mask opacity coverage: {masks}"
+
+
+def test_3a22_dx_zero_means_65536_rows_not_none():
+    """The outer loop is a do-while, so DX = 0 is the longest run there is.
+
+    Both demos pass only 24 or 9, so nothing recorded contradicts reading DX = 0
+    as "draw nothing" -- which would return with AX, SI, BX untouched and write
+    no pixels. One state, not twenty: the point of this one is its size.
+    """
+    rng = random.Random(0x3A22)
+    regs, build = _sprite_state(rng, rows=0, mask_of=lambda i: 2 if i % 29 else 0)
+    g = build()
+    go, gc = GEN_3A22(g, **regs)
+    i = build()
+    io, ic = ISLAND_3A22(i, **regs)
+    # The COST is what pins the row count: SI and BX both advance by an exact
+    # multiple of 0x10000 over 65,536 rows and come back to where they started,
+    # so neither can tell this run from one that drew nothing. The cost cannot
+    # be faked -- it is 65,536 rows of fixed work plus two per opaque column.
+    assert gc["cost"] == (SPRITE_COST_RET + 0x10000 * SPRITE_COST_ROW
+                          + 0x10000 * SPRITE_BLIT_WIDTH * SPRITE_COST_COL
+                          + len(g.log) * SPRITE_COST_OPAQUE), (
+        "the DX=0 run is not 65,536 rows of the model's own arithmetic")
+    assert len(g.log) > 1_800_000, (
+        f"DX=0 drew only {len(g.log)} pixels -- it is not being read as 65,536 rows")
+    assert i.log == g.log
+    for out in _SP_OUTPUTS:
+        assert io[out] == go[out], f"output {out} differs on the DX=0 run"
+    for c in ("flags", "fmask", "cost"):
+        assert ic[c] == gc[c], f"compat {c} differs on the DX=0 run"
+
+
+def test_3a22_cost_is_linear_in_rows_and_opaque_columns():
+    """The cost model, checked against the generated body on constructed runs
+    rather than fitted to observed totals."""
+    rng = random.Random(0xC057)
+    for rows, mask_of in ((3, lambda i: 2), (3, lambda i: 0),
+                          (7, lambda i: (2, 0)[i % 2])):
+        regs, build = _sprite_state(rng, rows=rows, mask_of=mask_of)
+        hits = sum(1 for i in range(rows * SPRITE_BLIT_WIDTH) if mask_of(i) == 2)
+        want = (SPRITE_COST_RET + rows * SPRITE_COST_ROW
+                + rows * SPRITE_BLIT_WIDTH * SPRITE_COST_COL
+                + hits * SPRITE_COST_OPAQUE)
+        assert GEN_3A22(build(), **regs)[1]["cost"] == want, (
+            f"cost model disagrees with the generated body at rows={rows}")

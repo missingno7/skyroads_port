@@ -40,7 +40,7 @@ of 0 disables that branch (nothing is below 0 unsigned).
 """
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, NamedTuple
 
 from skyroads.islands import oracle_link
 
@@ -154,7 +154,27 @@ _SPRITE_BLIT_ROW_SKIP = 0x0123  # 0x1D + 0x123 == 0x140 (one screen row)
              "full 0x140 screen row) while the packed mask bx just continues "
              "(29 bytes/row, no padding). This is the gameplay ship/object "
              "compositor that draws DIRECTLY to VGA (see run_status.md).",
-    status="ASM_MATCHED",  # full-memory-diff verified over real 1010:3A22 calls
+    # Byte-exact against the generated 1010:3A22 -- itself byte-exact against
+    # the interpreted ASM oracle from cold start -- on the WHOLE contract: all
+    # six output registers, exit flags, fmask, virtual-time cost and the
+    # ordered byte-write log, with NO exemptions. Two populations, and the
+    # claim is exactly their union and no wider:
+    #
+    #  * dos_re.lift.shadow over 8,634 REAL calls -- demo_cold_20260718_003412
+    #    (1,392) + demo_colde2e_full_20260713_144604 (7,242), 64 distinct costs.
+    #    MEASURED: exactly TWO row counts ever occur, 24 and 9, split evenly;
+    #    and 1,751 of those calls run a FULLY TRANSPARENT mask, which is the
+    #    real-game evidence for the AL-threading rule (3A2D is the only writer
+    #    of AL, so those calls must return the caller's AX untouched).
+    #  * tests/test_island_bodies.py forced states: 9 masks x 10 randomized
+    #    register sets, plus the DX = 0 run on its own.
+    #
+    # THREE THINGS NO DEMO ESTABLISHES: no real mask is fully opaque; every one
+    # of the 8,634 calls exits with CF CLEAR, so the carrying `add si,0x123`
+    # that sets it is unobserved; and no real DX is 0, so the 65,536-row
+    # reading of the do-while is unobserved. Forced states are their only
+    # evidence -- proven against the generated body, not seen in the game.
+    status="VERIFIED",
     merge_target="skyroads.native.present (future)",
 )
 def sprite_blit(
@@ -166,14 +186,59 @@ def sprite_blit(
     ``dest_seg`` at the SAME offset (dest cursor resets to the source cursor at
     the top of every row), gated by a packed ``mask_seg`` table where a byte of
     ``2`` means opaque. Width is a fixed 29 columns; ``rows`` rows are drawn."""
+    sprite_blit_detail(rb, wb, dest_seg, src_seg, mask_seg, src_off, mask_off, rows)
+
+
+class SpriteBlitResult(NamedTuple):
+    """Where the three cursors ended up, and what the copy left behind.
+
+    All of it is state the pure blit discards and the original does not. ``si``,
+    ``di`` and ``bx`` are live at ``ret`` -- 3A22 pushes nothing and its caller
+    reloads them, so they are outputs, not scratch.
+
+    ``last_value`` is the last byte an OPAQUE column copied, or None if the mask
+    made every column transparent. It matters because ``mov al,[si]`` at 3A2D is
+    the only thing that ever writes AL: a fully transparent sprite returns the
+    caller's AX untouched, and taking the last source byte instead would be
+    wrong for every mask that ends in transparent columns.
+
+    ``hits`` is the opaque-column count, and it is the only variable in the
+    cost: 3A2D/3A30 are the two instructions the mask test skips.
+    """
+
+    si: int
+    di: int
+    bx: int
+    hits: int
+    last_value: "int | None"
+
+
+def sprite_blit_detail(
+    rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
+    dest_seg: int, src_seg: int, mask_seg: int,
+    src_off: int, mask_off: int, rows: int,
+) -> SpriteBlitResult:
+    """:func:`sprite_blit` with the exit cursors and the opaque count reported.
+
+    ``rb``/``wb`` are called exactly where the ASM reads and writes, and in its
+    order, so an adapter reproducing the memory trace can pass them straight
+    through: the mask read, the source read and the destination write of one
+    column all happen before the next column's mask read.
+    """
     si = src_off & 0xFFFF
     bx = mask_off & 0xFFFF
+    di = si
+    hits = 0
+    last_value = None
     for _ in range(rows):
-        di = si
+        di = si                                       # 3A22 mov di,si
         for _ in range(SPRITE_BLIT_WIDTH):
-            if rb(mask_seg, bx) == 0x02:
-                wb(dest_seg, di, rb(src_seg, si))
+            if rb(mask_seg, bx) == 0x02:              # 3A27 cmp byte ss:[bx],2
+                last_value = rb(src_seg, si)          # 3A2D mov al,[si]
+                wb(dest_seg, di, last_value)          # 3A30 mov es:[di],al
+                hits += 1
             si = (si + 1) & 0xFFFF
             di = (di + 1) & 0xFFFF
             bx = (bx + 1) & 0xFFFF
         si = (si + _SPRITE_BLIT_ROW_SKIP) & 0xFFFF
+    return SpriteBlitResult(si, di, bx, hits, last_value)

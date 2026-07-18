@@ -32,6 +32,9 @@ WHY THE STACK WRITES ARE HERE, spelled out because they look like noise:
 from __future__ import annotations
 
 from skyroads.handrecovered.blit import stencil_blit_steps
+from skyroads.handrecovered.present import (
+    SPRITE_BLIT_WIDTH, _SPRITE_BLIT_ROW_SKIP as _SPRITE_ROW_SKIP,
+    sprite_blit_detail)
 from skyroads.handrecovered.collision_response import (
     FELL_ARM_DECIDED, FELL_ARM_NO_SEGMENT, FELL_ARM_SEG_CULLED, MIRROR_NEGATIVE,
     MIRROR_NONE, MIRROR_ZERO, ship_fell_off_detail)
@@ -638,10 +641,89 @@ def func_1010_0f62(mem, *, _df=0, ax=0, bp=0, di=0, ds=0, si=0, sp=0, ss=0):
             {'flags': flags & fmask, 'fmask': fmask, 'cost': cost})
 
 
+# --- 1010:3A22 sprite_blit ----------------------------------------------------
+#
+# The gameplay ship/object compositor, and the first body with NO stack frame
+# at all: 3A22 pushes nothing, saves nothing and takes every argument in a
+# register. Its caller (1010:39D4) reloads SI/BX/DX before each of its up-to-4
+# calls and expects nothing preserved -- so SI, DI and BX are live OUTPUTS
+# here, not scratch, and the island has to report where all three ended up.
+
+
+def _dec16(a: int):
+    """``dec r16`` -- five flags. CF is NOT among them: ``dec`` leaves the
+    caller's carry alone, which is why 3A22's exit CF comes from the
+    ``add si,0x123`` one instruction earlier."""
+    t = a - 1
+    return (t & 0xFFFF,
+            (_PF if _PARITY[t & 0xFF] else 0)
+            | (_AF if (a ^ 1 ^ t) & 0x10 else 0)
+            | (_ZF if (t & 0xFFFF) == 0 else 0)
+            | (_SF if t & 0x8000 else 0)
+            | (_OF if (a & 0xFFFF) == 0x8000 else 0))
+
+
+#: Virtual-time cost, DERIVED by summing the generated body's own per-block
+#: ``_cost +=``. Per row: 3A22 (2) + 3A37 (3). Per column: 3A27 (2) + 3A32 (4).
+#: Per OPAQUE column: 3A2D (2) -- the two instructions the mask test skips, and
+#: the only variable in the whole model. Plus 1 for the ret at 3A3E.
+SPRITE_COST_RET = 1
+SPRITE_COST_ROW = 5
+SPRITE_COST_COL = 6
+SPRITE_COST_OPAQUE = 2
+
+#: 3A27 and 3A37 each contribute 0x8D5 and both run on every call (the outer
+#: loop is a do-while, so there is always at least one row); 3A32's three
+#: ``inc``s contribute 0x8D4, a strict subset -- ``inc`` does not write CF.
+SPRITE_FMASK = 0x8D5
+
+
+def func_1010_3a22(mem, *, ax=0, bx=0, ds=0, dx=0, es=0, si=0, ss=0):
+    """``1010:3A22`` sprite_blit, driven by the island.
+
+    Everything arrives in registers: ``ds:si`` the source pixels, ``ss:bx`` the
+    packed transparency mask (SS is a plain segment register here, not a stack
+    -- nothing is pushed anywhere in this routine), ``es`` the destination, and
+    ``dx`` the row count. The 29-column width is baked into the code as
+    ``mov cx,0x1D`` and is not an argument.
+
+    A DX of 0 means 65,536 rows, not none: the outer loop is a do-while and
+    3A22 is entered with no upfront check on DX.
+
+    CX is 0 at every exit -- the inner loop always runs to completion, there is
+    no early exit -- and DX is 0 because that is what ends the outer one.
+    """
+    rows = (dx & 0xFFFF) or 0x10000
+    r = sprite_blit_detail(mem.rb, mem.wb, es, ds, ss, si, bx, rows)
+
+    # 3A37's `add si,0x123` is the LAST instruction to write CF; the `dec dx`
+    # that follows writes everything else and leaves CF alone. The add's operand
+    # is the SI the final row's inner loop left, which is where the island's SI
+    # was one add ago.
+    _, add_flags = _add16((r.si - _SPRITE_ROW_SKIP) & 0xFFFF, _SPRITE_ROW_SKIP)
+    # The loop exits only when `dec dx` zeroes DX, so its input is always 1 --
+    # computed rather than written down, so a change to the exit test shows.
+    _, dec_flags = _dec16(1)
+    flags = (add_flags & _CF) | (dec_flags & ~_CF)
+
+    cost = (SPRITE_COST_RET + rows * SPRITE_COST_ROW
+            + rows * SPRITE_BLIT_WIDTH * SPRITE_COST_COL
+            + r.hits * SPRITE_COST_OPAQUE)
+    # `mov al,[si]` at 3A2D is the ONLY writer of AL. A fully transparent
+    # sprite therefore returns the caller's AX untouched -- taking the last
+    # source byte would be wrong for any mask ending in transparent columns.
+    out_ax = (ax & 0xFFFF if r.last_value is None
+              else (ax & 0xFF00) | r.last_value)
+    return ({'ax': out_ax, 'bx': r.bx, 'cx': 0, 'di': r.di, 'dx': 0,
+             'si': r.si},
+            {'flags': flags & SPRITE_FMASK, 'fmask': SPRITE_FMASK, 'cost': cost})
+
+
 #: address -> island-driven body. This is what may be shadowed, and -- once a
 #: shadow has VERIFIED it over demos exercising every path -- what may drive.
 BODIES = {"1010:04C0": func_1010_04c0,
           "1010:1631": func_1010_1631,
           "1010:0533": func_1010_0533,
           "1010:1732": func_1010_1732,
-          "1010:0F62": func_1010_0f62}
+          "1010:0F62": func_1010_0f62,
+          "1010:3A22": func_1010_3a22}
