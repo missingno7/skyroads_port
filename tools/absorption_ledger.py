@@ -67,6 +67,71 @@ def _norm(addr: str) -> str:
     return addr.strip().upper()
 
 
+#: native/ modules that hold FLOW rather than a routine -- the wrong stitches.
+#: The skeleton supersedes these; anything depending on one is sewn to flow that
+#: was inferred from the screen instead of lifted from the program.
+FLOW_MODULES = {"menus", "level_select", "state", "boot", "classify", "loop",
+                "frame"}
+
+
+def _unstitch_worklist() -> int:
+    """Which dependencies sew each skin piece to the wrong flow.
+
+    The hand-written port was assembled with its own wiring, and that wiring is
+    what drifted. A leaf cannot simply be lifted out of it: wherever it reaches
+    into ``native``'s flow -- its state object, its loop, its menu model -- that
+    edge is a stitch to the wrong garment. Cutting those edges is what makes a
+    piece attachable at its true address on the skeleton.
+
+    A leaf with no flow edges is already free-standing and can be registered and
+    shadowed immediately.
+    """
+    import re
+    src_dir = ROOT / "skyroads" / "native"
+    dep = re.compile(r"from\s+skyroads\.native\.(\w+)|from\s+\.(\w+)\s+import")
+    ir = set(json.loads((CODEMAP / "recovery_ir.json").read_text())["functions"])
+    addr = re.compile(r"1010:[0-9A-Fa-f]{4}")
+
+    free, sewn = [], []
+    for path in sorted(src_dir.glob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        name = path.stem
+        text = path.read_text(encoding="utf-8")
+        anchored = {a.upper() for a in addr.findall(text)} & ir
+        if not anchored:
+            continue                      # flow, not skin -- see --native
+        deps = {m or n for m, n in dep.findall(text)} - {""}
+        flow_edges = sorted(deps & FLOW_MODULES)
+        # An import edge is only a LOWER BOUND on coupling. A piece that takes
+        # the native state object as a PARAMETER is just as sewn to the wrong
+        # flow while importing nothing -- `from __future__ import annotations`
+        # even turns the type hint into a string. Counting state references
+        # caught world_load and level_load, which the import scan called free.
+        state_refs = len(re.findall(r"\bstate[:.]|NativeGameState|\bst\.", text))
+        if flow_edges or state_refs:
+            sewn.append((name, len(anchored), flow_edges, state_refs))
+        else:
+            free.append((name, len(anchored), flow_edges, 0))
+
+    print("[unstitch] skin pieces and the stitches holding them to the wrong flow\n")
+    print(f"FREE -- no flow import, no state coupling; attachable as-is "
+          f"({len(free)}):")
+    for name, n, _, _ in sorted(free, key=lambda t: -t[1]):
+        print(f"    {name:22s} {n:2d} anchored address(es)")
+    print(f"\nSEWN -- cut these stitches first ({len(sewn)}):")
+    for name, n, edges, refs in sorted(sewn, key=lambda t: (t[3], len(t[2]))):
+        what = []
+        if edges:
+            what.append("imports " + ", ".join(edges))
+        if refs:
+            what.append(f"{refs} state ref(s)")
+        print(f"    {name:22s} {n:2d} anchored  <- {'; '.join(what)}")
+    print("\n[unstitch] cut the listed edges, register the piece with @oracle_link,")
+    print("[unstitch] then shadow it against its generated body before it drives.")
+    return 0
+
+
 def _native_triage() -> int:
     """Split skyroads/native/ into LEAF candidates and FLOW to retire.
 
@@ -117,11 +182,16 @@ def main(argv=None) -> int:
     ap.add_argument("--full", action="store_true", help="list every island")
     ap.add_argument("--orphans", action="store_true",
                     help="only islands whose address is not an IR function")
+    ap.add_argument("--unstitch", action="store_true",
+                    help="the UNSTITCH work list: which intra-native dependencies "
+                         "sew each leaf to the wrong flow and must be cut")
     ap.add_argument("--native", action="store_true",
                     help="triage skyroads/native/: which modules are LEAF "
                          "candidates (address-anchored) vs FLOW superseded by "
                          "the generated frame")
     args = ap.parse_args(argv)
+    if args.unstitch:
+        return _unstitch_worklist()
     if args.native:
         return _native_triage()
 
