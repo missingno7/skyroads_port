@@ -40,6 +40,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from verify_vmless_demo import (   # noqa: E402
     build_oracle_cold, build_oracle, _is_predecompression, run_stub,
     read_heads, VGA, VGA_LEN, CANONICAL_ENTRY)
+from dos_re.hooks import assert_pure_oracle   # noqa: E402
 from dos_re.input_demo import InputDemoPlayback   # noqa: E402
 from dos_re.interrupts import deliver_interrupt   # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock, DOSMachine   # noqa: E402
@@ -64,18 +65,52 @@ def _capture_oracle(demo, pb, heads, irqs, step_budget, end):
         f, a, rt = build_oracle_cold(demo, pb)
     else:
         f, a, rt = build_oracle(demo, pb)
+    # PROVE the reference side is the original program, do not assume it.
+    # allow= is empty on purpose: this oracle needs no environment stand-ins.
+    # The synthetic hardware it does need (BIOS INT 09h ISR, dummy IRET stub)
+    # is installed OUTSIDE the registry by install_bios_environment_hooks, so
+    # it is not in scope here and survives the strip either way.
+    # Historically this ran with 31 replacements live -- create_game_runtime
+    # guarded the hooks IMPORT, which gates nothing (skyroads.hooks is already
+    # in sys.modules via this script's own imports) -- and the deliberately
+    # behaviour-changing fade_loop_tick_gate optimisation made the ORACLE skip
+    # a per-frame call, which the differential then blamed on the candidate.
+    assert_pure_oracle(rt.cpu, allow=frozenset())
     run_stub(rt.cpu, *CANONICAL_ENTRY)
 
-    def run_to_cut(cpu, budget):
+    peak = [0]
+
+    def run_to_cut(cpu, budget, frame):
+        """Run to this frame's cut, or FAIL LOUD.
+
+        Exhausting the budget without reaching the cut used to return quietly,
+        leaving the oracle parked mid-frame -- a TRUNCATED reference that still
+        looks authoritative, so the differential reports the candidate as
+        diverged when the oracle simply did not finish.  That is exactly the
+        failure this harness exists to detect, so it must never be silent.
+
+        The budget matters much more now that the oracle is genuinely pure: the
+        stripped replacements include accelerators (lzs_decode_loop,
+        intro_anim_unpack, the blitters), so the interpreter now runs the real
+        instruction sequence and needs roughly an order of magnitude more steps
+        per frame than the hooked oracle did.
+        """
         hit = {}
-        for _ in range(budget):
+        for used in range(budget):
             key = (cpu.s.cs, cpu.s.ip)
             if key in heads:
                 hit[key] = hit.get(key, 0) + 1
                 if hit[key] >= 2:
                     cpu.step()
+                    peak[0] = max(peak[0], used)
                     return
             cpu.step()
+        raise RuntimeError(
+            f"oracle step budget exhausted at frame {frame}: {budget} steps "
+            f"without reaching a boundary head twice (cs:ip="
+            f"{cpu.s.cs:04X}:{cpu.s.ip:04X}).  The oracle is parked mid-frame; "
+            f"any comparison from here on blames the candidate for the "
+            f"oracle's truncation.  Raise --step-budget.")
 
     frames = []
     for frame in range(end):
@@ -85,11 +120,13 @@ def _capture_oracle(demo, pb, heads, irqs, step_budget, end):
         for _ in range(irqs):
             deliver_interrupt(rt, 0x08)
         try:
-            run_to_cut(rt.cpu, step_budget)
+            run_to_cut(rt.cpu, step_budget, frame)
         except (ConsoleInputWouldBlock, HaltExecution):
             pass
         frames.append((bytes(rt.cpu.mem.data[VGA:VGA + VGA_LEN]),
                        tuple(map(tuple, rt.dos.vga_palette))))
+    print(f"[verify-cpuless] oracle peak {peak[0]} steps/frame "
+          f"(budget {step_budget})")
     return frames
 
 
@@ -181,7 +218,12 @@ def main(argv=None) -> int:
                          "bodies on every call (skyroads/island_shadows.py). The "
                          "generated code still drives; a disagreement raises.")
     ap.add_argument("--irqs", type=int, default=6)
-    ap.add_argument("--step-budget", type=int, default=4_000_000)
+    # 4_000_000 was sized for the (contaminated) hooked oracle.  A genuinely
+    # pure oracle interprets the real blitters/decompressors instead of calling
+    # their Python replacements: measured peak is 17.1M steps/frame over the
+    # spine demo, so this leaves ~3.7x headroom and run_to_cut fails loud rather
+    # than truncating if a frame ever exceeds it.
+    ap.add_argument("--step-budget", type=int, default=64_000_000)
     ap.add_argument("--heads", default=str(ROOT / "artifacts" / "codemap"
                                            / "boundary_heads.txt"))
     args = ap.parse_args(argv)

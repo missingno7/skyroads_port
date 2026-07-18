@@ -48,6 +48,20 @@ def create_game_runtime(
     ``enable_sound=False`` reproduces the original "Not enough sound
     hardware" exit path for study; leave it on for normal play/bring-up.
 
+    The flag is passed DOWN to dos_re.runtime.create_runtime, which strips the
+    registry after boot. Guarding the ``from . import hooks`` import instead —
+    which this function used to do — does NOT gate anything: hooks register at
+    decoration time and ``skyroads.hooks`` is transitively imported by nearly
+    every entry point long before we get here, so the registry is already
+    populated and create_runtime wired all of it onto the "pure" CPU anyway.
+    That silently put 31 replacements on scripts/verify_cpuless.py's oracle,
+    including the deliberately behaviour-changing ``fade_loop_tick_gate``
+    optimisation, and the differential then blamed its candidate for a
+    palette divergence the ORACLE was producing. The import stays
+    unconditional because it is what populates the registry for the True case;
+    installation, not import, is what the flag gates. Same shape as
+    load_game_snapshot below.
+
     ``capture_sb_pcm`` attaches the Sound Blaster in *capture* mode instead of
     the detection-only stub: single-cycle DMA-out blocks (the game's digital
     ``*.SND`` sound effects) are copied into ``sb.pcm_out`` and their sample
@@ -57,9 +71,9 @@ def create_game_runtime(
     -- demos still replay deterministically.  Off by default so the headless/
     test path keeps the exact detection-only behaviour and does not accumulate
     captured PCM."""
-    if install_replacements:
-        from . import hooks  # noqa: F401
-    rt = create_runtime(exe_path, game_root=game_root, command_tail=command_tail)
+    from . import hooks  # noqa: F401  (populates the registry; see docstring)
+    rt = create_runtime(exe_path, game_root=game_root, command_tail=command_tail,
+                        install_replacements=install_replacements)
     if enable_sound:
         enable_sound_blaster(rt, detection_only=not capture_sb_pcm)
     return rt

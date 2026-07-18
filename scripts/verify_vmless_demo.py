@@ -101,6 +101,7 @@ from dos_re import player  # noqa: E402
 from dos_re.cpu import HaltExecution  # noqa: E402
 from dos_re.crash import save_crash  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
+from dos_re.hooks import assert_pure_oracle  # noqa: E402
 from dos_re.independence import boot_vmless_image  # noqa: E402
 from dos_re.input_demo import InputDemoPlayback  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
@@ -194,6 +195,11 @@ def build_oracle(demo: Path, pb):
     # the runtime directly rather than through frontend.load_snapshot_runtime.
     rt = load_game_snapshot(args.exe, str(pb.snapshot_path()),
                             game_root=args.game_root, install_replacements=False)
+    # PROVE it, do not assume it: a replacement on the reference side makes this
+    # a diff against a MODIFIED original.  allow= is empty because the synthetic
+    # hardware this oracle needs (BIOS INT 09h ISR, dummy IRET stub) is
+    # installed outside the registry and is therefore not in scope here.
+    assert_pure_oracle(rt.cpu, allow=frozenset())
     _use_real_console_input(rt)
     rt.dos.mouse_present = pb.mouse_present_hint
     return frontend, args, rt
@@ -226,6 +232,7 @@ def build_oracle_cold(demo: Path, pb):
     rt = create_game_runtime(args.exe, game_root=args.game_root,
                              command_tail=args.dos_args,
                              install_replacements=False)
+    assert_pure_oracle(rt.cpu, allow=frozenset())   # see build_oracle
     _use_real_console_input(rt)
     rt.dos.mouse_present = pb.mouse_present_hint
     return frontend, args, rt
@@ -291,7 +298,12 @@ def main(argv=None) -> int:
                     default=str(ROOT / "skyroads" / "lifted" / "functions"))
     ap.add_argument("--frames", type=int, default=0, help="stop after N frames")
     ap.add_argument("--irqs", type=int, default=6)
-    ap.add_argument("--step-budget", type=int, default=4_000_000)
+    # 4_000_000 was sized for an oracle that still carried the replacement
+    # hooks (install_replacements=False only guarded the hooks IMPORT, which
+    # gates nothing). A genuinely pure oracle interprets the real blitters and
+    # decompressors: measured peak 17.1M steps/frame, so this leaves ~3.7x
+    # headroom, and run_oracle now fails loud rather than truncating.
+    ap.add_argument("--step-budget", type=int, default=64_000_000)
     ap.add_argument("--heads", default=str(ROOT / "artifacts" / "codemap"
                                            / "boundary_heads.txt"))
     ap.add_argument("--boot-dir", default=str(ROOT / "artifacts" / "boot_image"),
@@ -400,8 +412,18 @@ def main(argv=None) -> int:
         OBSERVATION -- an IP comparison between steps, no replacement hook, no
         hand-written semantics, nothing that could feed the candidate's answer
         back to the reference. The interpreter still decides every bit of what
-        the ASM does; the driver only decides when to stop watching. The budget
-        stays as a ceiling for frames that never reach a head.
+        the ASM does; the driver only decides when to stop watching.
+
+        Exhausting the budget FAILS LOUD. It used to return quietly, which left
+        the oracle parked mid-frame -- a truncated reference that still looks
+        authoritative, so the differential blames the candidate for the
+        oracle's own unfinished work. That is not theoretical: once
+        install_replacements=False started actually working, the oracle lost the
+        accelerator replacements (lzs_decode_loop, intro_anim_unpack, the
+        blitters) and began interpreting the real instruction sequence, whose
+        peak is ~17.1M steps/frame -- 4x the old 4,000,000 default. Every frame
+        silently truncated, and the harness reported a frame-0 divergence that
+        was entirely its own.
         """
         cs_hit: dict = {}
         for _ in range(budget):
@@ -412,6 +434,11 @@ def main(argv=None) -> int:
                     cpu.step()      # execute the head, landing on resume_ip
                     return          # ...exactly where the candidate parks
             cpu.step()
+        raise RuntimeError(
+            f"oracle step budget exhausted: {budget:,} steps without reaching a "
+            f"boundary head twice (cs:ip={cpu.s.cs:04X}:{cpu.s.ip:04X}). The "
+            f"oracle is parked mid-frame; comparing from here blames the "
+            f"candidate for the oracle's truncation. Raise --step-budget.")
 
     end = pb_o.end_boundary or 100000
     if args_cli.frames:
