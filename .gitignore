@@ -66,3 +66,10 @@ artifacts/crashes/
 artifacts/codemap/recovered_census.json
 artifacts/codemap/dispatch_evidence_observed.json
 artifacts/recovered_adapters/
+
+# Ephemeral play_cpuless session recordings. Every session records one so a
+# crash can be reproduced; a clean run deletes it. artifacts/demos is TRACKED,
+# so a recording left behind by a failed finalise would otherwise be swept into
+# a commit by `git add -A` (it was). Promoting one to a real coverage demo means
+# giving it a meaningful name -- which takes it out of this pattern.
+artifacts/demos/demo_cpuless_session_*/

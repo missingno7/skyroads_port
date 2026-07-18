@@ -115,10 +115,13 @@ def _end_session(recorder, frame: int, keep: bool) -> None:
     try:
         recorder.stop(boundary=frame)
     except Exception:                                # noqa: BLE001
-        return
+        pass          # finalising failed -- still drop it below, see note
     if keep:
         print(f"[cpuless] session demo kept: {demo_dir}")
         return
+    # Delete even when stop() failed. Returning early on that path left a
+    # half-written recording behind, and artifacts/demos is a TRACKED directory,
+    # so the next `git add -A` swept it into a commit (it did).
     import shutil
     shutil.rmtree(demo_dir, ignore_errors=True)
 
