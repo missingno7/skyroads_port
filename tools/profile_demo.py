@@ -21,12 +21,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "dos_re"))
 
-from dos_re.input_demo import InputDemoPlayback
+from skyroads.replay import SkyroadsReplayPlayback
 from dos_re.interrupts import deliver_interrupt, deliver_scancode
 from dos_re.dos import HaltExecution, ConsoleInputWouldBlock
 from dos_re.cpu import UnsupportedInstruction
 
-from skyroads.runtime import load_game_snapshot
+from dos_re import player
+from scripts.play import SkyroadsFrontend
 
 
 def main(argv=None) -> int:
@@ -36,13 +37,16 @@ def main(argv=None) -> int:
     p.add_argument("--frames", type=int, default=0, help="stop after N frames (0 = full demo)")
     args = p.parse_args(argv)
 
-    playback = InputDemoPlayback.load(args.demo_dir)
+    playback = SkyroadsReplayPlayback.load(args.demo_dir)
     meta = playback.manifest.get("metadata", {})
     steps_per_frame = meta.get("steps_per_frame", 30_000)
     timer_irqs_per_frame = meta.get("timer_irqs_per_frame", 6)
-    exe = ROOT / "assets" / "SKYROADS.EXE"
-
-    rt = load_game_snapshot(str(exe), str(playback.snapshot_path()))
+    frontend = SkyroadsFrontend(ROOT)
+    run_args = player.build_arg_parser(frontend).parse_args(
+        ["--play-demo", str(args.demo_dir), "--headless"])
+    frontend.apply_demo_metadata(run_args, meta)
+    rt = frontend.load_demo_runtime(run_args, playback)
+    frontend.apply_hook_mode(rt, run_args)
     rt.dos.console_input_fallback = None  # real DOS reads should block, not synthesize Esc
     cpu = rt.cpu
     cpu.trace_enabled = False

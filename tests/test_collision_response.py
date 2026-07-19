@@ -250,7 +250,7 @@ def test_native_vertical_scan_matches_asm_over_demo() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
+    from skyroads.replay import SkyroadsReplayPlayback
     from dos_re.player import _use_real_console_input
 
     from skyroads.native.collision import make_visible
@@ -259,10 +259,9 @@ def test_native_vertical_scan_matches_asm_over_demo() -> None:
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(DEMO))
+    pb = SkyroadsReplayPlayback.load(str(DEMO))
     frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
+    rt = frontend.load_demo_runtime(args, pb)
     args.install_replacements = False
     frontend.apply_hook_mode(rt, args)
     _use_real_console_input(rt)
@@ -328,7 +327,7 @@ def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
+    from skyroads.replay import SkyroadsReplayPlayback
     from dos_re.player import _use_real_console_input
 
     from skyroads.native.collision import make_visible
@@ -337,10 +336,9 @@ def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(COLLISION_DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(COLLISION_DEMO))
+    pb = SkyroadsReplayPlayback.load(str(COLLISION_DEMO))
     frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
+    rt = frontend.load_demo_runtime(args, pb)
     args.install_replacements = False
     frontend.apply_hook_mode(rt, args)
     _use_real_console_input(rt)
@@ -433,16 +431,15 @@ def test_resolve_landing_matches_asm_over_demo() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
+    from skyroads.replay import SkyroadsReplayPlayback
     from dos_re.player import _use_real_console_input
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(COLLISION_DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(COLLISION_DEMO))
+    pb = SkyroadsReplayPlayback.load(str(COLLISION_DEMO))
     frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
+    rt = frontend.load_demo_runtime(args, pb)
     args.install_replacements = False
     frontend.apply_hook_mode(rt, args)
     _use_real_console_input(rt)
@@ -514,16 +511,15 @@ def test_resolve_lateral_crash_matches_asm_over_demo() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
+    from skyroads.replay import SkyroadsReplayPlayback
     from dos_re.player import _use_real_console_input
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(COLLISION_DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(COLLISION_DEMO))
+    pb = SkyroadsReplayPlayback.load(str(COLLISION_DEMO))
     frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
+    rt = frontend.load_demo_runtime(args, pb)
     args.install_replacements = False
     frontend.apply_hook_mode(rt, args)
     _use_real_console_input(rt)

@@ -22,8 +22,7 @@ SNAP = ROOT / "artifacts" / "snapshot_after_keyqueue_push"
 if not EXE.is_file() or not (SNAP / "memory_1mb.bin").is_file():
     pytest.skip("needs assets/SKYROADS.EXE + the fixture snapshot", allow_module_level=True)
 
-from dos_re.repro_artifacts import clone_runtime_state  # noqa: E402
-from dos_re.snapshot import load_snapshot  # noqa: E402
+from dos_re.snapshot import clone_runtime_state, load_snapshot  # noqa: E402
 
 from skyroads.hooks import master_timer_isr  # noqa: E402  (the VM hook)
 from skyroads.handrecovered.timer_isr import advance_music_timer  # noqa: E402  (the pure rule)

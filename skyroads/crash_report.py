@@ -31,7 +31,7 @@ def write_crash_bundle(out_root, exc: BaseException, *, mem, dos, frame: int,
                        extra: dict | None = None) -> Path:
     """Save the machine + the session recording; return the bundle directory.
 
-    ``recorder`` is a live :class:`dos_re.input_demo.InputDemoRecorder`, stopped
+    ``recorder`` is a live :class:`skyroads.replay.SkyroadsReplayRecorder`, stopped
     here so the session's cold-start demo survives beside the crash.  Never
     raises: a failure while reporting a failure must not replace the original
     error, so each part is best-effort.
@@ -50,7 +50,7 @@ def write_crash_bundle(out_root, exc: BaseException, *, mem, dos, frame: int,
         frame=frame,
         boundary_head=(f"{head[0]:04X}:{head[1]:04X}" if head else None),
         video_mode=getattr(dos, "video_mode", None),
-        input_demo=(demo_dir.as_posix() if demo_dir else None),
+        replay_artifact=(demo_dir.as_posix() if demo_dir else None),
         # Self-describing a month later: the bundle carries its own next steps.
         reproduce=(None if demo_dir is None else [
             f"python scripts/verify_cpuless.py {demo_dir.as_posix()}",
@@ -79,9 +79,9 @@ def print_crash_summary(bundle: Path, exc: BaseException, *, frame: int) -> None
     print("[crash]   crash.json (witness + call chain), memory_1mb.bin, state.json")
     try:
         demo = json.loads((bundle / "crash.json").read_text(encoding="utf-8")
-                          )["context"].get("input_demo")
+                          )["context"].get("replay_artifact")
     except Exception:                                # noqa: BLE001
         demo = None
     if demo:
-        print(f"[crash]   input demo (replays this session cold): {demo}")
+        print(f"[crash]   replay artifact (replays this session): {demo}")
         print(f"[crash]   reproduce: python scripts/verify_cpuless.py {demo}")
