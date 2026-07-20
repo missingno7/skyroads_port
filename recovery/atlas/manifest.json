@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "index_digest": "a3ae322c28a3cdc7bc703b780f38c28e05595224fe1a8b22a76a8d1cddbb2a6e",
+  "index_digest": "90f243be5f5281be238375c42de16d73e6c87b481cf1c19af01734c0f018062a",
   "product_roots": {
     "game/authored-candidates": [
       "skyroads:1.0:region:program"
@@ -30,10 +30,16 @@
       "source_digest": "e5e4d8149645386e0b0fe045484d308030938fdf1d998cf9f4b60c25e2f49ce8"
     },
     {
-      "identity": "replay:828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+      "identity": "replay:032e597d92345dbcd3e1ae0bd039cabf7c139b8ede20092d67935e370ef381bb",
       "kind": "replay",
-      "path": "sources/replay-47ce8a65101540b53519.json",
-      "source_digest": "6273d0abfa38581f830d97e33d1acfdfb15d3f6741ff222b04c251c3b018f1af"
+      "path": "sources/replay-df3b9f40ebe9eca4aecd.json",
+      "source_digest": "aab992a5787002f88823f3abe71da1b43ea8c4727152073be06ced660069c12b"
+    },
+    {
+      "identity": "replay:c83acfffde75d9d185aa24599caaa9ac1b384f2f692f6c017717bed8bca09272",
+      "kind": "replay",
+      "path": "sources/replay-9601726553e52c74cdec.json",
+      "source_digest": "4129b3fe64e277f10157c4b054ef24e4d39c6cab8a19391c44507a05f38ed700"
     },
     {
       "identity": "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",

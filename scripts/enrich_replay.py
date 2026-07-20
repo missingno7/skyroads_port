@@ -65,7 +65,6 @@ def _runtime(frontend, launch_args, artifact):
     base = capture_base(artifact)
     apply_runtime_continuation(runtime, base)
     frontend.bind_execution_plan(runtime, launch_args.execution_plan)
-    runtime.dos.save_dir = None
     return runtime
 
 
@@ -156,6 +155,8 @@ def main(argv=None) -> int:
                 "observer_digest": OBSERVER_DIGEST,
                 "execution_plan_identity": profile.identity_digest,
                 "event_stream_sha256": artifact.event_stream_sha256,
+                "timeline_coordinates_sha256": (
+                    artifact.timeline_coordinates_sha256),
                 "start_ordinal": 0,
                 "end_ordinal": frames,
             },

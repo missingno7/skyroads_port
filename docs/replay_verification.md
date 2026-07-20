@@ -11,6 +11,16 @@ Record with whichever development composition is responsive enough to play:
 python scripts/play.py --composition generated-functions --record-replay smoke
 ```
 
+Every newly recorded ordinal carries an explicit guest-instruction coordinate.
+The displayed-frame ordinal orders input, while the coordinate defines the
+exact stop shared by interpreted and generated execution; host `CPU.step()`
+dispatch counts are never replay timing. A valuable coordinate-less recording
+may be upgraded once, explicitly, before normal playback:
+
+```text
+python scripts/materialize_replay_timeline.py artifacts/replays/REPLAY
+```
+
 The artifact records the exact capture-plan identity. A candidate capture is
 provisional evidence, not an oracle claim. Validate its complete deterministic
 input stream against the untouched oracle before treating it as trusted:
@@ -19,9 +29,12 @@ input stream against the untouched oracle before treating it as trusted:
 python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_smoke_TIMESTAMP --verify-start 0 --verify-end END
 ```
 
-Use the same candidate composition that captured the replay; the verification
-runner constructs the untouched oracle side itself. `END` is the recording's
-final ordinal, shown by `python dos_re/tools/replay_info.py REPLAY`.
+Normally use the candidate composition that captured the replay; the
+verification runner constructs the untouched oracle side itself. A corrected
+successor composition may validate a provisional capture: trust certifies the
+complete immutable event timeline, not the code that happened to record it.
+`END` is the recording's final ordinal, shown by
+`python dos_re/tools/replay_info.py REPLAY`.
 
 Trust here is only an oracle-backed claim about that finite recording. A
 function may be used during development after one relevant passing interval

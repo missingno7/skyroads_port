@@ -16,6 +16,7 @@ from skyroads.identities import (
 
 ROOT = Path(__file__).resolve().parents[1]
 ORACLE_REPLAY = ROOT / "recovery" / "replays" / "oracle_atlas_smoke"
+CANDIDATE_REPLAY = ROOT / "recovery" / "replays" / "candidate_smoke"
 
 
 def test_committed_atlas_combines_retained_ir_and_real_oracle_replay():
@@ -40,13 +41,19 @@ def test_committed_atlas_combines_retained_ir_and_real_oracle_replay():
 
     covered = [
         node for node in functions if atlas.replay_coverage(node.identity)]
-    assert len(covered) == 5
+    assert len(covered) == 158
     hot = atlas.best_replay(function_identity(0x4153))
-    assert not hot.complete
-    assert hot.invocation_count > 1000
-    assert hot.first_entry.ordinal == 0
-    assert hot.last_exit.ordinal == 3
+    assert hot.complete
+    assert hot.invocation_count > 100_000
+    assert hot.first_entry.ordinal == 365
+    assert hot.last_exit.ordinal == 1991
     assert atlas.best_replay(function_identity(0x3B17)).complete
+
+    candidate = ReplayArtifact.open(CANDIDATE_REPLAY)
+    assert candidate.trusted
+    assert len(candidate.timeline_coordinates) == 2378
+    assert len(candidate.function_visits()) == 158
+    assert len(candidate.execution_evidence().transfers) == 814
 
 
 def test_atlas_is_the_planner_coverage_authority():

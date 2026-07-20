@@ -30,7 +30,13 @@ def test_generated_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
         base_state=base,
         metadata=frontend.replay_metadata(oracle_args),
     )
+    schema, value = frontend.replay_point_coordinate(
+        oracle_runtime, oracle_args)
+    recording.mark(0, schema_id=schema, value=value)
     frontend.advance_frame(oracle_runtime, oracle_args, 0)
+    schema, value = frontend.replay_point_coordinate(
+        oracle_runtime, oracle_args)
+    recording.mark(1, schema_id=schema, value=value)
     artifact = recording.finish(
         1,
         end_state=frontend.capture_replay_state(

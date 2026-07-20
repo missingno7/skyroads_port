@@ -6,6 +6,7 @@ from dos_re.dos import ConsoleInputWouldBlock
 from dos_re.replay_input import SCAN_CHANNEL, scan_payload
 from dos_re.replay import (
     ContinuationState,
+    ReplayPointCoordinate,
     ReplayExecutionIdentity,
     ReplayArtifact,
     ReplayEvent,
@@ -66,12 +67,17 @@ def test_driver_consumes_replayartifact_events_and_tracks_cursor(monkeypatch):
     timeline = "real-mode-frame-boundaries:skyroads:v1"
     event = ReplayEvent(
         ReplayPoint(0, timeline), 0, SCAN_CHANNEL, scan_payload(0x4D))
-    artifact = SimpleNamespace(timeline_id=timeline, events=(event,))
+    artifact = SimpleNamespace(
+        timeline_id=timeline,
+        events=(event,),
+        timeline_coordinate=lambda point: ReplayPointCoordinate(
+            point, "test-coordinate", point.ordinal),
+    )
     runtime = SimpleNamespace(dos=FakeDOS(), marker=bytearray(b"base"))
     delivered = []
     frontend = SimpleNamespace(
         deliver_input=lambda rt, sc: delivered.append(sc),
-        advance_frame=lambda rt, args, frame: rt.marker.__setitem__(
+        advance_replay_frame=lambda rt, args, frame, coordinate: rt.marker.__setitem__(
             slice(None), b"done"),
     )
     profile = ReplayExecutionIdentity(
@@ -105,6 +111,8 @@ def test_player_records_candidate_capture_as_provisional_artifact(tmp_path):
         capture_replay_state=lambda runtime, event_cursor: ContinuationState(
             "continuation", {}, {"memory": b"state"}, event_cursor,
         ),
+        replay_point_coordinate=lambda runtime, args: (
+            "test-coordinate", 0),
     )
     recorder = _RealReplayRecorder(
         frontend, SimpleNamespace(), SimpleNamespace(),
@@ -122,15 +130,20 @@ def test_replay_treats_blocking_dos_input_as_resumable_stable_point(
     monkeypatch,
 ):
     timeline = "real-mode-frame-boundaries:skyroads:v1"
-    artifact = SimpleNamespace(timeline_id=timeline, events=())
+    artifact = SimpleNamespace(
+        timeline_id=timeline,
+        events=(),
+        timeline_coordinate=lambda point: ReplayPointCoordinate(
+            point, "test-coordinate", point.ordinal),
+    )
     runtime = SimpleNamespace(dos=FakeDOS(), marker=bytearray(b"base"))
 
-    def block_on_input(rt, args, frame):
+    def block_on_input(rt, args, frame, coordinate):
         raise ConsoleInputWouldBlock()
 
     frontend = SimpleNamespace(
         deliver_input=lambda rt, scancode: None,
-        advance_frame=block_on_input,
+        advance_replay_frame=block_on_input,
     )
     profile = ReplayExecutionIdentity(
         "candidate", "candidate", "implementation", "image", "runtime",

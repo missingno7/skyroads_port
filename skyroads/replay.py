@@ -111,7 +111,13 @@ class SkyroadsReplayDriver:
                     rt, scancode),
             )
             try:
-                self.frontend.advance_frame(self.runtime, self.args, ordinal)
+                self.frontend.advance_replay_frame(
+                    self.runtime,
+                    self.args,
+                    ordinal,
+                    artifact.timeline_coordinate(ReplayPoint(
+                        ordinal + 1, artifact.timeline_id)),
+                )
             except ConsoleInputWouldBlock:
                 # The interactive player treats a blocking DOS console read as
                 # a stable, resumable frame state. Replays must advance the

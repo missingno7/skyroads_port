@@ -523,6 +523,7 @@ def lifted_1010_34ae(cpu, bb=0):
             # 1010:362B  c3           ret
             cpu.instruction_count += 2
             s.ip = cpu.pop()
+            cpu.call_depth = max(0, cpu.call_depth - 1)
             return
         elif bb == 26:
             # 1010:362C  be0028       mov r16,imm16
