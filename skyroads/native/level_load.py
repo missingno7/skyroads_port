@@ -1,4 +1,4 @@
-"""Native, VM-free level loading — the milestone-1 spine (`play_native --level N`).
+"""Native, VM-free level loading recovered during the milestone-1 work.
 
 Goal (user-set 2026-07-12): boot a `NativeGameState` for ANY level from the game
 files alone — no demo, no snapshot, no VM. This module is the SkyRoads analog of
@@ -110,7 +110,7 @@ def native_level_load(state, level: int, *, game_root: str | Path) -> DecodedLev
     """Populate ``state`` (a :class:`~skyroads.native.state.NativeGameState`)
     with level ``level``'s geometry seed, 100% VM-free, and return the decode.
     The caller then runs ``apply_level_init`` (player state) to reach a playable
-    cold start — see ``scripts/play_native.py``.
+    cold start.
 
     Reproduces the loader `1010:5614`'s DGROUP writes (verified byte-exact vs the
     VM): clear `[0x162C..+0x1B58]`, LZS-decode `road[]` into `0x162C`, and store

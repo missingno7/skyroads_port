@@ -250,8 +250,7 @@ def test_native_vertical_scan_matches_asm_over_demo() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from skyroads.replay import SkyroadsReplayPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     from skyroads.native.collision import make_visible
     from skyroads.native.state import NativeGameState
@@ -259,12 +258,7 @@ def test_native_vertical_scan_matches_asm_over_demo() -> None:
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+    pb, rt = open_oracle_replay(frontend, args, DEMO)
 
     IP_IN, IP_OUT = 0x2963, 0x2A24
     pending: dict = {}
@@ -327,8 +321,7 @@ def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from skyroads.replay import SkyroadsReplayPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     from skyroads.native.collision import make_visible
     from skyroads.native.state import NativeGameState
@@ -336,12 +329,7 @@ def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(COLLISION_DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(COLLISION_DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+    pb, rt = open_oracle_replay(frontend, args, COLLISION_DEMO)
 
     def _bpw(m, ss, bp, o):
         return m.rw(ss, (bp - o) & 0xFFFF)
@@ -431,18 +419,12 @@ def test_resolve_landing_matches_asm_over_demo() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from skyroads.replay import SkyroadsReplayPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(COLLISION_DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(COLLISION_DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+    pb, rt = open_oracle_replay(frontend, args, COLLISION_DEMO)
 
     def _bpw(m, ss, bp, o):
         return m.rw(ss, (bp - o) & 0xFFFF)
@@ -511,18 +493,12 @@ def test_resolve_lateral_crash_matches_asm_over_demo() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from skyroads.replay import SkyroadsReplayPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(COLLISION_DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(COLLISION_DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+    pb, rt = open_oracle_replay(frontend, args, COLLISION_DEMO)
 
     def _bpw(m, ss, bp, o):
         return m.rw(ss, (bp - o) & 0xFFFF)

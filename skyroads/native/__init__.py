@@ -2,7 +2,7 @@
 
 It was called ``skyroads.native`` and described as "pure orchestration only",
 and both were wrong in the direction that nearly cost it: when the hand-written
-driver (``scripts/play_native.py``) was discarded on 2026-07-17, this package
+prototype player was discarded on 2026-07-17; this package
 read like the driver's guts and came within one command of going with it. It is
 not orchestration. Most of it is RECOVERED ROUTINES, decoded from the real game
 and verified against the oracle, each named for the address it came from:

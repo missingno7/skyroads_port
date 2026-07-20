@@ -19,7 +19,7 @@ import pytest
 
 from dos_re.cpu import HaltExecution
 from dos_re.interrupts import deliver_interrupt
-from dos_re.player import decode_frame_default
+from dos_re.framebuffer import decode_frame_default
 from skyroads.pacing import FrameIdle, install_frame_park
 from skyroads.runtime import load_game_snapshot
 

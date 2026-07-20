@@ -129,7 +129,7 @@ def update_hud(img, dg: int, ship_pos: int) -> None:
     decrease. Call once per rendered frame.
 
     Because it is a delta, the dashboard must NOT be repainted over the gauge
-    region (rows 138..199) between frames -- ``play_native.py`` paints the full
+    region (rows 138..199) between frames -- the native renderer paints the full
     dashboard once and thereafter only re-overlays the road-overlapping bezel
     strip (``paint_dashboard(..., byte_count=DASHBOARD_BEZEL_OVERLAP)``), so the
     gauges the VM maintains incrementally stay standing here too.

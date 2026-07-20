@@ -1,4 +1,4 @@
-"""The native level-select menu's grid geometry (scripts/play_native.py's
+"""The native level-select menu's grid geometry (the recovered presentation
 run_cold_boot): row/column bands measured off GOMENU.LZS's own decoded green
 text pixels. Not ROM-recovered logic -- a UI affordance -- but its mapping
 from level index to screen position should stay correct and in sync with

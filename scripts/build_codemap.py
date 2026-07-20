@@ -42,8 +42,10 @@ import scripts.play as sp  # noqa: E402
 from dos_re import player  # noqa: E402
 from dos_re.cpu import CPU8086, HaltExecution  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
-from skyroads.replay import SkyroadsReplayPlayback  # noqa: E402
-from dos_re.player import _use_real_console_input  # noqa: E402
+from dos_re.input_demo import RealModeInputAdapter  # noqa: E402
+from dos_re.replay import ReplayArtifact  # noqa: E402
+from dos_re.snapshot import apply_runtime_continuation  # noqa: E402
+from skyroads.replay import recording_base  # noqa: E402
 
 #: Demos whose union covers the program. The cold e2e demo is the spine (every
 #: front-end screen plus a level); the others add paths it does not take.
@@ -78,21 +80,14 @@ def observe_demo(demo_dir: Path, *, max_frames: int = 0,
                  executed: set, call_targets: Counter, int_entries: set) -> dict:
     """Replay one demo on the pure ASM oracle, accumulating the observation."""
     frontend = sp.SkyroadsFrontend(ROOT)
-    # --no-replacements is what actually uninstalls the recovered hooks
-    # (apply_hook_mode reads args.no_replacements; `install_replacements` is a
-    # create_game_runtime() PARAMETER, not an args field -- setting it on args
-    # silently does nothing and leaves every hook live).  It matters here more
-    # than anywhere: a hooked routine never interprets, so it is never OBSERVED,
-    # never censused, and never lifted -- and the strict wall then fires on it at
-    # boot.  That is exactly how 1010:64AB (inside the hooked LZS decoder
-    # 1010:6712) went missing from the first census.
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(demo_dir), "--headless", "--no-replacements"])
-    pb = SkyroadsReplayPlayback.load(str(demo_dir))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    frontend.apply_hook_mode(rt, args)   # honours --no-replacements: pure ASM oracle
-    _use_real_console_input(rt)
+        ["--play-demo", str(demo_dir), "--headless", "--composition", "oracle"])
+    artifact = ReplayArtifact.open(demo_dir)
+    frontend.apply_demo_metadata(args, artifact.metadata)
+    rt = frontend.create_runtime(args)
+    apply_runtime_continuation(rt, recording_base(artifact))
+    inputs = RealModeInputAdapter(artifact.events)
+    rt.dos.console_input_fallback = None
 
     orig_step = CPU8086.step
     ex_add, ct = executed.add, call_targets
@@ -113,16 +108,17 @@ def observe_demo(demo_dir: Path, *, max_frames: int = 0,
     CPU8086.step = step
     frames = 0
     try:
-        end = pb.end_boundary or 100000
+        end = artifact.end_point.ordinal
         if max_frames:
             end = min(end, max_frames)
-        while frames < end and not pb.finished(frames):
+        while frames < end:
             # apply_to_runtime STEPS THE CPU (it runs the INT 09h delivery), so a
             # blocking console read can surface from it, not only from the frame
             # advance -- an escape here killed the whole census mid-demo.
             try:
-                pb.apply_to_runtime(frames, rt,
-                                    deliver=lambda r, sc: frontend.deliver_input(r, sc))
+                inputs.apply_to_runtime(
+                    frames, rt,
+                    deliver=lambda r, sc: frontend.deliver_input(r, sc))
                 frontend.advance_frame(rt, args, frames)
             except ConsoleInputWouldBlock:
                 pass
@@ -144,96 +140,6 @@ def observe_demo(demo_dir: Path, *, max_frames: int = 0,
     return {"frames": frames, "ivt": ivt}
 
 
-#: Demos timed to the 2nd-pass BOUNDARY cut rather than steps-per-frame.  The
-#: verification differentials (verify_vmless / verify_cpuless) drive these with
-#: run_to_cut, and the recovered runtime reproduces exactly that execution;
-#: replaying them through the steps-per-frame front-end diverges (it quits early
-#: at a press-any-key screen), so the real end-game code -- the exact addresses
-#: the no-CPU runtime executes -- never gets censused, and the recovered build
-#: then fail-loud-stubs those reachable exits as runtime-dead (e.g. 1010:2EFC,
-#: the plain `ret` tail of 1010:2EBB).  Observing them through the boundary
-#: model closes that false-dead gap.
-BOUNDARY_DEMOS = frozenset({
-    "demo_cold_20260718_003412",
-    # Measured through the boundary model (that is how their coverage was
-    # confirmed), so census them the same way or the census misses it.
-    "demo_blockslot3_L14_20260718_090000",
-    "demo_blockslot5_L8_20260718_090000",
-})
-
-
-def observe_demo_boundary(demo_dir: Path, *, executed: set, call_targets: Counter,
-                          heads: set, step_budget: int = 4_000_000) -> dict:
-    """Replay one demo through the boundary-head PARK model -- the faithful
-    reproduction the recovered runtime targets (see :data:`BOUNDARY_DEMOS`).
-
-    A frame delivers its input + 6 timer IRQs then runs until a boundary head is
-    reached the 2nd time; this matches verify_vmless_demo's oracle exactly, so
-    the census covers precisely the code the CPU-free candidate executes."""
-    from verify_vmless_demo import (build_oracle_cold, build_oracle, run_stub,
-                                    CANONICAL_ENTRY, _is_predecompression)
-    from dos_re.interrupts import deliver_interrupt
-
-    pb = SkyroadsReplayPlayback.load(str(demo_dir))
-    if pb.is_cold_start or _is_predecompression(pb):
-        frontend, _a, rt = build_oracle_cold(demo_dir, pb)
-        # ONLY a cold demo runs the packer stub to the C-startup hand-off.  A
-        # snapshot demo resumes mid-game, where there is no stub left to run:
-        # driving from CANONICAL_ENTRY there re-enters the C startup and blocks
-        # on its first console read, which escaped and killed the census.
-        run_stub(rt.cpu, *CANONICAL_ENTRY)
-    else:
-        frontend, _a, rt = build_oracle(demo_dir, pb)
-
-    orig_step = CPU8086.step
-    ex_add, ct = executed.add, call_targets
-
-    def step(self):
-        s = self.s
-        ex_add((s.cs, s.ip))
-        depth = self.call_depth
-        r = orig_step(self)
-        if self.call_depth > depth:
-            s2 = self.s
-            ct[(s2.cs, s2.ip)] += 1
-        return r
-
-    def run_to_cut(cpu, budget):
-        hit = {}
-        for _ in range(budget):
-            key = (cpu.s.cs, cpu.s.ip)
-            if key in heads:
-                hit[key] = hit.get(key, 0) + 1
-                if hit[key] >= 2:
-                    cpu.step()
-                    return
-            cpu.step()
-
-    CPU8086.step = step
-    frames = 0
-    try:
-        end = pb.end_boundary or 100000
-        while frames < end and not pb.finished(frames):
-            # Input delivery and IRQ delivery STEP THE CPU too, so a blocking
-            # console read (INT 21h AH=07 on an empty buffer -- every
-            # press-any-key screen) can surface from any of the three, not just
-            # the run.  Wrapping only the run let it escape and kill the whole
-            # census mid-demo.  A block simply ends the frame, as it does for the
-            # verification oracles.
-            try:
-                pb.apply_to_runtime(frames, rt,
-                                    deliver=lambda r, sc: frontend.deliver_input(r, sc))
-                for _ in range(6):
-                    deliver_interrupt(rt, 0x08)
-                run_to_cut(rt.cpu, step_budget)
-            except (ConsoleInputWouldBlock, HaltExecution):
-                pass
-            frames += 1
-    finally:
-        CPU8086.step = orig_step
-    return {"frames": frames}
-
-
 def observe_cold_boot(*, frames: int, executed: set, call_targets: Counter) -> dict:
     """Observe a genuine from-EXE COLD BOOT -- the game's own startup path.
 
@@ -246,10 +152,10 @@ def observe_cold_boot(*, frames: int, executed: set, call_targets: Counter) -> d
     here is a RECOVERY-TIME input; the shipped runtime never does it.
     """
     frontend = sp.SkyroadsFrontend(ROOT)
-    args = player.build_arg_parser(frontend).parse_args(["--headless", "--no-replacements"])
+    args = player.build_arg_parser(frontend).parse_args(
+        ["--headless", "--composition", "oracle"])
     rt = frontend.create_runtime(args)
-    frontend.apply_hook_mode(rt, args)   # pure ASM oracle -- see observe_demo
-    _use_real_console_input(rt)
+    rt.dos.console_input_fallback = None
 
     orig_step = CPU8086.step
     ex_add, ct = executed.add, call_targets
@@ -306,27 +212,17 @@ def main(argv=None) -> int:
         print(f"[codemap] cold boot (from EXE): {info['frames']} frames, "
               f"{len(executed)} addrs -- the startup path no demo covers")
 
-    heads = None
     for demo in demos:
         if not demo.exists():
             print(f"[codemap] SKIP (missing): {demo.name}")
             continue
         before = len(executed)
-        if demo.name in BOUNDARY_DEMOS:
-            if heads is None:
-                from verify_vmless_demo import read_heads
-                heads = read_heads(ROOT / "artifacts" / "codemap"
-                                   / "boundary_heads.txt")
-            info = observe_demo_boundary(demo, executed=executed,
-                                         call_targets=call_targets, heads=heads)
-            tag = " [boundary model]"
-        else:
-            info = observe_demo(demo, max_frames=args.max_frames, executed=executed,
-                                call_targets=call_targets, int_entries=int_entries)
-            ivt_all.update(info["ivt"])
-            tag = ""
+        info = observe_demo(
+            demo, max_frames=args.max_frames, executed=executed,
+            call_targets=call_targets, int_entries=int_entries)
+        ivt_all.update(info["ivt"])
         print(f"[codemap] {demo.name}: {info['frames']} frames, "
-              f"+{len(executed) - before} new addrs (total {len(executed)}){tag}")
+              f"+{len(executed) - before} new addrs (total {len(executed)})")
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

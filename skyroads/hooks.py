@@ -29,7 +29,7 @@ Installed hooks:
   zero divergence (full-memory diff, strict auto-continuation) replaying the
   ENTIRE recorded gameplay demo (artifacts/demos/demo_skyroads_20260709_184949,
   988 frames, level-select through driving), not just a slice. The single
-  hottest un-hooked routine in that demo's profile (tools/profile_demo.py):
+  hottest unreplaced routine in that demo's recorded execution profile:
   20.9% of all interpreted instructions. Getting a clean full-memory diff
   required discovering the routine's own register/flags footprint is NOT the
   no-op its pusha/popa wrapper first suggested — its prologue's `mov bx,sp`
@@ -154,7 +154,7 @@ Installed hooks:
 from __future__ import annotations
 
 from dos_re.cpu import CPU8086, CF, OF, DF
-from dos_re.hooks import interpret_current_instruction_without_hook, registry
+from dos_re.hooks import interpret_current_instruction_without_hook
 from dos_re.lift.runtime import emulate_call
 
 from skyroads.codecs.lzs import LzsWidths
@@ -287,7 +287,6 @@ def _palette_fade_inner_hook(cpu: CPU8086) -> None:
     s.ip = 0x43A9
 
 
-@registry.replace(CODE_SEG, 0x43A9, "palette_fade_inner")
 def palette_fade_inner_hook(cpu: CPU8086) -> None:
     _palette_fade_inner_hook(cpu)
 
@@ -544,7 +543,6 @@ def _lzs_decode_loop_hook(cpu: CPU8086) -> None:
     s.ip = _LZS_LOOP_EXIT_IP
 
 
-@registry.replace(CODE_SEG, 0x6712, "lzs_decode_loop")
 def lzs_decode_loop_hook(cpu: CPU8086) -> None:
     _lzs_decode_loop_hook(cpu)
 
@@ -572,7 +570,7 @@ def lzs_decode_loop_hook(cpu: CPU8086) -> None:
 # preservation collapse to "just don't touch them".
 #
 # The VGA-direct path (1010:618D-61CD) burns 20.9% of all interpreted
-# instructions in a recorded gameplay demo (see tools/profile_demo.py):
+# instructions in a recorded gameplay demo:
 # ~18 interpreted instructions per DAC-entry write (mov/lodsb/2x delay-jmp/
 # inc/dec/test/jnz), called with count~256-320 roughly once per frame. Every
 # 64th entry (1010:61A5 "test cx,3Fh") it also polls the input-status
@@ -701,7 +699,6 @@ def _palette_upload_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x6168, "palette_upload")
 def palette_upload_hook(cpu: CPU8086) -> None:
     _palette_upload_hook(cpu)
 
@@ -782,7 +779,6 @@ def _sprite_blit_hook(cpu: CPU8086) -> None:
     s.sp = (s.sp + 2) & 0xFFFF
 
 
-@registry.replace(CODE_SEG, 0x3A22, "sprite_blit")
 def sprite_blit_hook(cpu: CPU8086) -> None:
     _sprite_blit_hook(cpu)
 
@@ -895,7 +891,6 @@ def _occluded_column_blit_hook(cpu: CPU8086) -> None:
     s.ip = _OCC_BLIT_EXIT_IP
 
 
-@registry.replace(CODE_SEG, 0x3283, "occluded_column_blit")
 def occluded_column_blit_hook(cpu: CPU8086) -> None:
     _occluded_column_blit_hook(cpu)
 
@@ -960,7 +955,6 @@ def _ulong_div_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x5D8C, "ulong_div")
 def ulong_div_hook(cpu: CPU8086) -> None:
     _ulong_div_hook(cpu)
 
@@ -1020,7 +1014,6 @@ def _ulong_mul_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x5D4C, "ulong_mul")
 def ulong_mul_hook(cpu: CPU8086) -> None:
     _ulong_mul_hook(cpu)
 
@@ -1077,7 +1070,6 @@ def _signed_long_div_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x5E5A, "signed_long_div")
 def signed_long_div_hook(cpu: CPU8086) -> None:
     _signed_long_div_hook(cpu)
 
@@ -1189,7 +1181,6 @@ def _tile_clip_mask_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x32C1, "tile_clip_mask")
 def tile_clip_mask_hook(cpu: CPU8086) -> None:
     _tile_clip_mask_hook(cpu)
 
@@ -1285,7 +1276,6 @@ def _tile_shade_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x33FD, "tile_shade")
 def tile_shade_hook(cpu: CPU8086) -> None:
     _tile_shade_hook(cpu)
 
@@ -1354,7 +1344,6 @@ def _tile_rasterizer_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x325B, "tile_rasterizer")
 def tile_rasterizer_hook(cpu: CPU8086) -> None:
     _tile_rasterizer_hook(cpu)
 
@@ -1437,7 +1426,6 @@ def _rle_sprite_forward_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x3153, "rle_sprite_forward")
 def rle_sprite_forward_hook(cpu: CPU8086) -> None:
     _rle_sprite_forward_hook(cpu)
 
@@ -1510,7 +1498,6 @@ def _rle_sprite_backward_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x3190, "rle_sprite_backward")
 def rle_sprite_backward_hook(cpu: CPU8086) -> None:
     _rle_sprite_backward_hook(cpu)
 
@@ -1565,7 +1552,6 @@ def _perspective_transform_hook(cpu: CPU8086) -> None:
     s.ip = ret_ip
 
 
-@registry.replace(CODE_SEG, 0x04C0, "perspective_transform")
 def perspective_transform_hook(cpu: CPU8086) -> None:
     _perspective_transform_hook(cpu)
 
@@ -1653,7 +1639,6 @@ def _road_object_visible_hook(cpu: CPU8086) -> None:
     return done(1 if c2 != 0 else 0, c2, 0)                  # 185B/1861 (1853 cmp)
 
 
-@registry.replace(CODE_SEG, 0x1732, "road_object_visible")
 def road_object_visible_hook(cpu: CPU8086) -> None:
     _road_object_visible_hook(cpu)
 
@@ -1793,7 +1778,6 @@ def _road_column_strip_hook(cpu: CPU8086) -> None:
     s.sp = (s.sp + 2) & 0xFFFF
 
 
-@registry.replace(CODE_SEG, 0x38BF, "road_column_strip")
 def road_column_strip_hook(cpu: CPU8086) -> None:
     _road_column_strip_hook(cpu)
 
@@ -1812,7 +1796,7 @@ def road_column_strip_hook(cpu: CPU8086) -> None:
 # 256-entry palette_fade_inner pass, and re-uploads the whole thing via
 # palette_upload -- every single iteration, with NO check for whether
 # `ds:[1600]` actually changed since the last iteration. Both
-# tools/profile_demo.py and dos_re.player run a FIXED instruction budget per
+# The measured legacy execution profile used a FIXED instruction budget per
 # frame (`rt.cpu.run(steps_per_frame)`), and ALL of a frame's timer IRQs are
 # delivered up front, before any of that frame's instructions execute -- so
 # `ds:[1600]` is architecturally CONSTANT for an entire frame's step budget.
@@ -1895,7 +1879,6 @@ def _fade_loop_reset_hook(cpu: CPU8086) -> None:
     interpret_current_instruction_without_hook(cpu)
 
 
-@registry.replace(CODE_SEG, 0x4344, "fade_loop_tick_reset")
 def fade_loop_tick_reset_hook(cpu: CPU8086) -> None:
     _fade_loop_reset_hook(cpu)
 
@@ -1914,7 +1897,6 @@ def _fade_loop_gate_hook(cpu: CPU8086) -> None:
     interpret_current_instruction_without_hook(cpu)
 
 
-@registry.replace(CODE_SEG, 0x434A, "fade_loop_tick_gate")
 def fade_loop_tick_gate_hook(cpu: CPU8086) -> None:
     _fade_loop_gate_hook(cpu)
 
@@ -1955,7 +1937,6 @@ def _out8(cpu: CPU8086, port: int) -> None:
         cpu.port_writer(cpu, port & 0xFFFF, cpu.get_reg8(0), 8)
 
 
-@registry.replace(CODE_SEG, 0x3B17, "master_timer_isr")
 def master_timer_isr(cpu: CPU8086) -> None:
     s, mem = cpu.s, cpu.mem
 
@@ -2033,7 +2014,6 @@ def master_timer_isr(cpu: CPU8086) -> None:
 _STENCIL_ES_PTR = 0xAF2A
 
 
-@registry.replace(CODE_SEG, 0x0F62, "stencil_blit")
 def stencil_blit_hook(cpu: CPU8086) -> None:
     s = cpu.s
     mem = cpu.mem
@@ -2113,7 +2093,6 @@ def stencil_blit_hook(cpu: CPU8086) -> None:
 _RELOC_SEG_STEP = 0x1000
 
 
-@registry.replace(CODE_SEG, 0x4052, "buffer_relocate")
 def buffer_relocate_hook(cpu: CPU8086) -> None:
     s = cpu.s
     mem = cpu.mem
@@ -2195,7 +2174,6 @@ _INTRO_ANIM_TABLE_OFF = 0x0E76
 _INTRO_ANIM_SEGMENTS = 8
 
 
-@registry.replace(CODE_SEG, 0x3A96, "intro_anim_unpack")
 def intro_anim_unpack_hook(cpu: CPU8086) -> None:
     s = cpu.s
     mem = cpu.mem
@@ -2236,7 +2214,6 @@ def intro_anim_unpack_hook(cpu: CPU8086) -> None:
 # 401 calls, 26/28 blocks; plus 400 full-level-demo calls under the strict
 # differential verifier), byte-exact, zero divergence.
 from skyroads.lifted.functions.lifted_1010_34ae import lifted_1010_34ae as _lifted_34ae  # noqa: E402
-registry.replace(CODE_SEG, 0x34AE, "lifted_tile_render_34AE")(_lifted_34ae)
 
 # 1010:186B -- the road-segment movement stepper: a ~274-instruction, 5-phase
 # swept movement+collision resolver that steps the ship's lateral/depth
@@ -2250,7 +2227,6 @@ registry.replace(CODE_SEG, 0x34AE, "lifted_tile_render_34AE")(_lifted_34ae)
 # ORACLE_PASSING (liftverify: 40 calls, 58/80 blocks; plus the full-level demo
 # under the strict differential verifier), byte-exact.
 from skyroads.lifted.functions.lifted_1010_186b import lifted_1010_186b as _lifted_186b  # noqa: E402
-registry.replace(CODE_SEG, 0x186B, "lifted_road_stepper_186B")(_lifted_186b)
 
 # 1010:39D4 -- the fixed-position HUD/dashboard sprite blitter that every 34AE
 # render pass finalizes into (called every frame, 2 sprites always + 2 more
@@ -2261,7 +2237,6 @@ registry.replace(CODE_SEG, 0x186B, "lifted_road_stepper_186B")(_lifted_186b)
 # ORACLE_PASSING (liftverify: 100 calls, 3/3 blocks, full coverage),
 # byte-exact.
 from skyroads.lifted.functions.lifted_1010_39d4 import lifted_1010_39d4 as _lifted_39d4  # noqa: E402
-registry.replace(CODE_SEG, 0x39D4, "lifted_hud_blit_finalize_39D4")(_lifted_39d4)
 
 # 1010:2D1F -- the top-level per-frame ROAD RENDER DRIVER: takes 8 params
 # (bp+4..+18 -> [0E28..0E36]), sets up record_base from the 0x168E road
@@ -2277,7 +2252,6 @@ registry.replace(CODE_SEG, 0x39D4, "lifted_hud_blit_finalize_39D4")(_lifted_39d4
 # gameplay window). Additionally pixel-validated in situ: 190/190 gameplay
 # frames (571-760) produce byte-IDENTICAL VGA with vs without this lift.
 from skyroads.lifted.functions.lifted_1010_2d1f import lifted_1010_2d1f as _lifted_2d1f  # noqa: E402
-registry.replace(CODE_SEG, 0x2D1F, "lifted_road_render_driver_2D1F")(_lifted_2d1f)
 
 # --- 2026-07-12 leaf-function lifts (movement/projection math helpers) ---------
 # Surfaced by censusing unhooked call targets on the level-start path (72 of 83
@@ -2292,15 +2266,52 @@ registry.replace(CODE_SEG, 0x2D1F, "lifted_road_render_driver_2D1F")(_lifted_2d1
 # 1010:5D80 -- DX:AX <<= CL, a 32-bit shift-left-by-count helper (xor ch,ch;
 # jcxz; loop: shl ax,1/rcl dx,1). Verified 3/3 blocks (FULL coverage), 3 calls.
 from skyroads.lifted.functions.lifted_1010_5d80 import lifted_1010_5d80 as _lifted_5d80  # noqa: E402
-registry.replace(CODE_SEG, 0x5D80, "lifted_shl32_5D80")(_lifted_5d80)
 
 # 1010:0BE9 -- a projection helper: si = ((ss:[bp+4] / 128) - 0x5F) / 46, then
 # branches on its sign (perspective-row math, same family as 04C0). Verified
 # ORACLE_PASSING, 6/8 blocks, 2 calls.
 from skyroads.lifted.functions.lifted_1010_0be9 import lifted_1010_0be9 as _lifted_0be9  # noqa: E402
-registry.replace(CODE_SEG, 0x0BE9, "lifted_project_row_0BE9")(_lifted_0be9)
 
 # 1010:0BAF -- a bounds/clamp predicate on two 16-bit params (cmp ss:[bp+4] vs
 # 0xFE9D, ss:[bp+6] vs 0x2800). Verified ORACLE_PASSING, 7/10 blocks, 1 call.
 from skyroads.lifted.functions.lifted_1010_0baf import lifted_1010_0baf as _lifted_0baf  # noqa: E402
-registry.replace(CODE_SEG, 0x0BAF, "lifted_bounds_check_0BAF")(_lifted_0baf)
+
+# Adapter implementations are declarations, not an installation authority.
+# skyroads.execution is the sole catalog and selects/activates these functions.
+FAITHFUL_OVERRIDE_ADAPTERS = {
+    0x43A9: ("palette_fade_inner", palette_fade_inner_hook),
+    0x6712: ("lzs_decode_loop", lzs_decode_loop_hook),
+    0x6168: ("palette_upload", palette_upload_hook),
+    0x3A22: ("sprite_blit", sprite_blit_hook),
+    0x3283: ("occluded_column_blit", occluded_column_blit_hook),
+    0x5D8C: ("ulong_div", ulong_div_hook),
+    0x5D4C: ("ulong_mul", ulong_mul_hook),
+    0x5E5A: ("signed_long_div", signed_long_div_hook),
+    0x32C1: ("tile_clip_mask", tile_clip_mask_hook),
+    0x33FD: ("tile_shade", tile_shade_hook),
+    0x325B: ("tile_rasterizer", tile_rasterizer_hook),
+    0x3153: ("rle_sprite_forward", rle_sprite_forward_hook),
+    0x3190: ("rle_sprite_backward", rle_sprite_backward_hook),
+    0x04C0: ("perspective_transform", perspective_transform_hook),
+    0x1732: ("road_object_visible", road_object_visible_hook),
+    0x38BF: ("road_column_strip", road_column_strip_hook),
+    0x3B17: ("master_timer_isr", master_timer_isr),
+    0x0F62: ("stencil_blit", stencil_blit_hook),
+    0x4052: ("buffer_relocate", buffer_relocate_hook),
+    0x3A96: ("intro_anim_unpack", intro_anim_unpack_hook),
+}
+
+BEHAVIORAL_OVERRIDE_ADAPTERS = {
+    0x4344: ("fade_loop_tick_reset", fade_loop_tick_reset_hook),
+    0x434A: ("fade_loop_tick_gate", fade_loop_tick_gate_hook),
+}
+
+GENERATED_FUNCTION_ADAPTERS = {
+    0x34AE: ("lifted_tile_render_34AE", _lifted_34ae),
+    0x186B: ("lifted_road_stepper_186B", _lifted_186b),
+    0x39D4: ("lifted_hud_blit_finalize_39D4", _lifted_39d4),
+    0x2D1F: ("lifted_road_render_driver_2D1F", _lifted_2d1f),
+    0x5D80: ("lifted_shl32_5D80", _lifted_5d80),
+    0x0BE9: ("lifted_project_row_0BE9", _lifted_0be9),
+    0x0BAF: ("lifted_bounds_check_0BAF", _lifted_0baf),
+}

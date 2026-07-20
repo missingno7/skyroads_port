@@ -24,8 +24,10 @@ import scripts.play as sp
 from dos_re import player
 from dos_re.cpu import HaltExecution
 from dos_re.dos import ConsoleInputWouldBlock
-from skyroads.replay import SkyroadsReplayPlayback
-from dos_re.player import _use_real_console_input
+from dos_re.input_demo import RealModeInputAdapter
+from dos_re.replay import ReplayArtifact
+from dos_re.snapshot import apply_runtime_continuation
+from skyroads.replay import recording_base
 
 from skyroads.bridge.dgroup_view import GameView
 from skyroads.native.gaps import JumpGateGap, MovementPhysicsGap, VerticalVelocityGap
@@ -59,19 +61,20 @@ def _collect_samples():
     reproduces it)."""
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False  # pure ASM oracle -- nothing here can mask a divergence
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-demo", str(DEMO), "--headless", "--composition", "oracle"])
+    artifact = ReplayArtifact.open(DEMO)
+    frontend.apply_demo_metadata(args, artifact.metadata)
+    rt = frontend.create_runtime(args)
+    apply_runtime_continuation(rt, recording_base(artifact))
+    inputs = RealModeInputAdapter(artifact.events)
+    rt.dos.console_input_fallback = None
 
     gameplay, menu = [], []
     envelope_seen = outside_seen = 0
     frame = 0
-    while not pb.finished(frame) and frame < MAX_FRAMES:
-        pb.apply_to_runtime(frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
+    while frame < artifact.end_point.ordinal and frame < MAX_FRAMES:
+        inputs.apply_to_runtime(
+            frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
         cpu = rt.cpu
         ds = cpu.s.ds
         before = kind = None

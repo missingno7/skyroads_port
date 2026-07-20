@@ -5,16 +5,16 @@ The 2026-07-13 user report ("edge terrain ghosting", "gauges not filled") flew
 past the existing per-piece tests because nothing checked the INTEGRATED
 rendered frame against the VM. This test closes that: it replays a demo and, at
 several frames, renders the native pipeline (``render_native_frame(rebuild=
-True)`` -- exactly what ``play_native`` does now) from the VM's own live DGROUP
+True)`` -- exactly what the native renderer does) from the VM's own live DGROUP
 and diffs the resulting VGA road band against the VM's.
 
-The native full-frame render (`rebuild=True`, what play_native does) must be
+The native full-frame render (`rebuild=True`) must be
 BYTE-EXACT to the VM's own road band. This held after the 2026-07-13
 screen_row fix (the ship was drawing one row too low in offscreen mode --
 `screen_row` used `af2c_eff` instead of raw `af2c`; see render_params.py):
 the per-frame diff went from ~200-350 px around the ship to ZERO. The edge
 TERRAIN ghosting the user first reported lived only in the delta/skip render
-path, which play_native sidesteps by rendering full every frame -- so a full
+path, which the native renderer avoids by rendering full every frame -- so a full
 render is ghosting-free AND (now) pixel-exact.
 """
 from __future__ import annotations
@@ -47,8 +47,7 @@ def test_native_full_render_matches_vm_no_edge_ghosting() -> None:
     from dos_re import player
     from dos_re.dos import ConsoleInputWouldBlock
     from dos_re.cpu import HaltExecution
-    from skyroads.replay import SkyroadsReplayPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     from skyroads.native.frame import render_native_frame
     from skyroads.native.image import NativeGameImage
@@ -57,12 +56,7 @@ def test_native_full_render_matches_vm_no_edge_ghosting() -> None:
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+    pb, rt = open_oracle_replay(frontend, args, DEMO)
     mem = rt.mem if hasattr(rt, "mem") else rt.cpu.mem
 
     checked = 0

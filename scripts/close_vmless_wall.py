@@ -125,16 +125,15 @@ def try_boot(lift_dir: Path, steps: int) -> tuple[bool, str]:
 
     Frames, not raw steps: the corpus parks at tick-wait boundary heads and
     only makes progress when the next frame's timer IRQs arrive (see
-    scripts/play_vmless.py).  A raw step loop stalls at the first park and so
+    skyroads.vmless_backend).  A raw step loop stalls at the first park and so
     never reaches the code the game runs from its ISRs and later screens --
     which is exactly the code the census is missing.  ``steps`` is read as a
     FRAME budget here.
     """
     code = f'''
 import sys; sys.path.insert(0, r"{ROOT / 'dos_re'}"); sys.path.insert(0, r"{ROOT}")
-sys.path.insert(0, r"{ROOT / 'scripts'}")
 from pathlib import Path
-from play_vmless import build, VmlessDriver
+from skyroads.vmless_backend import build, VmlessDriver
 rt, m = build(Path(r"{ROOT / 'artifacts/boot_image'}"), Path(r"{lift_dir}"),
               Path(r"{ROOT / 'assets'}"))
 drv = VmlessDriver(rt)

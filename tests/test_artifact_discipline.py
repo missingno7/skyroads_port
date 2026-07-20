@@ -5,17 +5,8 @@ build products. It must NOT hold live or authoritative code: every executable
 module and every canonical generated corpus lives at its package location, and
 every gate verifies exactly the artifact that ships.
 
-This is a test rather than a convention because the failure mode is SILENT.
-``verify_vmless_demo`` defaulted ``--lift-dir`` to ``artifacts/lifted_full`` --
-a path nothing had written since the dos_re 2.0 rename -- while the generator
-emitted to, and the runner imported from, ``skyroads/lifted/functions``. The two
-agreed byte-for-byte on all 182 shared modules, so the gate stayed green; it only
-stopped covering reality when a census added three functions to the shipped
-corpus and not to the orphan. Nothing raised. Nothing went red. The gate had
-simply detached from what it claimed to prove.
-
-So the invariant is checked directly: one path per corpus, shared by the tool
-that WRITES it, the runner that SHIPS it, and the gate that PROVES it.
+The invariant is checked directly: each generated corpus has one package path
+shared by its emitter and the backend selected by the unified player.
 """
 from __future__ import annotations
 
@@ -27,21 +18,15 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-#: corpus -> (package path that ships, the scripts that must all agree on it).
-#: A corpus is only trustworthy if its emitter, runner and verifier name ONE
-#: location; any of them drifting is the bug this file exists to catch.
+#: corpus -> (package path, files that produce or execute it).
 CORPORA = {
     "lifted": (
         "skyroads/lifted/functions",
-        ("close_vmless_wall.py",     # emits it
-         "play_vmless.py",           # ships it
-         "verify_vmless_demo.py"),   # proves it
+        ("scripts/close_vmless_wall.py", "skyroads/vmless_backend.py"),
     ),
     "recovered": (
         "skyroads/recovered",
-        ("build_recovered.py",       # emits it
-         "play_cpuless.py",          # ships it
-         "verify_cpuless.py"),       # proves it
+        ("scripts/build_recovered.py", "skyroads/cpuless_backend.py"),
     ),
 }
 
@@ -51,24 +36,24 @@ _CODE_DIR_OPTS = ("--lift-dir", "--recovered-dir", "--corpus", "--emit-dir",
                   "--adapter-dir", "--import-base")
 
 
-def _script(name: str) -> str:
-    return (ROOT / "scripts" / name).read_text(encoding="utf-8")
+def _source(name: str) -> str:
+    return (ROOT / name).read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("corpus", sorted(CORPORA))
 def test_emitter_runner_and_verifier_name_one_path(corpus):
     """The three tools that write, ship and prove a corpus must agree."""
-    package_path, scripts = CORPORA[corpus]
+    package_path, sources = CORPORA[corpus]
     parts = package_path.split("/")
     # The same location is written several ways -- ROOT / "skyroads" / "lifted"
     # / "functions", "skyroads/lifted/functions", skyroads.lifted.functions --
     # so compare on a normalised form with the separators and quoting removed.
     squash = lambda s: re.sub(r"""[\s"'/\\.]""", "", s)   # noqa: E731
     needle = squash(package_path)
-    for script in scripts:
-        src = squash(_script(script))
+    for source in sources:
+        src = squash(_source(source))
         assert needle in src, (
-            f"{script} does not name the shipped {corpus} corpus "
+            f"{source} does not name the shipped {corpus} corpus "
             f"({package_path}); if it points somewhere else it is not proving, "
             f"running, or producing the artifact that ships")
 
@@ -105,8 +90,12 @@ def test_no_code_directory_default_points_into_artifacts():
 def test_no_shipped_runner_puts_artifacts_on_the_import_path():
     """A runner that adds artifacts/ to sys.path can import code from there."""
     offenders = []
-    for name in ("play_cpuless.py", "play_vmless.py", "play.py"):
-        src = _script(name)
+    for name in (
+        "scripts/play.py",
+        "skyroads/cpuless_backend.py",
+        "skyroads/vmless_backend.py",
+    ):
+        src = _source(name)
         for line in src.splitlines():
             if "sys.path" in line and "artifacts" in line:
                 offenders.append(f"{name}: {line.strip()}")

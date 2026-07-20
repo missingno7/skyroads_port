@@ -88,10 +88,18 @@ _needs_game = pytest.mark.skipif(
 def test_capture_mode_is_byte_identical_and_captures_intro_pcm() -> None:
     from dos_re.interrupts import deliver_interrupt
     from dos_re.cpu import HaltExecution
+    from dos_re.execution import plan_execution
+    from scripts.play import SkyroadsFrontend
+    from skyroads.execution import catalog, configuration, coverage
     from skyroads.runtime import create_game_runtime
+
+    faithful = plan_execution(
+        configuration("development", "faithful"), coverage(), catalog())
+    frontend = SkyroadsFrontend(ROOT)
 
     def boot_and_run(capture: bool):
         rt = create_game_runtime(_EXE, capture_sb_pcm=capture)
+        frontend.bind_execution_plan(rt, faithful)
         for _ in range(140):                       # far enough to hit INTRO.SND DMA (~f121)
             try:
                 for _ in range(6):

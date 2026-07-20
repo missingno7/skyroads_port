@@ -4,7 +4,7 @@ From tracked inputs only, this:
   1. regenerates the standalone corpus (build_recovered.py);
   2. verifies the expected recovered-function count + the manifest;
   3. runs the purity lint (no path reaches a CPU);
-  4. starts the standalone runner (scripts/play_cpuless.py), which boots from
+  4. starts the unified player with the CPUless composition, which boots from
      1010:61F3 through CPUlessPlatformRuntime with NO interpreter and reaches
      the explicitly recorded cold-start frontier (fail-loud, exit 3).
 
@@ -130,7 +130,9 @@ def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
         # 4. the runner cold-boots from 61F3 with NO CPU / NO interpreter, runs the
         #    whole C startup + intro decompression to the frame loop, and RENDERS
         #    frames (timer IRQs delivered through the recovered INT 08h ISR).
-        play = _run("scripts/play_cpuless.py", "--headless", "--frames", "12",
+        play = _run(
+            "scripts/play.py", "--profile", "detached", "--composition",
+            "cpuless", "--headless", "--frames", "12",
                     timeout=600)
         assert play.returncode == 0, (play.stdout + play.stderr)[-2000:]
         assert "REACHED FIRST FRAME BOUNDARY" in play.stdout
@@ -147,7 +149,7 @@ _INTERACTIVE_DRIVER = """
 import sys
 sys.path.insert(0, "scripts"); sys.path.insert(0, "."); sys.path.insert(0, "dos_re")
 import pygame
-import play_cpuless as P
+from skyroads import cpuless_backend as P
 n = [0]
 real_get = pygame.event.get
 def fake_get(*a, **k):

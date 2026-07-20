@@ -1,7 +1,7 @@
 """tools/lint_cpuless.py -- prove the standalone CPUless runner is CPU-free.
 
 A thin, documented wrapper over dos_re's generic ``lint_cpuless.py`` pinned to
-THIS port's layout: the standalone runner ``scripts/play_cpuless.py``, the
+THIS port's layout: the CPUless provider ``skyroads/cpuless_backend.py``, the
 generated corpus ``skyroads/recovered/``, and the interpreter/lifted
 carriers this port must never reach.  Static import-graph proof (AST): no path
 from the runner or the recovered corpus imports a CPU.
@@ -23,11 +23,12 @@ def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = [sys.executable, str(ROOT / "dos_re/tools/lint_cpuless.py"),
            "--repo-root", str(ROOT),
-           "--root", "scripts/play_cpuless.py",
+           "--root", "skyroads/cpuless_backend.py",
            "--recovered-root", "skyroads/recovered",
            "--recovered-prefix", "skyroads.recovered",
            # the interpreter and every CPU-carrying corpus the runner forbids:
            "--forbidden-module", "dos_re.cpu",
+           "--forbidden-module", "dos_re.cpu386",
            "--forbidden-module", "skyroads.lifted",
            "--local-prefix", "dos_re", "--local-prefix", "skyroads",
            "--package-dir", "dos_re=dos_re/dos_re",

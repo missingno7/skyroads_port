@@ -1,77 +1,49 @@
-# AGENTS.md — dos_re framework repository
+# SkyRoads dos_re 3.0 contributor guide
 
-These instructions apply to the whole repository. They are written for AI
-agents and humans working on the **framework itself**. (If you are using the
-framework to port a game, start at [`START_HERE.md`](START_HERE.md) — your
-game work happens in your adapter package, and you touch `dos_re/` only under
-the rules below.)
+These instructions apply to the whole SkyRoads port. The generic framework is
+the `dos_re/` submodule; SkyRoads-specific identities, adapters and generated
+corpora remain in this repository.
 
-## What this repository is
+## Architecture invariants
 
-The reusable, game-agnostic core of an oracle-driven DOS recovery method:
-a real-mode VM, differential hook verification, frame comparison, deterministic
-demos/snapshots, and the documented methodology. It was extracted from two real
-recovery projects — Prehistorik 2 (primary source; the method's completed
-VM-less proof) and Overkill (the earlier pilot; endgame still in progress);
-[`MIGRATION.md`](MIGRATION.md) records the provenance of every part.
+- `scripts/play.py` is the only player and launch entrypoint.
+- `skyroads.execution` is the only implementation catalog, coverage source and
+  composition authority.
+- Execution profiles express dependency policy. Recovery level is a property
+  of an implementation, never a separate player.
+- `skyroads.runtime` constructs the untouched interpreted baseline. It has no
+  hook-selection flags and importing handwritten code installs nothing.
+- Authored overrides are selected explicitly and activated only through the
+  resolved execution plan.
+- `ReplayArtifact` is the only persistent record/replay format. SkyRoads may
+  provide event and continuation adapters, not another manifest or clock.
+- Detached/release compositions must fail planning if any reachable identity
+  needs the EXE or interpreter.
+- Generated code lives only in `skyroads/lifted/functions` and
+  `skyroads/recovered`; generated files must not contain project-authored
+  modifications.
 
-## Working principles
+## Working rules
 
-Correctness beats speed. Traceability beats cleverness. Small verified progress
-beats large intuitive rewrites.
+- Correctness and oracle evidence beat speed.
+- Fail loudly instead of silently falling back.
+- Keep `dos_re/` game-agnostic.
+- Preserve deterministic replay behavior and complete continuation-state
+  comparisons.
+- Add focused tests for planner selection, runtime activation and replay
+  adapters whenever these boundaries change.
 
-- **`dos_re/` must stay game-agnostic and stdlib-only.** No game addresses,
-  filenames, formats, or third-party imports in the core. `tools/lint.py`
-  enforces this; run it before finishing any change.
-- **Do not make the emulator more general than a real target requires.** New
-  CPU/DOS/hardware behaviour is added only when a concrete program exercises it,
-  with the observed register/flag contract documented and a focused test added.
-  Datasheet-driven completeness is scope creep here.
-- **Behaviour changes need tests.** The suite (`python -m pytest tests -q` or
-  `python tools/run_tests.py`) must pass; `tools/check_undefined_names.py` and
-  `tools/lint.py` must stay clean. The runnable example
-  (`python examples/minimal_adapter/example.py`) is part of the contract.
-- **Fail loud, never fall back silently.** This applies to the framework too:
-  an unsupported opcode or service raises with precise context; it does not
-  guess.
-- **Determinism is a feature.** The deterministic default paths (no wall clock,
-  no async IRQs unless opted in) must stay deterministic; anything time-driven
-  is opt-in and clearly marked.
-- **Don't break the boundary from the docs side either:** examples and docs may
-  *mention* the source games as worked examples, but framework behaviour must
-  never be specified in terms of one game.
-
-## Where things live
+## Required gates
 
 ```text
-dos_re/       git submodule: the framework package (dos_re/dos_re/) — see
-              dos_re/docs/architecture.md for the module map
-pynuked_opl3/ dos_re's own submodule (at dos_re/pynuked_opl3/): OPL backend
-docs/         the method; docs/README.md is the index
-examples/     minimal_adapter (runnable), adapter_skeleton (template)
-tests/        framework tests; game-free by construction
-tools/        lint.py, run_tests.py, clean.py, lindis.py, profile_hotspots.py,
-              audit_hook_oracle.py, audit_layers.py, check_undefined_names.py,
-              gen_island_manifest.py, render_frame.py,
-              view.py + display.py (live oracle viewer; optional numpy+pygame)
+python -m pytest -q
+python tools/lint.py
+python tools/check_undefined_names.py
+python tools/lint_cpuless.py
+python scripts/play.py --plan-only
+python scripts/play.py --profile release --composition cpuless --plan-only
 ```
 
-## Standard commands
-
-```bash
-python tools/lint.py                          # boundary + syntax lint
-python -m pytest tests -q                     # test suite (or tools/run_tests.py)
-python tools/check_undefined_names.py         # latent-NameError guard
-python examples/minimal_adapter/example.py    # end-to-end smoke of the whole loop
-python tools/clean.py [--artifacts]           # remove generated junk
-```
-
-## Things not to do
-
-- Do not let `dos_re/` learn anything about a specific game.
-- Do not add third-party dependencies to the core (optional extras only).
-- Do not replace fail-fast paths with guessed fallbacks to keep something
-  running.
-- Do not "clean up" original-behaviour quirks (flag shapes, wrap semantics)
-  without oracle evidence from a real program — they are load-bearing.
-- Do not treat performance as proof of correctness.
+Current documentation starts at `docs/README.md`. Material under
+`docs/history/` is evidence only and does not define supported commands or
+APIs.

@@ -11,9 +11,8 @@ timer rate + ISR cadence and asserts the runner reproduces it (regression for
 the 2026-07-13 "music plays slower than it should" bug, when it was 35 fps x 2
 = 70 Hz -- 2.6x too slow).
 
-Pointed at play_vmless (which carries the same two constants) when play_native
-was discarded: the FACT under test is the game's 180 Hz timing, not any one
-runner, and play_vmless is the runner that survived.
+The generated VMless provider carries the shared two timing constants. The
+fact under test is the game's 180 Hz timing, independent of composition.
 """
 from __future__ import annotations
 
@@ -36,24 +35,26 @@ PIT_INPUT_HZ = 1193182.0
 def test_music_rate_matches_the_vm_timer() -> None:
     import sys
     sys.path.insert(0, str(ROOT / "scripts"))
-    import play_vmless
+    from skyroads import vmless_backend
 
     import scripts.play as sp
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from skyroads.replay import SkyroadsReplayPlayback
-    from dos_re.player import _use_real_console_input
+    from dos_re.input_demo import RealModeInputAdapter
+    from dos_re.replay import ReplayArtifact
+    from dos_re.snapshot import apply_runtime_continuation
+    from skyroads.replay import recording_base
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-demo", str(DEMO), "--headless", "--composition", "oracle"])
+    artifact = ReplayArtifact.open(DEMO)
+    frontend.apply_demo_metadata(args, artifact.metadata)
+    rt = frontend.create_runtime(args)
+    apply_runtime_continuation(rt, recording_base(artifact))
+    inputs = RealModeInputAdapter(artifact.events)
+    rt.dos.console_input_fallback = None
     mem = rt.mem if hasattr(rt, "mem") else rt.cpu.mem
 
     isr = {"n": 0}
@@ -69,9 +70,10 @@ def test_music_rate_matches_the_vm_timer() -> None:
     reloads = []
     try:
         frame = 0
-        while not pb.finished(frame) and frame <= 400:
+        while frame < artifact.end_point.ordinal and frame <= 400:
             before = isr["n"]
-            pb.apply_to_runtime(frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
+            inputs.apply_to_runtime(
+                frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
             try:
                 frontend.advance_frame(rt, args, frame)
             except ConsoleInputWouldBlock:
@@ -98,8 +100,8 @@ def test_music_rate_matches_the_vm_timer() -> None:
     assert isr_per_frame == 6, f"VM music ISR {isr_per_frame}x/frame (expected 6)"
 
     # (2) the runner's song-advance rate reproduces that 180 Hz exactly.
-    runner_hz = play_vmless.GAME_FPS * play_vmless.TIMER_IRQS_PER_FRAME
+    runner_hz = vmless_backend.GAME_FPS * vmless_backend.TIMER_IRQS_PER_FRAME
     assert runner_hz == pytest.approx(timer_hz, abs=1.0), (
         f"runner music rate {runner_hz} Hz "
-        f"(GAME_FPS={play_vmless.GAME_FPS} x TIMER_IRQS_PER_FRAME="
-        f"{play_vmless.TIMER_IRQS_PER_FRAME}) != VM {timer_hz:.1f} Hz")
+        f"(GAME_FPS={vmless_backend.GAME_FPS} x TIMER_IRQS_PER_FRAME="
+        f"{vmless_backend.TIMER_IRQS_PER_FRAME}) != VM {timer_hz:.1f} Hz")

@@ -1,7 +1,7 @@
 """The island-driven bodies, differentialled against the generated ones they replace.
 
 This is the OFFLINE half of the evidence for absorption; the online half is
-``verify_cpuless <demo> --shadow-islands``, which re-proves the same body against
+the generated-body shadow tests, which re-prove the same body against
 every call a real playthrough makes. Both compare the FULL contract -- all seven
 outputs, flags, fmask, cost, and the ordered byte-write log -- because a
 comparison that quietly covers less is indistinguishable from one that does not.

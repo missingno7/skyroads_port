@@ -33,8 +33,10 @@ import scripts.play as sp
 from dos_re import player
 from dos_re.cpu import CPU8086, HaltExecution
 from dos_re.dos import ConsoleInputWouldBlock
-from skyroads.replay import SkyroadsReplayPlayback
-from dos_re.player import _use_real_console_input
+from dos_re.input_demo import RealModeInputAdapter
+from dos_re.replay import ReplayArtifact
+from dos_re.snapshot import apply_runtime_continuation
+from skyroads.replay import recording_base
 
 from skyroads.native.collision import make_visible
 from skyroads.native.state import NativeGameState
@@ -59,13 +61,13 @@ MAX_FRAMES = 1200  # steering starts partway through the demo; go far enough to 
 def _collect(max_cases: int = 160):
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False  # pure ASM oracle
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-demo", str(DEMO), "--headless", "--composition", "oracle"])
+    artifact = ReplayArtifact.open(DEMO)
+    frontend.apply_demo_metadata(args, artifact.metadata)
+    rt = frontend.create_runtime(args)
+    apply_runtime_continuation(rt, recording_base(artifact))
+    inputs = RealModeInputAdapter(artifact.events)
+    rt.dos.console_input_fallback = None
 
     pending: dict = {}
     cases: list[dict] = []
@@ -105,8 +107,13 @@ def _collect(max_cases: int = 160):
     CPU8086.step = patched
     try:
         frame = 0
-        while not pb.finished(frame) and frame < MAX_FRAMES and len(cases) < max_cases:
-            pb.apply_to_runtime(frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
+        while (
+            frame < artifact.end_point.ordinal
+            and frame < MAX_FRAMES
+            and len(cases) < max_cases
+        ):
+            inputs.apply_to_runtime(
+                frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
             try:
                 frontend.advance_frame(rt, args, frame)
             except ConsoleInputWouldBlock:
