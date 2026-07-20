@@ -70,6 +70,24 @@ class SkyroadsFrontend(player.GameFrontend):
             "--no-sound", action="store_true",
             help="run without SkyRoads sound hardware",
         )
+
+    def replay_metadata(self, args):
+        metadata = super().replay_metadata(args)
+        metadata.update({
+            "capture_execution_profile": args.profile,
+            "capture_composition": args.composition,
+            "audio": args.audio,
+            "sound_enabled": not args.no_sound,
+        })
+        return metadata
+
+    def apply_replay_metadata(self, args, metadata) -> None:
+        super().apply_replay_metadata(args, metadata)
+        if "audio" in metadata:
+            args.audio = str(metadata["audio"])
+        if "sound_enabled" in metadata:
+            args.no_sound = not bool(metadata["sound_enabled"])
+
     def program_identity(self, args):
         return PROGRAM_ID
 
@@ -178,9 +196,9 @@ class SkyroadsFrontend(player.GameFrontend):
                 "--composition generated-functions or authored-candidates"
             )
         from skyroads.replay import (
+            capture_base,
+            capture_profile,
             SkyroadsReplayDriver,
-            recording_base,
-            recording_profile,
         )
 
         oracle_args = copy(args)
@@ -189,29 +207,37 @@ class SkyroadsFrontend(player.GameFrontend):
         oracle_args.execution_plan = self.resolve_execution_plan(oracle_args)
         oracle = self.create_runtime(oracle_args)
         self.bind_execution_plan(oracle, oracle_args.execution_plan)
-        recorded_oracle_profile = recording_profile(artifact)
         current_oracle_profile = self.replay_profile(oracle_args, oracle)
-        if current_oracle_profile != recorded_oracle_profile:
-            raise RuntimeError(
-                "ReplayArtifact oracle identity is stale for the current "
-                "executable/runtime/device/schema; re-record it with "
-                "`python scripts/record_atlas_evidence.py ... --replace`"
+        base = capture_base(artifact)
+        known_profiles = {
+            profile.profile_id: profile for profile, _ in artifact.profiles()
+        }
+        if current_oracle_profile.profile_id not in known_profiles:
+            artifact.register_profile(
+                current_oracle_profile,
+                base_point=artifact.cached_points(capture_profile(artifact))[0],
+                base_state=base,
             )
+        else:
+            artifact.require_profile(current_oracle_profile)
         candidate = self.create_runtime(args)
         self.bind_execution_plan(candidate, plan)
-        oracle_profile = recorded_oracle_profile
         candidate_profile = self.replay_profile(args, candidate)
-        known_profiles = {profile.profile_id for profile, _ in artifact.profiles()}
-        if candidate_profile.profile_id not in known_profiles:
+        known_profile_ids = {
+            profile.profile_id for profile, _ in artifact.profiles()
+        }
+        if candidate_profile.profile_id not in known_profile_ids:
             artifact.register_profile(
                 candidate_profile,
-                base_point=artifact.cached_points(oracle_profile)[0],
-                base_state=recording_base(artifact),
+                base_point=artifact.cached_points(capture_profile(artifact))[0],
+                base_state=base,
             )
+        else:
+            artifact.require_profile(candidate_profile)
         return (
             SkyroadsReplayDriver(
                 self, args, oracle, artifact,
-                oracle_profile,
+                current_oracle_profile,
             ),
             SkyroadsReplayDriver(
                 self, args, candidate, artifact,

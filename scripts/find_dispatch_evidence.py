@@ -46,7 +46,7 @@ sys.path.insert(0, str(ROOT))
 from find_dispatch_targets import (  # noqa: E402
     CODE_SEG, DGROUP_SEG, _CALL_MEM16, _SEG_PREFIXES, _strip_seg_prefix,
     code_pointer_stores, indexed_tables, read_table)
-from skyroads.replay import recording_base_memories  # noqa: E402
+from skyroads.replay import capture_base_memories  # noqa: E402
 
 
 def call_imm16_sites(ir: dict) -> list[tuple[int, int]]:
@@ -152,8 +152,8 @@ def main(argv=None) -> int:
     boot_image = ROOT / "artifacts" / "boot_image" / "memory_1mb.bin"
     if boot_image.is_file():
         images.append(("boot_image", boot_image.read_bytes()))
-    images.extend(recording_base_memories(ROOT / "recovery" / "replays"))
-    images.extend(recording_base_memories(ROOT / "artifacts" / "replays"))
+    images.extend(capture_base_memories(ROOT / "recovery" / "replays"))
+    images.extend(capture_base_memories(ROOT / "artifacts" / "replays"))
     for raw in args.images or ():
         path = Path(raw)
         if path.is_file():

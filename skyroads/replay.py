@@ -25,35 +25,18 @@ from dos_re.snapshot import (
 PROJECTION_SCHEMA = "dos-re-complete-machine-v1"
 
 
-def recording_profile(artifact: ReplayArtifact) -> ReplayExecutionIdentity:
-    """Return and validate the oracle identity that owns the artifact base."""
-    profile_id = artifact.metadata.get("recording_profile_id")
-    matches = [
-        profile for profile, _ in artifact.profiles()
-        if profile.profile_id == profile_id
-    ]
-    if len(matches) != 1:
-        raise RuntimeError(
-            f"ReplayArtifact {artifact.directory} has no unique untouched-oracle "
-            "recording profile; discard it and record again with "
-            "--composition oracle"
-        )
-    profile = matches[0]
-    if profile.role != "oracle":
-        raise RuntimeError(
-            "ReplayArtifact was not recorded from the untouched oracle; "
-            "discard it and record again with --composition oracle"
-        )
-    return profile
+def capture_profile(artifact: ReplayArtifact) -> ReplayExecutionIdentity:
+    """Return the plan identity that captured the immutable input stream."""
+    return artifact.capture_profile()
 
 
-def recording_base(artifact: ReplayArtifact) -> ContinuationState:
-    profile = recording_profile(artifact)
+def capture_base(artifact: ReplayArtifact) -> ContinuationState:
+    profile = capture_profile(artifact)
     base = artifact.cached_points(profile)[0]
     return artifact.restore(profile, base)
 
 
-def recording_artifacts(directory: str | Path) -> tuple[ReplayArtifact, ...]:
+def replay_artifacts(directory: str | Path) -> tuple[ReplayArtifact, ...]:
     """Open every authoritative replay artifact directly below *directory*."""
     root = Path(directory)
     artifacts = tuple(
@@ -61,17 +44,17 @@ def recording_artifacts(directory: str | Path) -> tuple[ReplayArtifact, ...]:
         for manifest in sorted(root.glob("*/replay.json"))
     )
     for artifact in artifacts:
-        recording_profile(artifact)
+        capture_profile(artifact)
     return artifacts
 
 
-def recording_base_memories(
+def capture_base_memories(
     directory: str | Path,
 ) -> tuple[tuple[str, bytes], ...]:
     """Return named memory images from authoritative replay recording bases."""
     return tuple(
-        (artifact.directory.name, recording_base(artifact).regions["memory"])
-        for artifact in recording_artifacts(directory)
+        (artifact.directory.name, capture_base(artifact).regions["memory"])
+        for artifact in replay_artifacts(directory)
     )
 
 

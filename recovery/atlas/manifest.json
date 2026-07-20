@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "index_digest": "f7c09c1222b584d22b4bcec0c992f1be14a4e41135495cce659920b8241e99cf",
+  "index_digest": "a3ae322c28a3cdc7bc703b780f38c28e05595224fe1a8b22a76a8d1cddbb2a6e",
   "product_roots": {
     "game/authored-candidates": [
       "skyroads:1.0:region:program"
@@ -33,7 +33,7 @@
       "identity": "replay:828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
       "kind": "replay",
       "path": "sources/replay-47ce8a65101540b53519.json",
-      "source_digest": "80f8fe574ca385260b0c8288527a3b4a586e418f04967099f5dd377f14e14106"
+      "source_digest": "6273d0abfa38581f830d97e33d1acfdfb15d3f6741ff222b04c251c3b018f1af"
     },
     {
       "identity": "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",

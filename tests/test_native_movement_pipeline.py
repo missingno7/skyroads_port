@@ -30,7 +30,7 @@ from dos_re.dos import ConsoleInputWouldBlock
 from dos_re.replay_input import RealModeInputAdapter
 from dos_re.replay import ReplayArtifact
 from dos_re.snapshot import apply_runtime_continuation
-from skyroads.replay import recording_base
+from skyroads.replay import capture_base
 
 from skyroads.native.collision import make_visible
 from skyroads.native.state import NativeGameState
@@ -60,7 +60,7 @@ def _collect(max_cases: int = 160):
     frontend.apply_replay_metadata(args, artifact.metadata)
     args.execution_plan = frontend.resolve_execution_plan(args)
     rt = frontend.create_runtime(args)
-    apply_runtime_continuation(rt, recording_base(artifact))
+    apply_runtime_continuation(rt, capture_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)
     rt.dos.console_input_fallback = None
 

@@ -57,12 +57,16 @@ interpreter/development imports, and publishes only the audited runtime,
 bootstrap, and data closure. Code poisoning remains optional additional
 evidence, not release authority.
 
-`ReplayArtifact` is the only persistent record/replay format. Recording is
-restricted to the untouched oracle. Literal generated functions are green over
-the committed exact interval with complete continuation-state comparison.
-Authored faithful candidates retain focused semantic tests and explicit
-provenance, but the complete authored composition must become instruction-clock
-transparent before the same interval proof can promote it.
+`ReplayArtifact` is the only persistent record/replay format. Interactive
+capture may use any responsive development composition, including already
+verified faithful overrides. Such a capture is provisional until the immutable
+input stream replays completely against the untouched oracle without
+divergence. Post-hoc oracle replay also attaches function visits and observed
+control-flow evidence, independently of capture. Literal generated functions
+are green over the committed exact interval with complete continuation-state
+comparison. Authored faithful candidates retain focused semantic tests and
+explicit provenance, but the complete authored composition must become
+instruction-clock transparent before the same interval proof can promote it.
 
 See [current documentation](docs/README.md). Pre-3.0 recovery notes are kept
 under `docs/history/` as evidence only.
