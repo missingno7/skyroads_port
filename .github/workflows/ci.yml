@@ -21,7 +21,9 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install test dependencies
-        run: pip install pytest pytest-xdist
+        # Install through both projects' declared metadata.  In particular,
+        # dos_re's core dependency set includes NumPy, which its own tests use.
+        run: python -m pip install -e ".[test]" -e "./dos_re"
       - name: Canonical repository gate
         # Public CI cannot carry the proprietary EXE needed by the retained
         # oracle differential. The same gate runs its asset-free subset here;

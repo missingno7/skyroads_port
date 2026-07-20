@@ -1,6 +1,8 @@
 """The SkyRoads planner is the only implementation-selection authority."""
 from __future__ import annotations
 
+from dataclasses import replace
+from hashlib import sha256
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -61,10 +63,22 @@ def _plan(profile: str, composition: str):
 
 @pytest.fixture
 def original_exe(tmp_path, monkeypatch):
+    """Provide a hash-valid stand-in for planner-only tests.
+
+    These tests exercise composition and selection, not executable behavior.
+    Public CI intentionally cannot contain the proprietary SkyRoads image.
+    """
+    payload = b"synthetic planner fixture; not an executable\n"
     assets = tmp_path / "assets"
     assets.mkdir()
-    (assets / "SKYROADS.EXE").write_bytes(
-        (execution_model.SOURCE_ROOT / "assets" / "SKYROADS.EXE").read_bytes()
+    (assets / "SKYROADS.EXE").write_bytes(payload)
+    monkeypatch.setattr(
+        execution_model,
+        "IMAGE",
+        replace(
+            execution_model.IMAGE,
+            content_digest=sha256(payload).hexdigest(),
+        ),
     )
     monkeypatch.setattr(execution_model, "ROOT", tmp_path)
 
