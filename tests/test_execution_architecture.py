@@ -13,12 +13,20 @@ def _plan(profile: str, composition: str):
     return plan_execution(configuration(profile, composition), coverage(), catalog())
 
 
+@pytest.fixture
+def original_exe(tmp_path, monkeypatch):
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "SKYROADS.EXE").write_bytes(b"MZ")
+    monkeypatch.setattr(execution_model, "ROOT", tmp_path)
+
+
 def test_default_window_scale_fits_a_768_line_desktop() -> None:
     assert SkyroadsFrontend.default_scale == 2
     assert 200 * 1.2 * SkyroadsFrontend.default_scale <= 480
 
 
-def test_oracle_plan_selects_only_the_untouched_exe() -> None:
+def test_oracle_plan_selects_only_the_untouched_exe(original_exe) -> None:
     plan = _plan("development", "oracle")
     assert {item.implementation_id for item in plan.implementations} == {
         "baseline:interpreted-exe"
@@ -26,7 +34,9 @@ def test_oracle_plan_selects_only_the_untouched_exe() -> None:
     assert plan.configuration.selected_overrides == ()
 
 
-def test_faithful_plan_selects_authored_replacements_explicitly() -> None:
+def test_faithful_plan_selects_authored_replacements_explicitly(
+    original_exe,
+) -> None:
     plan = _plan("verification", "faithful")
     selected = {
         item.implementation_id: item for item in plan.implementations
@@ -42,7 +52,9 @@ def test_faithful_plan_selects_authored_replacements_explicitly() -> None:
     )
 
 
-def test_default_play_is_fast_but_has_no_behavioral_modifications() -> None:
+def test_default_play_is_fast_but_has_no_behavioral_modifications(
+    original_exe,
+) -> None:
     plan = _plan("development", "auto")
     categories = {
         item.category for item in plan.implementations
