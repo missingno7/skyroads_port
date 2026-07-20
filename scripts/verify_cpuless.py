@@ -29,7 +29,6 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,22 +38,21 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 # --- oracle machinery (interpreter side) -- reused from the VMless differential
 from verify_vmless_demo import (   # noqa: E402
-    build_oracle_cold, build_oracle, _is_predecompression, run_stub,
+    build_oracle_cold, build_oracle, run_stub,
     read_heads, VGA, VGA_LEN, CANONICAL_ENTRY)
 from dos_re.hooks import assert_pure_oracle   # noqa: E402
-from dos_re.input_demo import InputDemoPlayback   # noqa: E402
+from skyroads.replay import (  # noqa: E402
+    SkyroadsReplayPlayback,
+    apply_cpuless_recording_base,
+)
 from dos_re.interrupts import deliver_interrupt   # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock, DOSMachine   # noqa: E402
 from dos_re.x86 import HaltExecution   # noqa: E402
 # --- candidate machinery (NO CPU) --------------------------------------------
 from dos_re.memory import Memory   # noqa: E402
 from dos_re.lift.platform import CPUlessPlatformRuntime   # noqa: E402
-from dos_re.snapshot_headless import _restore_dos_state   # noqa: E402
 from dos_re.keyboard import BIOS_INT9_ENTRY   # noqa: E402  (CPU-free leaf)
 from skyroads.cpuless_driver import CPUlessFrameDriver   # noqa: E402
-import json   # noqa: E402
-
-BOOT_DIR = ROOT / "artifacts" / "boot_image"
 #: the recovered INT 09h keyboard ISR is NOT flags-live (the timer ISR is; the
 #: shared driver owns that bundle -- see skyroads.cpuless_driver.TIMER_INPUTS).
 _KEY_IN = ("ax", "bp", "bx", "cx", "di", "ds", "dx", "si", "sp", "ss")
@@ -156,19 +154,15 @@ def _capture_cpuless(pb, heads, irqs, end):
     from skyroads.recovered.func_1010_3bcc import func_1010_3bcc
 
     mem = Memory()
-    img = (BOOT_DIR / "memory_1mb.bin").read_bytes()
-    mem.data[:len(img)] = img
-    st = json.loads((BOOT_DIR / "state.json").read_text(encoding="utf-8"))
     dos = DOSMachine(ROOT)
-    _restore_dos_state(types.SimpleNamespace(
-        dos=dos, program=types.SimpleNamespace(memory=mem)), st["dos"])
+    rt = CPUlessPlatformRuntime(mem, game_root=ROOT, dos=dos)
+    regs0 = apply_cpuless_recording_base(rt, pb)
     dos.mouse_present = pb.mouse_present_hint
     # A console read (INT 21h AH=07 "press any key") must BLOCK on an empty
     # buffer -- as the oracle does -- not synthesise the phantom Esc that the
     # DOSMachine default (0x011B) leaks into the boot snapshot.  The harness's
     # blocking_read_cb below advances frames until the awaited key arrives.
     dos.console_input_fallback = None
-    rt = CPUlessPlatformRuntime(mem, game_root=ROOT, dos=dos)
 
     def deliver_key(_r, sc, regs):
         dos.current_scancode = sc & 0xFF
@@ -212,7 +206,6 @@ def _capture_cpuless(pb, heads, irqs, end):
                                 supply_input=supply_input,
                                 irqs=irqs).install(rt)
 
-    regs0 = st["cpu"]
     import inspect
     kw = {k: v for k, v in regs0.items()
           if k in inspect.signature(func_1010_61f3).parameters}
@@ -259,10 +252,20 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     demo = Path(args.demo)
-    pb_o = InputDemoPlayback.load(str(demo))
-    pb_c = InputDemoPlayback.load(str(demo))
-    if not (getattr(pb_o, "is_cold_start", False) or _is_predecompression(pb_o)):
-        print("[verify-cpuless] this tool is for COLD demos (no snapshot).")
+    pb_o = SkyroadsReplayPlayback.load(str(demo))
+    pb_c = SkyroadsReplayPlayback.load(str(demo))
+    base = pb_o.base_state()
+    regs = (base.metadata["regs"] if base.schema_id ==
+            "skyroads-cpuless-continuation-v1" else base.metadata["cpu"])
+    base_addr = (int(regs.get("cs", 0)), int(regs.get("ip", 0)))
+    predecompression = (
+        base.regions["memory"][(0x1010 << 4):(0x1010 << 4) + 4]
+        != bytes.fromhex("c8000000"))
+    if not predecompression and base_addr != CANONICAL_ENTRY:
+        print(
+            "[verify-cpuless] replay base is neither power-on/pre-decompression "
+            f"nor the CPUless root {CANONICAL_ENTRY[0]:04X}:"
+            f"{CANONICAL_ENTRY[1]:04X}; got {base_addr[0]:04X}:{base_addr[1]:04X}")
         return 2
     end = pb_o.end_boundary or 100000
     if args.frames:

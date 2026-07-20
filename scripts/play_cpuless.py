@@ -111,7 +111,7 @@ def _end_session(recorder, frame: int, keep: bool) -> None:
     on purpose: play the path, keep it, feed it to build_codemap)."""
     if recorder is None or not getattr(recorder, "active", False):
         return
-    demo_dir = recorder.demo_dir
+    demo_dir = recorder.directory
     try:
         recorder.stop(boundary=frame)
     except Exception:                                # noqa: BLE001
@@ -262,7 +262,7 @@ def run_interactive(scale: int, square_pixels: bool, present_hz: int,
     from dos_re.display import Display
     from dos_re.framebuffer import WIDTH, HEIGHT, decode_frame_default
     from dos_re.keyboard import KeyDispatcher, scancode_table
-    from dos_re.input_demo import InputDemoRecorder          # CPU-free data layer
+    from skyroads.replay import SkyroadsReplayRecorder
     from skyroads.cpuless_driver import (CPUlessFrameDriver,
                                          TIMER_IRQS_PER_FRAME)
     from skyroads.recovered.func_1010_3b17 import func_1010_3b17
@@ -296,12 +296,13 @@ def run_interactive(scale: int, square_pixels: bool, present_hz: int,
     # found it -- impossible if recording were opt-in, because nobody opts in
     # before the crash they did not expect.  A cold-start demo needs no start
     # snapshot (we boot from the C-startup root every time) and no CPU.
-    recorder = InputDemoRecorder(
+    recorder = SkyroadsReplayRecorder(
         root=ROOT / "artifacts" / "demos", name="cpuless_session",
         metadata={"game": "skyroads", "exe": "SKYROADS.EXE", "command_tail": "",
                   "timer_irqs_per_frame": TIMER_IRQS_PER_FRAME,
                   "mouse_present": True, "runner": "play_cpuless"})
-    recorder.start(None, boundary=0, write_start_snapshot=False)
+    recorder.start_cpuless(
+        rt, lambda: live["regs"] or regs0, boundary=0)
 
     def deliver_and_record(sc: int) -> None:
         # Record at the frame the key is DELIVERED at, not when it was pressed:

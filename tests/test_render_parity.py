@@ -47,7 +47,7 @@ def test_native_full_render_matches_vm_no_edge_ghosting() -> None:
     from dos_re import player
     from dos_re.dos import ConsoleInputWouldBlock
     from dos_re.cpu import HaltExecution
-    from dos_re.input_demo import InputDemoPlayback
+    from skyroads.replay import SkyroadsReplayPlayback
     from dos_re.player import _use_real_console_input
 
     from skyroads.native.frame import render_native_frame
@@ -57,9 +57,9 @@ def test_native_full_render_matches_vm_no_edge_ghosting() -> None:
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(DEMO))
+    pb = SkyroadsReplayPlayback.load(str(DEMO))
     frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_snapshot_runtime(args, pb.snapshot_path())
+    rt = frontend.load_demo_runtime(args, pb)
     args.install_replacements = False
     frontend.apply_hook_mode(rt, args)
     _use_real_console_input(rt)

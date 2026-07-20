@@ -103,11 +103,14 @@ from dos_re.crash import save_crash  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
 from dos_re.hooks import assert_pure_oracle  # noqa: E402
 from dos_re.independence import boot_vmless_image  # noqa: E402
-from dos_re.input_demo import InputDemoPlayback  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
 from dos_re.lift.install import install_vmless_graph  # noqa: E402
 from dos_re.player import _use_real_console_input  # noqa: E402
-from skyroads.runtime import create_game_runtime, load_game_snapshot  # noqa: E402
+from skyroads.runtime import create_game_runtime  # noqa: E402
+from skyroads.replay import (  # noqa: E402
+    SkyroadsReplayPlayback,
+    restore_recording_base,
+)
 
 VGA = 0xA0000
 VGA_LEN = 64000
@@ -128,13 +131,10 @@ _DECOMPRESSED_MARK = bytes.fromhex("c8000000")
 
 
 def _is_predecompression(pb) -> bool:
-    """True if this snapshot was taken before the EXE unpacked itself."""
-    img = Path(pb.snapshot_path()) / "memory_1mb.bin"
-    if not img.exists():
-        return False
-    with img.open("rb") as fh:
-        fh.seek(0x1010 << 4)
-        return fh.read(4) != _DECOMPRESSED_MARK
+    """True if the embedded replay base predates executable decompression."""
+    memory = pb.base_state().regions["memory"]
+    base = 0x1010 << 4
+    return memory[base:base + 4] != _DECOMPRESSED_MARK
 
 
 def _save_both(args_cli, demo: Path, frame: int, rt_o, rt_c, status: str,
@@ -186,15 +186,16 @@ def _mkargs(frontend, demo: Path, pure: bool):
 
 
 def build_oracle(demo: Path, pb):
-    """The reference: this snapshot, interpreted, with NO recovered code."""
+    """The reference: the embedded replay base, with NO recovered code."""
     frontend = sp.SkyroadsFrontend(ROOT)
     args = _mkargs(frontend, demo, pure=True)
     frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    # install_replacements=False is the REAL switch (a create_game_runtime /
-    # load_game_snapshot parameter). The frontend does not forward it, so build
-    # the runtime directly rather than through frontend.load_snapshot_runtime.
-    rt = load_game_snapshot(args.exe, str(pb.snapshot_path()),
-                            game_root=args.game_root, install_replacements=False)
+    # install_replacements=False is the real oracle switch. Build the shell,
+    # then apply the replay artifact's embedded continuation base.
+    rt = create_game_runtime(
+        args.exe, game_root=args.game_root, command_tail=args.dos_args,
+        install_replacements=False)
+    restore_recording_base(rt, pb)
     # PROVE it, do not assume it: a replacement on the reference side makes this
     # a diff against a MODIFIED original.  allow= is empty because the synthetic
     # hardware this oracle needs (BIOS INT 09h ISR, dummy IRET stub) is
@@ -206,12 +207,14 @@ def build_oracle(demo: Path, pb):
 
 
 def build_candidate(demo: Path, pb, lift_dir: Path):
-    """The candidate: the same snapshot running the GENERATED corpus, wall armed."""
+    """The candidate: the same embedded base running the generated corpus."""
     frontend = sp.SkyroadsFrontend(ROOT)
     args = _mkargs(frontend, demo, pure=True)
     frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = load_game_snapshot(args.exe, str(pb.snapshot_path()),
-                            game_root=args.game_root, install_replacements=False)
+    rt = create_game_runtime(
+        args.exe, game_root=args.game_root, command_tail=args.dos_args,
+        install_replacements=False)
+    restore_recording_base(rt, pb)
     _use_real_console_input(rt)
     rt.dos.mouse_present = pb.mouse_present_hint
     installed = install_vmless_graph(rt.cpu, lift_dir)
@@ -232,6 +235,7 @@ def build_oracle_cold(demo: Path, pb):
     rt = create_game_runtime(args.exe, game_root=args.game_root,
                              command_tail=args.dos_args,
                              install_replacements=False)
+    restore_recording_base(rt, pb)
     assert_pure_oracle(rt.cpu, allow=frozenset())   # see build_oracle
     _use_real_console_input(rt)
     rt.dos.mouse_present = pb.mouse_present_hint
@@ -313,8 +317,8 @@ def main(argv=None) -> int:
     args_cli = ap.parse_args(argv)
 
     demo = Path(args_cli.demo)
-    pb_o = InputDemoPlayback.load(str(demo))
-    pb_c = InputDemoPlayback.load(str(demo))
+    pb_o = SkyroadsReplayPlayback.load(str(demo))
+    pb_c = SkyroadsReplayPlayback.load(str(demo))
     # A demo is COLD if it has no snapshot at all, OR if its snapshot is of the
     # machine BEFORE the packer unpacked it (1010:0000 still holds the stub).
     # The second kind is a cold start too -- it just recorded its starting image
@@ -324,20 +328,17 @@ def main(argv=None) -> int:
     # Controls and Help screens (demo_cold_20260713_213510 walks intro -> menu ->
     # controls -> help -> select -> play), which is exactly the front-end this
     # differential is supposed to be proving.
-    cold = bool(getattr(pb_o, "is_cold_start", False)) or _is_predecompression(pb_o)
+    cold = _is_predecompression(pb_o)
 
     if cold:
         # THE REAL THING: no EXE on the candidate side at all.
-        f_o, a_o, rt_o = (build_oracle_cold(demo, pb_o)
-                          if getattr(pb_o, "is_cold_start", False)
-                          else build_oracle(demo, pb_o))
+        f_o, a_o, rt_o = build_oracle_cold(demo, pb_o)
         f_c, a_c, rt_c, manifest = build_candidate_cold(
             demo, pb_c, Path(args_cli.boot_dir), Path(args_cli.lift_dir))
         # boot_vmless_image installs the graph itself; count the dispatch
         # points it registered (entries + every re-entry), not modules.
         installed = None
-        kind = ("no snapshot" if getattr(pb_o, "is_cold_start", False)
-                else "pre-decompression snapshot")
+        kind = "pre-decompression embedded base"
         print(f"[verify] demo={demo.name} COLD START ({kind}), "
               f"frames={pb_o.end_boundary} "
               f"mouse_present={pb_o.mouse_present_hint}")

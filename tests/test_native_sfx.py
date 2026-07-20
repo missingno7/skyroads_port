@@ -94,7 +94,7 @@ def test_slow_wall_crash_emits_no_thud():
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
+    from skyroads.replay import SkyroadsReplayPlayback
     from dos_re.player import _use_real_console_input
 
     from skyroads.bridge.dgroup_view import GameView
@@ -107,9 +107,9 @@ def test_slow_wall_crash_emits_no_thud():
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(SLOW_CRASH_DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(SLOW_CRASH_DEMO))
+    pb = SkyroadsReplayPlayback.load(str(SLOW_CRASH_DEMO))
     frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_snapshot_runtime(args, pb.snapshot_path())
+    rt = frontend.load_demo_runtime(args, pb)
     args.install_replacements = False
     frontend.apply_hook_mode(rt, args)
     _use_real_console_input(rt)

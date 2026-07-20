@@ -37,6 +37,10 @@ required.
 - **A determinism substrate** — full machine snapshots and input demos keyed to
   an emulated boundary clock, so every finding is replayable and every claim of
   equivalence is checkable.
+- **SkyRoads dos_re 3.0 replay** — the active branch records a single
+  self-contained `ReplayArtifact` with embedded continuation state, persistent
+  base-relative boundaries, and exact interval replay. See
+  [`docs/skyroads/replay_3_0.md`](docs/skyroads/replay_3_0.md).
 - **A method** — the [AI Porting Charter](docs/ai_porting_charter.md): the
   lifting loop, the proof spine, the phased roadmap from "hook one routine" to
   "flip the engine and keep the VM as an offline oracle".

@@ -42,7 +42,7 @@ import scripts.play as sp  # noqa: E402
 from dos_re import player  # noqa: E402
 from dos_re.cpu import CPU8086, HaltExecution  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
-from dos_re.input_demo import InputDemoPlayback  # noqa: E402
+from skyroads.replay import SkyroadsReplayPlayback  # noqa: E402
 from dos_re.player import _use_real_console_input  # noqa: E402
 
 #: Demos whose union covers the program. The cold e2e demo is the spine (every
@@ -88,10 +88,9 @@ def observe_demo(demo_dir: Path, *, max_frames: int = 0,
     # 1010:6712) went missing from the first census.
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(demo_dir), "--headless", "--no-replacements"])
-    pb = InputDemoPlayback.load(str(demo_dir))
+    pb = SkyroadsReplayPlayback.load(str(demo_dir))
     frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
+    rt = frontend.load_demo_runtime(args, pb)
     frontend.apply_hook_mode(rt, args)   # honours --no-replacements: pure ASM oracle
     _use_real_console_input(rt)
 
@@ -175,7 +174,7 @@ def observe_demo_boundary(demo_dir: Path, *, executed: set, call_targets: Counte
                                     CANONICAL_ENTRY, _is_predecompression)
     from dos_re.interrupts import deliver_interrupt
 
-    pb = InputDemoPlayback.load(str(demo_dir))
+    pb = SkyroadsReplayPlayback.load(str(demo_dir))
     if pb.is_cold_start or _is_predecompression(pb):
         frontend, _a, rt = build_oracle_cold(demo_dir, pb)
         # ONLY a cold demo runs the packer stub to the C-startup hand-off.  A

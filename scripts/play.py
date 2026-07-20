@@ -38,9 +38,9 @@ what is skyroads-specific:
 Usage:
     python scripts/play.py                                      # live play
     python scripts/play.py --snapshot artifacts/snap_x          # resume a snapshot
-    python scripts/play.py --record-demo NAME                   # live play, recording from frame 0
-    python scripts/play.py --play-demo artifacts/demo_x         # watch a replay
-    python scripts/play.py --play-demo artifacts/demo_x --headless   # fast deterministic replay
+    python scripts/play.py --record-demo NAME                   # writes replay.json + embedded base
+    python scripts/play.py --play-demo artifacts/demos/replay_x # watch a 3.0 replay
+    python scripts/play.py --play-demo artifacts/demos/replay_x --headless
 """
 from __future__ import annotations
 
@@ -121,6 +121,28 @@ class SkyroadsFrontend(player.GameFrontend):
     def apply_demo_metadata(self, args, meta: dict) -> None:
         super().apply_demo_metadata(args, meta)
         args.demo_mouse_present = bool(meta.get("mouse_present", False))
+
+    def demo_metadata(self, args):
+        metadata = super().demo_metadata(args)
+        metadata["execution_role"] = (
+            "oracle" if getattr(args, "no_replacements", False) else "candidate")
+        return metadata
+
+    def create_demo_recorder(self, *, root, name, metadata):
+        """Record the sole SkyRoads proof artifact: dos_re 3.0 ReplayArtifact."""
+        from skyroads.replay import SkyroadsReplayRecorder
+        return SkyroadsReplayRecorder(root=root, name=name, metadata=metadata)
+
+    def load_demo_playback(self, path):
+        from skyroads.replay import SkyroadsReplayPlayback
+        return SkyroadsReplayPlayback.load(path)
+
+    def load_demo_runtime(self, args, playback):
+        """Restore ReplayArtifact's embedded base into the selected run profile."""
+        from skyroads.replay import restore_recording_base
+        rt = self.create_runtime(args)
+        restore_recording_base(rt, playback)
+        return rt
 
     def advance_frame(self, rt, args, frame: int) -> None:
         """Deliver the frame's timer IRQs, then run the step budget — but stop
