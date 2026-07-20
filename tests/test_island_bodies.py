@@ -657,7 +657,9 @@ def _stencil_cases():
 @pytest.mark.parametrize("name,source,df,count", _stencil_cases(),
                          ids=[c[0] for c in _stencil_cases()])
 def test_0f62_island_body_reproduces_the_full_contract(name, source, df, count):
-    rng = random.Random(0x0F62 ^ (hash(name) & 0xFFFF))
+    stable_name = sum((index + 1) * byte
+                      for index, byte in enumerate(name.encode("utf-8")))
+    rng = random.Random(0x0F62 ^ (stable_name & 0xFFFF))
     for _ in range(20):
         regs, build = _stencil_state(rng, source, df=df, count=count)
         g = build()
@@ -673,6 +675,34 @@ def test_0f62_island_body_reproduces_the_full_contract(name, source, df, count):
             assert ic[c] == gc[c], (
                 f"compat {c}: generated={gc[c]:#x} island={ic[c]:#x}; {ctx}")
         assert i.log == g.log, f"the byte-write log differs; {ctx}"
+
+
+def test_0f62_stack_alias_can_change_the_destination_segment():
+    """The three saved registers precede the ES load and may alias its pointer."""
+    regs = {
+        "ax": 0x32D6, "bp": 0x7A8F, "di": 0x9CDF, "ds": 0x392A,
+        "si": 0x29EC, "sp": 0x967E, "ss": 0x3AB5, "_df": 0,
+    }
+
+    def build():
+        mem = Mem()
+        for index, word in enumerate((0x0400, _ST_SRC_SEG, 24, 0x1234, 0x5678)):
+            mem.ww(regs["ss"], (regs["sp"] + 2 + 2 * index) & 0xFFFF, word)
+        mem.ww(regs["ds"], _STENCIL_ES_PTR, _ST_ES)
+        for index in range(24):
+            mem.wb(_ST_SRC_SEG, 0x0400 + index, 1)
+        mem.log.clear()
+        return mem
+
+    generated = build()
+    generated_out, generated_compat = GEN_0F62(generated, **regs)
+    island = build()
+    island_out, island_compat = ISLAND_0F62(island, **regs)
+
+    assert generated_out["es"] == regs["si"]
+    assert island_out == generated_out
+    assert island_compat == generated_compat
+    assert island.log == generated.log
 
 
 def test_0f62_count_zero_means_65536_iterations_not_none():
