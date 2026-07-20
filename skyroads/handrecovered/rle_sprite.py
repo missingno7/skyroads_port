@@ -26,7 +26,6 @@ from __future__ import annotations
 
 from typing import Callable
 
-from skyroads.islands import oracle_link
 
 FILL_TABLE_FWD = 0x0352   # DGROUP fill-colour table, indexed by stream index*4
 FILL_TABLE_BWD = 0x0353   # the odd-parity companion the backward twin reads
@@ -34,18 +33,6 @@ ROW_STRIDE = 0x0140       # 320 bytes -> one scanline down
 TERMINATOR = 0xFF
 
 
-@oracle_link(
-    boundary="1010:3153",
-    contract="rle_sprite_forward(rb, wb, dgroup_seg, list_seg, dest_seg, si): "
-             "decode one RLE strip: index byte -> fill colour "
-             "DGROUP[0x352+index*4]; word dest offset; then per control byte "
-             "(0xFF ends) di -= ctrl, paint runlen bytes of fill forward from "
-             "es:di (one stream byte skipped after runlen), next row at "
-             "anchor+0x140. Returns si past the terminator.",
-    status="ASM_MATCHED",  # the hook body this was promoted from ran under the
-    # strict differential verifier for every rasterizer call in the suites
-    merge_target="skyroads.native.tile_dispatch",
-)
 def rle_sprite_forward(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
     dgroup_seg: int, list_seg: int, dest_seg: int, si: int,
@@ -67,16 +54,6 @@ def rle_sprite_forward(
         di = (anchor + ROW_STRIDE) & 0xFFFF
 
 
-@oracle_link(
-    boundary="1010:3190",
-    contract="rle_sprite_backward(rb, wb, dgroup_seg, list_seg, dest_seg, si): "
-             "the mirror twin: fill colour DGROUP[0x353+index*4]; dest offset "
-             "word minus one; per control byte di += ctrl and paint runlen "
-             "bytes ENDING at es:di (written downward in the ASM -- same "
-             "bytes), next row at anchor+0x140. Returns si past the 0xFF.",
-    status="ASM_MATCHED",  # promoted from the differential-verified hook body
-    merge_target="skyroads.native.tile_dispatch",
-)
 def rle_sprite_backward(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
     dgroup_seg: int, list_seg: int, dest_seg: int, si: int,

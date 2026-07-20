@@ -4,8 +4,7 @@ Examples::
 
     python scripts/play.py
     python scripts/play.py --composition authored-candidates
-    python scripts/play.py --profile verification --composition generated-functions \
-        --play-replay artifacts/replays/replay_name
+    python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_name --verify-start 0 --verify-end 10
     python scripts/play.py --profile development --composition generated-abi --headless
     python scripts/play.py --profile release --composition generated-abi --plan-only
 
@@ -15,6 +14,7 @@ Recovery levels are implementation properties, not separate players.
 """
 from __future__ import annotations
 
+from copy import copy
 import sys
 from pathlib import Path
 
@@ -23,14 +23,18 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "dos_re"))
 
 from dos_re import player  # noqa: E402
+from dos_re.execution import DependencyCapability  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
+from skyroads.identities import PROGRAM_ID  # noqa: E402
 from skyroads.execution import (  # noqa: E402
+    FRAME_PARK_SERVICE_ID,
     catalog,
     configuration,
     coverage,
     selected_whole_program_provider,
+    services,
 )
-from skyroads.pacing import FrameIdle  # noqa: E402
+from skyroads.pacing import FrameIdle, install_frame_park  # noqa: E402
 from skyroads.runtime import create_game_runtime, load_game_snapshot  # noqa: E402
 
 
@@ -53,7 +57,7 @@ class SkyroadsFrontend(player.GameFrontend):
             choices=(
                 "auto", "oracle", "generated-functions",
                 "authored-candidates", "play",
-                "behavioral", "generated-cpu", "generated-abi",
+                "generated-cpu", "generated-abi",
             ),
             default="auto",
             help="implementation composition (generated-functions mixes literal "
@@ -63,24 +67,34 @@ class SkyroadsFrontend(player.GameFrontend):
                  "detached/release)",
         )
         execution.add_argument(
-            "--rebuild", action="store_true",
-            help="regenerate the selected generated corpus before launch",
-        )
-        execution.add_argument(
             "--no-sound", action="store_true",
             help="run without SkyRoads sound hardware",
         )
     def program_identity(self, args):
-        return "skyroads:1.0"
+        return PROGRAM_ID
 
     def execution_configuration(self, args):
-        return configuration(args.profile, args.composition)
+        return configuration(
+            args.profile,
+            args.composition,
+            requested_capabilities=self.requested_capabilities(args),
+        )
 
     def execution_coverage(self, args):
         return coverage()
 
     def execution_implementations(self, args):
         return catalog()
+
+    def execution_services(self, args):
+        return services()
+
+    def bind_execution_plan(self, runtime, plan) -> None:
+        super().bind_execution_plan(runtime, plan)
+        if FRAME_PARK_SERVICE_ID in {
+            service.service_id for service in plan.services
+        }:
+            install_frame_park(runtime)
 
     def launch(self, args, plan):
         provider = selected_whole_program_provider(plan)
@@ -110,6 +124,14 @@ class SkyroadsFrontend(player.GameFrontend):
         )
 
     def create_runtime(self, args):
+        args.execution_plan.require_capability(
+            DependencyCapability.ORIGINAL_EXE,
+            consumer=f"{type(self).__name__}.create_runtime",
+        )
+        args.execution_plan.require_capability(
+            DependencyCapability.INTERPRETER,
+            consumer=f"{type(self).__name__}.create_runtime",
+        )
         return create_game_runtime(
             args.exe,
             game_root=args.game_root,
@@ -119,6 +141,18 @@ class SkyroadsFrontend(player.GameFrontend):
         )
 
     def load_snapshot_runtime(self, args, snapshot_dir):
+        args.execution_plan.require_capability(
+            DependencyCapability.SNAPSHOTS,
+            consumer=f"{type(self).__name__}.load_snapshot_runtime",
+        )
+        args.execution_plan.require_capability(
+            DependencyCapability.ORIGINAL_EXE,
+            consumer=f"{type(self).__name__}.load_snapshot_runtime",
+        )
+        args.execution_plan.require_capability(
+            DependencyCapability.INTERPRETER,
+            consumer=f"{type(self).__name__}.load_snapshot_runtime",
+        )
         return load_game_snapshot(
             args.exe,
             snapshot_dir,
@@ -145,16 +179,28 @@ class SkyroadsFrontend(player.GameFrontend):
             )
         from skyroads.replay import (
             SkyroadsReplayDriver,
-            execution_profile,
             recording_base,
             recording_profile,
         )
 
-        oracle = self.create_runtime(args)
+        oracle_args = copy(args)
+        oracle_args.profile = "development"
+        oracle_args.composition = "oracle"
+        oracle_args.execution_plan = self.resolve_execution_plan(oracle_args)
+        oracle = self.create_runtime(oracle_args)
+        self.bind_execution_plan(oracle, oracle_args.execution_plan)
+        recorded_oracle_profile = recording_profile(artifact)
+        current_oracle_profile = self.replay_profile(oracle_args, oracle)
+        if current_oracle_profile != recorded_oracle_profile:
+            raise RuntimeError(
+                "ReplayArtifact oracle identity is stale for the current "
+                "executable/runtime/device/schema; re-record it with "
+                "`python scripts/record_atlas_evidence.py ... --replace`"
+            )
         candidate = self.create_runtime(args)
         self.bind_execution_plan(candidate, plan)
-        oracle_profile = recording_profile(artifact)
-        candidate_profile = execution_profile(candidate, role="candidate")
+        oracle_profile = recorded_oracle_profile
+        candidate_profile = self.replay_profile(args, candidate)
         known_profiles = {profile.profile_id for profile, _ in artifact.profiles()}
         if candidate_profile.profile_id not in known_profiles:
             artifact.register_profile(
@@ -176,7 +222,7 @@ class SkyroadsFrontend(player.GameFrontend):
     def create_audio_sink(self, pygame, rt, args):
         if args.audio != "adlib":
             return None
-        from skyroads.audio import SkyroadsAudioSink
+        from skyroads.audio.sink import SkyroadsAudioSink
         sink = SkyroadsAudioSink(pygame, rt, args.present_hz)
         return sink if sink.available else None
 

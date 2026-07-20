@@ -1,9 +1,9 @@
 """Per-SITE dynamic-dispatch evidence -- what each near-indirect call can reach.
 
-``find_dispatch_targets`` proves the flat SET of reachable dispatch targets (for
-the census, so the VMless wall covers them). CPUless promotion needs one thing
-more: which SITE reaches which targets, so the fixpoint can decide -- per
-dispatcher -- whether all its targets are themselves promoted. A dispatcher
+``find_dispatch_targets`` derives the flat set of dispatch targets used to
+specialize the generated graph. Generated ABI promotion needs one thing more:
+which site reaches which targets, so the fixpoint can decide per dispatcher
+whether all its targets are themselves emitted. A dispatcher
 whose target is kept lifted (a replay-base resume point, say) must stay lifted too,
 or its recovered ``_dyn`` call resolves into an empty registry slot at runtime
 (the UnknownDispatchTarget frontier witness).
@@ -89,8 +89,8 @@ def build(
         # ever selects (a per-object render type the replays never show); requiring
         # the dispatcher to COMPOSE those -- and everything they transitively
         # reach -- blocks it on untested code. Keeping only observed targets makes
-        # an unselected one a fail-loud UnknownDispatchTarget instead (hard-wall
-        # correct), which is what a standalone CPUless corpus wants.
+        # an unselected one a fail-loud UnknownDispatchTarget instead, which is
+        # what this generated ABI implementation wants.
         if observed is not None and key not in observed:
             return
         sites.setdefault(call_ip, {})[key] = why
@@ -133,7 +133,7 @@ def build(
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--ir",
-                    default=str(ROOT / "artifacts" / "codemap" / "recovery_ir.json"))
+                    default=str(ROOT / "recovery" / "recovery_ir.json"))
     ap.add_argument("--image", action="append", dest="images", default=None,
                     help="additional raw memory images to inspect (repeatable; "
                          "the default source is the boot image plus every "
@@ -144,7 +144,7 @@ def main(argv=None) -> int:
                     help="observed.json (probe execution trace): keep only "
                          "dispatch targets the game actually SELECTS at runtime "
                          "(the rest become fail-loud UnknownDispatchTarget). Use "
-                         "for a standalone CPUless corpus.")
+                         "for a generated ABI implementation.")
     ap.add_argument("--print", dest="show", action="store_true")
     args = ap.parse_args(argv)
 
@@ -152,6 +152,7 @@ def main(argv=None) -> int:
     boot_image = ROOT / "artifacts" / "boot_image" / "memory_1mb.bin"
     if boot_image.is_file():
         images.append(("boot_image", boot_image.read_bytes()))
+    images.extend(recording_base_memories(ROOT / "recovery" / "replays"))
     images.extend(recording_base_memories(ROOT / "artifacts" / "replays"))
     for raw in args.images or ():
         path = Path(raw)

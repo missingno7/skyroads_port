@@ -6,14 +6,13 @@ to the SkyRoads frame boundary.
 """
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 from dos_re.replay_input import RealModeInputAdapter
 from dos_re.replay import (
     CanonicalState,
     ContinuationState,
-    ExecutionProfile,
+    ReplayExecutionIdentity,
     ReplayArtifact,
     ReplayPoint,
     machine_projection,
@@ -23,55 +22,10 @@ from dos_re.snapshot import (
     capture_runtime_continuation,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROJECTION_SCHEMA = "dos-re-complete-machine-v1"
 
 
-def _hash_files(paths: tuple[Path, ...]) -> str:
-    digest = hashlib.sha256()
-    files: list[Path] = []
-    for path in paths:
-        files.extend(path.rglob("*.py") if path.is_dir() else (path,))
-    for path in sorted((item for item in files if item.exists()), key=str):
-        digest.update(path.relative_to(PROJECT_ROOT).as_posix().encode())
-        digest.update(path.read_bytes())
-    return digest.hexdigest()
-
-
-def execution_profile(rt, *, role: str) -> ExecutionProfile:
-    """Describe one concrete oracle or selected-implementation runtime."""
-    if role not in {"oracle", "candidate"}:
-        raise ValueError("role must be oracle or candidate")
-    hooks = tuple(
-        f"{cs:04x}:{ip:04x}:{rt.cpu.hook_names.get((cs, ip), 'unnamed')}"
-        for cs, ip in sorted(rt.cpu.replacement_hooks)
-    )
-    exe = Path(rt.program.exe.path)
-    implementation = hashlib.sha256(
-        ("\n".join((role, *hooks))).encode("utf-8")
-    ).hexdigest()
-    runtime_hash = _hash_files((
-        PROJECT_ROOT / "dos_re" / "dos_re",
-        PROJECT_ROOT / "skyroads",
-        PROJECT_ROOT / "scripts" / "play.py",
-    ))
-    profile_key = hashlib.sha256(
-        f"{implementation}:{runtime_hash}".encode("utf-8")
-    ).hexdigest()[:12]
-    return ExecutionProfile(
-        profile_id=f"skyroads-{role}-{profile_key}",
-        role=role,
-        implementation=implementation,
-        image=f"sha256:{hashlib.sha256(exe.read_bytes()).hexdigest()}",
-        runtime=f"sha256:{runtime_hash}",
-        devices="skyroads-dos-devices-v1",
-        continuation_schema="dos-re-real-mode-continuation-v1",
-        projection_schema=PROJECTION_SCHEMA,
-        overrides=hooks if role == "candidate" else (),
-    )
-
-
-def recording_profile(artifact: ReplayArtifact) -> ExecutionProfile:
+def recording_profile(artifact: ReplayArtifact) -> ReplayExecutionIdentity:
     """Return and validate the oracle identity that owns the artifact base."""
     profile_id = artifact.metadata.get("recording_profile_id")
     matches = [
@@ -130,7 +84,7 @@ class SkyroadsReplayDriver:
         args,
         runtime,
         artifact: ReplayArtifact,
-        profile: ExecutionProfile,
+        profile: ReplayExecutionIdentity,
     ):
         self.frontend = frontend
         self.args = args
@@ -141,7 +95,7 @@ class SkyroadsReplayDriver:
         self.input = RealModeInputAdapter(artifact.events)
 
     @property
-    def profile(self) -> ExecutionProfile:
+    def profile(self) -> ReplayExecutionIdentity:
         return self._profile
 
     @property

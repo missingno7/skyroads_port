@@ -1,4 +1,4 @@
-"""Semantic game-audio events — the boundary contract (pre2's `audio/events.py`).
+"""Semantic game-audio events at the presentation boundary.
 
 The decoder (:mod:`skyroads.audio.opl_events`) emits these as the recovered
 music engine plays; backends consume them. They describe *what* the music does

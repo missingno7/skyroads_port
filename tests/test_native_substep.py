@@ -2,7 +2,7 @@
 (skyroads.native.loop.native_gameplay_substep) reproduces the VM.
 
 This is the payoff of recovering the whole physics/collision sub-step as
-individual islands: composed in ASM spine order over a GameplayScratch, they
+individual semantic functions: composed in ASM spine order over a GameplayScratch, they
 step real gameplay -- INCLUDING the forward motion, which is the classification's
 dispatch_menu_action (1B49) call (action 0xA advances ship_pos by 0x12F).
 Driving the E2E replay, we seed a NativeGameState + scratch from the VM at each

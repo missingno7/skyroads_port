@@ -1,8 +1,6 @@
 """Byte-backed typed view over SkyRoads' DGROUP -- the layout bridge.
 
-See docs/state_mirrors.md and dos_re/docs/state_mirrors.md (the shared
-machinery this instantiates: ``dos_re.state_view``, promoted from
-pre2_port's ``pre2/bridge/dgroup_view.py``). Recovered logic
+This instantiates the shared ``dos_re.state_view`` machinery. Recovered logic
 (skyroads/handrecovered/*) and the native frame stepper (skyroads/native/*)
 operate on ``GameView`` fields (``view.ship_pos``, ``view.game_state``) and
 never see a DGROUP offset; THIS module is the only place those offsets are
@@ -11,14 +9,10 @@ written down for skyroads. The same view can run over EITHER a
 the 64 KB DGROUP -- pass ``base=0``, the default) or a live VM ``mem``
 (whose ``.data`` is the full 1 MB real-mode image -- pass
 ``base=ds_segment << 4``); ``coerce_backend`` wraps either in a
-``ByteBackend`` at the given base. Unlike pre2's ``dgroup_view``, the base
-is a parameter here, not a module constant -- skyroads' native image has no
-other segments (yet) to offset against.
+``ByteBackend`` at the given base.
 
-Field offsets are taken directly from the ``@oracle_link`` docstrings in
-skyroads/handrecovered/player.py, movement.py, controls.py and menu.py -- see
-those modules for the verification status of each field's *consumer*, not
-just its address.
+Field offsets are derived from the recovered contracts in
+``skyroads.handrecovered`` and are checked by the corresponding focused tests.
 """
 from __future__ import annotations
 
@@ -58,7 +52,7 @@ class GameView(StructView):
     #: ds:[456A] -- "entered" (level-select latch, menu.py) and "grounded"
     #: (player.py's update_vertical_velocity) are the SAME field read two
     #: different ways depending on game_state; both names alias it (see
-    #: docs/state_mirrors.md's width-alias convention, extended to modes).
+    #: docs/history/state_mirrors.md's width-alias convention, extended to modes).
     entered = U16(0x456A)
     grounded = U16(0x456A)
     gravity = U16(0x54AA)          # ds:[54AA], per-level signed gravity accel (raw word)

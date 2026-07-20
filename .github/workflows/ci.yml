@@ -22,18 +22,12 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Install test dependencies
         run: pip install pytest pytest-xdist
-      - name: Boundary + syntax lint
-        run: python tools/lint.py
-      - name: Undefined-name guard
-        run: python tools/check_undefined_names.py skyroads
-      - name: Doc links resolve
-        # Historical evidence is intentionally non-executable and may name
-        # files removed by the 3.0 cleanup. Current agent-facing docs remain
-        # link-checked.
-        run: python dos_re/tools/check_doc_links.py . --exclude dos_re --exclude history
-      - name: Test suite
-        run: python -m pytest tests -q -n auto
-      - name: End-to-end example (oracle -> hook -> verify -> snapshot)
+      - name: Canonical repository gate
+        # Public CI cannot carry the proprietary EXE needed by the retained
+        # oracle differential. The same gate runs its asset-free subset here;
+        # local release work runs it without --quick.
+        run: python scripts/check_all.py --quick
+      - name: Minimal execution, override, verification, and state example
         run: python dos_re/examples/minimal_adapter/example.py
-      - name: Full-lifecycle example (frames, demos, both oracles, state mirror)
+      - name: ReplayArtifact oracle/candidate lifecycle example
         run: python dos_re/examples/tiny_frame_game/walkthrough.py

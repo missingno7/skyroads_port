@@ -2,44 +2,22 @@
 
 Loads either an explicit machine snapshot or an authoritative ReplayArtifact,
 then linearly decodes a CS:offset..offset range.
-Instruction LENGTHS come from the static decoder (``dos_re.lift.decode`` — the
-lifter's, unit-tested against the interpreter); the human-readable text still
-comes from executing each instruction once on a throwaway runtime and capturing
-what ``execute_opcode`` returns. Per-instruction exceptions are swallowed so an
-odd opcode does not stop the sweep (the static length keeps the walk aligned).
-
-History: this tool used to measure lengths by counting ``cpu.fetch8`` calls
-through one step(). The 2026-07-09 interpreter optimization rounds inlined the
-hot fetch paths, which silently broke that trick (opcode/modrm/displacement
-bytes no longer route through fetch8). The static decoder is now the length
-authority here — and unlike the old trick it does not require the instruction
-to be executable.
-
-**SKYROADS.EXE overlays/decompresses its own code segment at runtime** (found
-2026-07-11 while chasing garbage output on `1010:1B49`, a known-good, heavily
-verified address — its bytes at snapshot-load time were `D5 75...` (AAD,
-nonsensical), but by the time live execution actually reaches that address
-they're `C8 00 00 00...` (a real ENTER-based function prologue, matching the
-already-recovered `dispatch_menu_action`). So a plain snapshot load only sees
-whatever churn happened to be sitting at an address BEFORE the relevant code/
-overlay was loaded into place -- garbage in, garbage out, no bug in the decoder
-itself. `--replay` below works around this by driving an oracle replay forward
-until execution actually reaches the target address, then disassembling from
-the LIVE, correctly-populated memory instead of a cold snapshot.
+Instruction lengths come from ``dos_re.lift.decode``; human-readable text comes
+from executing each instruction once on a throwaway oracle runtime. Because
+SkyRoads populates code at runtime, ``--replay`` can drive the oracle to the
+target before disassembly so the tool reads the observed code version rather
+than unrelated bytes from an earlier snapshot point.
 
 Usage:
     python tools/lindis.py <exe_path> <CS> <START> <END> --snapshot <snapshot_dir>
 
-    python tools/lindis.py <exe_path> <CS> <START> <END> \\
-        --replay <artifact_dir> [--max-frames N]
+    python tools/lindis.py <exe_path> <CS> <START> <END> --replay <artifact_dir> [--max-frames N]
 
     Replay mode restores the artifact's declared oracle recording base. The
     game-specific frontend drives its immutable event stream forward, pure ASM
     oracle (no overrides), until CS:IP first reaches (CS, START) or the point
     budget runs out; disassembly then reads from that live, populated memory.
 
-Origin: adapted from the Overkill port's scripts/lindis.py (its game-specific
-snapshot loader replaced by the generic dos_re.snapshot.load_snapshot).
 """
 from __future__ import annotations
 
@@ -111,6 +89,7 @@ def main_live(exe: str, cs: int, start: int, end: int, replay_dir: str, max_fram
         ["--play-replay", str(replay_path), "--headless", "--composition", "oracle"])
     artifact = ReplayArtifact.open(replay_path)
     frontend.apply_replay_metadata(args, artifact.metadata)
+    args.execution_plan = frontend.resolve_execution_plan(args)
     rt = frontend.create_runtime(args)
     apply_runtime_continuation(rt, recording_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)

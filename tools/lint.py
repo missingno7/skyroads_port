@@ -9,9 +9,8 @@ Two checks:
    that knows a specific game's addresses, filenames, or formats belongs in a
    game adapter built *on top of* this repo, never inside ``dos_re/``.
 
-Game adapters that vendor this framework should extend PACKAGE_ROOTS with
-their own package and add a rule that ``dos_re`` does not import it (see the
-pre2_port original: scripts/lint.py).
+Game adapters extend ``PACKAGE_ROOTS`` with their own package and keep the
+framework-to-game dependency direction forbidden.
 """
 from __future__ import annotations
 

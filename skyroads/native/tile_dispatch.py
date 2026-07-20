@@ -14,9 +14,8 @@ and block-face pieces (hi nibble, default `0x3D`). Row `[0E44] == 4` is the
 SHIP row: it runs twice (display-list `di` overridden to 0x210 then 0x240)
 with `[0E3E]` (`325B`, the 29×24 ship-tile rasterizer chain) between runs.
 
-Everything here is an exact transcription of the `2D1F` disassembly
-(run_status.md 2026-07-12 "tile-dispatch fully decoded") over the pure
-`skyroads.handrecovered.rle_sprite` pair. The `[0E38]` pre-pass (`34AE` mode-0
+Everything here is an exact transcription of the `2D1F` disassembly over the
+pure `skyroads.handrecovered.rle_sprite` pair. The `[0E38]` pre-pass (`34AE` mode-0
 composite), the `34AE(1)` finalize, the `[0E6A]` frame rotation and the
 occlusion-mask copy are the FRAME assembler's job, not this loop's.
 

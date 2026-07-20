@@ -6,20 +6,18 @@ as digitized 8-bit PCM streamed to the Sound Blaster over single-cycle DMA
 renders the OPL + PC speaker but not the SB PCM, so the game's engine/jump/
 crash/pickup effects (the ``*.SND`` sample banks) were silent.
 
-This sink adds the missing digital layer as a **pure observer**, exactly like
-the AdLib sink: it never writes game state, so replays replay identically with
-audio on or off.  The VM's emulated Sound Blaster is attached in *capture*
-mode (see :func:`skyroads.runtime.create_game_runtime` ``capture_sb_pcm``):
-every single-cycle DMA-out block is copied out of memory into ``sb.pcm_out``
-and its programmed sample rate recorded in ``sb.log`` — but no block-complete
-IRQ is delivered, so the CPU timeline is byte-identical to the detection-only
-stub the game already runs against (proven differentially over the full E2E
-replay).  We just drain those captured blocks, resample each from its DSP rate to
-the mixer rate, and sum them into the output.
+This sink adds the missing digital layer as a read-only presentation observer:
+it never writes game memory. The VM's emulated Sound Blaster is attached in
+*capture* mode (see :func:`skyroads.runtime.create_game_runtime`
+``capture_sb_pcm``), so each single-cycle DMA-out block is copied into
+``sb.pcm_out`` and its programmed sample rate recorded in ``sb.log``. The sink
+only drains those captured blocks, resamples them to the mixer rate, and sums
+them into host output. Sound Blaster device state and IRQ behavior remain owned
+by the emulator and are included in replay profile identity.
 
 Because SkyRoads fires each effect as a one-shot ``0x14`` (never auto-init
-streaming) and never waits on the completion IRQ, no timing/feedback wiring is
-needed — capturing and playing the bytes is enough.
+streaming) and never waits on the completion IRQ, the presentation sink needs
+no feedback path into authoritative game state.
 
 ## Wall-clock pacing (why ``pump()`` is overridden)
 

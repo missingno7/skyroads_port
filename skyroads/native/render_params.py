@@ -16,8 +16,7 @@ Every callee was already recovered/lifted; this module just composes them:
   * `5D8C` ulong_div      → a plain 32-bit divide here
   * `0C26` cell classifier → `_cell_value` below (04C0 word → tiny table map)
 
-[asm 1010:0C98-0ECF orchestrator; 0BAF/0BE9/0C26 leaves; disassembled 2026-07-12
-from gameplay_f640 — see run_status.md "render orchestrator 0C98 decoded"]
+[asm 1010:0C98-0ECF orchestrator; 0BAF/0BE9/0C26 leaves]
 """
 from __future__ import annotations
 
@@ -26,7 +25,7 @@ from typing import Callable, NamedTuple, Optional
 from skyroads.native.collision import ship_fell_off
 from skyroads.handrecovered.renderer import perspective_row_offset
 
-# DGROUP offsets (documented layout; see dgroup_view / run_status.md)
+# DGROUP offsets shared with the typed state view.
 LATERAL_LO, LATERAL_HI = 0x9618, 0x961A
 AF1C, AF2C = 0xAF1C, 0xAF2C
 AIR_COUNTER = 0x456A          # [456A]: airborne/crash animation counter
@@ -160,10 +159,8 @@ def compute_render_params(
     # screen_row uses RAW af2c, NOT af2c_eff: the 0x80 subtraction (0DDA) feeds
     # only the dirty-cache slot; the ship-row projection (0E6D-0E85) reads the
     # unadjusted af2c. This only shows up in OFFSCREEN mode (af2c_eff = af2c-0x80
-    # there), which is the native-render path -- with af2c_eff the ship drew
-    # exactly one row (0x140) too low. VM-verified 2026-07-13 on
-    # replay_skyroads_20260713_103107 (3 frames: af2c 12800/18100/13603 ->
-    # screen_row 100/141/106 == af2c//0x80, was 99/140/105 with af2c_eff).
+    # there), which is the detached-state render path. Using af2c_eff here
+    # would draw the ship exactly one row (0x140) too low.
     screen_row = 0 if si == 0xFFFF else (af2c // 0x80)                 # [asm 0E6D-0E85]
     lateral_col = (lateral32 // 0x2000) & 0xFFFF                       # [asm 0E86-0E98] 5D8C
     row_base = (rw((ROW_BASE_TABLE + (row_band(af1c) << 1)) & 0xFFFF)

@@ -1,7 +1,8 @@
-"""Pure recovered game logic — NEVER imports dos_re/cpu/memory/hooks/offsets.
+"""Authored recovered game logic over values rather than CPU instructions.
 
-Every function here is tagged with @dos_re.islands.oracle_link. Audited
-alongside skyroads/native and skyroads/bridge (pitfall #17):
+These modules do not select themselves as runtime overrides. The unified
+implementation catalog declares any executable faithful replacement and its
+stable program identity. Layering is audited alongside ``skyroads.native`` and
+``skyroads.bridge``:
 ``python tools/audit_layers.py skyroads/handrecovered skyroads/native skyroads/bridge``
-(see tests/test_layer_audit.py).
 """

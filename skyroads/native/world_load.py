@@ -1,8 +1,7 @@
-"""Native per-level WORLD graphics + MUZAX song loading (VM-free).
+"""Authored recovery evidence for WORLD graphics and MUZAX song loading.
 
-Decoded 2026-07-13 by tracing the real loaders (see run_status.md). This
-CORRECTS `docs/skyroads/level_format.md`'s "three blocks from WORLD*.LZS"
-story: the three level-load decompressions come from THREE different files —
+The recovered format shows that the three level-load decompressions come from
+three different files:
 
 * **MUZAX.LZS** (loader `1010:57C4`): the per-world SONG -> `DG:0x54B0`.
   File = 6-byte directory entries ``{u16 offset, u16 n_instruments,
@@ -11,31 +10,21 @@ story: the three level-load decompressions come from THREE different files —
   After the decode, `1010:5A7D` points the music engine at it:
   ``[3194] = 0x54B0`` (instrument base, 16-byte patch records),
   ``[3196] = [3198] = 0x54B0 + 16*n_instruments`` (cursor + loop),
-  ``[31A6] = 0``. `[0BF2]` caches the loaded song index. Verified byte-exact:
-  song 4 (level 14's) decompresses 7506/7506 identical to the level-14
-  snapshot's `54B0` region, and its `[3194]` matches.
+  ``[31A6] = 0``. `[0BF2]` caches the loaded song index.
 * **ROADS.LZS** (loader `1010:5614`): road[] -> `0x162C` + scalars + the
   72-colour level palette -> `[41C2]` (already native, `level_load.py`).
 * **WORLD<n>.LZS** (generic graphic loader `1010:4084`): the 320x138
   BACKGROUND -> the bank at segment `[5170]`. File = ``"CMAP" + u8 count +
-  count x RGB6`` — the u8 at offset 4 is a COLOUR COUNT (0x72 = 114
-  colours = 342 bytes), not a byte length (an earlier reading as 114 BYTES
-  = 38 colours left DAC 180..255 unset and produced visibly wrong
-  background colours on non-baseline worlds — caught by the user, then
-  proven: the 114 colours match the level-14 snapshot's DAC 142..255
-  exactly, 114/114). Then graphic records: ``[u32 scalar][u16 h][u16 w]
+  count x RGB6`` — the u8 at offset 4 is a color count (0x72 = 114
+  colors = 342 bytes). Then graphic records: ``[u32 scalar][u16 h][u16 w]
   [3 width bytes][LZS bitstream]`` (`4084`: reads a scalar via `6576`, an
   8-byte descriptor whose ``[+4]*[+6]`` is the alloc size, then `66E6`).
   Background pixels are stored palette-relative and biased by **+0x8E =
   142**, the DAC base of the CMAP block.
 
-DAC layout during gameplay (verified against the level-14 snapshot's DAC,
-0/256 mismatches when composed natively): ROADS' 72 colours -> DAC 0..71;
-CMAP's 114 colours -> DAC 142..255 (both 6-bit VGA, expanded
-``(v<<2)|(v>>4)``); DAC 72..141 (cockpit/ship/HUD) is level-independent.
-Background match vs the snapshot: 41,770/44,160 — the differing 2,390
-bytes are all in rows 129..137, a runtime road-horizon priming stamped
-after load (redrawn by the road renderer every frame).
+During gameplay, ROADS' 72 colors occupy DAC 0..71 and CMAP's 114 colors
+occupy DAC 142..255. DAC 72..141 is reserved for cockpit, ship, and HUD
+colors.
 """
 from __future__ import annotations
 
@@ -47,10 +36,7 @@ from skyroads.native.level_load import read_game_file
 
 #: GRAPHICS are per-world: the background/palette a level shows is
 #: ``world_for_level(level) = level // 3`` (verified: WORLD<n>.LZS byte-exact).
-#: MUSIC is NOT -- see :func:`pick_gameplay_song`: the game picks a RANDOM
-#: track per level, so there is no level->song table (an earlier ``level // 3``
-#: song mapping was wrong -- it gave world 0 the intro track and world 2 the
-#: menu track; see run_status.md's 2026-07-13 random-music entry).
+#: Music is selected independently; see :func:`pick_gameplay_song`.
 LEVELS_PER_WORLD = 3
 
 #: MUZAX song 0 is the INTRO track and song 2 the MENU track (cold-boot trace).
@@ -63,8 +49,7 @@ def world_for_level(level: int) -> int:
 
 
 def pick_gameplay_song(rand_value: int, prev: "int | None" = None) -> "tuple[int, int]":
-    """Reproduce the per-level random song pick at ``1010:0296-02C8`` (decoded
-    from live bytes 2026-07-13, see run_status.md):
+    """Reproduce the per-level random song pick at ``1010:0296-02C8``:
 
         di = rand_value % 9            # 02A4  div cx (cx=9)
         if di == prev: di = (di+1) % 9 # 02A8-02BE: no immediate repeat
@@ -72,7 +57,7 @@ def pick_gameplay_song(rand_value: int, prev: "int | None" = None) -> "tuple[int
 
     The MUZAX index is ``di + 1``: songs 1..9 form the gameplay pool; song 0
     (the intro track) is NEVER chosen for gameplay. ``rand_value`` is the
-    game's PRNG output (`call` at 02C, then ``div 9``); a native player
+    game's PRNG output (`call` at 02C, then ``div 9``); a detached-state caller
     supplies any random 16-bit value. ``prev`` is the PREVIOUS pick's ``di``
     (0..8, i.e. ``last_song_index - 1``), used only to avoid repeating the
     immediately-previous track. Returns ``(song_index, di)`` so the caller
@@ -99,7 +84,7 @@ BACKGROUND_H = 138
 
 
 class WorldAssets(NamedTuple):
-    """The per-world render assets a native player needs."""
+    """The per-world render assets a detached-state implementation needs."""
     cmap: bytes         # 342 B: 114 VGA 6-bit RGB triples -> DAC 142..255
     background: bytes   # 44,160 B: 320x138, ALREADY +0x8E-biased DAC indices
 

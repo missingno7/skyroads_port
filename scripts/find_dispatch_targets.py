@@ -3,10 +3,9 @@ r"""Recover the dispatch-table targets a census structurally cannot see.
 ``codemap.py`` keeps a call target only if a replay EXECUTED it and only if it can
 SEE the call. Both rules are right, and together they are blind to every target
 reached through a table: nothing in the instruction stream calls those
-addresses, so the census is never told they exist. Behind the strict-VMless wall
-that surfaces as a violation in a function nobody lifted because nobody knew it
-was a function -- one crash at a time, days apart, each looking like a census
-bug rather than the one missing fact it is.
+addresses, so the census is never told they exist. An interpreter-free
+composition reports that as an unresolved target in a function nobody
+recovered because nobody knew it was a function.
 
 Two shapes, one standard: take the bound from the PROGRAM, never from what a
 replay happened to do. Observation is exactly what under-covers a dispatch --
@@ -129,8 +128,8 @@ def indexed_tables(ir: dict) -> list[tuple]:
     table covers every branch the program can ever take -- including the ones
     no replay has taken. That is the whole point: which entries run depends on
     data (which song, which level), and a census built from observation gets
-    only the ones those runs happened to need. The wall then fires on the first
-    unseen one, one crash at a time, days apart.
+    only the ones those runs happened to need. The unresolved frontier then
+    appears on the first unseen target.
 
     Both of skyroads' indexed dispatches have it: the music driver
     (`and bx,7; call ds:[bx+0C5B]` at 5A6F/5A77 -- 8 handlers) and the
@@ -199,7 +198,7 @@ def code_pointer_stores(ir: dict) -> list[tuple]:
     to have EXECUTED drops the variant a replay never took: the render dispatch is
     filled twice, variant A at 2CD3 and variant B at 2CF2, chosen by the mode
     flag at ds:003C -- and no replay runs B, so the executed test silently drops
-    exactly the four routines the wall fires on the day someone plays that mode.
+    exactly the routines the runtime guard reports when that mode is exercised.
     Under-covering an indirect dispatch from observation is the very failure the
     music table above exists to avoid; the answer there was a proof (`and bx,7`),
     and it is a proof here too.
@@ -224,7 +223,7 @@ def main(argv=None) -> int:
                          "the default source is the boot image plus every "
                          "ReplayArtifact recording base)")
     ap.add_argument("--ir",
-                    default=str(ROOT / "artifacts" / "codemap" / "recovery_ir.json"),
+                    default=str(ROOT / "recovery" / "recovery_ir.json"),
                     help="recovery IR -- both derivations read the program from it")
     ap.add_argument("--out",
                     default=str(ROOT / "artifacts" / "codemap" / "dispatch_extra.txt"))
@@ -235,6 +234,7 @@ def main(argv=None) -> int:
     boot_image = ROOT / "artifacts" / "boot_image" / "memory_1mb.bin"
     if boot_image.is_file():
         image_records.append(("boot_image", boot_image.read_bytes()))
+    image_records.extend(recording_base_memories(ROOT / "recovery" / "replays"))
     image_records.extend(recording_base_memories(ROOT / "artifacts" / "replays"))
     for raw in args.images or ():
         path = Path(raw)
@@ -257,7 +257,7 @@ def main(argv=None) -> int:
         "#    every branch the program can take, including the ones no replay took.",
         "#    That matters: which entries run depends on data (which song, which",
         "#    level), so a census built from observation gets only the ones those",
-        "#    runs needed, and the wall fires on the first unseen one -- one crash at",
+        "#    runs needed; the runtime guard reports the first unseen one",
         "#    a time, days apart. Tables are read from every image below, because",
         "#    their contents depend on what the machine was doing when it was caught.",
     ]

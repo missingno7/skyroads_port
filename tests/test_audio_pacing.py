@@ -18,7 +18,7 @@ import pytest
 # tests/test_sb_pcm_audio.py.
 np = pytest.importorskip("numpy")
 
-from skyroads.audio import SkyroadsAudioSink
+from skyroads.audio.sink import SkyroadsAudioSink
 
 RATE = 44100
 PRESENT_HZ = 30

@@ -1,25 +1,26 @@
-"""Converge the strict-VMless wall — the closure loop.
+"""Expand the generated VMless corpus from observed execution frontiers.
 
-The observation census (``scripts/build_codemap.py``) only knows what the replays
-actually EXECUTED. Booting the data-only image from the canonical entry runs
-code no recording reaches (the game's own startup, error paths, and routines
-whose callers were hooked). Each such address makes the armed wall fail loud:
+This provider-specific generation probe starts from local replay observations.
+Booting its data-only image may reach code that observation set did not execute.
+Each uncovered address makes the generated VMless provider fail loudly:
 
-    VMLESS WALL VIOLATION: attempted to interpret an original instruction at
+    INTERPRETER FALLBACK FORBIDDEN: attempted to interpret an original instruction at
     1010:XXXX -- no lifted hook covers this address.
 
-That failure IS the work list. This script turns it into a fixed point: boot,
+That failure becomes additional observed evidence for this corpus. The script
+turns the provider build into a fixed point: boot,
 catch the address, add it to the census, regenerate the IR + corpus, boot again
 -- until the image runs clean for a step budget or nothing new appears.
 
-Every address it adds was reached by REAL execution of the recovered program, so
-the census stays evidence-backed: this discovers entries, it never invents them.
+Every address it adds was reached by real execution of this composition, so the
+generation input stays evidence-backed.
 The added entries are written to ``artifacts/codemap/closure_extra.txt`` so the
-next full rebuild keeps them.
+next corpus rebuild keeps them. This fixed point is not an Atlas coverage or
+release-readiness proof; unresolved static and manual facts remain visible there.
 
 Usage:
-    python scripts/close_vmless_wall.py                 # converge
-    python scripts/close_vmless_wall.py --rounds 5 --steps 20000
+    python scripts/expand_vmless_frontier.py
+    python scripts/expand_vmless_frontier.py --rounds 5 --steps 20000
 """
 from __future__ import annotations
 
@@ -46,7 +47,7 @@ def read_extras() -> list[str]:
 def write_extras(extras: list[str]) -> None:
     EXTRA_FILE.parent.mkdir(parents=True, exist_ok=True)
     EXTRA_FILE.write_text(
-        "# Census entries discovered by scripts/close_vmless_wall.py: addresses the\n"
+        "# Census entries discovered by scripts/expand_vmless_frontier.py: addresses the\n"
         "# recovered program REACHES at runtime but no recorded replay ever executed\n"
         "# (startup paths, and routines whose callers were hooked during observation).\n"
         + "".join(f"{a}\n" for a in sorted(set(extras))))
@@ -67,7 +68,7 @@ def read_dispatch() -> list[str]:
     what a replay EXECUTED. Both of skyroads' indexed dispatches are bounded by an
     `and bx,MASK`, so their entry counts are provable -- but which entries run
     depends on data (which song, which video mode), so replay evidence alone
-    under-covers them and the wall fires on the first unseen one."""
+    under-covers them and the runtime guard reports the first unseen one."""
     if not DISPATCH_FILE.exists():
         return []
     return [ln.strip() for ln in DISPATCH_FILE.read_text().splitlines()
@@ -122,7 +123,7 @@ def regenerate(lift_dir: Path, extras: list[str]) -> None:
 
 
 def try_boot(lift_dir: Path, steps: int) -> tuple[bool, str]:
-    """Drive FRAMES through the image and report the first wall violation.
+    """Drive frames through the image and report the first uncovered address.
 
     Frames, not raw steps: the corpus parks at tick-wait boundary heads and
     only makes progress when the next frame's timer IRQs arrive (see
@@ -176,13 +177,14 @@ def main(argv=None) -> int:
         regenerate(lift_dir, extras)
         clean, info = try_boot(lift_dir, args.steps)
         if clean:
-            print(f"[closure] round {rnd}: {info} -- WALL CLOSED "
+            print(f"[closure] round {rnd}: {info} -- observed frontier closed "
                   f"({len(extras)} discovered entries)")
             write_extras(extras)
             return 0
         if not VIOLATION_RE.search(f"interpret an original instruction at {info}") \
                 and ":" not in info:
-            print(f"[closure] round {rnd}: stopped on a NON-wall failure:\n{info}")
+            print(
+                f"[closure] round {rnd}: stopped on another failure:\n{info}")
             write_extras(extras)
             return 1
         if info in extras:

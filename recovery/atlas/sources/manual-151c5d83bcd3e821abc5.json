@@ -1085,36 +1085,6 @@
       "source": "skyroads:1.0:region:program",
       "status": "resolved",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A66e6"
-    },
-    {
-      "kind": "manually-recovered-entry",
-      "source": "skyroads:1.0:region:program",
-      "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3283"
-    },
-    {
-      "kind": "manually-recovered-entry",
-      "source": "skyroads:1.0:region:program",
-      "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4344"
-    },
-    {
-      "kind": "manually-recovered-entry",
-      "source": "skyroads:1.0:region:program",
-      "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A434a"
-    },
-    {
-      "kind": "manually-recovered-entry",
-      "source": "skyroads:1.0:region:program",
-      "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A43a9"
-    },
-    {
-      "kind": "manually-recovered-entry",
-      "source": "skyroads:1.0:region:program",
-      "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6712"
     }
   ],
   "format_version": 1,
@@ -1128,58 +1098,13 @@
       "metadata": {
         "role": "product-root"
       }
-    },
-    {
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3283",
-      "kind": "function",
-      "label": "1010:3283",
-      "metadata": {
-        "entry": "1010:3283",
-        "liftable": null,
-        "manual_recovered_identity": true
-      }
-    },
-    {
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4344",
-      "kind": "function",
-      "label": "1010:4344",
-      "metadata": {
-        "entry": "1010:4344",
-        "liftable": null,
-        "manual_recovered_identity": true
-      }
-    },
-    {
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A434a",
-      "kind": "function",
-      "label": "1010:434A",
-      "metadata": {
-        "entry": "1010:434A",
-        "liftable": null,
-        "manual_recovered_identity": true
-      }
-    },
-    {
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A43a9",
-      "kind": "function",
-      "label": "1010:43A9",
-      "metadata": {
-        "entry": "1010:43A9",
-        "liftable": null,
-        "manual_recovered_identity": true
-      }
-    },
-    {
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6712",
-      "kind": "function",
-      "label": "1010:6712",
-      "metadata": {
-        "entry": "1010:6712",
-        "liftable": null,
-        "manual_recovered_identity": true
-      }
     }
   ],
   "program_id": "skyroads:1.0",
-  "source_digest": "ba9a48128a0adb6e0324800a68cc214cc509d94273ff1d223b4fcb1f6a5d5d06"
+  "provenance": {
+    "description": "Connect the SkyRoads product region to the observed post-unpack entry and declared authored implementation targets.",
+    "kind": "project-declared-entry-census",
+    "source": "retained Recovery IR and skyroads.execution catalog"
+  },
+  "source_digest": "e5e4d8149645386e0b0fe045484d308030938fdf1d998cf9f4b60c25e2f49ce8"
 }

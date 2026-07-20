@@ -1,27 +1,14 @@
-"""Boot / snapshot-load wiring for SKYROADS.EXE.
+"""Untouched interpreted-baseline construction for the unified player.
 
-See docs/porting_new_game.md and docs/<game>/run_status.md (once started) for
-the bring-up ledger. Boot-up findings so far: the game busy-waits on the raw
-PIT channel-0 counter (a direct hardware delay loop, not IRQ0-driven) and also
-blocks on real INT 08h ticks elsewhere — an interactive/headless driver must
-pump timer interrupts through the canonical frontend or the VM
-will appear to hang. Both gaps were fixed at the framework level (dos_re/dos.py,
-dos_re/cpu.py PUSHA/POPA), not here — this file has no SKYROADS-specific
-bootstrap accelerator yet (the EXE is not packed: plain MZ header, no LZEXE
-signature).
+This module only constructs or restores the oracle runtime. Implementation
+selection and bootstrap-provider policy belong to :mod:`skyroads.execution`;
+the post-unpack build image used by detached compositions is materialized by
+``scripts/build_boot_image.py``.
 
-Sound Blaster (2026-07-09): SKYROADS probes for an SB at boot (ports
-0x220-0x270, standard DSP reset handshake) and, once one responds, assumes
-its onboard OPL is present too and starts loading FM instrument patches —
-there is no separate AdLib-only probe. With no SB attached the probe finds
-nothing on any candidate port and the game hard-exits (`mov ah,4Ch`) with no
-error message, sometimes not until well past the intro (found via
-docs/skyroads/run_status.md's halt-diagnostics work). enable_sound_blaster()
-must run on a FRESH boot, before detection — attaching it to an already
--failed snapshot does nothing, since "no sound" is already baked into game
-memory by then. Detection-only mode (no PCM streaming) is enough to satisfy
-the probe; a front-end that wants real audio replaces this with a full
-attach.
+SkyRoads requires Sound Blaster detection during a fresh boot. Detection-only
+mode is used by deterministic headless execution. Interactive capture mode
+exposes PCM blocks to the presentation adapter and remains an explicit device
+configuration rather than an undeclared replay side effect.
 """
 from __future__ import annotations
 
@@ -50,12 +37,12 @@ def create_game_runtime(
     ``capture_sb_pcm`` attaches the Sound Blaster in *capture* mode instead of
     the detection-only stub: single-cycle DMA-out blocks (the game's digital
     ``*.SND`` sound effects) are copied into ``sb.pcm_out`` and their sample
-    rate logged, so a viewer audio sink can play them (see skyroads/audio.py).
-    No block-complete IRQ is delivered, so the CPU timeline stays byte-identical
-    to the detection-only stub (verified differentially over the full E2E replay)
-    -- replays still replay deterministically.  Off by default so the headless/
-    test path keeps the exact detection-only behaviour and does not accumulate
-    captured PCM."""
+    rate logged, so :mod:`skyroads.audio.sink` can play them.
+    The Sound Blaster retains its emulated DMA/IRQ behavior, and its selected
+    mode is part of replay profile identity and complete continuation state.
+    Capture is off by default so headless recording and verification use the
+    deterministic detection-only profile and do not accumulate presentation
+    output."""
     rt = create_runtime(exe_path, game_root=game_root, command_tail=command_tail)
     if enable_sound:
         enable_sound_blaster(rt, detection_only=not capture_sb_pcm)

@@ -12,14 +12,10 @@ session-persistent jump state:
 * **vertical velocity** `ds:[9336]` (`bounce`) — gravity while airborne, or a
   ground ramp (`25DB-2635`).
 
-It supersedes the earlier naive `player.decay_bounce` +
-`player.update_vertical_velocity` composition that
-`skyroads.native.gaps.VerticalVelocityGap` had to guard: those were an
-attempt to capture the jump+gravity stage as a stateless function, but the
-real block is **gated by session-persistent stack locals** the earlier
-functions couldn't see (the jump latch `ss:[bp-8]`, jump-start height
-`ss:[bp-10]`) plus two per-frame classification flags (`ss:[bp-14]`,
-`ss:[bp-18]`). Modelled here explicitly as a small `JumpScratch` carried
+The real block is gated by session-persistent stack locals (the jump latch
+`ss:[bp-8]` and jump-start height `ss:[bp-10]`) plus two per-frame
+classification flags (`ss:[bp-14]`, `ss:[bp-18]`). Modelled explicitly as a
+small `JumpScratch` carried
 across frames, this block matches the real ASM 415/416 over the full E2E replay
 (the one miss is a frame where the rare `25AC-25D6` effect path — a `1DFA`
 call gated by `ds:[4570]`/`bp-6`/`af2c>=0x3700` — separately rewrote
@@ -39,7 +35,6 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from skyroads.islands import oracle_link
 from skyroads.handrecovered.player import (
     GRAVITY_HEIGHT_GATE,
     JUMP_IMPULSE,
@@ -66,23 +61,6 @@ def _s16(v: int) -> int:
     return v - 0x10000 if v & 0x8000 else v
 
 
-@oracle_link(
-    boundary="1010:2421",
-    contract="gate_bounce_decay(bounce, af2c, tgt_af2c, cur_5496, scan_cell, "
-             "jump_gate, grounded): the pre-move bounce-decay gate. If "
-             "af2c == tgt_af2c, bounce is untouched. Otherwise bounce := 0 when "
-             "(cur_5496 != 0 and scan_cell < 2), or |bounce| < "
-             "(low16(0x104*jump_gate) // 8), or grounded != 0; else "
-             "bounce := decay_bounce(bounce). scan_cell is ss:[bp-24] (the "
-             "vertical scan's last cell index, session state); jump_gate is "
-             "ds:[4562]; grounded is ds:[456A].",
-    status="ASM_MATCHED",  # 682/682 real E2E-replay frames byte-exact
-    # (unchanged 236, zero-small 439, decay 6, zero-5496 1). The grounded!=0
-    # zero branch was decoded but not exercised by the replay; the ASM also plays
-    # a landing SFX (03C2(1), gated by a 0476 predicate) on some decay frames --
-    # audio only, so not modelled here.
-    merge_target="skyroads.native.dynamics (future)",
-)
 def gate_bounce_decay(
     bounce: int, af2c: int, tgt_af2c: int, cur_5496: int, scan_cell: int,
     jump_gate: int, grounded: int,
@@ -122,33 +100,6 @@ class DynamicsResult(NamedTuple):
     #                         unmodelled for this frame.
 
 
-@oracle_link(
-    boundary="1010:252B",
-    contract="step_jump_steer_gravity(scratch, class_skip, class_zero, bounce, "
-             "lateral_accel, af2c, steer, jump_req, jump_gate, grounded, "
-             "gravity, effect_gate): the 252B-2635 block. (steering 2534-256D) "
-             "if class_skip==0 and [ (not scratch.jumping and class_zero==0) or "
-             "(lateral_accel==0 and s16(bounce)>0 and (af2c-jump_start_y)&0xFFFF "
-             "< 0x0F00) ]: lateral_accel = s16(steer)*29. (jump 2570-25A9) if "
-             "not jumping and class_zero==0 and jump_req!=0 and jump_gate<0x14: "
-             "bounce=0x480, jumping=1, jump_start_y=af2c. (effect 25AC-25D6) if "
-             "effect_gate!=0 and jumping and effect_latch==0 and af2c>=0x3700: "
-             "effect_latch=1 and flag hit_effect_path (a 1DFA call, unmodelled). "
-             "(gravity 25DB-2635) if grounded==0: af2c>=0x2800 -> bounce+=gravity "
-             "else clamp bounce down to -106 if above; grounded -> ramp bounce to "
-             "+0x47 (>=0, +0x27/step). Returns new bounce/lateral_accel/scratch. "
-             "When moving is False (game_state != 0, the 24BA->25AC frozen path), "
-             "the steering and jump-latch stages (2534-25A9) are SKIPPED -- only "
-             "the effect + gravity stages (25AC-2635) run.",
-    status="ASM_MATCHED",  # 415/416 real E2E-replay frames byte-exact on
-    # (bounce, lateral_accel, bp-8, bp-10); the single miss is a hit_effect_path
-    # frame whose 1DFA call rewrote lateral_accel (correctly flagged, not
-    # modelled). The grounded ramp (260D-262F) and the airborne terminal clamp
-    # (af2c<0x2800) branches are transcribed from the ASM; whether the replay
-    # exercised each is asserted by tests/test_dynamics.py. The moving=False
-    # (frozen) path is verified via the lockstep loop (test_native_loop_lockstep).
-    merge_target="skyroads.native.dynamics (future)",
-)
 def step_jump_steer_gravity(
     scratch: JumpScratch, class_skip: int, class_zero: int,
     bounce: int, lateral_accel: int, af2c: int, steer: int,

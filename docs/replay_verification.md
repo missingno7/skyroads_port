@@ -14,9 +14,7 @@ python scripts/play.py --composition oracle --record-replay smoke
 Verify the current literal generated candidates over an exact interval:
 
 ```text
-python scripts/play.py --profile verification --composition generated-functions \
-  --play-replay artifacts/replays/replay_smoke_TIMESTAMP \
-  --verify-start 100 --verify-end 180
+python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_smoke_TIMESTAMP --verify-start 100 --verify-end 180
 ```
 
 The dos_re player restores the nearest valid boundary, lazily caches the exact
@@ -33,10 +31,10 @@ adapter channels and contain no legacy compatibility branch.
 
 Current complete machine-state interval verification covers the interpreted
 oracle and DOS-memory-backed literal generated functions. Authored faithful
-candidates have call-level oracle evidence but are not yet instruction-clock
-transparent as a complete composition, so the interval gate correctly refuses
-to promote them. Generated detached region providers remain independently
-selectable in development, while strict detached/release planning rejects the
-Atlas's unresolved control-flow frontiers. A canonical semantic projection must
-be supplied before cross-representation differential verification is enabled
-for a fully detached native state model.
+candidates have focused semantic tests and explicit provenance but are not yet
+instruction-clock transparent as a complete composition, so the interval gate
+correctly refuses to promote them. Generated detached region providers remain
+independently selectable in development, while strict detached/release planning
+rejects the Atlas's unresolved control-flow frontiers. A canonical semantic
+projection must be supplied before cross-representation differential
+verification is enabled for a fully detached native state model.

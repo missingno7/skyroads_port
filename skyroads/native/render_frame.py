@@ -1,54 +1,18 @@
-"""Native `1010:34AE` road render — assembling the recovered renderer pieces.
+"""Recovered ``1010:34AE`` renderer implementation evidence.
 
-:func:`run_34ae` is the COMPLETE function (decoded 2026-07-13 from the proven
-lift, all 28 blocks): both modes (``ax == 0`` composite bg->offscreen with
+:func:`run_34ae` covers all 28 blocks of the proven lift: both modes
+(``ax == 0`` composite bg->offscreen with
 dispatch variant A; ``ax != 0`` PRESENT offscreen->VGA ``0xA000`` with variant
 B), all four bodies (`[0E32]` full copy / delta==0 nothing / delta>=8 band
 copy / the column loop), each ending in a `39D4` ship-sprite call. Verified
 full-1MB byte-exact inside `compose_frame` on four captures plus a 6-frame
-chain (see run_status.md). The remainder of this module is the older mode-0
-subset (:func:`composite_mode0` etc.), kept for its tests and tooling:
-
-The off-screen COMPOSITE pass of `1010:34AE` (``mode == 0``), assembled over a
-:class:`~skyroads.native.image.NativeGameImage` from the individually-recovered
-stages, in the order `34AE` itself runs them:
-
-    34AE setup (blocks 0-12, verified 6/6) -- computes the source/dest/dispatch
-      selection, the [0E60]/[0E62] display-list segments, [0E64], and the
-      road-record base pointer, all from the frame's [0E2A]/[0E6A] positions.
-        |
-    render_classify (skyroads.handrecovered.render_classify, 80/80) -- walks the
-      road records to produce the per-column classification fields.
-        |
-    dispatch_variant_a (skyroads.handrecovered.render_dispatch) -- turns each
-      classification into the ordered road_column_strip ``ax`` call list.
-        |
-    road_column_strip (skyroads.handrecovered.road_column, full-mem-diff verified)
-      -- composites one column into the destination buffer.
-
-**Verified: this reproduces the VM's EXACT road_column_strip call sequence.**
-For a real mode-0 pass (replay_e2e_20260710_132930), the VM made 24
-road_column_strip calls; :func:`mode0_column_calls` produces the identical 24
-``(ax, e44, e46, e48)`` tuples with identical per-pass ``e60/e62/e64/e66/e68``
-(see ``tests/test_render_frame.py``). So the render DECISION pipeline
-(setup -> classify -> dispatch) is proven correct end to end.
-
-:func:`composite_mode0` additionally runs `road_column_strip` per column to
-composite pixels into the destination buffer. Its inputs — the display-list
-records at ``[0E60]``/``[0E62]`` and the source bitmap at ``[0E66]`` — were
-confirmed byte-IDENTICAL between a pre-`34AE` seed and the actual
-`road_column_strip` call (0/4096 changed in each), and `road_column_strip` is
-full-memory-diff verified, so the compositing is correct by construction. (An
-earlier note here wrongly blamed a pixel mismatch on an unrecovered
-"display-list builder"; that was a comparison-reference error — the mismatch
-was against the VM's post-`39D4`/mode-1 image, not the post-mode-0-columns dest
-— now retracted. See run_status.md's 2026-07-12 correction.) A clean
-independent full-pixel VM diff is still worth adding; the pieces are all
-verified.
+chain. The helpers exposing mode-0 setup and the ordered column-call sequence
+retain focused recovery evidence. This module is not a standalone renderer
+entrypoint; selection still belongs to ``skyroads.execution``.
 """
 from __future__ import annotations
 
-from typing import Callable, List, NamedTuple, Tuple
+from typing import Callable, List, NamedTuple
 
 from skyroads.native.image import NativeGameImage
 from skyroads.handrecovered.render_classify import ColumnClass, render_classify
@@ -80,7 +44,7 @@ class FrameSetup(NamedTuple):
 
 def compute_mode0_setup(img: NativeGameImage, ds: int) -> FrameSetup:
     """Reproduce `34AE`'s mode-0 setup (blocks 2-12) from the image's DGROUP
-    position fields. Verified 6/6 against real captures (see run_status.md)."""
+    position fields."""
     e2a = img.rw(ds, 0x0E2A)
     e6a = img.rw(ds, 0x0E6A)
     seg_src = img.rw(ds, SRC_FIELD)
@@ -117,14 +81,12 @@ def mode0_column_calls(img: NativeGameImage, ds: int) -> List[ColumnCall]:
 
 def run_34ae(img: NativeGameImage, ds: int, ax: int,
              ship_sprites: Callable[[NativeGameImage, int], None]) -> int:
-    """The COMPLETE `1010:34AE` (all 28 blocks of the proven lift, decoded
-    2026-07-13 -- see run_status.md), both modes:
+    """The complete ``1010:34AE`` implementation, in both modes:
 
     * ``ax == 0`` (composite): src = background `[5170]`, dst = off-screen
       `[0E36]`, dispatch = variant A (`364F`).
     * ``ax != 0`` (PRESENT): src = off-screen `[0E36]`, dst = VGA ``0xA000``,
-      dispatch = variant B (`36F3`). This pass is what puts the road band on
-      the actual screen -- the stage the earlier "mode-1" entries chased.
+      dispatch = variant B (`36F3`). This pass puts the road band on screen.
 
     Then ONE of four bodies, keyed on `[0E32]` and ``delta = [0E2A]-[0E6A]``:
     full 44160-byte copy (`[0E32]` != 0, the rebuild/full-present path);
@@ -209,22 +171,3 @@ def run_34ae(img: NativeGameImage, ds: int, ax: int,
     img.ww(ds, 0x0E4C, (record_base - 10 * RECORD_STEP) & 0xFFFF)
     ship_sprites(img, ds)                             # bb23
     return n
-
-
-def composite_mode0(img: NativeGameImage, ds: int) -> Tuple[FrameSetup, int]:
-    """Run the full mode-0 compositing pass over ``img`` in place: setup ->
-    classify -> dispatch -> road_column_strip per column. Byte-exact against
-    the VM ONLY when ``img``'s display-list records (at the ``[0E60]``/
-    ``[0E62]`` segments) are already populated -- see the module docstring.
-    Returns (setup, number of road_column_strip calls made)."""
-    setup = compute_mode0_setup(img, ds)
-    rb_dgroup: Callable[[int], int] = lambda off: img.rb(ds, off)
-    n = 0
-    for c in render_classify(rb_dgroup, setup.record_base):
-        for ax in dispatch_variant_a(c.e44, c.e46, c.e4e, c.e50, c.e52, c.e54,
-                                     c.e56, c.e58, c.e5a):
-            road_column_strip(img.rb, img.rw, img.ww, ax, ds, c.e44, c.e46, c.e48,
-                              setup.e64, setup.seg_records_prev, setup.seg_records_cur,
-                              setup.seg_src, setup.seg_dst)
-            n += 1
-    return setup, n

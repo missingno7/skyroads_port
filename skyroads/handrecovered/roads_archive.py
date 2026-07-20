@@ -1,50 +1,11 @@
-"""SkyRoads level directory reader — `ROADS.LZS`'s per-level header, palette,
-and (LZSS-decompressed) road geometry.
+"""Read SkyRoads ``ROADS.LZS`` level headers, palettes, and road geometry.
 
-Where `native_menu_frame`'s level-select confirm actually gets its data from.
-Traced this session (see `docs/skyroads/run_status.md`'s "RESOLVED: SkyRoads
-loads levels from real .lzs compressed resource files" entry): arrow keys +
-ENTER lead to a small read (`1010:568C-56A0`) of three words —
-`jump_level_gate` (`ds:[4562]`), the level-timer-A divisor (`ds:[54A2]`), the
-level-timer-B divisor (`ds:[4566]`) — via a buffered byte-stream reader
-(`1010:6326`/`6490`/`6576`) whose ultimate source is a real, open DOS file:
-`ROADS.LZS`.
-
-**`ROADS.LZS`'s structure** (per ModdingWiki's "SkyRoads level format"): a
-self-terminating directory of `(UINT16LE offset, UINT16LE length)` pairs (one
-per level, repeating until the read position reaches the FIRST entry's own
-offset — that's where the level data actually starts, so the directory's own
-size falls out of its first entry rather than needing a separate count field),
-followed by each level's data: `UINT16LE gravity; UINT16LE fuel; UINT16LE
-oxygen; BYTE palette[72*3]; BYTE road[]`.
-
-**The `road[]` bytes ARE LZSS-compressed — decoded here too**, reusing the
-project's own already-VM-verified codec (`skyroads.codecs.lzs`, recovered in
-an earlier session against `TREKDAT.LZS`/`MUZAX.LZS`/`INTRO.LZS`). `ROADS.LZS`
-turns out to use a simpler per-entry header than those files' self-modifying-
-code-patched widths: the three width bytes (`width_len`, `width_dist_long`,
-`width_dist_short`, in that order) sit as plain bytes at the very start of
-each entry's `road[]` data, right after the palette. **Verified 31/31 by
-length** (every one of `ROADS.LZS`'s 31 levels decompresses to EXACTLY the
-length the directory records) AND **byte-exact against the live VM** (2026-
-07-12): drove the real game to a level-start, captured its full memory, and
-found `read_level_road`'s natively decompressed output present VERBATIM in
-the VM's own memory — gate-8/fuel-225/oxygen-111 (== index 14, a 3096-byte
-road). So the DECODE is now proven against the original game, not just
-self-consistent. See `tests/test_roads_archive.py`'s
-`test_decompressed_road_matches_what_the_vm_loads_into_memory`.
-
-**Verified 3/3 against real live-VM captures** (not a lift of one ASM routine,
-so `boundary` below names the real consumer instead of a single lifted
-address): `ROADS.LZS` directory index 16 → `(8, 200, 180)`, matching the replay
-`replay_cold_20260711_201855`'s frame-282 capture; index 17 → `(7, 175, 60)`,
-matching that same replay's frame-1327 capture (a REAL keyboard DOWN-ARROW +
-ENTER level pick, traced via the pushed-argument register captures at
-`1010:568C-56A0`); index 1 → `(8, 150, 180)`, matching frame 2016. All three
-exact, including the "same gravity, different fuel" case (indices 0/6/8/etc.
-also have `gravity=8` but different `fuel`) that had looked like an anomaly
-before this file was found — it's just a flat, index-addressed table, not a
-gravity-keyed lookup.
+The file begins with a self-terminating directory of
+``(UINT16LE offset, UINT16LE length)`` pairs. Each entry contains gravity,
+fuel and oxygen words, a 72-color palette, three LZS width bytes, and the
+compressed road array. All 31 entries decompress to their declared lengths;
+focused oracle tests also compare decoded headers and geometry with live game
+state. See ``tests/test_roads_archive.py``.
 """
 from __future__ import annotations
 
@@ -52,7 +13,6 @@ import struct
 from typing import List, NamedTuple, Tuple
 
 from skyroads.codecs.lzs import LzsWidths, decompress_block
-from skyroads.islands import oracle_link
 
 #: bytes per directory entry: UINT16LE offset + UINT16LE length
 DIRECTORY_ENTRY_SIZE = 4
@@ -99,21 +59,6 @@ def _entry_span(data: bytes, entries: List[Tuple[int, int]], index: int) -> Tupl
     return start, end
 
 
-@oracle_link(
-    boundary="1010:568C-56A0",
-    contract="read_level_header(data, index): given ROADS.LZS's raw bytes and a "
-             "directory index, returns (gravity, fuel, oxygen) -- the exact "
-             "three values the ASM reads via a buffered byte-stream over an "
-             "open file handle into jump_level_gate/[54A2]/[4566]. Stored as "
-             "three plain, UNCOMPRESSED UINT16LE words at the very start of "
-             "each directory entry's data (only the road[] geometry bytes "
-             "that follow are LZSS-compressed, per ModdingWiki -- not read "
-             "by this function).",
-    status="ASM_MATCHED",  # 3/3 real live-VM-captured (gravity,fuel,oxygen)
-    # triples matched exactly: index 16 -> (8,200,180), index 17 -> (7,175,60),
-    # index 1 -> (8,150,180). See run_status.md.
-    merge_target="skyroads.native.menu (future)",
-)
 def read_level_header(data: bytes, index: int) -> LevelHeader:
     entries = parse_directory(data)
     offset, _length = entries[index]
@@ -133,9 +78,8 @@ def read_level_palette(data: bytes, index: int) -> bytes:
 def read_level_road(data: bytes, index: int) -> bytes:
     """The level's decompressed road-geometry array: an `UINT16LE[]`, seven
     values per line (per ModdingWiki's "SkyRoads level format" bit layout).
-    The DECODE is verified byte-exact against the live VM (the decompressed
-    bytes appear verbatim in the game's own memory at level-start, 2026-07-12
-    — see the module docstring) as well as 31/31 by length; the FIELD
+    The decode is verified byte-exact against the oracle and 31/31 by length;
+    the field
     MEANINGS within each UINT16LE value, however, are sourced from
     ModdingWiki, not re-derived from ASM.
 
@@ -151,11 +95,8 @@ def read_level_road(data: bytes, index: int) -> bytes:
     # loader `1010:5614` passes straight to the LZS decode `66E6(0x162C, size)` --
     # verified vs the VM: level 14's length=3318 decodes exactly 3318 bytes into
     # 0x162C, matching memory). The 222-byte header is UNCOMPRESSED and lives
-    # before the compressed road, so it only shifts the INPUT offset (road_offset
-    # below) -- it must NOT be subtracted from the decompressed out_size. (An
-    # earlier version subtracted LEVEL_HEADER_LEN here and truncated every road by
-    # 222 bytes; that still matched the VM as a prefix, hiding the bug -- see
-    # run_status.md 2026-07-12.)
+    # before the compressed road, so it only shifts the input offset below; it
+    # must not be subtracted from the decompressed output size.
     road_len = entries[index][1]
     road_offset = start + LEVEL_HEADER_LEN
     comp = data[road_offset:end]

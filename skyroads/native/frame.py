@@ -1,7 +1,8 @@
-"""The complete native gameplay FRAME — every stage pure recovered Python.
+"""Recovered ``1010:2D1F`` renderer-composition evidence.
 
-Composes the proven pieces in `2D1F`'s exact order (call-boundary capture of
-replay_e2e frame 571, 2026-07-13 — see run_status.md):
+This is an independently tested candidate, not a standalone player or a
+currently cataloged whole-game implementation. It composes the recovered pieces
+in ``2D1F``'s exact order:
 
     compute_render_params (0C98, 40/40)        -- sim state -> 8 params + skip
       -> params stored to [0E28..0E36]         -- 2D1F prologue

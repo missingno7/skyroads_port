@@ -31,8 +31,12 @@
     }
   ],
   "execution_evidence": {
-    "incomplete_functions": [],
-    "profile_identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+    "incomplete_functions": [
+      "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153",
+      "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459",
+      "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fcc"
+    ],
+    "profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
     "runtime_variants": [],
     "transfers": [
       {
@@ -207,6 +211,7 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b17",
+      "incomplete": false,
       "invocation_count": 13,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
@@ -221,6 +226,7 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153",
+      "incomplete": true,
       "invocation_count": 6548,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
@@ -235,6 +241,7 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459",
+      "incomplete": true,
       "invocation_count": 3,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
@@ -249,6 +256,7 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a55",
+      "incomplete": false,
       "invocation_count": 18,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
@@ -263,6 +271,7 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fcc",
+      "incomplete": true,
       "invocation_count": 6546,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
@@ -281,8 +290,8 @@
     "game": "skyroads",
     "mouse_present": true,
     "purpose": "execution-atlas-oracle-evidence",
-    "recording_profile_id": "real-mode-development-3e4188fc390a",
-    "source_event_stream_sha256": "88a8938328964bbbb93bcf745bf135e82c8794fddd2fbe6e5ce2f963720f3795",
+    "recording_profile_id": "real-mode-development-b1d8a0e6dcca",
+    "source_event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
     "steps_per_frame": 48000,
     "timer_irqs_per_frame": 6
   },
@@ -293,9 +302,9 @@
         {
           "kind": "verified-endpoint",
           "metadata": {
-            "candidate_profile": "skyroads-candidate-7ad31fdefa63",
+            "candidate_profile": "real-mode-verification-74b5f759f0f9",
             "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
-            "oracle_profile": "real-mode-development-3e4188fc390a",
+            "oracle_profile": "real-mode-development-b1d8a0e6dcca",
             "projection_schema": "dos-re-complete-machine-v1"
           }
         }
@@ -308,8 +317,8 @@
     }
   },
   "profiles": {
-    "real-mode-development-3e4188fc390a": {
-      "base": "profiles/real-mode-development-3e4188fc390a-3ab4f31d02a45082/base/state.json",
+    "real-mode-development-b1d8a0e6dcca": {
+      "base": "profiles/real-mode-development-b1d8a0e6dcca-43c8051e47f405e9/base/state.json",
       "base_point": {
         "key": "f029e88d5c291312-0000000000000000",
         "ordinal": 0,
@@ -318,7 +327,7 @@
       "base_state_sha256": "dac47e2b944e0948e30525041dc2126d8ed9f0089287eb02a5ed89edecb1b6be",
       "boundaries": {
         "f029e88d5c291312-0000000000000003": {
-          "manifest": "profiles/real-mode-development-3e4188fc390a-3ab4f31d02a45082/boundaries/f029e88d5c291312-0000000000000003/state.json",
+          "manifest": "profiles/real-mode-development-b1d8a0e6dcca-43c8051e47f405e9/boundaries/f029e88d5c291312-0000000000000003/state.json",
           "point": {
             "key": "f029e88d5c291312-0000000000000003",
             "ordinal": 3,
@@ -328,23 +337,19 @@
       },
       "identity": {
         "continuation_schema": "dos-re-real-mode-continuation-v1",
-        "devices": "dos-re-real-mode-devices-v1",
+        "devices": "dos-re-real-mode-devices-v2:d0537e58ddde4a9ba2fd2625bacfc25dc93013a66f4c940b2219ff9c82c513c1",
         "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
-        "implementation": "58d76a603bf8a1d1e89bfec93a47de45a6c8cd8d2104142669d767b121fcac94",
-        "overrides": [
-          "(61440, 59783):bios_int9_keyboard",
-          "(61440, 65363):bios_iret_stub"
-        ],
-        "profile_id": "real-mode-development-3e4188fc390a",
+        "implementation": "e6d419cd8ea8abac9d63837b2e91d0493464cd01924cf658ec48b0a829e29cdb",
+        "profile_id": "real-mode-development-b1d8a0e6dcca",
         "projection_schema": "dos-re-complete-machine-v1",
         "role": "oracle",
-        "runtime": "5527ddc3f845ee1b9db0194284cc0f62cfb82436ea8f777c2d0538425c766f0b"
+        "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
       },
-      "identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+      "identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
       "pending_boundaries": {}
     },
-    "skyroads-candidate-7ad31fdefa63": {
-      "base": "profiles/skyroads-candidate-7ad31fdefa63-618524a31ffcafe9/base/state.json",
+    "real-mode-verification-74b5f759f0f9": {
+      "base": "profiles/real-mode-verification-74b5f759f0f9-0fed44219996226b/base/state.json",
       "base_point": {
         "key": "f029e88d5c291312-0000000000000000",
         "ordinal": 0,
@@ -353,7 +358,7 @@
       "base_state_sha256": "dac47e2b944e0948e30525041dc2126d8ed9f0089287eb02a5ed89edecb1b6be",
       "boundaries": {
         "f029e88d5c291312-0000000000000003": {
-          "manifest": "profiles/skyroads-candidate-7ad31fdefa63-618524a31ffcafe9/boundaries/f029e88d5c291312-0000000000000003/state.json",
+          "manifest": "profiles/real-mode-verification-74b5f759f0f9-0fed44219996226b/boundaries/f029e88d5c291312-0000000000000003/state.json",
           "point": {
             "key": "f029e88d5c291312-0000000000000003",
             "ordinal": 3,
@@ -363,26 +368,15 @@
       },
       "identity": {
         "continuation_schema": "dos-re-real-mode-continuation-v1",
-        "devices": "skyroads-dos-devices-v1",
-        "image": "sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
-        "implementation": "0ca904d6dac564b7a9acf8b20c45189f937281fbe194b6a8422c1e48edb42fae",
-        "overrides": [
-          "1010:0baf:lifted_bounds_check_0BAF",
-          "1010:0be9:lifted_project_row_0BE9",
-          "1010:186b:lifted_road_stepper_186B",
-          "1010:2d1f:lifted_road_render_driver_2D1F",
-          "1010:34ae:lifted_tile_render_34AE",
-          "1010:39d4:lifted_hud_blit_finalize_39D4",
-          "1010:5d80:lifted_shl32_5D80",
-          "f000:e987:bios_int9_keyboard",
-          "f000:ff53:bios_iret_stub"
-        ],
-        "profile_id": "skyroads-candidate-7ad31fdefa63",
+        "devices": "dos-re-real-mode-devices-v2:d0537e58ddde4a9ba2fd2625bacfc25dc93013a66f4c940b2219ff9c82c513c1",
+        "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+        "implementation": "1381c402c23bb6d928649ba879d394266b9a4d781cd8d44634784bccfc083a94",
+        "profile_id": "real-mode-verification-74b5f759f0f9",
         "projection_schema": "dos-re-complete-machine-v1",
         "role": "candidate",
-        "runtime": "sha256:44bc0b88822880c8926cd9fc2b508879166b59bf3b99e2d69335342a15ff3a64"
+        "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
       },
-      "identity_digest": "618524a31ffcafe93f15aa5fb2940cb53d8499a3c5703b392595e03cb9b973d0",
+      "identity_digest": "0fed44219996226b68d9abbba66ae3e0eebbcc610dc0170dfd8b0e6084ce2a62",
       "pending_boundaries": {}
     }
   },

@@ -14501,11 +14501,11 @@
       "snapshot": "gap_snapshot_skyroads_20260720_012010",
       "toolchain": "unknown"
     },
-    "sha256": "713ea6a6e607125a856439db08da061651a973cde556ef45f14d5c1219673530",
+    "sha256": "becdf7315dfab63e9fb8456175126e3dbc75aedd9df03733355992b63069048b",
     "version": 0
   },
   "roots": [
     "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A61f3"
   ],
-  "source_digest": "62ebf1db8327f0ac1fb4ea7044ce8dc05159001a2ba0df65dc041c8d28601a51"
+  "source_digest": "296335631a03b225485614d875651b7c4b5a4799fcb62857d62934b911482bc2"
 }

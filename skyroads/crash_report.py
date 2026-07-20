@@ -4,7 +4,7 @@
 call chain.  What it cannot know is how to REPRODUCE the fault in this port, and
 that is the part that actually shortens the fix:
 
-CPU-FREE, like everything the CPUless runner touches (``tools/lint_cpuless.py``
+CPU-FREE, like everything the generated ABI provider touches (``tools/lint_cpuless.py``
 proves it).
 """
 from __future__ import annotations

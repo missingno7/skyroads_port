@@ -36,7 +36,6 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from skyroads.islands import oracle_link
 from skyroads.handrecovered.movement import _slong_div, _ulong_mul
 from skyroads.handrecovered.player import RESUME_HEIGHT_GATE, is_landed_for_resume
 
@@ -69,23 +68,6 @@ def _tick_down(timer: int, dec: int) -> int:
     return 0 if t > LEVEL_TIMER_MAX else t
 
 
-@oracle_link(
-    boundary="1010:2A35",
-    contract="step_level_progression(game_state, af2c, level_timer_a, "
-             "level_timer_b, timer_a_param, timer_b_param, ship_pos, frame_ctr): "
-             "if game_state==0: level_timer_b -= 0x7530/(0x24*timer_b_param) "
-             "(if that divisor!=0); level_timer_a -= slong_div(ulong_mul("
-             "0x7530/timer_a_param, ship_pos), 0x10000) (if timer_a_param!=0); "
-             "both clamped to 0 on underflow. Then game_state := 3 if af2c<0x2800, "
-             "then :=4 if level_timer_a==0, then :=5 if level_timer_b==0 (later "
-             "override earlier). If game_state!=0 instead: frame_ctr += 1. "
-             "timer_b_param is ds:[4566], timer_a_param is ds:[54A2].",
-    status="ASM_MATCHED",  # 682/682 real E2E-replay sub-steps byte-exact on
-    # (game_state, level_timer_a, level_timer_b, frame_ctr), including the real
-    # 0->3 resume transitions. States 4/5 decoded from the ASM; whether the replay
-    # drove a timer to 0 is asserted by tests/test_progression.py.
-    merge_target="skyroads.native.progression (future)",
-)
 def step_level_progression(
     game_state: int, af2c: int, level_timer_a: int, level_timer_b: int,
     timer_a_param: int, timer_b_param: int, ship_pos: int, frame_ctr: int,

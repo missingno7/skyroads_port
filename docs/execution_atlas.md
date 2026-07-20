@@ -9,7 +9,7 @@ sole `CoverageSource` supplied to the dos_re execution planner. It combines:
   `ReplayArtifact` with actual observed transfers and function intervals;
 - the explicit `skyroads-retained-entry-census-v1` fact connecting the product
   region to the observed unpacked-program hand-off at `1010:61F3` and
-  preserving the prior recovered corpus's evidence-backed entry census.
+  preserving its evidence-backed entry census.
 
 The packed MZ entry at `1010:0000` remains visible. Product reachability starts
 at `1010:61F3` because that is the generated program's evidence-backed
@@ -25,8 +25,8 @@ identities.
 
 `skyroads.identities` defines one content-addressed EXE image. A function and an
 interior execution point at the same `CS:IP` remain different identities.
-Frame-pacing enhancements therefore target execution points, while semantic
-function replacements target functions.
+The frame-parking runtime service therefore names its empty wait-loop execution
+points, while semantic function replacements target functions.
 
 ## Regeneration
 
@@ -45,16 +45,15 @@ Regenerate the retained IR from a complete oracle snapshot:
 python scripts/build_atlas.py --snapshot artifacts/SNAPSHOT_DIR
 ```
 
-The bootstrap census is seeded mechanically from the already generated
-CPUless corpus. Once emitted, the retained IR—not generated module contents—is
-the Atlas's static source authority.
+The retained Recovery IR seeds the static census. Generated ABI module names
+are only a first-bootstrap fallback for a workspace that does not yet have
+retained IR; generated module contents are never the Atlas's source authority.
 
 The checked-in oracle pilot can be recreated from a deterministic source
 recording with the explicit one-shot converter:
 
 ```text
-python scripts/record_atlas_evidence.py \
-  --source-replay artifacts/replays/REPLAY --frames 3 --replace
+python scripts/record_atlas_evidence.py --source-replay artifacts/replays/REPLAY --frames 3 --replace
 python scripts/build_atlas.py --from-ir
 ```
 
@@ -63,15 +62,16 @@ This conversion command is not a runtime compatibility path.
 ## Current honest frontier
 
 The committed Atlas contains and conservatively retains all 180 IR function
-candidates plus five manually recovered hook identities absent from that
-retained IR, along with stable execution points inside them, and reports
-unresolved direct or indirect transfer sites. The oracle pilot
-covers five functions over stable points 0→3 and records their aggregate
-invocation counts and complete intervals.
+candidates, along with stable execution points inside them, and reports
+unresolved direct or indirect transfer sites. The active authored replacements
+target identities already present in that retained census. The oracle pilot
+covers five functions over stable points 0→3, records aggregate invocation
+counts and intervals, and explicitly marks functions whose outer invocation is
+still active at the final boundary as incomplete.
 
 Those frontiers intentionally make detached/release planning fail. Several
 correspond to the fail-loud unrecovered-call witnesses already emitted in the
-CPUless corpus; hiding them behind the former manually selected hook set would
-restate incomplete coverage as release readiness. Each future static,
-observed, or manually recovered fact should enrich this same Atlas until the
-closed-world release proof becomes true.
+generated ABI implementation; hiding them through selective registration would
+restate incomplete coverage as release readiness. Each future static, observed,
+or manually recovered fact should enrich this same Atlas until the closed-world
+release proof becomes true.

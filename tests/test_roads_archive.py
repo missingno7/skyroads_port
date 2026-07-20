@@ -1,7 +1,7 @@
 """Verify skyroads.handrecovered.roads_archive against the real ROADS.LZS asset.
 
 3/3 real live-VM-captured (gravity, fuel, oxygen) triples matched exactly --
-see the module docstring and docs/skyroads/run_status.md for how these three
+see the module docstring and docs/history/skyroads/run_status.md for how these three
 were captured (two freshly recorded genuine cold-boot replays, including a real
 keyboard DOWN-ARROW + ENTER level pick).
 """

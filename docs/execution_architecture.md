@@ -20,9 +20,8 @@ CPUless and native are properties of implementations, not player modes.
   fallback and is the current complete-state verification composition.
 - `authored-candidates` overlays authored faithful candidates and generated
   functions on the interpreted baseline.
-- `play` adds non-authoritative host pacing enhancements to the authored
-  candidates; this is the default development composition.
-- `behavioral` explicitly opts into intentional behavior changes.
+- `play` selects the authored candidates plus the product-safe frame-parking
+  runtime service; this is the default development composition.
 - `generated-cpu` selects the generated VMless provider over the Atlas-known region.
 - `generated-abi` selects the generated ABI-recovered provider over that region.
 - `auto` chooses the conservative profile default.
@@ -72,8 +71,7 @@ The catalog declares:
 - the interpreted EXE baseline;
 - generated VMless and CPUless region providers;
 - generated per-function implementations;
-- authored faithful replacements;
-- explicitly selected behavioral modifications.
+- authored faithful replacements.
 
 `skyroads.hooks` contains CPU adapter functions only. Importing it installs
 nothing. The resolved plan activates the selected adapters after runtime
@@ -81,12 +79,15 @@ construction or snapshot restoration. The semantic implementation therefore
 has one identity and one category even when different backend adapters are
 needed.
 
+Frame parking is a declared product-safe runtime service, not an implementation
+override. It intercepts only the two empty timer-wait loops used by main-frame
+and menu pacing; fade execution remains entirely in the emulated program.
+
 ## Invariants
 
 - Oracle construction never installs authored or generated replacements.
 - Authored code is never part of a generated baseline corpus.
-- Behavioral modifications cannot enter generated or authored-faithful
-  verification compositions.
+- No behavioral override composition is exposed by the active player.
 - Detached and release plans fail before launch if any reachable identity
   requires the EXE or interpreter.
 - A release plan must have a build target and complete closed-world Atlas

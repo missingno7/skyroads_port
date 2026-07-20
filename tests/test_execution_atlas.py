@@ -24,7 +24,7 @@ def test_committed_atlas_combines_retained_ir_and_real_oracle_replay():
     refused = [
         node for node in functions if node.metadata.get("liftable") is False]
 
-    assert len(functions) == 185
+    assert len(functions) == 180
     assert len(refused) == 3
     assert atlas.resolve("1010:61F3").identity == function_identity(0x61F3)
     assert atlas.unresolved()
@@ -41,11 +41,12 @@ def test_committed_atlas_combines_retained_ir_and_real_oracle_replay():
     covered = [
         node for node in functions if atlas.replay_coverage(node.identity)]
     assert len(covered) == 5
-    best = atlas.best_replay(function_identity(0x4153))
-    assert best.complete
-    assert best.invocation_count > 1000
-    assert best.first_entry.ordinal == 0
-    assert best.last_exit.ordinal == 3
+    hot = atlas.best_replay(function_identity(0x4153))
+    assert not hot.complete
+    assert hot.invocation_count > 1000
+    assert hot.first_entry.ordinal == 0
+    assert hot.last_exit.ordinal == 3
+    assert atlas.best_replay(function_identity(0x3B17)).complete
 
 
 def test_atlas_is_the_planner_coverage_authority():

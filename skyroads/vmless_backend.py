@@ -1,32 +1,29 @@
 """Generated VMless provider for the unified SkyRoads player.
 
-The runner named for the wall its artifacts satisfy (DOS_RE 2.0's rule; see
-``dos_re/docs/migration_1.0_to_2.0.md``): every instruction executed here is
-GENERATED Python from the recovery IR, the original code bytes in the image are
-ZEROED, and the interpreter is poisoned — so this cannot silently fall back to
-running the binary. It is not yet the *native* wall (state still lives in a
-DOS-layout memory image behind a CPU-shaped struct), hence ``vmless``, not
-``native``.
+Every selected instruction in this provider is generated Python from Recovery
+IR. State still lives in DOS-layout memory behind a CPU-shaped register model,
+so “VMless” is an implementation property rather than a player or recovery
+stage. The execution plan and exported dependency closure decide detachment;
+optional code poisoning supplies additional no-fallback evidence.
 
 What makes frames tick
 ----------------------
 The lifted corpus PARKS instead of spinning. SkyRoads paces itself off
 ``ds:[1600]``, the tick counter its INT 08h ISR bumps; the viewer delivers a
 frame's IRQs only at frame start, so ``[1600]`` is architecturally constant for
-the whole frame and any loop waiting on it can never exit (skyroads/pacing.py
-measured ~88% of interpreted steps sitting in exactly these spins). The three
-wait heads are recovery facts — ``pacing.PACING_SPIN_IP`` / ``FADE_WAIT_IP`` /
-``MENU_ANIM_WAIT_IP`` — and ``irgen --boundary-heads`` turned them into emitted
-boundary observers plus ``RESUME_ENTRIES``.
+the whole frame and any loop waiting on it can never exit. Generated boundary
+observers and ``RESUME_ENTRIES`` preserve the corpus continuation at the
+retained Recovery IR boundary heads.
 
 So a frame is: deliver the timer IRQs (through the game's OWN recovered INT 08h
 ISR), run until the corpus reports a boundary head, END THE FRAME there. The
 park unwinds Python, but the machine state does not live in Python — it is in
 the emulated stack and CS:IP — so the next frame's ``run()`` re-dispatches at
-the resume entry that ``install_vmless_graph`` registered, and the lifted body
-continues from the right basic block. That is the same "end the frame at the
-tick-wait" semantics pacing.py already proved byte-equivalent to burning the
-full step budget.
+the resume entry that ``activate_generated_graph`` registered, and the lifted
+body continues from the right basic block. Re-arrival parking over this complete
+generated boundary set is its own replay-verified provider contract. It is
+separate from the interpreted frame-parking runtime service, which intercepts
+only two proven side-effect-free waits.
 
 Selected with ``scripts/play.py --profile detached --composition generated-cpu``.
 """
@@ -41,17 +38,17 @@ sys.path.insert(0, str(ROOT))
 
 from dos_re.cpu import HaltExecution  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
-from dos_re.independence import boot_vmless_image, independence_report  # noqa: E402
+from dos_re.independence import (boot_generated_graph_image,  # noqa: E402
+                                 generated_graph_boot_report)
 from dos_re.replay_input import mouse_sample  # noqa: E402
 from dos_re.keyboard import KeyDispatcher, scancode_table  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
 # From runtime_core, NOT dos_re.runtime / skyroads.runtime / dos_re.player:
 # those reach create_runtime -> load_mz_program, and importing them here
-# would put the EXE loader on this runner's module graph -- exactly what
+# would put the EXE loader on this provider's module graph -- exactly what
 # lint_independence forbids. runtime_core is loader-free by construction.
 from dos_re.crash import crash_dir, save_crash  # noqa: E402
-from dos_re.runtime_core import (enable_sound_blaster,  # noqa: E402
-                                 use_real_console_input)
+from dos_re.runtime_core import enable_sound_blaster  # noqa: E402
 
 #: Measured from the oracle: the PIT reload is 6628, so the
 #: timer runs at 1193182/6628 = 180 Hz and the music ISR fires once per IRQ —
@@ -103,10 +100,9 @@ class VmlessDriver:
         see it, because nothing failed.
 
         So let pass 1 run the body to its steady state, and park on pass 2: the
-        wait is still unsatisfied and nothing it reads can change, which is the
-        proof. One extra iteration per head per frame. This is the same rule
-        skyroads/pacing.py's verified park_fade_wait encodes — park only once
-        _fade_loop_cache holds a blend for the CURRENT tick.
+        wait is still unsatisfied and nothing it reads can change. One extra
+        iteration per generated boundary head per frame preserves the body
+        effects before the continuation is parked.
 
         Re-point CS:IP at the resume entry (the contract in dos_re/lift/emit.py)
         so the next frame re-dispatches inside the lifted body, then unwind.
@@ -133,7 +129,7 @@ class VmlessDriver:
 
         Anything that is NOT one of the three expected outcomes (park, waiting
         for a key, program exit) leaves a crash snapshot behind: see
-        ``self.crash_root``. A wall violation, an iteration guard, a bad lift --
+        ``self.crash_root``. An unresolved frontier, iteration guard, bad lift,
         each of those has cost a bespoke probe and a replay from frame 0 to get
         back to a machine that was standing right here when it broke.
         """
@@ -199,15 +195,18 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
           sound: bool = True, capture_sb: bool = False):
     """Boot the image AND set up the machine around it.
 
-    ``boot_vmless_image`` builds a CPU + DOS + BIOS from the image; it does not
+    ``boot_generated_graph_image`` builds a CPU + DOS + BIOS from the image; it does not
     and should not know what THIS game needs attached. Every other entry point
     does that part via skyroads.runtime (create_game_runtime /
     load_game_snapshot) -- this one bypassed them to avoid the EXE, and quietly
     inherited a bare machine. All three of the following were missing, and all
     three are things the runtime module has always done:
     """
-    rt, manifest = boot_vmless_image(boot_dir, game_root=game_root,
-                                     lift_dir=lift_dir)
+    rt, manifest = boot_generated_graph_image(
+        boot_dir,
+        game_root=game_root,
+        lift_dir=lift_dir,
+    )
 
     # 1. THE PHANTOM ESC. DOSMachine defaults console_input_fallback to 0x011B
     #    so a bare cpu.run() with no driver loop cannot hang on a blocking read.
@@ -218,7 +217,7 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
     #    synthesis is not needed here and is only harmful. (dos_re's
     #    the canonical real-mode player documents this exact failure; this was
     #    the one path that never called it.)
-    use_real_console_input(rt)
+    rt.dos.console_input_fallback = None
 
     # 2. SOUND HARDWARE. Without it there is no OPL to play music through --
     #    and SkyRoads' own detection can take its "not enough sound hardware"
@@ -242,7 +241,7 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
 
 
 def launch(args, *, bootstrap_artifacts: dict[str, Path]) -> int:
-    """Launch the selected whole-program VMless provider."""
+    """Launch the selected generated VMless region provider."""
     # Capture the DMA PCM only for the interactive viewer: it is a
     # determinism-safe observer, but headless must keep the detection-only
     # path so replay replay and the differential stay byte-identical.
@@ -260,7 +259,7 @@ def launch(args, *, bootstrap_artifacts: dict[str, Path]) -> int:
                          ROOT / "skyroads" / "lifted" / "functions",
                          Path(args.game_root), sound=not args.no_sound,
                          capture_sb=not args.no_sound and not args.headless)
-    print(independence_report(manifest))
+    print(generated_graph_boot_report(manifest))
     drv = VmlessDriver(
         rt, crash_root=ROOT / "artifacts" / "crashes", stamp=_stamp())
 
@@ -284,13 +283,13 @@ def _window(rt, drv, args) -> int:
     import pygame
     from dos_re.display import Display
     # The music. Imported HERE and not at module scope for the same reason the
-    # display is: this is the viewer's business, not the VMless runner's, and a
-    # local import keeps the runner's module graph minimal. The sink is an
+    # display is: this is the viewer's business, not the generated provider's,
+    # and a local import keeps the provider's module graph minimal. The sink is an
     # OBSERVER -- the lifted corpus writes the OPL ports exactly as the original
     # did, and the sink turns that write stream into sound; it decides nothing
     # about what plays. (skyroads.audio reaches only dos_re.audio_sink, so it is
-    # loader-free and does not threaten the independence wall.)
-    from skyroads.audio import SkyroadsAudioSink
+    # loader-free and does not add the EXE loader to the dependency closure.)
+    from skyroads.audio.sink import SkyroadsAudioSink
 
     pygame.init()
     disp = Display((960, 720), title="SkyRoads — VMless (no EXE)")

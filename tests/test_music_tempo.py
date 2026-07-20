@@ -51,6 +51,7 @@ def test_music_rate_matches_the_vm_timer() -> None:
         ["--play-replay", str(REPLAY), "--headless", "--composition", "oracle"])
     artifact = ReplayArtifact.open(REPLAY)
     frontend.apply_replay_metadata(args, artifact.metadata)
+    args.execution_plan = frontend.resolve_execution_plan(args)
     rt = frontend.create_runtime(args)
     apply_runtime_continuation(rt, recording_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)

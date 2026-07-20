@@ -86,13 +86,13 @@ def test_outsb_and_rep_outsb_advance_si_and_write_ports():
 
 
 
-def test_386_operand_size_prefix_is_ignored_for_pre2_probe_low_word():
+def test_386_operand_size_prefix_is_ignored_for_probe_low_word():
     cpu = run_bytes(bytes.fromhex("b8 34 12 66 33 c0 f4"), 3)
     assert cpu.s.ax == 0
     assert cpu.halted
 
 
-def test_vga_dac_palette_roundtrip_for_pre2_probe():
+def test_vga_dac_palette_roundtrip_for_probe():
     mem = Memory()
     cpu = CPU8086(mem, CPUState(cs=0x1000, ds=0x1000, es=0x1000, ss=0x1000, sp=0xFFFE))
     dos = DOSMachine(root=Path('.'))
@@ -108,7 +108,7 @@ def test_vga_dac_palette_roundtrip_for_pre2_probe():
     assert dos.port_read(cpu, 0x03C9, 8) == 0x34
 
 
-def test_ega_latch_rotate_or_write_mode_for_pre2_vga_probe():
+def test_ega_latch_rotate_or_write_mode_for_vga_probe():
     mem = Memory()
     cpu = CPU8086(mem, CPUState(cs=0x1000, ds=0x1000, es=0x1000, ss=0x1000, sp=0xFFFE))
     dos = DOSMachine(root=Path('.'))

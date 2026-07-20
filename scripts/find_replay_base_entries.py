@@ -4,9 +4,10 @@ A ReplayArtifact resumes from its recording profile's base continuation, which
 may be captured wherever the machine happened to be -- usually a tick-wait,
 render loop, or mid-blit rather than a function entry.
 
-Behind the strict-VMless wall, resuming there is a violation at frame 0. The
-containing function IS lifted and DOES contain the address -- there is simply no
-hook at it, because the census exports entries and re-entry points, and a
+When interpreter fallback is forbidden, resuming there reports an unresolved
+frontier at frame 0. The containing function is lifted and contains the
+address; there is simply no selected entry at it, because the census exports
+entries and re-entry points, and a
 mid-function address is neither. So it reads like a census gap and is not one,
 which is what makes it expensive: the answer is not to lift anything, only to
 say that this address is reachable from outside.
@@ -67,7 +68,7 @@ def main(argv=None) -> int:
         "# A ReplayArtifact resumes from its recording base, which catches the machine",
         "# wherever it was -- almost never at a function entry, usually in whatever",
         "# loop the game spends its time in. Resuming at a mid-function address",
-        "# needs a hook there, or the VMless wall fires at frame 0 inside a function",
+        "# needs a selected entry there or frame 0 reports an unresolved frontier",
         "# that IS lifted. The evidence is the replay base itself: the machine was",
         "# recorded at that address.",
     ]

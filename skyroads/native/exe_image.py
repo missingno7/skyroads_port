@@ -6,13 +6,10 @@ loader enters the stub at ``load:0000``; it copies the packed stream high,
 decompresses the ~30 KB program image forward to ``load:0000``, applies THREE
 relocations, and far-jumps to the real entry `1010:61F3`. The startup
 "computed tables" (clip tables `0x4C..0xE3`, shape `0xBA7`) are materialized
-by this unpack — static program data after all (corrects the earlier
-"computed at startup" note; the frame-8 `1767:06B1` writer is the stub's own
-`stosb`).
+by this unpack.
 
 This module reproduces the unpack from the FILE alone. The decoder is a
-REGISTER-EXACT transcription of the stub's decode loop (`1767:063A-06CE`,
-disassembled from the live cold-boot capture — see run_status.md):
+REGISTER-EXACT transcription of the stub's decode loop (`1767:063A-06CE`):
 
 * getbit (`063A`): 16-bit LSB-first buffer in BP, refilled via ``lodsw``.
 * main loop (`06B3`): ``1`` -> literal byte; else read a displacement low
@@ -25,8 +22,8 @@ disassembled from the live cold-boot capture — see run_status.md):
 * relocations: 3 word sites (`0x0B04`, `0x3ACA`, `0x61F4` for this EXE,
   decoded from the stub's table) get the load segment added.
 
-VERIFIED byte-exact vs the VM's memory at the moment of the stub's far jump
-(cold-replay capture at `1010:61F3`) — tests/test_exe_image.py.
+Verified byte-exact against the oracle at the stub's far jump; see
+``tests/test_exe_image.py``.
 """
 from __future__ import annotations
 

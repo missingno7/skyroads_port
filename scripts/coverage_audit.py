@@ -1,9 +1,9 @@
-"""coverage_audit.py -- find the coverage gaps BEFORE a player falls into one.
+"""Report structurally known dispatch targets absent from local observations.
 
-A fail-loud stop in the recovered corpus is almost always a coverage bug: some
-function the replays never executed, whose exits were therefore stubbed. We found
-the last two the expensive way -- a player hit ``1010:2F57`` in live play, and
-the diagnosis took a session. Both were sitting in plain sight the whole time.
+This is an optional evidence-discovery probe for the generated corpora. It
+compares program-owned dispatch tables with one local replay observation set.
+An absent target is a request for more evidence, not proof of global
+unreachability or a release-readiness decision.
 
 The trick that found them generalises, and it is what this script does: a
 DISPATCH TABLE is data in the game image, so its entries can simply be READ.
@@ -21,8 +21,9 @@ decodes to a UINT16LE road array, and the dispatch index is a cell's high-byte
 low nibble, so the levels carrying an uncovered block type can be listed
 directly (that is how level 14 and level 8 were chosen).
 
-This reports; it never invents coverage. Closing a gap still means executing the
-code -- see docs/cpuless_standalone.md for the replay-synthesis recipe.
+This reports only. Promote useful findings into retained IR, ReplayArtifact
+execution evidence, or Atlas manual facts before treating them as project
+knowledge. The Execution Atlas remains the planner's coverage authority.
 
 Usage:
     python scripts/coverage_audit.py
@@ -57,7 +58,8 @@ def _observed() -> set[str]:
 
 
 def _ir_functions() -> set[str]:
-    return set(json.loads((CODEMAP / "recovery_ir.json").read_text())["functions"])
+    path = ROOT / "recovery" / "recovery_ir.json"
+    return set(json.loads(path.read_text())["functions"])
 
 
 def audit_tables(img: bytes, observed: set[str], ir: set[str]) -> list[tuple]:
@@ -128,9 +130,9 @@ def main() -> int:
             print(f"      drive one of these levels to cover it: {top}")
         else:
             print("      no level carries this cell -- reachable another way")
-    print("\n[audit] to close: synthesize a replay that plays such a level, add it "
-          "to DEFAULT_REPLAYS + BOUNDARY_REPLAYS in scripts/build_codemap.py, then "
-          "`python scripts/rebuild_all.py`.")
+    print("\n[audit] to close: record a ReplayArtifact that plays such a level, "
+          "then pass it explicitly to "
+          "`python scripts/rebuild_all.py --replay REPLAY_DIR`.")
     return 1
 
 

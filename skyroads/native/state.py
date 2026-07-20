@@ -1,10 +1,7 @@
-"""``NativeGameState`` -- the recovered game's DGROUP, owned without a VM.
+"""Recovery-evidence SkyRoads DGROUP state carrier without a VM.
 
-Mirrors pre2_port's ``pre2/native/state.py`` (see docs/state_mirrors.md /
-dos_re/docs/state_mirrors.md for the general pattern this instantiates).
-Unlike pre2 -- whose recovered logic already crosses several segments (level
-map, asset bank) and so owns a full 1 MB image -- every SkyRoads island
-recovered so far (skyroads/handrecovered/*) reads/writes only the game's ONE data
+The authored gameplay implementations currently represented by this state
+read and write only the game's one data
 segment (DGROUP, ``ds == 0x1686`` in every captured runtime; see
 skyroads/handrecovered/player.py's field map). So ``.data`` here is just that
 64 KB segment, not the full real-mode address space: the smallest byte-backed
@@ -16,6 +13,9 @@ table's per-entry segments, or a level asset bank), extend ``.data`` to the
 full 1 MB image and switch the affected views to
 ``dos_re.state_view.SegmentBackend`` -- the pattern already supports it
 without touching this class's public shape.
+
+This class supports focused semantic tests; it is not a selected whole-program
+state authority.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from __future__ import annotations
 #: layer), never hard-coded inside skyroads/handrecovered/* (pitfall #17).
 DATA_SEG = 0x1686
 
-#: One DOS segment: 64 KB, matching every 16-bit offset the recovered islands
+#: One DOS segment: 64 KB, matching every 16-bit offset the implementations
 #: address DGROUP with.
 SEGMENT_SIZE = 0x10000
 
@@ -57,14 +57,14 @@ class NativeGameState:
         return cls(bytearray(rt.cpu.mem.data[base:base + SEGMENT_SIZE]))
 
     def rb(self, off: int) -> int:
-        """Read a DGROUP byte (DS-relative) -- the recovered islands' ``rb`` accessor."""
+        """Read a DGROUP byte (DS-relative) for authored implementations."""
         return self.data[off & 0xFFFF]
 
     def wb(self, off: int, v: int) -> None:
         self.data[off & 0xFFFF] = v & 0xFF
 
     def rw(self, off: int) -> int:
-        """Read a DGROUP word (DS-relative) -- the recovered islands' ``rw`` accessor."""
+        """Read a DGROUP word (DS-relative) for authored implementations."""
         o = off & 0xFFFF
         return self.data[o] | (self.data[(o + 1) & 0xFFFF] << 8)
 

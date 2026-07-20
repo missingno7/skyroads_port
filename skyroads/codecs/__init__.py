@@ -2,5 +2,5 @@
 
 Pure — no dos_re import — round-trip/decode tests carry the proof, cross-checked
 against the VM oracle's own decompression output (never guessed from the raw
-bytes alone; see docs/pitfalls.md #21).
+bytes alone; see docs/history/pitfalls.md #21).
 """

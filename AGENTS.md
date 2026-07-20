@@ -6,7 +6,10 @@ corpora remain in this repository.
 
 ## Architecture invariants
 
-- `scripts/play.py` is the only player and launch entrypoint.
+- `scripts/play.py` is the only source-tree development, verification, and
+  planning player. Exported closed-world products use the thin
+  `skyroads.release_launcher`, which consumes only the precomputed release
+  manifest and packaged runtime closure.
 - `skyroads.execution` is the only implementation catalog and composition
   authority; `recovery/atlas` is the persistent coverage source.
 - Execution profiles express dependency policy. Recovery level is a property
@@ -36,13 +39,12 @@ corpora remain in this repository.
 ## Required gates
 
 ```text
-python -m pytest -q
-python tools/lint.py
-python tools/check_undefined_names.py
-python tools/lint_cpuless.py
-python scripts/play.py --plan-only
-python scripts/play.py --profile release --composition generated-abi --plan-only
+python scripts/check_all.py
 ```
+
+Use `python scripts/check_all.py --quick` only as an inner-loop subset. The
+complete gate owns the full tests, static checks, documentation links, retained
+replay differential, development planning, and strict release preflight.
 
 The release plan-only gate currently fails on the Atlas's named unresolved
 control-flow frontiers. It may pass only after those frontiers are recovered or

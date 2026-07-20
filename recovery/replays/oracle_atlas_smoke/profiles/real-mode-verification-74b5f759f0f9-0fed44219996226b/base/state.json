@@ -1,38 +1,11 @@
 {
-  "base_state_sha256": "dac47e2b944e0948e30525041dc2126d8ed9f0089287eb02a5ed89edecb1b6be",
-  "boundary_metadata": {
-    "kind": "verified-end"
-  },
-  "changed_pages": [
-    {
-      "file": "profiles/skyroads-candidate-7ad31fdefa63-618524a31ffcafe9/boundaries/f029e88d5c291312-0000000000000003/pages/0000/00000017.zlib",
-      "index": 23,
-      "region": "memory",
-      "sha256": "28ba823951b10557dd1409b8d71907fa362f839733e2c5387f0a9572ce5d7dff",
-      "size": 4096
-    },
-    {
-      "file": "profiles/skyroads-candidate-7ad31fdefa63-618524a31ffcafe9/boundaries/f029e88d5c291312-0000000000000003/pages/0000/00000019.zlib",
-      "index": 25,
-      "region": "memory",
-      "sha256": "4fa52fe16fa1f513500997412a4d142c6fb9429ea6569e24d00993380d833cce",
-      "size": 4096
-    },
-    {
-      "file": "profiles/skyroads-candidate-7ad31fdefa63-618524a31ffcafe9/boundaries/f029e88d5c291312-0000000000000003/pages/0000/00000022.zlib",
-      "index": 34,
-      "region": "memory",
-      "sha256": "8c403177af9f69e6da90934b3c8e8450a72eb74cf87e3e5894813ed92db5a71a",
-      "size": 4096
-    }
-  ],
-  "event_cursor": 2,
+  "event_cursor": 0,
   "format_version": 1,
   "metadata": {
-    "call_depth": 51,
+    "call_depth": 66,
     "cpu": {
-      "ax": 2840,
-      "bp": 47146,
+      "ax": 24,
+      "bp": 47154,
       "bx": 522,
       "cs": 4112,
       "cx": 768,
@@ -44,9 +17,9 @@
       "flags": 582,
       "fst": [],
       "fsw": 0,
-      "ip": 24526,
+      "ip": 17512,
       "si": 3237,
-      "sp": 47140,
+      "sp": 47150,
       "ss": 5766
     },
     "dos": {
@@ -372,7 +345,7 @@
         199
       ],
       "mouse_x": 361,
-      "mouse_y": 68,
+      "mouse_y": 70,
       "next_alloc_segment": 40960,
       "next_handle": 6,
       "open_files": {},
@@ -459,164 +432,7 @@
       "pit_channel2_latch": 2,
       "pit_channel2_reload": 2,
       "pit_channel2_write_low": true,
-      "port_log_tail": [
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          67,
-          182,
-          8
-        ],
-        [
-          "out",
-          66,
-          2,
-          8
-        ],
-        [
-          "out",
-          66,
-          0,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          67,
-          182,
-          8
-        ],
-        [
-          "out",
-          66,
-          2,
-          8
-        ],
-        [
-          "out",
-          66,
-          0,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          67,
-          182,
-          8
-        ],
-        [
-          "out",
-          66,
-          2,
-          8
-        ],
-        [
-          "out",
-          66,
-          0,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ],
-        [
-          "out",
-          32,
-          32,
-          8
-        ]
-      ],
+      "port_log_tail": [],
       "save_dir": null,
       "seq_index": 1,
       "seq_regs": {
@@ -2003,14 +1819,22 @@
       "video_page": 0
     },
     "halted": false,
-    "instruction_count": 771362
+    "instruction_count": 626950
   },
   "point": {
-    "key": "f029e88d5c291312-0000000000000003",
-    "ordinal": 3,
+    "key": "f029e88d5c291312-0000000000000000",
+    "ordinal": 0,
     "timeline_id": "skyroads-presented-frame-boundaries-v1"
   },
-  "profile_identity_digest": "618524a31ffcafe93f15aa5fb2940cb53d8499a3c5703b392595e03cb9b973d0",
+  "profile_identity_digest": "0fed44219996226b68d9abbba66ae3e0eebbcc610dc0170dfd8b0e6084ce2a62",
+  "regions": [
+    {
+      "file": "profiles/real-mode-verification-74b5f759f0f9-0fed44219996226b/base/regions/0000.zlib",
+      "name": "memory",
+      "sha256": "6fa1098a035452a316c494217ab2a28f457bb7727e471b1a3728163e29f4cafd",
+      "size": 1310720
+    }
+  ],
   "schema_id": "dos-re-real-mode-continuation-v1",
-  "state_sha256": "f70b12e659a864600110bb7042cce3c574b79a5ad53da25318d443001f7dc339"
+  "state_sha256": "dac47e2b944e0948e30525041dc2126d8ed9f0089287eb02a5ed89edecb1b6be"
 }

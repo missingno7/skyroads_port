@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from dos_re.replay_input import SCAN_CHANNEL, scan_payload
 from dos_re.replay import (
     ContinuationState,
-    ExecutionProfile,
+    ReplayExecutionIdentity,
     ReplayArtifact,
     ReplayEvent,
     ReplayPoint,
@@ -25,7 +25,7 @@ class FakeDOS:
 
 def test_recording_base_discovery_uses_replayartifact(tmp_path):
     timeline = "real-mode-frame-boundaries:skyroads:v1"
-    profile = ExecutionProfile(
+    profile = ReplayExecutionIdentity(
         "oracle", "oracle", "implementation", "image", "runtime",
         "devices", "continuation", replay.PROJECTION_SCHEMA)
     directory = tmp_path / "replays" / "recording"
@@ -69,7 +69,7 @@ def test_driver_consumes_replayartifact_events_and_tracks_cursor(monkeypatch):
         advance_frame=lambda rt, args, frame: rt.marker.__setitem__(
             slice(None), b"done"),
     )
-    profile = ExecutionProfile(
+    profile = ReplayExecutionIdentity(
         "candidate", "candidate", "implementation", "image", "runtime",
         "devices", "continuation", replay.PROJECTION_SCHEMA)
 

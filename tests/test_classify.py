@@ -2,7 +2,7 @@
 
 * the pure logic (skyroads.handrecovered.classify.classify_perspective) on
   hand-written cases covering each branch, and
-* the full native path (skyroads.native.classify.classify_ship, computing the
+* the authored state-view path (skyroads.native.classify.classify_ship, computing the
   perspective word via renderer.perspective_row_offset + a DGROUP read) against
   the live ASM oracle over the real E2E replay -- 682/682 frames byte-exact on
   (class_skip, bp16, class_zero).
@@ -66,7 +66,7 @@ def test_bp16_low_nibble_two() -> None:
     assert r.bp16 == 1
 
 
-# ---- live-oracle test: full native path vs the real ASM --------------------
+# ---- live-oracle test: authored state-view path vs the real ASM ------------
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"

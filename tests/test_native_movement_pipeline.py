@@ -9,14 +9,8 @@ their COMPOSITION -- compute's output feeding resolve_move's target inputs,
 with the collision predicate (skyroads/native/collision.make_visible) bound to
 a NativeGameState's DGROUP tables -- against the live oracle.
 
-Why this matters for the native port: it establishes that the lateral/vertical
-movement MATH has no remaining gap. The only reason native_gameplay_frame does
-not yet call this pipeline is one INPUT to it -- lateral_accel (ds:[4568]) --
-which is stateful steering momentum updated mid-frame at 1010:2568 under
-jump-latch-gated conditions (60/682 real frames have lateral_accel != steer*29,
-e.g. -29 persisting a frame after the steer key released), so it cannot be
-derived from frame-start state without recovering that block. See
-skyroads.native.gaps.MovementPhysicsGap.
+This proves the lateral/vertical movement composition used by
+``native_gameplay_substep``, including its stateful ``lateral_accel`` input.
 
 Captures at IP=2635 (pre-move state + the real target-formula inputs + a DGROUP
 snapshot for the collision tables) and IP=26E9 (post-resolve_move axes), then
@@ -64,6 +58,7 @@ def _collect(max_cases: int = 160):
         ["--play-replay", str(REPLAY), "--headless", "--composition", "oracle"])
     artifact = ReplayArtifact.open(REPLAY)
     frontend.apply_replay_metadata(args, artifact.metadata)
+    args.execution_plan = frontend.resolve_execution_plan(args)
     rt = frontend.create_runtime(args)
     apply_runtime_continuation(rt, recording_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)

@@ -1,4 +1,4 @@
-"""Standalone CPUless SkyRoads product launcher.
+"""Closed-world launcher exported for the selected SkyRoads release composition.
 
 This file is exported with the closed-world runtime payload. It deliberately
 contains no development profile, oracle, replay, snapshot, planner or EXE path.
@@ -20,11 +20,10 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--frames", type=int, default=0)
-    parser.add_argument("--scale", type=int, default=3)
+    parser.add_argument("--scale", type=int, default=2)
     parser.add_argument("--square-pixels", action="store_true")
     parser.add_argument("--present-hz", type=int, default=30)
     args = parser.parse_args(argv)
-    args.rebuild = False
     bootstrap_artifacts = packaged_bootstrap_artifacts(
         PRODUCT_ROOT,
         expected_provider="skyroads-generated-abi-build-image",

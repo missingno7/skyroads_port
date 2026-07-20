@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit an adapter's pure recovered layers for VM leakage (pitfall #17 made executable).
+"""Audit an adapter's pure recovered layers for VM leakage.
 
 The recovered game-logic layers must stay portable and VM-free — no ``dos_re``
 imports, no ``cpu``/``mem`` names or CPU/Memory types, no bare memory-layout
@@ -11,9 +11,7 @@ Usage:
                                  [--forbid PKG]... [--layout-const 0xADDR]...
 
 e.g. (from an adapter repo):
-    python tools/audit_layers.py mygame/recovered \\
-        --forbid mygame.hooks --forbid mygame.bridge \\
-        --layout-const 0x1010 --layout-const 0x2B5C
+    python tools/audit_layers.py mygame/recovered --forbid mygame.hooks --forbid mygame.bridge --layout-const 0x1010 --layout-const 0x2B5C
 
 ``--forbid`` adds forbidden import prefixes beyond the default (``dos_re``).
 ``--layout-const`` registers segment/table-base addresses that must not appear

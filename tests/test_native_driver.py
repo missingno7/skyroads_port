@@ -1,16 +1,12 @@
-"""Proof of "full vmless native gameplay": skyroads.native.loop.NativeGameplayDriver
-runs the recovered gameplay engine INDEFINITELY -- through level-complete,
-respawn, and crash transitions -- with no VM ever consulted after the initial
-seed.
+"""Focused tests for the authored ``NativeGameplayDriver`` subsystem.
 
 Two tests:
 * a pure smoke test (no game files needed) that the driver never crashes over
   thousands of ticks even from an empty (all-zero) level;
 * a live-oracle test that seeds real level geometry + tables from the VM once,
-  then drives with the E2E replay's REAL recorded input for its whole length,
-  proving the driver plays through multiple real transitions (the replay's E2E
-  run itself completes and restarts several levels) without ever raising an
-  unhandled exception or needing the VM again after the seed.
+  then drives the subsystem with recorded input without consulting the VM
+  again. This proves the selected subsystem behavior; it does not claim
+  whole-program implementation coverage or release readiness.
 """
 from __future__ import annotations
 
@@ -72,7 +68,7 @@ def test_driver_transitions_are_well_formed() -> None:
 def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
     """A presentation layer needs to hold
     the frozen frame on screen for a beat before respawning -- see
-    NativeGameplayDriver's docstring and docs/skyroads/run_status.md's
+    NativeGameplayDriver's docstring and docs/history/skyroads/run_status.md's
     2026-07-13 crash/finish settle-window entry."""
     view = GameView(NativeGameState())
     driver = NativeGameplayDriver(view, jump_level_gate=9, auto_respawn=False)
@@ -110,7 +106,7 @@ def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
     assert next_outcome != outcome
 
 
-# ---- live-oracle: real level data + real recorded input, driven standalone --
+# ---- live oracle: real level data + recorded input, then detached subsystem --
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
@@ -132,7 +128,7 @@ def test_driver_plays_the_whole_replay_standalone() -> None:
     pb, rt = open_oracle_replay(frontend, args, REPLAY)
 
     # Seed ONCE from the VM at the first real gameplay sub-step, then replay
-    # the replay's recorded INPUT into the standalone driver -- the VM is only
+    # the replay's recorded INPUT into the authored driver -- the VM is only
     # a source of (a) the initial level data and (b) recorded input from here.
     LOOP = 0x2324
     seed = {}
@@ -199,5 +195,5 @@ def test_driver_plays_the_whole_replay_standalone() -> None:
 
     assert driver.ticks == len(inputs)
     # The real replay (attract mode, replaying one level repeatedly) completes
-    # and restarts multiple times -- the standalone driver should too.
+    # and restarts multiple times -- the authored subsystem should too.
     assert driver.transitions >= 1, "the driver never crossed a single transition"

@@ -2,8 +2,7 @@
 
 A save taken mid-playback must restore the DSP/DMA programming and re-arm a block
 IRQ, otherwise the resumed game (already past detection, waiting on the next
-block-complete IRQ) streams nothing. Pure device-level test (no VM); the in-VM
-end-to-end resume is exercised by pre2/probes/capture_sb.py + manual play.
+block-complete IRQ) streams nothing. This is a pure device-level test.
 """
 from __future__ import annotations
 

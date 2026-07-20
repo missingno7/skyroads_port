@@ -1,25 +1,37 @@
 {
   "coverage": [
     {
+      "annotations": [
+        {
+          "kind": "verified-endpoint",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-74b5f759f0f9",
+            "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
+            "oracle_profile": "real-mode-development-b1d8a0e6dcca",
+            "projection_schema": "dos-re-complete-machine-v1"
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        }
+      ],
       "artifact": {
         "event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
-        "identity_digest": "62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef",
+        "identity_digest": "828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
         "label": "oracle_atlas_smoke",
         "oracle_profile": {
           "continuation_schema": "dos-re-real-mode-continuation-v1",
-          "devices": "dos-re-real-mode-devices-v1",
+          "devices": "dos-re-real-mode-devices-v2:d0537e58ddde4a9ba2fd2625bacfc25dc93013a66f4c940b2219ff9c82c513c1",
           "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
-          "implementation": "58d76a603bf8a1d1e89bfec93a47de45a6c8cd8d2104142669d767b121fcac94",
-          "overrides": [
-            "(61440, 59783):bios_int9_keyboard",
-            "(61440, 65363):bios_iret_stub"
-          ],
-          "profile_id": "real-mode-development-3e4188fc390a",
+          "implementation": "e6d419cd8ea8abac9d63837b2e91d0493464cd01924cf658ec48b0a829e29cdb",
+          "profile_id": "real-mode-development-b1d8a0e6dcca",
           "projection_schema": "dos-re-complete-machine-v1",
           "role": "oracle",
-          "runtime": "5527ddc3f845ee1b9db0194284cc0f62cfb82436ea8f777c2d0538425c766f0b"
+          "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
         },
-        "oracle_profile_identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+        "oracle_profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "cached_at_or_before_entry": {
@@ -38,34 +50,48 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b17",
+      "incomplete": false,
       "invocation_count": 13,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
         "ordinal": 3,
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
-      "replay_id": "replay:62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef"
+      "replay_id": "replay:828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+      "runtime_variants": []
     },
     {
+      "annotations": [
+        {
+          "kind": "verified-endpoint",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-74b5f759f0f9",
+            "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
+            "oracle_profile": "real-mode-development-b1d8a0e6dcca",
+            "projection_schema": "dos-re-complete-machine-v1"
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        }
+      ],
       "artifact": {
         "event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
-        "identity_digest": "62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef",
+        "identity_digest": "828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
         "label": "oracle_atlas_smoke",
         "oracle_profile": {
           "continuation_schema": "dos-re-real-mode-continuation-v1",
-          "devices": "dos-re-real-mode-devices-v1",
+          "devices": "dos-re-real-mode-devices-v2:d0537e58ddde4a9ba2fd2625bacfc25dc93013a66f4c940b2219ff9c82c513c1",
           "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
-          "implementation": "58d76a603bf8a1d1e89bfec93a47de45a6c8cd8d2104142669d767b121fcac94",
-          "overrides": [
-            "(61440, 59783):bios_int9_keyboard",
-            "(61440, 65363):bios_iret_stub"
-          ],
-          "profile_id": "real-mode-development-3e4188fc390a",
+          "implementation": "e6d419cd8ea8abac9d63837b2e91d0493464cd01924cf658ec48b0a829e29cdb",
+          "profile_id": "real-mode-development-b1d8a0e6dcca",
           "projection_schema": "dos-re-complete-machine-v1",
           "role": "oracle",
-          "runtime": "5527ddc3f845ee1b9db0194284cc0f62cfb82436ea8f777c2d0538425c766f0b"
+          "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
         },
-        "oracle_profile_identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+        "oracle_profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "cached_at_or_before_entry": {
@@ -84,34 +110,48 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153",
+      "incomplete": true,
       "invocation_count": 6548,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
         "ordinal": 3,
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
-      "replay_id": "replay:62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef"
+      "replay_id": "replay:828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+      "runtime_variants": []
     },
     {
+      "annotations": [
+        {
+          "kind": "verified-endpoint",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-74b5f759f0f9",
+            "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
+            "oracle_profile": "real-mode-development-b1d8a0e6dcca",
+            "projection_schema": "dos-re-complete-machine-v1"
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        }
+      ],
       "artifact": {
         "event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
-        "identity_digest": "62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef",
+        "identity_digest": "828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
         "label": "oracle_atlas_smoke",
         "oracle_profile": {
           "continuation_schema": "dos-re-real-mode-continuation-v1",
-          "devices": "dos-re-real-mode-devices-v1",
+          "devices": "dos-re-real-mode-devices-v2:d0537e58ddde4a9ba2fd2625bacfc25dc93013a66f4c940b2219ff9c82c513c1",
           "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
-          "implementation": "58d76a603bf8a1d1e89bfec93a47de45a6c8cd8d2104142669d767b121fcac94",
-          "overrides": [
-            "(61440, 59783):bios_int9_keyboard",
-            "(61440, 65363):bios_iret_stub"
-          ],
-          "profile_id": "real-mode-development-3e4188fc390a",
+          "implementation": "e6d419cd8ea8abac9d63837b2e91d0493464cd01924cf658ec48b0a829e29cdb",
+          "profile_id": "real-mode-development-b1d8a0e6dcca",
           "projection_schema": "dos-re-complete-machine-v1",
           "role": "oracle",
-          "runtime": "5527ddc3f845ee1b9db0194284cc0f62cfb82436ea8f777c2d0538425c766f0b"
+          "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
         },
-        "oracle_profile_identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+        "oracle_profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "cached_at_or_before_entry": {
@@ -130,34 +170,48 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459",
+      "incomplete": true,
       "invocation_count": 3,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
         "ordinal": 3,
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
-      "replay_id": "replay:62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef"
+      "replay_id": "replay:828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+      "runtime_variants": []
     },
     {
+      "annotations": [
+        {
+          "kind": "verified-endpoint",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-74b5f759f0f9",
+            "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
+            "oracle_profile": "real-mode-development-b1d8a0e6dcca",
+            "projection_schema": "dos-re-complete-machine-v1"
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        }
+      ],
       "artifact": {
         "event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
-        "identity_digest": "62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef",
+        "identity_digest": "828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
         "label": "oracle_atlas_smoke",
         "oracle_profile": {
           "continuation_schema": "dos-re-real-mode-continuation-v1",
-          "devices": "dos-re-real-mode-devices-v1",
+          "devices": "dos-re-real-mode-devices-v2:d0537e58ddde4a9ba2fd2625bacfc25dc93013a66f4c940b2219ff9c82c513c1",
           "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
-          "implementation": "58d76a603bf8a1d1e89bfec93a47de45a6c8cd8d2104142669d767b121fcac94",
-          "overrides": [
-            "(61440, 59783):bios_int9_keyboard",
-            "(61440, 65363):bios_iret_stub"
-          ],
-          "profile_id": "real-mode-development-3e4188fc390a",
+          "implementation": "e6d419cd8ea8abac9d63837b2e91d0493464cd01924cf658ec48b0a829e29cdb",
+          "profile_id": "real-mode-development-b1d8a0e6dcca",
           "projection_schema": "dos-re-complete-machine-v1",
           "role": "oracle",
-          "runtime": "5527ddc3f845ee1b9db0194284cc0f62cfb82436ea8f777c2d0538425c766f0b"
+          "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
         },
-        "oracle_profile_identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+        "oracle_profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "cached_at_or_before_entry": {
@@ -176,34 +230,48 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a55",
+      "incomplete": false,
       "invocation_count": 18,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
         "ordinal": 3,
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
-      "replay_id": "replay:62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef"
+      "replay_id": "replay:828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+      "runtime_variants": []
     },
     {
+      "annotations": [
+        {
+          "kind": "verified-endpoint",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-74b5f759f0f9",
+            "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
+            "oracle_profile": "real-mode-development-b1d8a0e6dcca",
+            "projection_schema": "dos-re-complete-machine-v1"
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        }
+      ],
       "artifact": {
         "event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
-        "identity_digest": "62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef",
+        "identity_digest": "828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
         "label": "oracle_atlas_smoke",
         "oracle_profile": {
           "continuation_schema": "dos-re-real-mode-continuation-v1",
-          "devices": "dos-re-real-mode-devices-v1",
+          "devices": "dos-re-real-mode-devices-v2:d0537e58ddde4a9ba2fd2625bacfc25dc93013a66f4c940b2219ff9c82c513c1",
           "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
-          "implementation": "58d76a603bf8a1d1e89bfec93a47de45a6c8cd8d2104142669d767b121fcac94",
-          "overrides": [
-            "(61440, 59783):bios_int9_keyboard",
-            "(61440, 65363):bios_iret_stub"
-          ],
-          "profile_id": "real-mode-development-3e4188fc390a",
+          "implementation": "e6d419cd8ea8abac9d63837b2e91d0493464cd01924cf658ec48b0a829e29cdb",
+          "profile_id": "real-mode-development-b1d8a0e6dcca",
           "projection_schema": "dos-re-complete-machine-v1",
           "role": "oracle",
-          "runtime": "5527ddc3f845ee1b9db0194284cc0f62cfb82436ea8f777c2d0538425c766f0b"
+          "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
         },
-        "oracle_profile_identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+        "oracle_profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "cached_at_or_before_entry": {
@@ -222,15 +290,61 @@
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
       "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fcc",
+      "incomplete": true,
       "invocation_count": 6546,
       "last_exit": {
         "key": "f029e88d5c291312-0000000000000003",
         "ordinal": 3,
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       },
-      "replay_id": "replay:62fc2617daad63c00331df33527535a70978b4ca5319003a3ff516553bd765ef"
+      "replay_id": "replay:828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+      "runtime_variants": []
     }
   ],
   "format_version": 1,
-  "program_id": "skyroads:1.0"
+  "program_id": "skyroads:1.0",
+  "replays": [
+    {
+      "annotations": [
+        {
+          "kind": "verified-endpoint",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-74b5f759f0f9",
+            "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
+            "oracle_profile": "real-mode-development-b1d8a0e6dcca",
+            "projection_schema": "dos-re-complete-machine-v1"
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        }
+      ],
+      "artifact": {
+        "event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
+        "identity_digest": "828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+        "label": "oracle_atlas_smoke",
+        "oracle_profile": {
+          "continuation_schema": "dos-re-real-mode-continuation-v1",
+          "devices": "dos-re-real-mode-devices-v2:d0537e58ddde4a9ba2fd2625bacfc25dc93013a66f4c940b2219ff9c82c513c1",
+          "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+          "implementation": "e6d419cd8ea8abac9d63837b2e91d0493464cd01924cf658ec48b0a829e29cdb",
+          "profile_id": "real-mode-development-b1d8a0e6dcca",
+          "projection_schema": "dos-re-complete-machine-v1",
+          "role": "oracle",
+          "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
+        },
+        "oracle_profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "incomplete_functions": [
+        "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153",
+        "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459",
+        "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fcc"
+      ],
+      "replay_id": "replay:828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+      "runtime_variants": []
+    }
+  ]
 }

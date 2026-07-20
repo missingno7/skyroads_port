@@ -1,7 +1,11 @@
-"""Native cold-boot DGROUP builder — the snapshot-free baseline (milestone 2).
+"""Recovery-evidence experiment for reconstructing DGROUP from game files.
+
+This module is not a dos_re ``BootstrapProvider`` and is not selected by the
+execution plan. Detached compositions currently use the declared build-image
+provider materialized by ``scripts/build_boot_image.py``.
 
 Reproduces, from the game files alone, the DGROUP state the real game reaches
-by menu time, per the VM-traced boot manifest (run_status.md 2026-07-13):
+by menu time:
 
 1. the unpacked EXE's initialized data + zero BSS (`exe_image.initial_dgroup`),
 2. `skyroads.cfg` -> `[4516]` (66 B),
@@ -36,9 +40,7 @@ DEMO_REC_OFF = 0x961E
 SEG_DISPLAY_LISTS = (0x2B12, 0x311B, 0x3766, 0x3DD4, 0x4459,
                      0x4B02, 0x518C, 0x57FE)     # [0E76..] rotation buffers
 SEG_SFX_BANK = 0x233B         # [4560]; also intro.snd's buffer
-#: FIXED 2026-07-13 (were swapped): verified against the menu-time cold
-#: capture by content match, not just by name -- 0x221A holds OXY_DISP.DAT's
-#: bytes byte-exact (375/375), 0x2232 holds FUL_DISP.DAT's (387/387).
+#: Verified by content: 0x221A holds OXY_DISP.DAT and 0x2232 holds FUL_DISP.DAT.
 SEG_OXY_BANK = 0x221A         # OXY_DISP.DAT stencils; [5476]
 SEG_FUL_BANK = 0x2232         # FUL_DISP.DAT stencils; [9610]
 SEG_SPEED_BANK = 0x224B       # SPEED.DAT stencils; [54A6]
@@ -183,8 +185,7 @@ def native_boot_dac(game_root: "str | Path") -> list:
 
 
 def parse_lzs_container(data: bytes):
-    """The graphics container layout (decoded 2026-07-13, generalizing the
-    WORLD finding): ``"CMAP" + u8 colour-count + colours``, an aux table
+    """The graphics container layout: ``"CMAP" + u8 colour-count + colours``, an aux table
     (loaded to `[AF3C]`), then ``"PICT" + u16 dest_off + u16 h + u16 w +
     3 LZS width bytes + stream``. Returns (cmap, aux, pict_at, dest, h, w).
     Verified: WORLD4 background (2,11,13)@138x320; CARS 2310x24=55,440;
@@ -247,9 +248,7 @@ def native_boot_image(game_root: "str | Path") -> bytearray:
     # paragraphs of DGROUP_SEG) physically overlap its 64 KB window, exactly
     # like the real allocator's layout. Writing DGROUP before those `place()`
     # calls lets their content correctly overlay on top (matching real
-    # memory); the old order wrote DGROUP last and silently zeroed all four
-    # banks -- latent until the HUD widget system started actually reading
-    # them (see run_status.md).
+    # memory). Writing DGROUP last would zero these overlapping banks.
     img[DGROUP_SEG << 4:(DGROUP_SEG << 4) + 0x10000] = dg
 
     def place(seg: int, data: bytes) -> None:

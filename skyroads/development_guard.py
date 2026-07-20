@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def arm_cpuless_import_guard() -> None:
-    from dos_re.lift.standalone import install_import_guard
+    from dos_re.detachment_guard import install_import_guard
 
     install_import_guard(extra_forbidden=("skyroads.lifted",))
 

@@ -5,8 +5,7 @@ oracle-owned dos_re 3.0 artifact. The source recording is read only; no legacy
 runtime path is retained.
 
 Usage:
-    python scripts/record_atlas_evidence.py \
-      --source-replay artifacts/replays/REPLAY --frames 12
+    python scripts/record_atlas_evidence.py --source-replay artifacts/replays/REPLAY --frames 12
 """
 from __future__ import annotations
 
@@ -33,6 +32,7 @@ from dos_re.snapshot import (  # noqa: E402
 )
 from scripts.play import SkyroadsFrontend  # noqa: E402
 from skyroads.atlas_evidence import OracleAtlasObserver  # noqa: E402
+from skyroads.replay import recording_profile  # noqa: E402
 
 DEFAULT_OUTPUT = ROOT / "recovery" / "replays" / "oracle_atlas_smoke"
 IR = ROOT / "recovery" / "recovery_ir.json"
@@ -48,10 +48,7 @@ def main(argv=None) -> int:
     if args.frames <= 0:
         parser.error("--frames must be positive")
     source = ReplayArtifact.open(args.source_replay.resolve())
-    source_profiles = source.profiles()
-    if len(source_profiles) != 1:
-        parser.error("pilot source replay must have one unambiguous base profile")
-    source_profile = source_profiles[0][0]
+    source_profile = recording_profile(source)
     base_point = source.cached_points(source_profile)[0]
     base = source.restore(source_profile, base_point)
 
@@ -61,9 +58,12 @@ def main(argv=None) -> int:
         "--steps-per-frame", str(source.metadata["steps_per_frame"]),
         "--timer-irqs-per-frame", str(source.metadata["timer_irqs_per_frame"]),
     ])
+    # This explicit conversion tool restores ReplayArtifact continuation state,
+    # so replay and snapshot services belong in its canonical execution plan.
+    launch_args.play_replay = str(source.directory)
+    launch_args.execution_plan = frontend.resolve_execution_plan(launch_args)
     runtime = frontend.create_runtime(launch_args)
     apply_runtime_continuation(runtime, base)
-    launch_args.execution_plan = frontend.resolve_execution_plan(launch_args)
     frontend.bind_execution_plan(runtime, launch_args.execution_plan)
     # The source recording may predate replay consolidation and carry the
     # recording machine's interactive save path. Oracle evidence is hermetic:

@@ -1,7 +1,6 @@
 """Read-only reachability audit over the recovery IR -- DIAGNOSTIC, never a pruner.
 
-The investigation's conclusion (docs/dead_code_analysis.md): in dos_re,
-reachability is UNDER-approximated more often than code is over-emitted. A
+Reachability is under-approximated more often than code is over-emitted. A
 function absent from the static near-call closure is NOT dead -- it is almost
 always reached by a dynamic edge the static graph cannot see (a dispatch table,
 an IVT vector, a scheduler resume). So this tool assembles EVERY known
@@ -13,8 +12,10 @@ It reuses dos_re's runtime-closure walk (tools/cpuless_closure.walk_closure is
 the promotion-frontier form); the classification here is richer because it must
 label the RETENTION REASON, not just promoted/frontier.
 
-Root sources, today scattered across artifacts (this scatter is the point --
-see the design note's proposed roots.json schema):
+This local report predates the retained Atlas sources and does not update or
+override them. Promote useful facts into the shared evidence model.
+
+Inputs inspected by this diagnostic:
 
     canonical entry   the boot far-jump target (build_boot_image / --extra)
     IVT handlers      observed.json  ivt_game_vectors  (hardware-entered ISRs)
@@ -139,7 +140,10 @@ def audit(ir: dict, roots_by_source: dict[str, set[str]]) -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--ir", default=str(ROOT / "artifacts/codemap/recovery_ir.json"))
+    ap.add_argument(
+        "--ir", default=str(ROOT / "recovery/recovery_ir.json"),
+        help="retained Recovery IR to inspect",
+    )
     ap.add_argument("--observed", default=str(ROOT / "artifacts/codemap/observed.json"))
     ap.add_argument("--codemap-dir", default=str(ROOT / "artifacts/codemap"))
     ap.add_argument("--json", default=None, help="also write the full report here")

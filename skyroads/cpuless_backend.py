@@ -6,36 +6,33 @@ Starts at the C-startup root ``1010:61F3`` and drives the recovered corpus in
 NEVER imports or instantiates the interpreter (``dos_re.cpu``); a runtime import
 guard is the dynamic backstop and ``tools/lint_cpuless.py`` is the static proof.
 
-This is a PLAYABLE game, not a boot probe: the default is an interactive pygame
-window with live keyboard, running until you quit.  ``--headless`` is the opt-in
-for agents/CI (no window, frame-capped, no input source).
+The provider supports both the interactive frontend and a frame-capped headless
+probe. It is one selectable implementation representation, not a separate
+player.
 
 The frame model lives in :mod:`skyroads.cpuless_driver`. Select this provider
-with ``scripts/play.py --profile detached --composition generated-abi``.
+with ``scripts/play.py --profile development --composition generated-abi``.
 """
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 CANONICAL_ENTRY = (0x1010, 0x61F3)
-STANDALONE_DIR = ROOT / "skyroads" / "recovered"
+GENERATED_ABI_DIR = ROOT / "skyroads" / "recovered"
 #: SkyRoads presents at 30 Hz with 6 IRQ0 ticks per frame (= 180 Hz IRQ0), the
 #: ratio every recorded replay carries as ``timer_irqs_per_frame``.
 PRESENT_HZ = 30
 
 
-def _ensure_corpus(rebuild: bool) -> None:
-    if rebuild or not any(STANDALONE_DIR.glob("func_*.py")):
-        print("[cpuless] regenerating the standalone corpus ...")
-        r = subprocess.run([sys.executable,
-                            str(ROOT / "scripts/build_recovered.py")])
-        if r.returncode != 0:
-            raise SystemExit(r.returncode)
+def _require_corpus() -> None:
+    if not any(GENERATED_ABI_DIR.glob("func_*.py")):
+        raise RuntimeError(
+            "generated CPUless corpus is missing; run "
+            "`python scripts/build_recovered.py` before planning or launch"
+        )
 
 
 def _load_boot(bootstrap_artifacts: dict[str, Path]):
@@ -81,13 +78,12 @@ class _Quit(Exception):
 
 
 def _boot(
-    rebuild: bool,
     *,
     mouse_present: bool,
     bootstrap_artifacts: dict[str, Path],
 ):
     """Build the CPU-free runtime: boot image + device model + platform."""
-    _ensure_corpus(rebuild)
+    _require_corpus()
     from dos_re.lift.platform import CPUlessPlatformRuntime
     from dos_re.dos import DOSMachine
     from dos_re.snapshot_headless import _restore_dos_state   # runtime CPU-free
@@ -150,7 +146,6 @@ def _key_deliverer(mem, dos, rt):
 
 def run_headless(
     frames: int,
-    rebuild: bool,
     bootstrap_artifacts: dict[str, Path],
     diagnostics=None,
 ) -> int:
@@ -160,7 +155,6 @@ def run_headless(
     from dos_re.x86 import HaltExecution          # CPU-FREE shared leaf
 
     mem, dos, rt, regs0 = _boot(
-        rebuild,
         mouse_present=False,
         bootstrap_artifacts=bootstrap_artifacts,
     )
@@ -202,7 +196,7 @@ def run_headless(
 
 
 def run_interactive(scale: int, square_pixels: bool, present_hz: int,
-                    rebuild: bool, bootstrap_artifacts: dict[str, Path],
+                    bootstrap_artifacts: dict[str, Path],
                     diagnostics=None) -> int:
     """The playable window: live keyboard, running until you quit."""
     import numpy as np
@@ -216,7 +210,6 @@ def run_interactive(scale: int, square_pixels: bool, present_hz: int,
     from dos_re.x86 import HaltExecution          # CPU-FREE shared leaf
 
     mem, dos, rt, regs0 = _boot(
-        rebuild,
         mouse_present=True,
         bootstrap_artifacts=bootstrap_artifacts,
     )
@@ -290,7 +283,8 @@ def run_interactive(scale: int, square_pixels: bool, present_hz: int,
         print(f"[cpuless] quit after {driver.frame} frames -- no CPU, "
               f"no interpreter")
     except BaseException as e:           # noqa: BLE001 -- report ANY stop, then re-raise
-        # Includes the fail-loud hard wall.  The bundle is written HERE, where
+        # Includes fail-loud unresolved-frontier diagnostics. The bundle is
+        # written here, where
         # the machine and the session recording are still in scope; run() below
         # only formats the frontier message.
         if diagnostics is not None:
@@ -311,23 +305,22 @@ def run(args, *, bootstrap_artifacts: dict[str, Path], diagnostics=None) -> int:
         if args.headless:
             return run_headless(
                 args.frames,
-                args.rebuild,
                 bootstrap_artifacts,
                 diagnostics,
             )
         return run_interactive(
-            args.scale, args.square_pixels, args.present_hz, args.rebuild,
+            args.scale, args.square_pixels, args.present_hz,
             bootstrap_artifacts, diagnostics)
     except (UnsupportedPlatformEffect, *([UnknownDispatchTarget]
                                          if UnknownDispatchTarget else [])) as e:
-        print(f"\n[cpuless] HARD-WALL FRONTIER (fail-loud, by design):\n  {e}")
+        print(f"\n[cpuless] UNRESOLVED EXECUTION FRONTIER:\n  {e}")
         print("[cpuless] the run reached code beyond the current --observed "
               "coverage; close it with a fuller capture (see "
-              "docs/cpuless_standalone.md).")
+              "docs/execution_atlas.md).")
         return 3
     except RuntimeError as e:
         if "CPUless" in str(e):
-            print(f"\n[cpuless] HARD-WALL FRONTIER (fail-loud, by design):\n  {e}")
+            print(f"\n[cpuless] UNRESOLVED EXECUTION FRONTIER:\n  {e}")
             print("[cpuless] a runtime-dead path (per the current --observed "
                   "trace) was reached; close it with a fuller capture.")
             return 3

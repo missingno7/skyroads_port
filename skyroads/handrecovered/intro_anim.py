@@ -2,7 +2,7 @@
 
 Recovered via lift-then-refactor (`dos_re.tools.liftverify` proved a literal
 transcription byte-exact against the ASM oracle first — see
-`docs/skyroads/run_status.md`). Called once per intro frame; unpacks 8
+`docs/history/skyroads/run_status.md`). Called once per intro frame; unpacks 8
 animation-data segments (a fixed table at `ss:[bx+0xE76]`, `bx = 0, 2, ..,
 14`), each holding **1040 fixed rows** of a small RLE-ish token stream,
 expanded in place (`ds == es == that segment` throughout each segment's
@@ -35,7 +35,6 @@ from __future__ import annotations
 
 from typing import Callable, NamedTuple
 
-from skyroads.islands import oracle_link
 
 #: Number of rows per segment (1010:3AA2 `mov dx,0x0410`).
 ROWS_PER_SEGMENT = 0x0410
@@ -52,27 +51,6 @@ class UnpackResult(NamedTuple):
     cursor_di: int   # final write offset within the segment (register DI)
 
 
-@oracle_link(
-    boundary="1010:3A96",
-    contract="unpack_animation_segment(rb, wb) -> UnpackResult: unpacks one "
-             "animation-data segment in place through the given byte "
-             "read/write callbacks (offsets 0-65535 within the segment). "
-             "Relocate the first 624 bytes from the self-referential offset "
-             "at [0:2] to [0:624]; then for ROWS_PER_SEGMENT rows, copy a "
-             "3-byte prefix (movsb then movsw, NOT atomic with each other), "
-             "then expand 2-byte tokens into [b1,b2,0x00] triplets until a "
-             "token's b1==0xFF (copied through, ending the row). Returns the "
-             "final (si, di) cursor offsets.",
-    status="VERIFIED",  # the mechanical lift of 1010:3A96 (its call site, one
-    # full 8-segment invocation) matched the ASM oracle byte-exact -- every
-    # register, flag and the whole memory image -- against real E2E-replay
-    # gameplay (dos_re.tools.liftverify + a hand-driven strict-verifier run;
-    # see run_status.md). This refactor was derived from that proven
-    # transcription, not from reading the disassembly directly. Row-by-row
-    # (si,di) cross-checked against the real ASM for all 1040 rows of a real
-    # segment, byte-exact.
-    merge_target="skyroads.native.intro_anim (future)",
-)
 def unpack_animation_segment(
     rb: Callable[[int], int], wb: Callable[[int, int], None],
 ) -> UnpackResult:

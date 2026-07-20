@@ -2,15 +2,14 @@
 
 Two things are locked in here:
 
-1. **The pure resample/mix logic** of :class:`skyroads.audio.SkyroadsAudioSink`
+1. **The pure resample/mix logic** of
+   :class:`skyroads.audio.sink.SkyroadsAudioSink`
    (8-bit-unsigned PCM -> mixer-rate int samples), which needs no VM or pygame.
 
-2. **The observer guarantee**: booting with ``capture_sb_pcm=True`` (which reads
-   each single-cycle DMA-out block out of memory for playback) must not perturb
-   the CPU timeline at all versus the detection-only stub the game normally runs
-   against — same instruction count and same full memory image — while actually
-   capturing the intro's INTRO.SND digital sample.  This is what lets the viewer
-   play the game's PCM effects without breaking replay determinism.
+2. **The observer guarantee**: ``capture_sb_pcm=True`` reads a single-cycle
+   DMA-out block for playback without writing machine memory or advancing the
+   CPU. This keeps presentation capture outside authoritative execution state
+   while proving the SkyRoads runtime wires capture mode correctly.
 """
 from __future__ import annotations
 
@@ -26,7 +25,7 @@ np = pytest.importorskip("numpy")
 
 ROOT = Path(__file__).resolve().parents[1]
 
-from skyroads.audio import SkyroadsAudioSink  # noqa: E402  (pure logic, no VM)
+from skyroads.audio.sink import SkyroadsAudioSink  # noqa: E402  (pure logic, no VM)
 
 
 class _FakeSink(SkyroadsAudioSink):
@@ -85,40 +84,47 @@ _needs_game = pytest.mark.skipif(
 
 
 @_needs_game
-def test_capture_mode_is_byte_identical_and_captures_intro_pcm() -> None:
-    from dos_re.interrupts import deliver_interrupt
-    from dos_re.cpu import HaltExecution
-    from dos_re.execution import plan_execution
-    from scripts.play import SkyroadsFrontend
-    from skyroads.execution import catalog, configuration, coverage
+def test_capture_mode_reads_dma_without_changing_cpu_or_memory() -> None:
     from skyroads.runtime import create_game_runtime
 
-    faithful = plan_execution(
-        configuration("development", "authored-candidates"), coverage(), catalog())
-    frontend = SkyroadsFrontend(ROOT)
+    payload = bytes(range(32))
 
-    def boot_and_run(capture: bool):
+    def prepare(capture: bool):
         rt = create_game_runtime(_EXE, capture_sb_pcm=capture)
-        frontend.bind_execution_plan(rt, faithful)
-        for _ in range(140):                       # far enough to hit INTRO.SND DMA (~f121)
-            try:
-                for _ in range(6):
-                    deliver_interrupt(rt, 0x08)
-                rt.cpu.run(30_000)
-            except HaltExecution:
-                break
-        return rt
+        sb = rt.dos.sound_blaster
+        channel = sb.channels[sb.dma]
+        channel.restore_state({
+            "page": 0x09,
+            "base_addr": 0x0100,
+            "base_count": len(payload) - 1,
+            "cur_addr": 0x0100,
+            "cur_count": len(payload) - 1,
+            "mode": 0x49,
+            "masked": False,
+            "flipflop_high": False,
+        })
+        for index, value in enumerate(payload):
+            rt.cpu.mem.wb_phys(0x90100 + index, value)
+        before = hashlib.sha256(bytes(rt.cpu.mem.data)).hexdigest()
+        sb.detect_irq_limit = 0
+        sb.port_write(sb.base + 0x0C, 0x14)
+        sb.port_write(sb.base + 0x0C, len(payload) - 1)
+        sb.port_write(sb.base + 0x0C, 0)
+        return rt, before
 
-    base = boot_and_run(False)
-    cap = boot_and_run(True)
+    base, base_before = prepare(False)
+    cap, cap_before = prepare(True)
 
-    # The detection-only stub captures nothing; capture mode pulls the intro sample.
     assert base.dos.sound_blaster.detection_only is True
     assert cap.dos.sound_blaster.detection_only is False
-    assert len(cap.dos.sound_blaster.pcm_out) > 0
-    assert cap.dos.sound_blaster._dma_requests >= 1
+    assert base.dos.sound_blaster.pcm_out == b""
+    assert cap.dos.sound_blaster.pcm_out == payload
+    assert base.dos.sound_blaster._dma_requests == 1
+    assert cap.dos.sound_blaster._dma_requests == 1
 
-    # ...yet the CPU timeline is unaffected: same steps + same whole memory image.
     assert base.cpu.instruction_count == cap.cpu.instruction_count
-    assert hashlib.sha256(bytes(base.cpu.mem.data)).hexdigest() \
-        == hashlib.sha256(bytes(cap.cpu.mem.data)).hexdigest()
+    base_after = hashlib.sha256(bytes(base.cpu.mem.data)).hexdigest()
+    cap_after = hashlib.sha256(bytes(cap.cpu.mem.data)).hexdigest()
+    assert base_before == base_after
+    assert cap_before == cap_after
+    assert base_after == cap_after

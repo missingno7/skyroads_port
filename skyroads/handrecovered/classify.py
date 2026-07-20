@@ -12,11 +12,10 @@ three per-frame classification flags the rest of the frame gates on:
   the flag `physics.compute_movement_targets`'s `af1c_base_offset` selector
   reads; kept for faithfulness).
 
-`class_skip`/`class_zero` are exactly the inputs
-`dynamics.step_jump_steer_gravity` needs. Verified 682/682 against the real
-ASM over the full E2E replay (computing the perspective word natively via
-`perspective_row_offset` + a DGROUP read, and the table lookup via the same
-reader).
+``class_skip`` and ``class_zero`` are the inputs
+``dynamics.step_jump_steer_gravity`` needs. Focused oracle evidence computes
+the perspective word through ``perspective_row_offset`` and the same DGROUP
+reader used for the table lookup.
 
 ## Two documented subtleties
 
@@ -26,7 +25,7 @@ reader).
    pure per-frame function — the caller must pass the prior value
    (`class_skip_prev`). `bp12` itself is the gameplay-active latch set at
    `1010:206C`/`2901` and cleared at `28D7` (the tail state machine — a
-   separate island).
+   separate implementation).
 2. In the `bp12 != 0` path the ASM calls `1010:1B49`
    (`menu.dispatch_menu_action`) with the reduced word as its argument
    (`1010:2385-238B`), BEFORE reading the nibble for the flags. The flags do
@@ -36,15 +35,13 @@ reader).
    advances `ds:[54AC]` (ship_pos) by `SCROLL_STEP` (`0x12F`) when
    `ds:[456A] == 0` (`1010:1BDC`). So a native stepper MUST apply
    `dispatch_menu_action(reduced_word, ...)` here — this is surfaced via
-   `calls_1b49`/`reduced_word`, and `skyroads.native.loop.native_gameplay_substep`
-   does exactly that. (Verified: wiring it in took the assembled sub-step's
-   VM match from 148/232 to 230/232, incl. ship_pos — see run_status.md.)
+   ``calls_1b49``/``reduced_word``, and
+   ``skyroads.native.loop.native_gameplay_substep`` does exactly that.
 """
 from __future__ import annotations
 
 from typing import Callable, NamedTuple
 
-from skyroads.islands import oracle_link
 
 #: ds-relative base of the per-segment class table indexed by (persp_word>>8)
 #: (word entries; 1010:236A `ds:[bx+0x228]`).
@@ -62,23 +59,6 @@ class ClassifyResult(NamedTuple):
     #                   its DGROUP effect during gameplay is NOT modelled here.
 
 
-@oracle_link(
-    boundary="1010:2324",
-    contract="classify_perspective(persp_word, af2c, bp12, class_skip_prev, "
-             "read_seg_table): perspective classification. class_zero = "
-             "(persp_word == 0). If bp12 == 0: bp16 = 0, class_skip = "
-             "class_skip_prev (UNCHANGED, persists), no 1B49 call. Else: reduce "
-             "the word -- if af2c > 0x2800, look up read_seg_table(persp_word>>8) "
-             "and set word = (persp_word>>4) if af2c==that else 0; otherwise "
-             "leave it; a side-effect 1B49(word) call fires; then class_skip = "
-             "(word & 0xF == 8), bp16 = (word & 0xF == 2). Returns the flags "
-             "plus the reduced word and whether 1B49 was called.",
-    status="ASM_MATCHED",  # 682/682 real E2E-replay frames byte-exact on
-    # (class_skip, bp16, class_zero), computing persp_word natively via
-    # renderer.perspective_row_offset + a DGROUP read and the table lookup via
-    # the same reader. See tests/test_classify.py + run_status.md.
-    merge_target="skyroads.native.classify (future)",
-)
 def classify_perspective(
     persp_word: int, af2c: int, bp12: int, class_skip_prev: int,
     read_seg_table: Callable[[int], int],

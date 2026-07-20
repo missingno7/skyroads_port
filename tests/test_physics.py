@@ -45,7 +45,7 @@ def test_fixture_uses_the_observed_constant_offset() -> None:
 
 def test_default_offset_matches_the_fixture_calls() -> None:
     # The default (0x618) must reproduce every fixture call without the caller
-    # passing an offset -- this is what native_gameplay_frame relies on.
+    # passing an offset -- this is what native_gameplay_substep relies on.
     for case in _CASES:
         got = compute_movement_targets(
             case["ship_pos"], case["lateral"], case["af1c"], case["af2c"],

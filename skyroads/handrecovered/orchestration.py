@@ -15,7 +15,6 @@ end. This gate captures that exactly (verified 571/571, incl. the game_state
 """
 from __future__ import annotations
 
-from skyroads.islands import oracle_link
 
 #: `ds:[456A]` values in 1..0x2A keep the frame in gameplay regardless of
 #: game_state (the just-landed settle window; 1010:22A7 `cmp [456A],0x2A; ja`).
@@ -25,19 +24,6 @@ SETTLE_WINDOW_MAX = 0x2A
 FRAME_CTR_GAMEPLAY_MAX = 0x6C
 
 
-@oracle_link(
-    boundary="1010:229D",
-    contract="should_run_gameplay(game_state, f456a, frame_ctr): the frame gate. "
-             "If f456a in 1..0x2A -> True (the settle window, any game_state). "
-             "Else if game_state in (1, 2) -> False (transition). Else if "
-             "game_state == 3 and f456a != 0 -> False (a settled resume hands "
-             "back to the front end). Otherwise -> frame_ctr < 0x6C. True means "
-             "run the gameplay sub-step (2317); False means exit the handler to "
-             "the transition (2B0B).",
-    status="ASM_MATCHED",  # 571/571 real E2E-replay frames, incl. the game_state
-    # 3 -> exit (transition) cases that end a level attempt.
-    merge_target="skyroads.native.orchestration (future)",
-)
 def should_run_gameplay(game_state: int, f456a: int, frame_ctr: int) -> bool:
     """Whether the frame runs the gameplay sub-step (True) or exits to a
     transition (False). See the module docstring for the state meanings."""

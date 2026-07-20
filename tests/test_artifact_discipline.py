@@ -1,4 +1,4 @@
-"""The artifact boundary, enforced (docs/architecture.md, second hard rule).
+"""The artifact boundary, enforced (docs/execution_architecture.md).
 
 ``artifacts/`` may hold generated outputs, recordings, snapshots, diagnostics and
 build products. It must NOT hold live or authoritative code: every executable
@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPORA = {
     "lifted": (
         "skyroads/lifted/functions",
-        ("scripts/close_vmless_wall.py", "skyroads/vmless_backend.py"),
+        ("scripts/expand_vmless_frontier.py", "skyroads/vmless_backend.py"),
     ),
     "recovered": (
         "skyroads/recovered",
@@ -84,11 +84,11 @@ def test_no_code_directory_default_points_into_artifacts():
                 offenders.append(f"{path.name}: {opt}")
     assert not offenders, (
         "code directories must live in a package, not artifacts/ "
-        f"(docs/architecture.md): {offenders}")
+        f"(docs/execution_architecture.md): {offenders}")
 
 
-def test_no_shipped_runner_puts_artifacts_on_the_import_path():
-    """A runner that adds artifacts/ to sys.path can import code from there."""
+def test_no_shipped_provider_puts_artifacts_on_the_import_path():
+    """A provider that adds artifacts/ to sys.path can import code from there."""
     offenders = []
     for name in (
         "scripts/play.py",
@@ -122,4 +122,4 @@ def test_artifacts_holds_no_corpus_that_shadows_a_shipped_one():
             offenders.append(sub.name)
     assert not offenders, (
         "orphaned corpus under artifacts/ -- move it to its package location or "
-        f"delete it (docs/architecture.md): {offenders}")
+        f"delete it (docs/execution_architecture.md): {offenders}")

@@ -1,9 +1,8 @@
-"""Native, VM-free level loading recovered during the milestone-1 work.
+"""Recovery-evidence level-state initialization from original game data files.
 
-Goal (user-set 2026-07-12): boot a `NativeGameState` for ANY level from the game
-files alone — no replay, no snapshot, no VM. This module is the SkyRoads analog of
-`pre2_port`'s `pre2/native/level_load.py`: it owns the **DGROUP gameplay-state
-contract** the native sim reads, reproduced from the level files, and FAILS LOUD
+This module can initialize a `NativeGameState` for any level without replay,
+snapshot, or instruction interpretation. It owns the DGROUP gameplay-state
+contract the authored simulation reads, reproduced from the level files, and fails loud
 on anything not yet recovered (never a silent VM fallback). Render side effects
 (the level-select → gameplay transition palette fade `4331`/`43A9`, the menu
 glyph blits `0F62`, the tile-bitmap banks at segments `0x7176`/`0x7c3e`) are
@@ -12,12 +11,16 @@ contract. (There is NO separate "loading screen": the replays start ON the
 level-select screen and run the level; the load is interleaved with the menu +
 transition render, which is why it can't be cleanly isolated by write-tracing.)
 
-What the native SIM actually reads per level (see docs/skyroads/run_status.md):
+This candidate is not currently registered as a runtime implementation or
+bootstrap provider.
+
+What the authored simulation reads per level
+(see docs/history/skyroads/run_status.md):
   * the `0x162C` perspective LUT (LZS-decompressed from `WORLD<n>.LZS` block B),
   * the road-cell geometry (derived from `ROADS.LZS[level]` `road[]`),
   * per-level scalars — gravity (via the jump-level gate), fuel, oxygen.
 
-STATUS: RECOVERED + VM-verified. The loader `1010:5614` was disassembled
+The faithful loader implementation for `1010:5614` was disassembled
 (churn-immune, from `gameplay_f640`) and its DGROUP writes reproduced here;
 verified byte-exact against the VM (the level-select replay loads level 14 — its
 `[4562]`/`[54A2]`/`[4566]`, `road[]@0x162C` and `palette@0x41C2` all match

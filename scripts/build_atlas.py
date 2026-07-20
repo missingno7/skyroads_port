@@ -1,9 +1,9 @@
 """Regenerate SkyRoads retained Recovery IR and its persistent Execution Atlas.
 
-The first retained entry census is seeded from the already generated CPUless
-corpus.  That corpus is discovery evidence only: after generation,
-``recovery/recovery_ir.json`` is the static authority consumed by the Atlas.
-No Atlas code decodes instructions.
+The retained IR supplies the current function-entry evidence when it exists.
+For the first bootstrap only, the generated ABI corpus can seed those identities.
+The Atlas imports normalized IR alongside replay and manual evidence; Atlas
+APIs never decode instructions themselves.
 
 Usage:
     python scripts/build_atlas.py --snapshot artifacts/SNAPSHOT_DIR
@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "dos_re"))
 
 from dos_re.atlas import ExecutionAtlas  # noqa: E402
+from dos_re.lift.ir import load_recovery_ir  # noqa: E402
 from skyroads.identities import (  # noqa: E402
     IMAGE,
     PROGRAM,
@@ -31,7 +32,6 @@ from skyroads.identities import (  # noqa: E402
     function_identity,
 )
 from skyroads.pacing import (  # noqa: E402
-    FADE_WAIT_IP,
     MENU_ANIM_WAIT_IP,
     PACING_SPIN_IP,
 )
@@ -41,18 +41,26 @@ IR = RECOVERY / "recovery_ir.json"
 ATLAS = RECOVERY / "atlas"
 PRODUCT_PROFILES = (
     "game/oracle", "game/generated-functions", "game/authored-candidates",
-    "game/play", "game/behavioral",
+    "game/play",
     "game/generated-cpu", "game/generated-abi",
 )
 
 
 def _entry_census() -> tuple[str, ...]:
-    entries = []
-    for path in (ROOT / "skyroads" / "recovered").glob("func_1010_*.py"):
-        offset = path.stem.rsplit("_", 1)[-1]
-        entries.append(f"1010:{int(offset, 16):04X}")
+    entries: list[str] = []
+    if IR.exists():
+        document = load_recovery_ir(IR)
+        records = document["functions"]
+        records = records.values() if isinstance(records, dict) else records
+        entries.extend(str(record["entry"]).upper() for record in records)
+    else:
+        for path in (ROOT / "skyroads" / "recovered").glob("func_1010_*.py"):
+            offset = path.stem.rsplit("_", 1)[-1]
+            entries.append(f"1010:{int(offset, 16):04X}")
     if not entries:
-        raise RuntimeError("the generated recovered corpus has no function entries")
+        raise RuntimeError(
+            "no retained function-entry evidence is available; provide a retained "
+            "Recovery IR or bootstrap it from a generated ABI corpus")
     return tuple(sorted(set(entries)))
 
 
@@ -73,7 +81,7 @@ def _generate_ir(snapshot: Path) -> None:
             "".join(
                 f"1010:{offset:04X}\n"
                 for offset in sorted({
-                    PACING_SPIN_IP, FADE_WAIT_IP, MENU_ANIM_WAIT_IP,
+                    PACING_SPIN_IP, MENU_ANIM_WAIT_IP,
                 })
             ),
             encoding="utf-8", newline="\n")
@@ -97,7 +105,6 @@ def _build_atlas() -> ExecutionAtlas:
         IR, image=IMAGE, roots=["1010:61F3"])
     retained_entries = _entry_census()
     from skyroads.hooks import (
-        BEHAVIORAL_OVERRIDE_ADAPTERS,
         FAITHFUL_OVERRIDE_ADAPTERS,
         GENERATED_FUNCTION_ADAPTERS,
     )
@@ -105,7 +112,6 @@ def _build_atlas() -> ExecutionAtlas:
         int(entry.split(":")[1], 16) for entry in retained_entries}
     hook_offsets = (
         set(FAITHFUL_OVERRIDE_ADAPTERS)
-        | set(BEHAVIORAL_OVERRIDE_ADAPTERS)
         | set(GENERATED_FUNCTION_ADAPTERS)
     )
     manual_hook_nodes = [
@@ -123,6 +129,14 @@ def _build_atlas() -> ExecutionAtlas:
     ]
     atlas.add_manual_facts(
         "skyroads-retained-entry-census-v1",
+        provenance={
+            "kind": "project-declared-entry-census",
+            "source": "retained Recovery IR and skyroads.execution catalog",
+            "description": (
+                "Connect the SkyRoads product region to the observed "
+                "post-unpack entry and declared authored implementation targets."
+            ),
+        },
         nodes=[
             {
                 "id": PROGRAM_ROOT,
@@ -175,7 +189,7 @@ def main(argv=None) -> int:
     parser.add_argument("--snapshot", type=Path)
     parser.add_argument(
         "--from-ir", action="store_true",
-        help="rebuild normalized Atlas sources/indexes from retained IR only")
+        help="reuse retained IR instead of regenerating it from a snapshot")
     args = parser.parse_args(argv)
     if not args.from_ir:
         if args.snapshot is None:

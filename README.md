@@ -9,8 +9,8 @@ The port has one player:
 python scripts/play.py
 ```
 
-The default development composition uses verified faithful replacements plus
-the non-authoritative frame-pacing enhancement. Use `--composition oracle`
+The default development composition uses authored faithful candidates plus
+the product-safe frame-parking runtime service. Use `--composition oracle`
 when an untouched, intentionally slow interpreter run is required.
 The window defaults to a desktop-safe 2× scale; use `--scale 3` or resize it
 after launch on a larger display.
@@ -25,8 +25,7 @@ python scripts/play.py --profile development --composition oracle
 python scripts/play.py --profile development --composition authored-candidates
 
 # differential verification over a ReplayArtifact
-python scripts/play.py --profile verification --composition generated-functions \
-  --play-replay artifacts/replays/replay_name
+python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_name --verify-start 100 --verify-end 180
 
 # generated CPUless implementation while recovery frontiers remain visible
 python scripts/play.py --profile development --composition generated-abi --headless
@@ -45,8 +44,9 @@ python scripts/build_boot_image.py
 `skyroads.execution` is the single implementation catalog and composition
 authority; `recovery/atlas` is the persistent coverage model.
 Generated VMless and CPUless code are baseline providers; authored faithful
-replacements, presentation enhancements and behavioral modifications are
-separate override categories. Importing an adapter never installs it.
+replacements are explicit semantic-plus-adapter pairs. Frame parking is a
+product-safe runtime service rather than an implementation override. Importing
+an adapter never installs it.
 
 The selected `BuildImageBootstrapProvider` declares `state.json`,
 `memory_1mb.bin`, and `manifest.json`, including their packaged paths and the
@@ -60,9 +60,9 @@ evidence, not release authority.
 `ReplayArtifact` is the only persistent record/replay format. Recording is
 restricted to the untouched oracle. Literal generated functions are green over
 the committed exact interval with complete continuation-state comparison.
-Authored faithful candidates retain their call-level oracle evidence, but must
-also become instruction-clock transparent before the same interval proof can
-promote the complete composition.
+Authored faithful candidates retain focused semantic tests and explicit
+provenance, but the complete authored composition must become instruction-clock
+transparent before the same interval proof can promote it.
 
 See [current documentation](docs/README.md). Pre-3.0 recovery notes are kept
 under `docs/history/` as evidence only.
@@ -71,12 +71,15 @@ under `docs/history/` as evidence only.
 
 Python 3.11 or newer is required. The original game files are not included.
 
+Run the complete repository gate:
+
 ```text
-python -m pytest -q
-python tools/lint.py
-python tools/check_undefined_names.py
-python tools/lint_cpuless.py
+python scripts/check_all.py
 ```
+
+`python scripts/check_all.py --quick` is available for inner-loop work. The
+complete gate also validates the retained replay differential and strict
+release preflight.
 
 The reusable framework is the `dos_re/` submodule. SkyRoads-specific addresses,
 formats, implementations and generated corpora stay in this repository.

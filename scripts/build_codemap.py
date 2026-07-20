@@ -1,30 +1,23 @@
-"""Whole-program execution observation — the discovery step of the DOS_RE 2.0
-recovery pipeline (``dos_re/docs/dos_re_2.0.md``, ``tools/codemap.py``).
+"""Collect oracle execution observations for SkyRoads corpus generation.
 
 Drives the recorded replays on the pure interpreted oracle under a step wrapper
-and dumps ``artifacts/codemap/observed.json``:
+and writes the local generation input ``artifacts/codemap/observed.json``:
 
     executed          every stepped instruction start (CS:IP)
     call_targets      {CS:IP: count} -- dynamically observed CALL targets
     int_entries       ISR entries reached by INT dispatch
     ivt_game_vectors  {vector: CS:IP} -- final IVT vectors pointing into game code
 
-``tools/codemap.py`` turns that into the function-entry census that feeds
-``irgen`` (the recovery IR) and ``liftemit`` (the generated corpus). Dynamic
-evidence beats static analysis here: an indirect call's targets are
-unresolvable statically but show up in ``call_targets`` for free, and every
-kept entry provably EXECUTED -- so the census decodes real code, never data.
-
-Coverage is the whole point: pass every replay that exercises a distinct part of
-the game (the cold e2e replay alone walks intro -> main menu -> controls -> help
--> level select -> gameplay -> level select). Anything never executed is not in
-the census, so it is not lifted -- which is why the run list here matters more
-than any single replay's length.
+This is one optional dynamic-evidence producer for the generated VMless and
+ABI-recovered corpora. It neither outranks static/manual evidence nor proves
+closed-world coverage. ReplayArtifact owns retained replay execution evidence,
+and the Execution Atlas combines retained sources for navigation and planning.
+An address absent here means only “not observed in this replay set.”
 
 Usage:
-    python scripts/build_codemap.py                     # the default replay set
     python scripts/build_codemap.py --replay DIR [--replay DIR ...]
-    python scripts/build_codemap.py --max-frames 200    # quick smoke run
+    python scripts/build_codemap.py --replay DIR --max-frames 200
+    python scripts/build_codemap.py --replay DIR --cold-boot-frames 400
 """
 from __future__ import annotations
 
@@ -47,30 +40,6 @@ from dos_re.replay import ReplayArtifact  # noqa: E402
 from dos_re.snapshot import apply_runtime_continuation  # noqa: E402
 from skyroads.replay import recording_base  # noqa: E402
 
-#: Replays whose union covers the program. The cold e2e replay is the spine (every
-#: front-end screen plus a level); the others add paths it does not take.
-DEFAULT_REPLAYS = (
-    "replay_cold_20260713_213510",        # intro -> menu -> controls -> help -> select -> play -> select
-    "replay_skyroads_L1FULL_20260713_212417",   # a level start-to-finish
-    "replay_death_redtile_20260713_154259",     # red-block death
-    "replay_skyroads_20260713_234905",    # level end / finish
-    "replay_skyroads_20260713_160506",    # mouse-enabled menu navigation
-    "replay_menu_3levels_20260713_144256",      # level-select -> 3 different levels
-    "replay_skyroads_20260717_122736",          # menu navigation (Down/Enter/Right...)
-    "replay_intro_20260717_125403",       # cold start: full intro -> attract replay -> interrupt -> menu
-    "replay_cold_20260718_003412",        # full cold playthrough: intro -> menu -> select -> play -> die -> leave -> intro
-    # The block-handler table at 1686:0BAF is indexed by a road cell's LOW
-    # NIBBLE (1010:2DCC-2DD4: `mov bl,[bp+1]; and bx,0x0F; shl bx,1; call
-    # [bx+0BAF]`).  Slots 0/1/2/4 appear on the roads the replays above drive;
-    # slots 3 and 5 do NOT, so their handlers (1010:2EFD, 1010:2FCC) stayed
-    # entirely unobserved and the recovered build fail-loud-stubbed their exits
-    # -- 1010:2F57 is what a player hit in live play.  These two replays were
-    # built by decoding ROADS.LZS to find which levels actually carry those
-    # cells (level 14: 35 slot-3 cells; level 8: 30 slot-5) and driving there.
-    "replay_blockslot3_L14_20260718_090000",   # block type 3 -> 1010:2EFD (+ its 2F57 ret)
-    "replay_blockslot5_L8_20260718_090000",    # block type 5 -> 1010:2FCC
-)
-
 #: The game's code segment. Entries outside it are DOS/BIOS/framework, not game
 #: code to recover.
 GAME_SEG = 0x1010
@@ -84,6 +53,7 @@ def observe_replay(replay_dir: Path, *, max_frames: int = 0,
         ["--play-replay", str(replay_dir), "--headless", "--composition", "oracle"])
     artifact = ReplayArtifact.open(replay_dir)
     frontend.apply_replay_metadata(args, artifact.metadata)
+    args.execution_plan = frontend.resolve_execution_plan(args)
     rt = frontend.create_runtime(args)
     apply_runtime_continuation(rt, recording_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)
@@ -147,13 +117,14 @@ def observe_cold_boot(*, frames: int, executed: set, call_targets: Counter) -> d
     ever executes the startup sequence that runs between the packer stub's
     hand-off (``1010:61F3``) and the first interactive frame. The boot image
     starts at exactly that hand-off, so without this pass the census misses the
-    startup code and the strict-VMless wall fires on the first step (it did:
+    startup code and an interpreter-free provider reports it on the first step:
     `1010:64AB`, "no lifted hook covers this address"). Booting from the EXE
     here is a RECOVERY-TIME input; the shipped runtime never does it.
     """
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--headless", "--composition", "oracle"])
+    args.execution_plan = frontend.resolve_execution_plan(args)
     rt = frontend.create_runtime(args)
     rt.dos.console_input_fallback = None
 
@@ -187,19 +158,41 @@ def observe_cold_boot(*, frames: int, executed: set, call_targets: Counter) -> d
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--replay", action="append", default=[],
-                    help="replay dir (repeatable); default: the standard coverage set")
-    ap.add_argument("--cold-boot-frames", type=int, default=400,
+    ap.add_argument(
+        "--replay", action="append", default=[], metavar="DIR",
+        help="ReplayArtifact evidence input (repeatable)",
+    )
+    ap.add_argument("--cold-boot-frames", type=int, default=0,
                     help="frames of a genuine from-EXE cold boot to observe "
-                         "(the startup path no snapshot-based replay covers); 0 to skip")
+                         "(explicit optional evidence input; default: 0)")
     ap.add_argument("--max-frames", type=int, default=0,
                     help="stop each replay early (smoke runs)")
     ap.add_argument("--out", default=str(ROOT / "artifacts" / "codemap" / "observed.json"))
     args = ap.parse_args(argv)
 
-    replays = [Path(d) for d in args.replay] or [
-        ROOT / "artifacts" / "replays" / d for d in DEFAULT_REPLAYS]
+    if not args.replay and args.cold_boot_frames <= 0:
+        ap.error(
+            "no observation evidence selected; pass at least one "
+            "--replay DIR and/or --cold-boot-frames N"
+        )
+
+    replays = [Path(d) for d in args.replay]
     replays = [d if d.is_absolute() else ROOT / d for d in replays]
+    missing = [replay for replay in replays if not replay.is_dir()]
+    if missing:
+        ap.error(
+            "ReplayArtifact input(s) missing:\n  "
+            + "\n  ".join(str(path) for path in missing)
+        )
+    invalid = [
+        replay for replay in replays
+        if not (replay / "replay.json").is_file()
+    ]
+    if invalid:
+        ap.error(
+            "ReplayArtifact manifest missing from:\n  "
+            + "\n  ".join(str(path) for path in invalid)
+        )
 
     executed: set = set()
     call_targets: Counter = Counter()
@@ -213,9 +206,6 @@ def main(argv=None) -> int:
               f"{len(executed)} addrs -- the startup path no replay covers")
 
     for replay in replays:
-        if not replay.exists():
-            print(f"[codemap] SKIP (missing): {replay.name}")
-            continue
         before = len(executed)
         info = observe_replay(
             replay, max_frames=args.max_frames, executed=executed,
@@ -231,7 +221,7 @@ def main(argv=None) -> int:
         "call_targets": {f"{cs:04X}:{ip:04X}": n for (cs, ip), n in sorted(call_targets.items())},
         "int_entries": sorted(f"{cs:04X}:{ip:04X}" for cs, ip in int_entries),
         "ivt_game_vectors": ivt_all,
-        "replays": [d.name for d in replays if d.exists()],
+        "replays": [d.name for d in replays],
     }
     out.write_text(json.dumps(doc, indent=1))
     game_ex = sum(1 for cs, _ in executed if cs == GAME_SEG)
