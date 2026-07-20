@@ -12,6 +12,8 @@ python scripts/play.py
 The default development composition uses verified faithful replacements plus
 the non-authoritative frame-pacing enhancement. Use `--composition oracle`
 when an untouched, intentionally slow interpreter run is required.
+The window defaults to a desktop-safe 2× scale; use `--scale 3` or resize it
+after launch on a larger display.
 
 Execution policy and implementation composition are separate:
 

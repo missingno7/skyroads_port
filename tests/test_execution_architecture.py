@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 from dos_re.execution import OverrideCategory, plan_execution
+from scripts.play import SkyroadsFrontend
 from skyroads.execution import catalog, configuration, coverage
 
 
 def _plan(profile: str, composition: str):
     return plan_execution(configuration(profile, composition), coverage(), catalog())
+
+
+def test_default_window_scale_fits_a_768_line_desktop() -> None:
+    assert SkyroadsFrontend.default_scale == 2
+    assert 200 * 1.2 * SkyroadsFrontend.default_scale <= 480
 
 
 def test_oracle_plan_selects_only_the_untouched_exe() -> None:

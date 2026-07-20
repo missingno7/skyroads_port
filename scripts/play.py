@@ -41,6 +41,10 @@ class SkyroadsFrontend(player.GameFrontend):
     default_steps_per_frame = 48_000
     default_timer_irqs_per_frame = 6
     default_present_hz = 30
+    # 3x produces a 960x720 client area before window chrome and Windows DPI
+    # scaling, which can place the title bar above a 768-line desktop. Keep the
+    # portable default at 640x480; larger displays can opt into --scale 3.
+    default_scale = 2
 
     def add_arguments(self, parser) -> None:
         execution = parser.add_argument_group("skyroads composition")
