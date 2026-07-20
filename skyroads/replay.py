@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from dos_re.dos import ConsoleInputWouldBlock
 from dos_re.replay_input import RealModeInputAdapter
 from dos_re.replay import (
     CanonicalState,
@@ -109,7 +110,13 @@ class SkyroadsReplayDriver:
                 deliver=lambda rt, scancode: self.frontend.deliver_input(
                     rt, scancode),
             )
-            self.frontend.advance_frame(self.runtime, self.args, ordinal)
+            try:
+                self.frontend.advance_frame(self.runtime, self.args, ordinal)
+            except ConsoleInputWouldBlock:
+                # The interactive player treats a blocking DOS console read as
+                # a stable, resumable frame state. Replays must advance the
+                # same timeline so a later recorded key can satisfy the read.
+                pass
             self._point = ReplayPoint(ordinal + 1, artifact.timeline_id)
 
     def project(self) -> CanonicalState:

@@ -23,7 +23,6 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "dos_re"))
 
 from dos_re import player  # noqa: E402
-from dos_re.replay_input import RealModeInputAdapter  # noqa: E402
 from dos_re.replay import ReplayArtifact, ReplayPoint  # noqa: E402
 from dos_re.snapshot import (  # noqa: E402
     apply_runtime_continuation,
@@ -31,7 +30,11 @@ from dos_re.snapshot import (  # noqa: E402
 from scripts.play import SkyroadsFrontend  # noqa: E402
 from skyroads.atlas_evidence import OracleAtlasObserver  # noqa: E402
 from skyroads.content_identity import content_digest  # noqa: E402
-from skyroads.replay import capture_base, capture_profile  # noqa: E402
+from skyroads.replay import (  # noqa: E402
+    SkyroadsReplayDriver,
+    capture_base,
+    capture_profile,
+)
 
 IR = ROOT / "recovery" / "recovery_ir.json"
 OBSERVER_DIGEST = content_digest(
@@ -71,20 +74,21 @@ def _observe(
 ):
     runtime = _runtime(frontend, launch_args, artifact)
     profile = frontend.replay_profile(launch_args, runtime)
-    inputs = RealModeInputAdapter(artifact.events)
     ordinal = {"value": 0}
     observer = OracleAtlasObserver(
         IR, timeline_id=artifact.timeline_id,
         ordinal=lambda: ordinal["value"],
     )
+    driver = SkyroadsReplayDriver(
+        frontend, launch_args, runtime, artifact, profile)
     context = observer.observe(runtime.cpu) if collect else nullcontext()
     started = time.perf_counter()
     with context:
         for ordinal["value"] in range(frames):
-            inputs.apply_to_runtime(
-                ordinal["value"], runtime,
-                deliver=lambda rt, scancode: frontend.deliver_input(rt, scancode))
-            frontend.advance_frame(runtime, launch_args, ordinal["value"])
+            driver.replay_to(
+                artifact,
+                ReplayPoint(ordinal["value"] + 1, artifact.timeline_id),
+            )
     return time.perf_counter() - started, observer.recorder, profile
 
 

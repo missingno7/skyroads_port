@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from dos_re.dos import ConsoleInputWouldBlock
 from dos_re.replay_input import SCAN_CHANNEL, scan_payload
 from dos_re.replay import (
     ContinuationState,
@@ -115,3 +116,35 @@ def test_player_records_candidate_capture_as_provisional_artifact(tmp_path):
 
     assert artifact.capture_profile() == profile
     assert not artifact.trusted
+
+
+def test_replay_treats_blocking_dos_input_as_resumable_stable_point(
+    monkeypatch,
+):
+    timeline = "real-mode-frame-boundaries:skyroads:v1"
+    artifact = SimpleNamespace(timeline_id=timeline, events=())
+    runtime = SimpleNamespace(dos=FakeDOS(), marker=bytearray(b"base"))
+
+    def block_on_input(rt, args, frame):
+        raise ConsoleInputWouldBlock()
+
+    frontend = SimpleNamespace(
+        deliver_input=lambda rt, scancode: None,
+        advance_frame=block_on_input,
+    )
+    profile = ReplayExecutionIdentity(
+        "candidate", "candidate", "implementation", "image", "runtime",
+        "devices", "continuation", replay.PROJECTION_SCHEMA,
+    )
+    monkeypatch.setattr(
+        replay,
+        "capture_runtime_continuation",
+        lambda rt, event_cursor: ContinuationState(
+            "continuation", {}, {"memory": bytes(rt.marker)}, event_cursor),
+    )
+    driver = replay.SkyroadsReplayDriver(
+        frontend, SimpleNamespace(), runtime, artifact, profile)
+
+    driver.replay_to(artifact, ReplayPoint(1, timeline))
+
+    assert driver.current_point == ReplayPoint(1, timeline)
