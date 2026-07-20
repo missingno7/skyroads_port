@@ -20,11 +20,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_skyroads_20260710_213019"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_skyroads_20260710_213019"
 
 pytestmark = pytest.mark.skipif(
-    not (EXE.exists() and DEMO.exists()),
-    reason="needs SKYROADS.EXE + the collision demo",
+    not (EXE.exists() and REPLAY.exists()),
+    reason="needs SKYROADS.EXE + the collision replay",
 )
 
 INPUT_OFFS = [0x95F4, 0x547A, 0x9330, 0x1600, 0x95F6] + list(range(0x0BD0, 0x0BE0))
@@ -35,8 +35,7 @@ def test_native_runs_the_crash_settle_window_like_the_vm() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     from skyroads.bridge.dgroup_view import GameView
     from skyroads.native.gaps import SkyroadsGap
@@ -46,13 +45,8 @@ def test_native_runs_the_crash_settle_window_like_the_vm() -> None:
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_snapshot_runtime(args, pb.snapshot_path())
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-replay", str(REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, REPLAY)
 
     def _bpw(m, ss, bp, o):
         return m.rw(ss, (bp - o) & 0xFFFF)

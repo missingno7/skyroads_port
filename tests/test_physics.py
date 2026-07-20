@@ -1,5 +1,5 @@
 """Verify the recovered movement-target formula (skyroads.handrecovered.physics)
-against real 186B call arguments captured over the full E2E demo.
+against real 186B call arguments captured over the full E2E replay.
 
 682/682 real calls matched (58 with real steering held, lateral_accel != 0)
 with af1c_base_offset == 0x618 -- the value ss:[bp-16]==0 selects, which was
@@ -45,7 +45,7 @@ def test_fixture_uses_the_observed_constant_offset() -> None:
 
 def test_default_offset_matches_the_fixture_calls() -> None:
     # The default (0x618) must reproduce every fixture call without the caller
-    # passing an offset -- this is what native_gameplay_frame relies on.
+    # passing an offset -- this is what native_gameplay_substep relies on.
     for case in _CASES:
         got = compute_movement_targets(
             case["ship_pos"], case["lateral"], case["af1c"], case["af2c"],

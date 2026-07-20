@@ -1,35 +1,10 @@
-"""ANIM.LZS — the intro's dirty-rectangle ship/tunnel animation, decoded.
+"""Decode the intro's ``ANIM.LZS`` dirty-rectangle animation.
 
-Traced live (2026-07-13, see run_status.md): the blit function `1010:42AF`
-takes a pointer to a DGROUP record `(src_seg, dest_off, h, w)` and row-copies
-``h`` rows of ``w`` bytes from ``src_seg:0`` onto VGA (`0xA000:dest_off`),
-one row per call to the C-runtime `_fmemmove` helper (`1010:6053`,
-`dest_off += 0x140` each row). Called from a table-walking loop this session
-did not further isolate, but its INPUT is fully recovered: at boot frame 9,
-every tile in `ANIM.LZS` is individually LZS-decompressed into its own tiny
-allocated segment (confirmed: the very first tile's VM-observed
-``(src_seg, dest_off, h, w)`` at frame 94 was `(0x78df, 0xb43a, 20, 26)`,
-matching this module's tile[0] exactly), and the DGROUP table walked by the
-caller is simply those tiles IN FILE ORDER, one 10-byte record apiece.
-
-**What this recovers**: the tile data (dest/h/w/pixels, exact — full-file
-byte consumption confirmed, 220 tiles, 44,808/44,808 bytes) and the exact
-per-native-tick REVEAL COUNT the real boot demo used (`REVEAL_PACE`, VM-
-traced from `demo_cold_20260711_201855` run blind with zero input — the
-default/idle intro pacing). **What is NOT recovered**: the generic driver
-loop at whatever address calls `42AF` in a table walk (not isolated), and
-whether the real pacing is TIME-budgeted (would vary by host speed) or a
-fixed per-tick schedule (this trace suggests fixed, since the counts settle
-into a stable 1-2-3 repeating pattern independent of frame content) — so
-`REVEAL_PACE` is a faithful REPLAY of one real trace, not a general rule.
-
-Compositing all 220 tiles onto one canvas (ignoring the reveal order) shows
-this is NOT one static picture — early tiles paint a close-up ship (engine
-glow visible), later tiles paint a receding checkered-floor perspective at
-OVERLAPPING screen coordinates: a genuine multi-frame animation using
-dirty-rectangle updates directly on the visible framebuffer (matches the
-game's whole rendering philosophy — see rendering_architecture.md), not a
-single dissolve-in image.
+The file contains 220 LZS-compressed tile records in presentation order. Each
+record supplies ``(dest, height, width, pixels)`` for a row-major VGA blit.
+``REVEAL_PACE`` preserves the one observed idle-intro schedule as evidence; it
+is not claimed as a recovered general timing rule. The table-walking driver
+around ``1010:42AF`` remains outside this focused candidate.
 """
 from __future__ import annotations
 
@@ -101,13 +76,11 @@ def paint_tile(canvas: bytearray, tile: AnimTile) -> None:
             canvas[o:o + tile.w] = tile.pixels[row * tile.w:(row + 1) * tile.w]
 
 
-#: VM-traced reveal pacing (demo_cold_20260711_201855, zero input, boot
-#: frames 94-230): tiles-to-reveal at each successive native intro tick, in
-#: FILE ORDER. Sums to 219 against 221 real tiles (2 short -- the capture
+#: Observed idle-intro tiles-to-reveal schedule, in file order. It sums to 219
+#: against 221 real tiles (2 short because the observation
 #: window's tail wasn't fully bracketed); `iter_reveal_counts` appends the
 #: remainder to the final tick rather than silently dropping tiles. A
-#: faithful replay of one real trace, not a rederived timing rule (see
-#: module docstring).
+#: retained observation, not a recovered general timing rule.
 REVEAL_PACE = (
     22, 27, 14, 11, 8, 7, 4, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1,
     1, 2, 1, 1, 2, 1, 4, 4, 1, 2, 3, 3, 1, 2, 3, 3, 1, 2, 3, 3, 2, 2, 1, 2,

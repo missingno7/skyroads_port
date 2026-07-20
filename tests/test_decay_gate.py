@@ -1,6 +1,6 @@
 """Verify the recovered bounce-decay gate
 (skyroads.handrecovered.dynamics.gate_bounce_decay) against real ASM I/O captured
-over the full E2E demo (1010:2421-24BA).
+over the full E2E replay (1010:2421-24BA).
 
 682/682 real frames matched byte-exact on ds:[9336]; the fixture keeps a spread
 across every outcome bucket (unchanged / small-kill / grounded-kill / decay /

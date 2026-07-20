@@ -1,7 +1,7 @@
 """Verify the pure tile-dispatch loop (`skyroads.native.tile_dispatch`,
 = `1010:2D1F`'s road loop) against a captured VM frame.
 
-The capture (`artifacts/frame_2d1f`, produced by driving the level-select demo
+The capture (`artifacts/frame_2d1f`, produced by driving the level-select replay
 to a real gameplay `2D1F` call — regenerate with the scratch capture script if
 absent, see run_status.md) holds the pre-call 1MB image, the 8 stack params and
 the VM's ordered write log. The pure loop must reproduce the VM's road-tile
@@ -24,7 +24,7 @@ CAPTURE = Path(__file__).resolve().parents[1] / "artifacts" / "frame_2d1f"
 
 pytestmark = pytest.mark.skipif(
     not (CAPTURE / "write_log.json").exists(),
-    reason="frame_2d1f capture not present (gitignored; regenerate from the demo)")
+    reason="frame_2d1f capture not present (gitignored; regenerate from the replay)")
 
 
 class _LogImage(NativeGameImage):

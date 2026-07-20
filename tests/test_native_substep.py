@@ -2,10 +2,10 @@
 (skyroads.native.loop.native_gameplay_substep) reproduces the VM.
 
 This is the payoff of recovering the whole physics/collision sub-step as
-individual islands: composed in ASM spine order over a GameplayScratch, they
+individual semantic functions: composed in ASM spine order over a GameplayScratch, they
 step real gameplay -- INCLUDING the forward motion, which is the classification's
 dispatch_menu_action (1B49) call (action 0xA advances ship_pos by 0x12F).
-Driving the E2E demo, we seed a NativeGameState + scratch from the VM at each
+Driving the E2E replay, we seed a NativeGameState + scratch from the VM at each
 game_state==0 sub-step (loop top 2324), run one native sub-step, and compare
 the full gameplay DGROUP back to the VM at the next loop top.
 
@@ -23,11 +23,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_e2e_20260710_132930"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_e2e_20260710_132930"
 
 pytestmark = pytest.mark.skipif(
-    not (EXE.exists() and DEMO.exists()),
-    reason="needs SKYROADS.EXE + the E2E demo",
+    not (EXE.exists() and REPLAY.exists()),
+    reason="needs SKYROADS.EXE + the E2E replay",
 )
 
 # Gameplay DGROUP fields the sub-step computes (word fields).
@@ -41,13 +41,12 @@ SUBSTEP_FIELDS = {
 SUBSTEP_DWORDS = {0x54AC: "ship_pos", 0x9618: "lateral"}
 
 
-def test_native_substep_matches_vm_over_demo() -> None:
+def test_native_substep_matches_vm_over_replay() -> None:
     import scripts.play as sp
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     from skyroads.bridge.dgroup_view import GameView
     from skyroads.native.gaps import SkyroadsGap
@@ -57,14 +56,8 @@ def test_native_substep_matches_vm_over_demo() -> None:
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-replay", str(REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, REPLAY)
 
     LOOP = 0x2324
 

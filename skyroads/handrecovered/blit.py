@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from skyroads.islands import oracle_link
 
 
 class StencilStep(NamedTuple):
@@ -27,7 +26,7 @@ class StencilStep(NamedTuple):
     therefore the last SUBSTITUTED byte's colour word, which can be several
     bytes before the end when the source has trailing zeros. Deriving it from
     the final byte instead is wrong, and was wrong twice in the VM hook this
-    island came from; the very first live call hit the case.
+    implementation came from; the very first live call hit the case.
 
     ``compared`` says whether ``cmp al,1`` ran for this byte. It is what
     discriminates the three per-byte costs, and it also decides AF -- ``or``
@@ -47,7 +46,7 @@ def stencil_blit_steps(source, template_color: int, other_color: int, ax: int = 
     Laziness is the point, and it is the same idea as ``road_segment_clip``'s
     lazy bound reads: the original interleaves ``lodsb`` and ``stosb`` one byte
     at a time, and source and destination are two caller-chosen far pointers
-    that this island cannot prove disjoint. An adapter that drained the source
+    that this function cannot prove disjoint. An adapter that drained the source
     first and wrote afterwards would produce a different memory trace whenever
     they overlap. Consuming ``source`` as a generator makes the adapter's write
     for byte i land before the read for byte i+1, which is the ASM's own order.
@@ -66,38 +65,6 @@ def stencil_blit_steps(source, template_color: int, other_color: int, ax: int = 
         yield StencilStep(ax & 0xFF, ax, True, b)
 
 
-@oracle_link(
-    boundary="1010:0F62",
-    contract="stencil_blit(source, template_color, other_color): map each byte "
-             "b in source -> 0 if b==0, template_color&0xFF if b==1, else "
-             "other_color&0xFF. Pure byte-substitution core of the 0F62 blit "
-             "(1010:0F75-0F85); the surrounding register/segment mechanics "
-             "(far-pointer source, ES:DI destination, SI/DI/CX/flags at exit) "
-             "are VM-hook concerns, not game logic -- see skyroads/hooks.py.",
-    # Byte-exact against the generated 1010:0F62 -- itself byte-exact against
-    # the interpreted ASM oracle from cold start -- on the WHOLE contract: all
-    # seven output registers, exit flags, fmask, virtual-time cost and the
-    # ordered byte-write log, with NO exemptions. Two populations, and the
-    # claim is exactly their union and no wider:
-    #
-    #  * dos_re.lift.shadow over 347 REAL calls -- demo_cold_20260718_003412
-    #    (70) + demo_colde2e_full_20260713_144604 (277), 89 distinct costs.
-    #    MEASURED: all three byte classes occur (311 calls carry 0, 1 and
-    #    other; 36 carry no 1 at all), and BOTH tail shapes that decide the
-    #    exit AX and AF -- 250 calls end in zeros AFTER a substitution, 97 end
-    #    on a nonzero byte. Counts run 18..150.
-    #  * tests/test_island_bodies.py forced states: 13 sources x 20 randomized
-    #    register sets, plus the CX = 0 run on its own.
-    #
-    # THREE THINGS NO DEMO ESTABLISHES, and the forced states are their only
-    # evidence: every one of the 347 real calls entered with DF CLEAR, so the
-    # backward direction is unobserved; no real source was all zeros, so the
-    # 0x8C5 fmask (the compare never runs) is unobserved; and no real count was
-    # 0, so the 65,536-iteration reading of `loop` is unobserved. All three are
-    # proven against the generated body, not seen in the game.
-    status="VERIFIED",
-    merge_target="skyroads.native.blit (future)",
-)
 def stencil_blit(source: bytes, template_color: int, other_color: int) -> bytes:
     """Remap each source byte through the 3-entry stencil (1010:0F76-0F84)."""
     return bytes(s.value for s in

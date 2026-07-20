@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "skyroads-source-port"
 version = "0.1.0"
-description = "SkyRoads source-port workbench on top of a reusable DOS real-mode VM"
+description = "Evidence-driven SkyRoads recovery workspace built on dos_re"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "missingno7" }]

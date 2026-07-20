@@ -1,13 +1,13 @@
 """Verify the recovered per-column road-draw dispatch
 (skyroads.handrecovered.render_dispatch) against real ASM I/O captured over the
-full E2E demo.
+full E2E replay.
 
 101 distinct field-snapshots per variant (deduped from ~1280 real invocations
 each), all matched exactly. A small number of invocations (16/1280 for variant
 A, 15/1280 for variant B) were excluded as a documented anomaly: they share one
 repeated field snapshot and produce an implausibly long call burst (16-24
 calls), almost certainly calls from a third, unisolated dispatch source -- see
-the module docstring's @oracle_link status notes and run_status.md. Excluding
+the retained historical evidence under ``docs/history``. Excluding
 them is itself asserted by test_fixtures_exclude_the_known_anomaly below, so
 this file can't quietly start hiding a real regression instead.
 """

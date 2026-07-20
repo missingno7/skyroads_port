@@ -1,12 +1,8 @@
-"""``NativeGameImage`` -- the recovered game's FULL real-mode address space,
-owned without a VM.
+"""Recovery-evidence full real-mode state carrier without a VM.
 
-Mirrors pre2_port's ``pre2/native/state.py::NativeGameState`` (a 1 MB
-bytearray at REAL physical addresses) more closely than
-``skyroads.native.state.NativeGameState`` does -- that class deliberately
-stays a 64 KB DGROUP-only image (see its own docstring) because every
-gameplay island recovered so far only ever touches DGROUP. The renderer is
-different: routines like ``road_column_strip`` (`1010:38BF`) read SEGMENT
+Unlike ``skyroads.native.state.NativeGameState``, which deliberately stays a
+64 KB DGROUP-only image, this representation supports implementations that
+touch multiple DOS segments. Routines like ``road_column_strip`` (`1010:38BF`) read SEGMENT
 VALUES out of DGROUP fields (``ds:[0E60]``/``[0E62]``/``[0E66]``/``[0E68]``)
 that are real DOS segment numbers pointing at OTHER parts of the address
 space (display lists, source bitmaps, the screen buffer) -- a "virtual",
@@ -20,6 +16,9 @@ existing gameplay consumer -- which only ever needs DGROUP and constructs
 completely unaffected. Use ``dos_re.state_view.SegmentBackend`` (already
 promoted to ``skyroads.state_view``) to build typed views over any segment of
 this image, DGROUP included, at its REAL physical base.
+
+This class is a test and implementation-candidate boundary, not a selected
+runtime or bootstrap provider.
 """
 from __future__ import annotations
 

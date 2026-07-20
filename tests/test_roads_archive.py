@@ -1,8 +1,8 @@
 """Verify skyroads.handrecovered.roads_archive against the real ROADS.LZS asset.
 
 3/3 real live-VM-captured (gravity, fuel, oxygen) triples matched exactly --
-see the module docstring and docs/skyroads/run_status.md for how these three
-were captured (two freshly recorded genuine cold-boot demos, including a real
+see the module docstring and docs/history/skyroads/run_status.md for how these three
+were captured (two freshly recorded genuine cold-boot replays, including a real
 keyboard DOWN-ARROW + ENTER level pick).
 """
 from __future__ import annotations
@@ -94,13 +94,13 @@ def test_read_level_road_decompresses_to_the_exact_directory_length(roads_data: 
 # --- Live-VM oracle: the decompressed BYTES, not just their length -----------
 
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-# a genuine cold-boot demo that starts at level-select and confirms one level
-DEMO = ROOT / "artifacts" / "demos" / "demo_skyroads_20260711_202740"
+# a genuine cold-boot replay that starts at level-select and confirms one level
+REPLAY = ROOT / "artifacts" / "replays" / "replay_skyroads_20260711_202740"
 
 
 @pytest.mark.skipif(
-    not (EXE.exists() and DEMO.exists()),
-    reason="needs SKYROADS.EXE + the level-start demo for the live-VM check",
+    not (EXE.exists() and REPLAY.exists()),
+    reason="needs SKYROADS.EXE + the level-start replay for the live-VM check",
 )
 def test_decompressed_road_matches_what_the_vm_loads_into_memory(roads_data: bytes) -> None:
     """The strongest check: drive the real VM to the level-start it loads,
@@ -119,19 +119,12 @@ def test_decompressed_road_matches_what_the_vm_loads_into_memory(roads_data: byt
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-replay", str(REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, REPLAY)
 
     captured: dict = {}
     orig = CPU8086.step
@@ -159,7 +152,7 @@ def test_decompressed_road_matches_what_the_vm_loads_into_memory(roads_data: byt
     finally:
         CPU8086.step = orig
 
-    assert "mem" in captured, "never reached a gameplay sub-step in the demo"
+    assert "mem" in captured, "never reached a gameplay sub-step in the replay"
     g, f, o = captured["header"]
     matches = [i for i in range(level_count(roads_data))
                if tuple(read_level_header(roads_data, i)) == (g, f, o)]

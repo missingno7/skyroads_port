@@ -98,7 +98,7 @@ def test_native_level_load_all_levels() -> None:
 
 @pytest.mark.skipif(not BASELINE.exists(), reason="constants baseline snapshot not present")
 def test_native_loaded_level_plays_the_vm_golden_trajectory() -> None:
-    """MILESTONE 1: a level loaded purely from ROADS.LZS by index, over a
+    """A level loaded purely from ROADS.LZS by index, over a
     level-independent constants baseline, plays IDENTICALLY to the VM. Holding
     accelerate, the ship advances +75/tick on the exact trajectory captured from
     the original game for level 14 (0x4B,0x96,0xE1,…) and crashes into the same

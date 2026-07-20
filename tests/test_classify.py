@@ -2,9 +2,9 @@
 
 * the pure logic (skyroads.handrecovered.classify.classify_perspective) on
   hand-written cases covering each branch, and
-* the full native path (skyroads.native.classify.classify_ship, computing the
+* the authored state-view path (skyroads.native.classify.classify_ship, computing the
   perspective word via renderer.perspective_row_offset + a DGROUP read) against
-  the live ASM oracle over the real E2E demo -- 682/682 frames byte-exact on
+  the live ASM oracle over the real E2E replay -- 682/682 frames byte-exact on
   (class_skip, bp16, class_zero).
 """
 from __future__ import annotations
@@ -66,40 +66,33 @@ def test_bp16_low_nibble_two() -> None:
     assert r.bp16 == 1
 
 
-# ---- live-oracle test: full native path vs the real ASM --------------------
+# ---- live-oracle test: authored state-view path vs the real ASM ------------
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_e2e_20260710_132930"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_e2e_20260710_132930"
 
 _live = pytest.mark.skipif(
-    not (EXE.exists() and DEMO.exists()),
-    reason="needs SKYROADS.EXE + the E2E demo",
+    not (EXE.exists() and REPLAY.exists()),
+    reason="needs SKYROADS.EXE + the E2E replay",
 )
 
 
 @_live
-def test_native_classify_matches_asm_over_demo() -> None:
+def test_native_classify_matches_asm_over_replay() -> None:
     import scripts.play as sp
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     from skyroads.native.classify import classify_ship
     from skyroads.native.state import NativeGameState
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-replay", str(REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, REPLAY)
 
     IP_IN, IP_OUT = 0x2324, 0x23CA
     pending: dict = {}

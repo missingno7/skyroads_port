@@ -24,15 +24,13 @@ original passes ``(lateral_lo, lateral_hi, depth, screen_y)`` to ``1732`` and
 treats a non-zero return as "blocked/visible". A caller wires it to
 ``renderer.road_object_visible`` bound to this frame's projection + clip tables.
 
-Verified byte-exact (output accumulators AND the exact sequence of collision
-probes) against the ASM/lifted 186B over the full level demo — see the
-``@oracle_link`` below.
+Verified byte-exact (output accumulators and the exact sequence of collision
+probes) against the ASM/lifted 186B over the full level replay.
 """
 from __future__ import annotations
 
 from typing import Callable
 
-from skyroads.islands import oracle_link
 
 #: Movement-field DS offsets (documented; the VM hook reads/writes these).
 LATERAL = 0x9618
@@ -85,24 +83,6 @@ def _ulong_div(a: int, b: int) -> int:               # 1010:5D8C
     return ((a & 0xFFFFFFFF) // b) & 0xFFFFFFFF
 
 
-@oracle_link(
-    boundary="1010:186B",
-    contract="resolve_move(lateral, af1c, af2c, tgt_lateral, tgt_af1c, tgt_af2c, "
-             "visible): swept movement+collision. (1) early-out if already at "
-             "target. (2) 5-step forward sweep si=1..5 interpolating all three "
-             "axes (lateral via ulong_mul/signed_long_div by si then /5; the two "
-             "16-bit axes via (d*si)/5 with the product truncated to 16 bits), "
-             "calling visible at each; stop at the first blocked step. (3) commit "
-             "the interpolation at (si-1)/5. (4) binary-refine lateral: step "
-             "0x1000, advance while there's room (unsigned d>=step) and visible "
-             "clears, /16 each round to 0. (5) refine af1c then af2c toward their "
-             "targets: step +/-125 in the target's direction, advance while "
-             "|dist|>=|step| and visible clears, /5 each round to 0. Returns the "
-             "new (lateral, af1c, af2c). All compares/divides match x86 "
-             "unsigned/signed + truncate-toward-zero semantics.",
-    status="ASM_MATCHED",  # 1760/1760 full-demo calls: outputs AND probe sequence exact
-    merge_target="skyroads.native.movement (future)",
-)
 def resolve_move(lateral: int, af1c: int, af2c: int,
                  tgt_lateral: int, tgt_af1c: int, tgt_af2c: int,
                  visible: Callable[[int, int, int], int]) -> tuple[int, int, int]:

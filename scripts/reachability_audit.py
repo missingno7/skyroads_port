@@ -1,7 +1,6 @@
 """Read-only reachability audit over the recovery IR -- DIAGNOSTIC, never a pruner.
 
-The investigation's conclusion (docs/dead_code_analysis.md): in dos_re,
-reachability is UNDER-approximated more often than code is over-emitted. A
+Reachability is under-approximated more often than code is over-emitted. A
 function absent from the static near-call closure is NOT dead -- it is almost
 always reached by a dynamic edge the static graph cannot see (a dispatch table,
 an IVT vector, a scheduler resume). So this tool assembles EVERY known
@@ -13,14 +12,16 @@ It reuses dos_re's runtime-closure walk (tools/cpuless_closure.walk_closure is
 the promotion-frontier form); the classification here is richer because it must
 label the RETENTION REASON, not just promoted/frontier.
 
-Root sources, today scattered across artifacts (this scatter is the point --
-see the design note's proposed roots.json schema):
+This local report predates the retained Atlas sources and does not update or
+override them. Promote useful facts into the shared evidence model.
+
+Inputs inspected by this diagnostic:
 
     canonical entry   the boot far-jump target (build_boot_image / --extra)
     IVT handlers      observed.json  ivt_game_vectors  (hardware-entered ISRs)
     dynamic dispatch  artifacts/codemap/dispatch_extra.txt   (indirect-call targets)
     boundary heads    artifacts/codemap/boundary_heads.txt   (scheduler resume points)
-    snapshot entries  artifacts/codemap/snapshot_entries.txt (resumed-into addresses)
+    replay bases      artifacts/codemap/replay_base_entries.txt (resume addresses)
 
 Usage:
     python scripts/reachability_audit.py
@@ -94,13 +95,13 @@ def audit(ir: dict, roots_by_source: dict[str, set[str]]) -> dict:
                 work.append(t)
 
     # 2. per-function retention reason, by precedence:
-    #    interrupt/root entry > dynamic dispatch > boundary/snapshot resume >
+    #    interrupt/root entry > dynamic dispatch > boundary/replay-base resume >
     #    reachable via static calls > NOT reached (requires explanation).
     ivt = roots_by_source["ivt"]
     canon = roots_by_source["canonical"]
     dyn = roots_by_source["dynamic"]
     heads = roots_by_source["boundary"]
-    snap = roots_by_source["snapshot"]
+    replay_bases = roots_by_source["replay_base"]
 
     buckets = {
         "interrupt_or_root_entry": [],
@@ -114,7 +115,7 @@ def audit(ir: dict, roots_by_source: dict[str, set[str]]) -> dict:
             buckets["interrupt_or_root_entry"].append(k)
         elif k in dyn:
             buckets["retained_dynamic_dispatch"].append(k)
-        elif k in heads or k in snap:
+        elif k in heads or k in replay_bases:
             buckets["retained_scheduler_resume"].append(k)
         elif k in static_reached:
             buckets["reachable_static_calls"].append(k)
@@ -139,7 +140,10 @@ def audit(ir: dict, roots_by_source: dict[str, set[str]]) -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--ir", default=str(ROOT / "artifacts/codemap/recovery_ir.json"))
+    ap.add_argument(
+        "--ir", default=str(ROOT / "recovery/recovery_ir.json"),
+        help="retained Recovery IR to inspect",
+    )
     ap.add_argument("--observed", default=str(ROOT / "artifacts/codemap/observed.json"))
     ap.add_argument("--codemap-dir", default=str(ROOT / "artifacts/codemap"))
     ap.add_argument("--json", default=None, help="also write the full report here")
@@ -156,7 +160,7 @@ def main(argv=None) -> int:
         "ivt": ivt,
         "dynamic": _load_pairs(cm / "dispatch_extra.txt"),
         "boundary": _load_pairs(cm / "boundary_heads.txt"),
-        "snapshot": _load_pairs(cm / "snapshot_entries.txt"),
+        "replay_base": _load_pairs(cm / "replay_base_entries.txt"),
     }
 
     rep = audit(ir, roots_by_source)
@@ -166,7 +170,7 @@ def main(argv=None) -> int:
     print(f"Reachable by static call edges .............. {c['reachable_static_calls']}")
     print(f"Retained by dynamic dispatch evidence ....... {c['retained_dynamic_dispatch']}")
     print(f"Retained as IVT / root entry ................ {c['interrupt_or_root_entry']}")
-    print(f"Retained as scheduler resume (head/snapshot)  {c['retained_scheduler_resume']}")
+    print(f"Retained as scheduler resume (head/replay) ... {c['retained_scheduler_resume']}")
     print(f"NOT reached by assembled roots (EXPLAIN) .... {c['not_reached_requires_explanation']}")
     print(f"Unresolved indirect edge sites .............. {len(rep['unresolved_indirect_sites'])}")
     print()

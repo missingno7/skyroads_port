@@ -1,7 +1,7 @@
-"""The MODERN audio backend — renders the semantic events with a clean float
-synth through pygame.mixer (pre2's "enhanced backend" role).
+"""Modern presentation backend for semantic audio events.
 
-Deliberately not an OPL emulation: each :class:`NoteOn` is rendered as a
+It renders through a clean float synth and pygame.mixer. Deliberately not an
+OPL emulation: each :class:`NoteOn` is rendered as a
 2-operator FM-flavoured voice in float64 at the mixer rate, using the event's
 :class:`FmPatch` as *timbre hints* (operator multiples -> modulation ratio,
 modulator level -> modulation index, connection bit -> additive vs FM,

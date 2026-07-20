@@ -7,10 +7,8 @@ classification fields (``e44``..``e5e``) that `render_dispatch.dispatch_variant_
 that walk — the missing middle between the raw road records and the already-
 recovered dispatch/compositor.
 
-Decoded from `34AE`'s proven lift (`skyroads/lifted/lifted_1010_34ae.py`, blocks
-15-22), not re-derived from raw ASM (the same code an earlier hand-derivation
-mis-transcribed three times — see run_status.md's 34AE entries). It is a
-TRIPLE-nested loop, one dispatch call per innermost iteration:
+Decoded from `34AE`'s proven lift, blocks 15-22. It is a triple-nested loop,
+one dispatch call per innermost iteration:
 
     e4c = record_base
     for e44 in 11 down to 2:          # outer; e4c -= 0xE each pass
@@ -25,18 +23,14 @@ genuine compile-time constant ``[1,2,3,3,4,4,1,1]`` (:data:`SHAPE_TABLE`),
 whereas ``ds:[0E76]``'s "8 buffer segments" are runtime-allocated (NOT baked
 here).
 
-Verified 80/80 against a real VM capture: one full `34AE` render invocation
-(variant A, `record_base=0x16B8`) from `demo_e2e_20260710_132930` produced
-exactly 80 dispatch calls (= 10 outer x 4 middle x 2 inner) and this function
-reproduces every field of every call byte-exact. The fields it reads come from
-the `ds:[0x162C]` road-record region already established as the per-level
-projected road (see run_status.md).
+One complete variant-A invocation produces 80 dispatch calls
+(10 outer x 4 middle x 2 inner); focused oracle evidence verifies every field.
+The fields come from the per-level projected-road region at ``ds:[0x162C]``.
 """
 from __future__ import annotations
 
 from typing import Callable, List, NamedTuple
 
-from skyroads.islands import oracle_link
 
 #: `ds:[0BA7]`, an 8-byte compile-time shape-reduction lookup (verified constant
 #: across levels). Indexed by a road-record nibble & 7.
@@ -66,20 +60,6 @@ class ColumnClass(NamedTuple):
     e5e: int
 
 
-@oracle_link(
-    boundary="1010:356B-3627",
-    contract="render_classify(rb, record_base): walk 34AE's road-record "
-             "classification loop and return the per-column ColumnClass list "
-             "(one per dispatch call). Triple-nested: e44 11..2 (e4c -= 0xE "
-             "per pass), e46 1..4, e48 0/1. Per iter: col = (4-e46) if e48==0 "
-             "else e46+2; bx = e4c + 2*col; si = 2 - 4*e48; then e56=[bx]&0xF, "
-             "e5c=[bx]>>4, e4e=SHAPE[[bx+1]&7], e58=[bx-0xE]&0xF, "
-             "e5e=[bx-0xE]>>4, e50=SHAPE[[bx-0xD]&7], e5a=[bx+si]&0xF, "
-             "e52=SHAPE[[bx+si+1]&7], e54=SHAPE[[bx+si-0xD]&7].",
-    status="ASM_MATCHED",  # 80/80 fields of a real 34AE invocation (variant A,
-    # record_base 0x16B8, demo_e2e_20260710_132930) reproduced byte-exact.
-    merge_target="skyroads.native.render (future)",
-)
 def render_classify(rb: Callable[[int], int], record_base: int) -> List[ColumnClass]:
     """Reproduce 34AE's classification loop over the road records read via
     ``rb`` (a DGROUP byte reader, offset -> 0..255), starting at

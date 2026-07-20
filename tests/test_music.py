@@ -1,10 +1,10 @@
 """Verify the recovered OPL music engine (skyroads.handrecovered.music) against real
-ASM I/O captured over the cold-sound demo.
+ASM I/O captured over the cold-sound replay.
 
 Each fixture tick records the exact DGROUP bytes the engine reads plus the
 ``(reg, val)`` OPL writes the ASM emitted that tick; the engine must reproduce
 the writes exactly. (The full proof is the lockstep run in the commit that added
-this module: the OPL write stream matched over all 12,882 cold-sound-demo ticks.)
+this module: the OPL write stream matched over all 12,882 cold-sound-replay ticks.)
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def test_music_engine_exercises_real_note_events() -> None:
 
 def test_reset_opl_matches_asm() -> None:
     # the one-time OPL reset + percussion-patch init (1010:58A5-5913), verified
-    # against the single occurrence in the cold-sound demo (63 writes, byte-exact
+    # against the single occurrence in the cold-sound replay (63 writes, byte-exact
     # over the full 2157-frame replay).
     rb, rw = _readers(_RESET["mem"])
     writes = Engine(rb, rw).reset_opl()

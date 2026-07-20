@@ -1,54 +1,20 @@
-"""Native (VM-less) per-frame steppers -- composing the currently-recovered
-islands (skyroads/handrecovered/*) against a ``GameView`` (skyroads/bridge), in
-ASM spine order, the way pre2_port's ``pre2/native/loop.py::native_gameplay_frame``
-composes its own recovered subsystems.
+"""Authored gameplay-subsystem recovery evidence.
 
-Two steppers today, matching how much of the game is actually recovered
-(see docs/skyroads/vmless_roadmap.md's coverage table):
+These functions operate through :class:`skyroads.bridge.dgroup_view.GameView`
+and do not interpret CPU instructions:
 
-* :func:`native_menu_frame` -- the level-select/menu action dispatch
-  (``1010:1B49``). Complete: every state transition ``dispatch_menu_action``
-  needs is recovered, so this stepper never raises.
-* :func:`native_gameplay_frame` -- the per-frame gameplay update. Commits
-  ONLY forward motion (``advance_ship``, real-demo-proven: 0 mismatches over
-  8 real gameplay samples in the 2026-07-11 integration proof, see
-  run_status.md) and then raises a typed gap (skyroads.native.gaps) the
-  instant it reaches something not yet SAFE to compute -- not just "not
-  recovered", but proven wrong when tried unconditionally (the
-  ``decay_bounce``/``update_vertical_velocity`` composition; see
-  :class:`~skyroads.native.gaps.VerticalVelocityGap`), the jump latch, or the
-  movement step. Note the movement MATH is now complete and proven (the
-  ``compute_movement_targets`` -> ``resolve_move`` pipeline, 300/300 vs VM,
-  tests/test_native_movement_pipeline.py) -- the remaining
-  :class:`~skyroads.native.gaps.MovementPhysicsGap` is specifically its
-  ``lateral_accel`` input (stateful steering momentum), not the math. This is
-  the honest current recovery ceiling, not a limitation of this module --
-  every real gameplay frame hits one of these gaps today.
+* :func:`native_menu_frame` implements the level-select action dispatch;
+* :func:`native_gameplay_substep` implements the observed gameplay substep;
+* :func:`apply_level_init` initializes the corresponding level state;
+* :class:`NativeGameplayDriver` composes that gameplay subsystem across its
+  transition boundaries.
 
-Nothing here decides WHEN each stepper runs (the ``ds:[456E]`` game-state
-dispatch that sequences intro -> menu -> gameplay -> death is itself an
-unrecovered gap, see vmless_roadmap.md item 2) -- callers already know which
-mode they're in, exactly like pre2_port's per-mode ``native_*`` functions.
-
-``native_gameplay_frame`` above describes the ORIGINAL, narrow stepper (kept,
-still tested, historically where the ``VerticalVelocityGap`` divergence was
-found) from when only forward motion was safe to commit. Everything since has
-superseded it:
-
-* :func:`native_gameplay_substep` -- the COMPLETE gameplay sub-step
-  (`1010:2324-2AE2`), composing every recovered physics/collision/progression
-  island in ASM spine order. Verified against the VM 230/232 real fields incl.
-  forward motion, and in a MULTI-STEP lockstep proof (whole levels, zero
-  drift, every stop a clean boundary detection -- see
-  `tests/test_native_loop_lockstep.py`).
-* :func:`apply_level_init` -- the per-level/respawn init
-  (`1010:1FD9-206C`), the transition primitive run at each boundary
-  `native_gameplay_substep` detects.
-* :class:`NativeGameplayDriver` -- composes the two above into a
-  COMPLETE, SELF-CONTAINED, INDEFINITELY-RUNNING gameplay loop: "full vmless
-  native gameplay". Proven driving the E2E demo's full length of real recorded
-  input purely natively (`tests/test_native_driver.py`) -- the VM is touched
-  once, to seed real level data, and never again.
+Typed exceptions in :mod:`skyroads.native.gaps` mark unsupported transitions.
+These candidates are not currently registered in ``skyroads.execution`` and
+therefore are not an alternate player or selectable composition. They remain
+focused evidence until a catalog entry assigns stable identities and a
+verification policy. Whole-program coverage and release readiness remain
+properties of the Execution Atlas, catalog, and immutable execution plan.
 """
 from __future__ import annotations
 
@@ -59,10 +25,8 @@ from skyroads.native.classify import classify_ship
 from skyroads.native.collision import make_visible, ship_fell_off
 from skyroads.native.gaps import (
     FallDeathTransition,
-    JumpGateGap,
     LevelEndTransition,
     MovementPhysicsGap,
-    VerticalVelocityGap,
 )
 from skyroads.handrecovered.collision_response import (
     af1c_contact_fixup,
@@ -71,7 +35,6 @@ from skyroads.handrecovered.collision_response import (
     resolve_lateral_crash,
     vertical_center_nudge,
 )
-from skyroads.handrecovered.controls import decode_keyboard
 from skyroads.handrecovered.dynamics import (
     JumpScratch,
     gate_bounce_decay,
@@ -82,12 +45,9 @@ from skyroads.handrecovered.movement import resolve_move
 from skyroads.handrecovered.orchestration import should_run_gameplay
 from skyroads.handrecovered.physics import compute_movement_targets
 from skyroads.handrecovered.player import (
-    GRAVITY_HEIGHT_GATE,
     RespawnState,
     advance_ship,
-    decay_bounce,
     level_gravity,
-    update_vertical_velocity,
 )
 from skyroads.handrecovered.progression import step_level_progression
 
@@ -96,7 +56,7 @@ class GameplayScratch(NamedTuple):
     """The session-persistent gameplay-handler state carried ACROSS sub-steps
     (the `ss:[bp-N]` locals of the one continuous `1010:2280-2B0B` handler that
     are read before they are written each sub-step -- see
-    docs/skyroads/run_status.md). Not derivable from DGROUP.
+    docs/history/skyroads/run_status.md). Not derivable from DGROUP.
 
     * ``jump`` -- the :class:`~skyroads.handrecovered.dynamics.JumpScratch`
       (``bp-6``/``bp-8``/``bp-10``): effect + jump latches and the jump-start height.
@@ -131,63 +91,6 @@ def native_menu_frame(view: GameView, action: int) -> None:
     view.timer_b = after.timer_b
 
 
-def native_gameplay_frame(view: GameView) -> None:
-    """Advance one gameplay frame (``1010:24A1`` onward) on ``view`` in place.
-
-    Raises :class:`~skyroads.native.gaps.SkyroadsGap` (loudly, before
-    committing anything the raised gap's own logic would need) the moment it
-    reaches something not safe to compute yet -- see the module docstring.
-    Once the movement-target gap closes, the next call this makes is
-    ``resolve_move(..., visible=skyroads.native.collision.make_visible(rw))``
-    for some DGROUP word-reader ``rw`` (a ``NativeGameState.rw`` or a VM's
-    ``mem.rw`` bound to ``ds``).
-    """
-    controls = decode_keyboard(view.key_row)
-
-    # Forward motion never depends on anything below -- real-demo-proven.
-    new_ship_pos = advance_ship(view.ship_pos, controls.speed)
-    view.ship_pos = new_ship_pos
-
-    if controls.jump:
-        raise JumpGateGap(
-            "jump requested (controls.jump=1) but the impulse latch "
-            "(ss:[bp-8]/[bp-18], guarding 1010:2582) is not recovered"
-        )
-    # decay_bounce + update_vertical_velocity are individually ASM_MATCHED,
-    # but composing them UNCONDITIONALLY every frame is proven wrong outside
-    # the one directly-verified envelope (airborne, af2c already at/above the
-    # gravity gate -- player.py's 238/238 deaths-demo match). Below the gate,
-    # real E2E-demo data shows the block gets skipped for multiple frames by
-    # something this session hasn't recovered (most likely jump-in-flight
-    # state persisting past the frame the key was released) -- see
-    # VerticalVelocityGap. Don't guess there; only commit the proven case.
-    if view.grounded != 0 or view.af2c < GRAVITY_HEIGHT_GATE:
-        raise VerticalVelocityGap(
-            f"af2c={view.af2c:#06x} grounded={view.grounded} -- outside the "
-            "one directly-verified envelope (airborne, af2c >= "
-            "GRAVITY_HEIGHT_GATE); decay_bounce/update_vertical_velocity are "
-            "not safe to compose unconditionally here (see the class docstring)"
-        )
-    vvel = update_vertical_velocity(
-        decay_bounce(view.bounce), jumped=False, af2c=view.af2c,
-        gravity=view.gravity, grounded=False,
-    )
-    view.bounce = vvel
-
-    # The movement pipeline itself is complete and proven (compute_movement_
-    # targets -> resolve_move -> collision.make_visible, 300/300 vs VM; see
-    # tests/test_native_movement_pipeline.py). It is NOT called here only
-    # because one of its inputs -- lateral_accel (ds:[4568]) -- is stateful
-    # steering momentum this frame cannot derive from frame-start state
-    # (updated mid-frame at 1010:2568, jump-latch-gated). See MovementPhysicsGap.
-    raise MovementPhysicsGap(
-        f"movement math is recovered (pipeline proven 300/300), but "
-        f"lateral_accel (ds:[4568]={view.lateral_accel:#06x}) is stateful "
-        f"steering momentum not yet derivable from frame-start state -- "
-        f"see MovementPhysicsGap / the 1010:2534-256D steering block"
-    )
-
-
 def _emit_sfx(view: GameView, sfx, sfx_id: int) -> None:
     """The `1010:03C2` entry side effect + callback: stamp `[AF38] = [1600]`
     (the `0476` busy window's reference) and hand the id to the caller's
@@ -210,11 +113,10 @@ def native_gameplay_substep(
     sfx=None,
 ) -> GameplayScratch:
     """Run ONE gameplay sub-step (`1010:2324-2AE2`) on ``view`` in place, the
-    full assembly of every recovered island in ASM spine order, and return the
+    composition of the recovered semantic functions in ASM spine order, and return the
     new :class:`GameplayScratch` to carry to the next sub-step.
 
-    This is the convergence of the recovered leaves into a running native
-    stepper (the pre2_port model). Verified against the VM: over real
+    Verified against the oracle: over real
     ``game_state == 0`` sub-steps, the full gameplay DGROUP this composes --
     INCLUDING the forward advance of ``ship_pos``/``lateral`` -- matches the
     oracle 230/232 (`tests/test_native_substep.py`). The forward motion is the
@@ -246,10 +148,8 @@ def native_gameplay_substep(
     # 1..0x2A REGARDLESS of game_state, so the crash/finish DISPLAY frames
     # (game_state 1 / 2, ship frozen, the EXPLOSION sprite animating via
     # si=grounded//3 as grounded ramps 2->42) run through this frozen-ship path
-    # too. An earlier version added an extra `game_state in {0,3}` guard here;
-    # that WRONGLY exited on the very first crash frame (game_state:=1) and so
-    # never played the explosion settle window -- 2026-07-13, verified against
-    # demo_skyroads_20260710_213019 (grounded 2->42 / si 0->13 over ~34 frames).
+    # too. An extra `game_state in {0,3}` guard would exit on the first crash
+    # frame and incorrectly skip the explosion settle window.
     if not should_run_gameplay(view.game_state, view.grounded, view.frame_ctr):
         raise LevelEndTransition(
             f"transition: game_state={view.game_state} f456a={view.grounded} "
@@ -261,7 +161,7 @@ def native_gameplay_substep(
 
     # Fall-off-the-road death check (23CA-2421): fires past the [41C0] lateral
     # threshold while game_state == 0. (Verified no false positives; a real fall
-    # was not exercised by the demos -- see FallDeathTransition.)
+    # was not exercised by the replays -- see FallDeathTransition.)
     if moving:
         thr = (((view.f41c0 // 0x10) + 0xFFFF8000) & 0xFFFFFFFF)
         if view.lateral >= thr and ship_fell_off(rw, view.lateral, view.af1c, view.af2c):
@@ -342,9 +242,8 @@ def native_gameplay_substep(
     grounded_before = view.grounded
     crash = resolve_lateral_crash(
         view.lateral, tgt_lateral, view.ship_pos, view.grounded, view.game_state)
-    # The crash handler's SFX (27A3-2828, VM-verified 2026-07-13 on both the
-    # original collision demo AND demo_skyroads_20260713_095814, a slow-crash
-    # repro): a real flagged crash calls 03C2(0) at 27E7 -- but `crashed`
+    # The crash handler's SFX (27A3-2828): a real flagged crash calls 03C2(0)
+    # at 27E7 -- but `crashed`
     # (any lateral mismatch, ship_pos always resets to 0) is NOT the same as
     # "flagged" (`resolve_lateral_crash`'s own `past_gate and f456a==0`
     # branch, i.e. ds:[54AC] was already past CRASH_MILESTONE_POS AND
@@ -482,8 +381,7 @@ def _classify_transition(view: GameView, exc: Exception) -> str:
     :class:`~skyroads.native.gaps.FallDeathTransition` to a coarse,
     caller-facing ``TickOutcome.kind``.
 
-    VM-traced 2026-07-13 (``demo_skyroads_crash_20260713_085908``): a wall
-    crash that happens AFTER the ship has already resumed (``game_state``
+    A wall crash that happens after the ship has already resumed (``game_state``
     already ``3`` from a prior landing) does NOT flip ``game_state`` to ``1``
     -- ``resolve_lateral_crash`` only sets it when ``game_state`` was ``0``.
     The only observable signal in that case is ``grounded`` (``[456A]``)
@@ -508,11 +406,11 @@ def _classify_transition(view: GameView, exc: Exception) -> str:
 
 
 class NativeGameplayDriver:
-    """Drives :func:`native_gameplay_substep` INDEFINITELY, with no VM ever
-    involved -- "full vmless native gameplay". A single sub-step is a proven,
-    verified primitive (see that function's docstring); this class is what
-    turns it into a complete, self-contained, never-stopping simulation loop
-    by composing it with :func:`apply_level_init` at every boundary
+    """Drive the authored gameplay subsystem without interpreting instructions.
+
+    A single sub-step is a focused, verified implementation (see that
+    function's docstring). This class composes it with
+    :func:`apply_level_init` at every supported boundary
     (level-complete, wall-crash, timer-expired, fall) instead of surfacing the
     boundary as an exception to the caller.
 
@@ -533,10 +431,8 @@ class NativeGameplayDriver:
       via :func:`native_gameplay_substep`'s documented
       ``allow_unmodelled_effect`` fallback rather than stopping the loop.
 
-    ``jump_level_gate`` (``ds:[4562]``) is a per-level constant normally read
-    from level data the VM loads; a standalone driver not loading real level
-    files supplies it directly (or reads whatever the view already has from a
-    prior VM-seeded state).
+    ``jump_level_gate`` (``ds:[4562]``) is a per-level constant. A caller
+    supplies it directly or reads it from the selected bootstrap state.
     """
 
     def __init__(self, view: GameView, jump_level_gate: int,

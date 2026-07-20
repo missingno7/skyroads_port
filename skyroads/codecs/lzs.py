@@ -1,12 +1,10 @@
 """SKYROADS .LZS/.DAT asset compression codec.
 
 The core LZ decode loop was recovered by live-tracing the oracle (dos_re VM
-running assets/SKYROADS.EXE) while it unpacked TREKDAT.LZS: profiling found the
-hottest interpreted addresses at CS:IP 1010:64A0-1010:675E (see
-tools/profile_hotspots.py output, ~547K-618K hits in a 6M-instruction window),
-then a forced linear disassembly of that live (self-modifying-code-populated)
-region plus a register-level single-step trace confirmed the algorithm below.
-See docs/skyroads/lzs_format.md for the full evidence trail once written.
+running assets/SKYROADS.EXE) while it unpacked TREKDAT.LZS. A live
+self-modifying-code-aware disassembly plus a register-level trace confirmed the
+algorithm below. See docs/history/skyroads/run_status.md for the historical
+evidence trail.
 
 CONFIRMED (byte-for-byte from the oracle trace, ASM addresses noted for every
 claim):
@@ -14,10 +12,10 @@ claim):
   Bit reader (1010:64AB "get_bit"): MSB-first bit reader over a byte at
   ds:[41B0], refilling from the input stream every 8 bits (counter ds:[41AE],
   cursor ds:[41B6], end ds:[41B4]); refilling past the loaded 4KB staging
-  buffer triggers a file read (1010:6350 -> ... -> INT 21h AH=3Fh, confirmed by
-  the file-load trace in skyroads/probes/trace_file_loads.py: TREKDAT.LZS is
-  read in 4096-byte chunks into a fixed buffer at 1686:31A8, matching
-  ds:[41B2]/[41B4]/[41B6]).
+  buffer triggers a file read (1010:6350 -> ... -> INT 21h AH=3Fh). The
+  retained historical trace confirms that TREKDAT.LZS is read in 4096-byte
+  chunks into a fixed buffer at 1686:31A8, matching
+  ds:[41B2]/[41B4]/[41B6].
 
   get_bits(n) (1010:64FF/6508): n calls to get_bit, accumulated MSB-first.
 
@@ -95,9 +93,10 @@ github.com/ammaarreshi/SkyRoads-Codex published a structurally matching
 description ("3 bytes: SkyRoads compression widths" per compressed block,
 concrete widths (4, 10, 13) for TREKDAT.LZS / (6, 10, 12) for MUZAX.LZS) from
 its own DOSBox-X + static-analysis work. This lines up with WIDTH_LEN/
-WIDTH_DIST_LONG/WIDTH_DIST_SHORT above, but per docs/pitfalls.md #21 it is a
+WIDTH_DIST_LONG/WIDTH_DIST_SHORT above, but per
+docs/history/pitfalls.md #21 it is a
 lead to verify against OUR oracle, not a fact to import — see
-docs/skyroads/run_status.md (2026-07-08 entry) for the full note.
+docs/history/skyroads/run_status.md (2026-07-08 entry) for the full note.
 """
 from __future__ import annotations
 

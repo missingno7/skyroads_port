@@ -1,6 +1,6 @@
 """Verify the recovered level-progression state machine
 (skyroads.handrecovered.progression.step_level_progression) against real ASM I/O
-captured over the full E2E demo (1010:2A35-2AE2).
+captured over the full E2E replay (1010:2A35-2AE2).
 
 682/682 real sub-steps matched byte-exact on (game_state, level_timer_a,
 level_timer_b, frame_ctr); the fixture keeps every state-transition sub-step
@@ -49,7 +49,7 @@ def test_in_gameplay_only_bumps_frame_counter() -> None:
 
 
 def test_fixture_includes_a_real_resume_transition() -> None:
-    # The demo drives at least one 0 -> 3 resume (af2c descended below the gate).
+    # The replay drives at least one 0 -> 3 resume (af2c descended below the gate).
     resumes = [c for c in _CASES
                if c["game_state"] == STATE_TRANSITIONAL
                and c["out_game_state"] == STATE_GAMEPLAY]

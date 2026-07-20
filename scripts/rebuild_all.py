@@ -1,28 +1,23 @@
-"""rebuild_all.py -- the recovery pipeline, in the one order that is correct.
+"""Refresh SkyRoads' two generated representations from current local evidence.
 
-The stages are strictly ordered and each consumes the previous one's output:
+This convenience recipe runs the dependencies needed for the current generated
+VMless and ABI-recovered corpora:
 
-    build_codemap.py     demos            -> observed.json      (what EXECUTED)
-    close_vmless_wall.py observed.json    -> entries.txt
-                                          -> recovery_ir.json   (the IR)
-                                          -> skyroads/lifted/   (VMless corpus)
-    build_recovered.py   recovery_ir.json -> skyroads/recovered/ (CPUless corpus)
+    build_codemap.py     replays            -> observed.json      (what EXECUTED)
+    expand_vmless_frontier.py observed.json -> local entries/IR
+                                          -> skyroads/lifted/ (VMless corpus)
+    build_recovered.py   retained IR + local evidence
+                                          -> skyroads/recovered/ (ABI corpus)
 
-Running them out of order, or skipping the middle one, fails SILENTLY and
-expensively.  Adding coverage and then rebuilding only the recovered corpus left
-the newly-discovered functions with no IR entry; every caller of one then refused
-``contains-call``, which cascaded to five refusals including ``1010:61F3`` -- the
-C-startup root -- so the standalone runner could not even import its entry point.
-The output said "5 refused", not "you skipped a stage".
-
-So the order lives in one place, here, instead of in whoever remembers it.
-``build_recovered.py`` also fails loud on an IR older than the census, which is
-the same mistake caught from the other side.
+This order belongs only to this reproducible generation recipe. Either
+representation can remain selected indefinitely, and static recovery,
+ReplayArtifact evidence, Atlas updates, and authored implementations are
+independently useful and composable.
 
 Usage:
-    python scripts/rebuild_all.py                # full pipeline
-    python scripts/rebuild_all.py --from-ir      # skip the census (demos unchanged)
-    python scripts/rebuild_all.py --check        # then run every gate
+    python scripts/rebuild_all.py --replay DIR [--replay DIR ...]
+    python scripts/rebuild_all.py --abi-only     # rebuild only the ABI corpus
+    python scripts/rebuild_all.py --replay DIR --check
 """
 from __future__ import annotations
 
@@ -34,43 +29,71 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-#: (script, why it must run here) in dependency order.
-STAGES = (
+#: (script, output) for this convenience recipe.
+STEPS = (
     ("build_codemap.py",
-     "observe the demos -> artifacts/codemap/observed.json"),
-    ("close_vmless_wall.py",
-     "census + recovery_ir.json + the lifted (VMless) corpus"),
+     "observe the replays -> artifacts/codemap/observed.json"),
+    ("expand_vmless_frontier.py",
+     "local census/IR + the generated VMless corpus"),
     ("build_recovered.py",
-     "the recovered (CPUless) corpus + cpuless_manifest.json"),
+     "the generated ABI corpus + its diagnostic manifest"),
 )
 
 
-def _run(script: str, why: str) -> None:
+def _run(script: str, why: str, extra_args: tuple[str, ...] = ()) -> None:
     print(f"\n=== {script} -- {why}")
     t0 = time.time()
-    r = subprocess.run([sys.executable, str(ROOT / "scripts" / script)],
-                       cwd=ROOT)
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / script), *extra_args],
+        cwd=ROOT,
+    )
     if r.returncode != 0:
         raise SystemExit(f"[rebuild_all] {script} FAILED (exit {r.returncode}) "
-                         f"-- stopping; later stages would consume its stale output")
+                         f"-- stopping; later recipe steps need its output")
     print(f"=== {script} ok ({time.time() - t0:.0f}s)")
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--from-ir", action="store_true",
-                    help="skip the census (use when the DEMO SET is unchanged "
-                         "and only dos_re/codegen moved)")
+    ap.add_argument("--abi-only", action="store_true",
+                    help="rebuild only the ABI-recovered representation from "
+                         "the retained IR and current local evidence")
+    ap.add_argument(
+        "--replay", action="append", default=[], metavar="DIR",
+        help="ReplayArtifact evidence passed to build_codemap.py (repeatable)",
+    )
+    ap.add_argument(
+        "--cold-boot-frames", type=int, default=0,
+        help="explicit optional cold-boot observation passed to build_codemap.py",
+    )
     ap.add_argument("--check", action="store_true",
                     help="run scripts/check_all.py afterwards")
     args = ap.parse_args(argv)
 
-    stages = STAGES[2:] if args.from_ir else STAGES
-    if args.from_ir:
-        print("[rebuild_all] --from-ir: census and IR assumed current")
-    for script, why in stages:
+    if args.abi_only:
+        print("[rebuild_all] --abi-only: using retained IR and local evidence")
+        steps = STEPS[2:]
+    else:
+        if not args.replay and args.cold_boot_frames <= 0:
+            ap.error(
+                "full regeneration requires explicit observation evidence; "
+                "pass --replay DIR and/or --cold-boot-frames N"
+            )
+        codemap_args = tuple(
+            part
+            for replay in args.replay
+            for part in ("--replay", replay)
+        )
+        if args.cold_boot_frames > 0:
+            codemap_args += (
+                "--cold-boot-frames", str(args.cold_boot_frames),
+            )
+        script, why = STEPS[0]
+        _run(script, why, codemap_args)
+        steps = STEPS[1:]
+    for script, why in steps:
         _run(script, why)
-    print("\n[rebuild_all] pipeline complete")
+    print("\n[rebuild_all] generated-corpus recipe complete")
     if args.check:
         return subprocess.run([sys.executable,
                                str(ROOT / "scripts/check_all.py")],

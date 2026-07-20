@@ -9,14 +9,8 @@ their COMPOSITION -- compute's output feeding resolve_move's target inputs,
 with the collision predicate (skyroads/native/collision.make_visible) bound to
 a NativeGameState's DGROUP tables -- against the live oracle.
 
-Why this matters for the native port: it establishes that the lateral/vertical
-movement MATH has no remaining gap. The only reason native_gameplay_frame does
-not yet call this pipeline is one INPUT to it -- lateral_accel (ds:[4568]) --
-which is stateful steering momentum updated mid-frame at 1010:2568 under
-jump-latch-gated conditions (60/682 real frames have lateral_accel != steer*29,
-e.g. -29 persisting a frame after the steer key released), so it cannot be
-derived from frame-start state without recovering that block. See
-skyroads.native.gaps.MovementPhysicsGap.
+This proves the lateral/vertical movement composition used by
+``native_gameplay_substep``, including its stateful ``lateral_accel`` input.
 
 Captures at IP=2635 (pre-move state + the real target-formula inputs + a DGROUP
 snapshot for the collision tables) and IP=26E9 (post-resolve_move axes), then
@@ -33,8 +27,10 @@ import scripts.play as sp
 from dos_re import player
 from dos_re.cpu import CPU8086, HaltExecution
 from dos_re.dos import ConsoleInputWouldBlock
-from dos_re.input_demo import InputDemoPlayback
-from dos_re.player import _use_real_console_input
+from dos_re.replay_input import RealModeInputAdapter
+from dos_re.replay import ReplayArtifact
+from dos_re.snapshot import apply_runtime_continuation
+from skyroads.replay import recording_base
 
 from skyroads.native.collision import make_visible
 from skyroads.native.state import NativeGameState
@@ -43,30 +39,30 @@ from skyroads.handrecovered.physics import compute_movement_targets
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_e2e_20260710_132930"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_e2e_20260710_132930"
 
 pytestmark = pytest.mark.skipif(
-    not (EXE.exists() and DEMO.exists()),
-    reason="needs SKYROADS.EXE + the E2E demo",
+    not (EXE.exists() and REPLAY.exists()),
+    reason="needs SKYROADS.EXE + the E2E replay",
 )
 
 CODE_SEG = 0x1010
 IP_PRE = 0x2635    # start of the movement-target computation (post advance_ship/vvel)
 IP_POST = 0x26E9   # right after resolve_move (186B) returns
-MAX_FRAMES = 1200  # steering starts partway through the demo; go far enough to catch it
+MAX_FRAMES = 1200  # steering starts partway through the replay; go far enough to catch it
 
 
 def _collect(max_cases: int = 160):
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
-    args.install_replacements = False  # pure ASM oracle
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-replay", str(REPLAY), "--headless", "--composition", "oracle"])
+    artifact = ReplayArtifact.open(REPLAY)
+    frontend.apply_replay_metadata(args, artifact.metadata)
+    args.execution_plan = frontend.resolve_execution_plan(args)
+    rt = frontend.create_runtime(args)
+    apply_runtime_continuation(rt, recording_base(artifact))
+    inputs = RealModeInputAdapter(artifact.events)
+    rt.dos.console_input_fallback = None
 
     pending: dict = {}
     cases: list[dict] = []
@@ -106,8 +102,13 @@ def _collect(max_cases: int = 160):
     CPU8086.step = patched
     try:
         frame = 0
-        while not pb.finished(frame) and frame < MAX_FRAMES and len(cases) < max_cases:
-            pb.apply_to_runtime(frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
+        while (
+            frame < artifact.end_point.ordinal
+            and frame < MAX_FRAMES
+            and len(cases) < max_cases
+        ):
+            inputs.apply_to_runtime(
+                frame, rt, deliver=lambda r, sc: frontend.deliver_input(r, sc))
             try:
                 frontend.advance_frame(rt, args, frame)
             except ConsoleInputWouldBlock:
@@ -123,7 +124,7 @@ def _collect(max_cases: int = 160):
 @pytest.fixture(scope="module")
 def cases():
     got = _collect()
-    assert got, "collected no movement-pipeline samples -- demo/oracle setup broken"
+    assert got, "collected no movement-pipeline samples -- replay/oracle setup broken"
     return got
 
 

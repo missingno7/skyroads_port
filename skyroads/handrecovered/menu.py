@@ -20,7 +20,6 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from skyroads.islands import oracle_link
 from skyroads.handrecovered.player import LEVEL_END
 
 #: Scroll increment for the level-select left/right actions (1010:1BC4/1BDC).
@@ -46,28 +45,6 @@ class MenuState(NamedTuple):
     timer_b: int          # ds:[B13C]
 
 
-@oracle_link(
-    boundary="1010:1B49",
-    contract="dispatch_menu_action(action, state) -> MenuState: the level-select "
-             "action dispatcher. action=2: scroll_pos -= 0x12F (only if "
-             "entered==0). action=0xA: scroll_pos += 0x12F (only if entered==0). "
-             "action=0xC: game_state:=2; if entered==0: entered:=1. action=9: "
-             "if game_state==0 and either timer < 0x6978, reset both timers to "
-             "0x7530 (an init call is also made in the ASM -- see caveat below). "
-             "any other action: no state change. Always: clamp scroll_pos to "
-             "[0, LEVEL_END].",
-    status="ASM_MATCHED",  # 318/318 real E2E-demo calls byte-exact, across
-    # every action code the demo actually exercises: 0, 1, 3 (all no-op/default
-    # -> clamp-only, the common case at 181/104/17/14 calls respectively) and
-    # 0xA (scroll-right, 104 calls). Actions 2 (scroll-left) and 9 (confirm)
-    # are transcribed from the same disassembly pattern as 0xA/0xC but the demo
-    # never exercises them -- ASM-derived, not independently verified. Also
-    # not modeled: action 9's conditional call to 1010:03C2(4) and action
-    # 0xC's call to 1010:03C2(0) when entered was 0 -- side calls this rule
-    # doesn't reproduce (their own effects are on other state, not scroll_pos/
-    # game_state/entered/the timers, but they ARE real ASM side effects).
-    merge_target="skyroads.native.menu (future)",
-)
 def dispatch_menu_action(action: int, state: MenuState) -> MenuState:
     """Apply one level-select action (1010:1B49-1C63) and return the new state."""
     game_state, entered, pos, timer_a, timer_b = state

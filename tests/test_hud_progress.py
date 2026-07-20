@@ -1,6 +1,6 @@
 """The level PROGRESS BAR -- `1010:159C` (target column) + `1010:1218` (per-column
 fill) -- recovered and verified byte-exact against the VM over
-demo_skyroads_L1FULL_20260713_212417 (run_status.md 2026-07-13). The target-
+replay_skyroads_L1FULL_20260713_212417 (run_status.md 2026-07-13). The target-
 column formula matched 321/321 sub-steps; the per-column fill matched the VM's
 plane 0/290 frames over the whole bar; and the level length [41C0] the formula
 divides by is len(road)//14 (the VM's `5614` return).
@@ -15,7 +15,7 @@ from skyroads.native.hud import progress_target_col
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_skyroads_L1FULL_20260713_212417"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_skyroads_L1FULL_20260713_212417"
 
 
 def test_progress_target_col_matches_the_vm_formula() -> None:
@@ -36,13 +36,13 @@ def test_progress_target_col_matches_the_vm_formula() -> None:
 
 def test_level_length_is_road_rows() -> None:
     """[41C0] = decompressed road length // 14 (7-UINT16 rows) -- the VM's 5614
-    return; the demo level's 770-byte road gives 55."""
+    return; the replay level's 770-byte road gives 55."""
     from skyroads.native.level_load import _ROAD_ROW_BYTES
     assert 770 // _ROAD_ROW_BYTES == 55
 
 
-@pytest.mark.skipif(not (EXE.exists() and DEMO.exists()),
-                    reason="needs SKYROADS.EXE + the L1 full demo")
+@pytest.mark.skipif(not (EXE.exists() and REPLAY.exists()),
+                    reason="needs SKYROADS.EXE + the L1 full replay")
 def test_progress_bar_draw_is_byte_exact_vs_vm() -> None:
     """Drive the native `update_progress_bar` alongside the VM over the level and
     assert the bar's pixels match the VM's VGA plane every frame."""
@@ -50,20 +50,14 @@ def test_progress_bar_draw_is_byte_exact_vs_vm() -> None:
     from dos_re import player
     from dos_re.cpu import HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
     from skyroads.native.image import NativeGameImage
     from skyroads.native.state import DATA_SEG
     from skyroads.native.hud import update_progress_bar, PROGRESS_SRC, PROGRESS_LEN
 
     frontend = sp.SkyroadsFrontend(ROOT)
-    args = player.build_arg_parser(frontend).parse_args(["--play-demo", str(DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_snapshot_runtime(args, pb.snapshot_path())
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+    args = player.build_arg_parser(frontend).parse_args(["--play-replay", str(REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, REPLAY)
     rt.dos.mouse_present = pb.mouse_present_hint
 
     def vmw(off):

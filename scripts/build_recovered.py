@@ -1,32 +1,21 @@
-"""Regenerate the RECOVERED (CPUless) corpus + its function manifest.
+"""Regenerate the generated ABI-recovered corpus and its diagnostic manifest.
 
-``skyroads/recovered/`` is the dos_re 2.0 stage-2 surface: every function the
-game runs at runtime as a pure-Python recovered module.  The standalone runner
-``scripts/play_cpuless.py`` drives it through ``CPUlessPlatformRuntime`` with NO
-interpreter, NO lifted graph, NO CPU object.
+``skyroads/recovered/`` is one generated representation of the SkyRoads
+program: pure Python over DOS-layout memory and platform services, with no CPU
+object or instruction interpreter.  It is selected through
+``skyroads.execution`` like every other implementation provider; this script
+does not select or install handwritten overrides.
 
-WHAT IS SOURCE vs GENERATED
-  * SOURCE (committed): the census inputs under ``artifacts/codemap/``
-    (recovery_ir.json, observed.json, boundary_heads.txt, dispatch tables) and
-    the address-keyed manual overrides under ``skyroads/recovered_overrides/``.
-  * COMMITTED (the recorded no-CPU port surface): the recovered package
-    ``skyroads/recovered/``.  This script regenerates it IN PLACE,
-    deterministically, so a rebuild that changes any byte shows up as a git
-    diff (drift detection).
-  * COMMITTED RECORD: ``artifacts/codemap/cpuless_manifest.json`` -- the
-    persistent per-function status manifest this script writes.
-  * IGNORED (regenerable scratch): the CPU-carrying adapters
-    (``artifacts/recovered_adapters/``) and the build intermediates.
+The committed ``recovery/recovery_ir.json`` is the Recovery IR input.
+Generation also consumes local observed-transfer, boundary, and dynamic
+dispatch facts under ``artifacts/codemap/``.  Those facts specialize this
+particular generated corpus; they are not the project's coverage or release
+authority.  The persistent Execution Atlas remains the planner's sole
+closed-world coverage source.
 
-THE PROMOTION CONFIG:
-  --boundary-heads   emit ``plat.boundary`` observers (standalone-only).
-  --dyn-evidence     per-site dispatch targets filtered to OBSERVED selections
-                     (find_dispatch_evidence --observed): an unselected table
-                     entry becomes a fail-loud UnknownDispatchTarget.
-  --observed         runtime-dead near CALLS and runtime-dead EXITS become
-                     fail-loud stubs/raises (the hard wall, not a fallback).
-  --desmc            runtime-patched operands (incl. the timer-ISR far chain)
-                     read from live code memory.
+The generated package is committed and regenerated in place so drift is
+visible in git. CPU adapters, the generation census, and
+``cpuless_manifest.json`` are local diagnostics under ``artifacts/``.
 
 Usage:
     python scripts/build_recovered.py            # regenerate + manifest
@@ -35,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import shutil
 import subprocess
@@ -44,17 +34,115 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CODEMAP = ROOT / "artifacts" / "codemap"
-STANDALONE_DIR = ROOT / "skyroads" / "recovered"
-OVERRIDES_DIR = ROOT / "skyroads" / "recovered_overrides"
+RECOVERED_DIR = ROOT / "skyroads" / "recovered"
 IMPORT_BASE = "skyroads.recovered"
 MANIFEST = CODEMAP / "cpuless_manifest.json"
 CANONICAL_ENTRY = "1010:61F3"          # the boot far-jump target (C startup)
 
-IR = CODEMAP / "recovery_ir.json"
+IR = ROOT / "recovery" / "recovery_ir.json"
 OBSERVED = CODEMAP / "observed.json"
 BOUNDARY_HEADS = CODEMAP / "boundary_heads.txt"
 DYN_OBS = CODEMAP / "dispatch_evidence_observed.json"   # generated, observed-only
 CENSUS = CODEMAP / "recovered_census.json"     # generated
+
+
+def _staticize_dynamic_dispatch() -> None:
+    """Replace generator-time importlib dispatch with a closed-world resolver."""
+    dispatch_path = RECOVERED_DIR / "dispatch.py"
+    tree = ast.parse(dispatch_path.read_text(encoding="utf-8"))
+    tables = {}
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id in {"DISPATCH", "HANDLERS"}
+        ):
+            tables[node.targets[0].id] = ast.literal_eval(node.value)
+    implementations = sorted({
+        (entry[0], entry[1])
+        for table in tables.values()
+        for entry in table.values()
+    })
+    resolver = []
+    for index, (module, function) in enumerate(implementations):
+        relative = module.rsplit(".", 1)[-1]
+        keyword = "if" if index == 0 else "elif"
+        resolver.extend((
+            f"    {keyword} module == {module!r} and name == {function!r}:",
+            f"        from .{relative} import {function}",
+            f"        return {function}",
+        ))
+    resolver.append(
+        "    raise RuntimeError(f'undeclared recovered dispatch: {module}:{name}')")
+    source = '''"""AUTOGENERATED closed-world dynamic-transfer dispatch.
+
+Every reachable target is an explicit import edge. Unknown selectors fail loud;
+there is no importlib, interpreter, lifted graph, or runtime discovery.
+"""
+from .dispatch import DISPATCH, HANDLERS
+
+
+class UnknownDispatchTarget(RuntimeError):
+    def __init__(self, key, regs, base):
+        super().__init__(
+            "dynamic dispatch to %s: no recovered implementation" % key)
+        self.key = key
+        self.regs = dict(regs)
+        self.base = base
+
+
+def _resolve(module, name):
+''' + "\n".join(resolver) + '''
+
+
+_cache = {}
+
+
+def _exec(table, kind, key, mem, plat, base, regs):
+    ent = table.get(key)
+    if ent is None:
+        raise UnknownDispatchTarget(kind + " " + key, regs, base)
+    fn = _cache.get((kind, key))
+    if fn is None:
+        module, name, entry_ip, inputs, needs_plat, df_livein, fl_livein = ent
+        implementation = _resolve(module, name)
+
+        def fn(mem, plat, base, regs, _f=implementation, _e=entry_ip,
+               _ins=inputs, _np=needs_plat, _dfl=df_livein, _fl=fl_livein):
+            kw = {register: regs[register] for register in _ins}
+            if _e is not None:
+                kw["_entry_ip"] = _e
+            if _dfl:
+                kw["_df"] = regs.get("_df", 0)
+            if _fl:
+                kw["_flags_in"] = regs.get("_flags_in", 2)
+            if _np:
+                out, compat = _f(mem, plat, _base=base, **kw)
+            else:
+                out, compat = _f(mem, **kw)
+            merged = dict(regs)
+            merged.update(out)
+            return merged, compat
+
+        _cache[(kind, key)] = fn
+    return fn(mem, plat, base, regs)
+
+
+def dyn_exec(key, mem, plat, base, regs):
+    return _exec(DISPATCH, "dyn", key, mem, plat, base, regs)
+
+
+def ivec_exec(key, mem, plat, base, regs):
+    if key not in HANDLERS:
+        service = getattr(plat, "ivec", None)
+        if service is not None:
+            out = service(key, base, regs)
+            if out is not None:
+                return out
+    return _exec(HANDLERS, "ivec", key, mem, plat, base, regs)
+'''
+    (RECOVERED_DIR / "_dyncall.py").write_text(source, encoding="utf-8")
 
 
 def _load_pairs(path: Path) -> set[str]:
@@ -73,25 +161,14 @@ def _closure_roots() -> str:
     roots = {CANONICAL_ENTRY}
     roots |= {v.upper() for v in (obs.get("ivt_game_vectors") or {}).values()}
     roots |= {v.upper() for v in (obs.get("int_entries") or [])}
-    for f in ("dispatch_extra.txt", "boundary_heads.txt", "snapshot_entries.txt"):
+    for f in ("dispatch_extra.txt", "boundary_heads.txt",
+              "replay_base_entries.txt"):
         roots |= _load_pairs(CODEMAP / f)
     return ",".join(sorted(roots))
 
 
-def _override_keys() -> set[str]:
-    """Address-keyed manual overrides: func_CCCC_IIII.py -> 'CCCC:IIII'."""
-    out: set[str] = set()
-    if not OVERRIDES_DIR.exists():
-        return out
-    for p in OVERRIDES_DIR.glob("func_*.py"):
-        _, cs, ip = p.stem.split("_")
-        out.add(f"{int(cs, 16):04X}:{int(ip, 16):04X}")
-    return out
-
-
-def _write_manifest(overrides: set[str]) -> dict:
-    """Build the persistent per-function status manifest from the census +
-    runtime closure + the generated corpus + the overrides."""
+def _write_manifest() -> dict:
+    """Describe this generated corpus against its local generation evidence."""
     sys.path.insert(0, str(ROOT / "dos_re"))
     from tools.cpuless_closure import walk_closure  # noqa: E402
 
@@ -99,7 +176,7 @@ def _write_manifest(overrides: set[str]) -> dict:
     all_keys = {k.upper() for k in ir["functions"]}
     promoted = {f"{int(cs, 16):04X}:{int(ip, 16):04X}"
                 for cs, ip in (p.stem.split("_")[1:]
-                               for p in STANDALONE_DIR.glob("func_*.py"))}
+                               for p in RECOVERED_DIR.glob("func_*.py"))}
     census = json.loads(CENSUS.read_text(encoding="utf-8"))
     refused = {k.upper(): reason
                for reason, keys in census.get("refused", {}).items()
@@ -121,18 +198,16 @@ def _write_manifest(overrides: set[str]) -> dict:
     for key in sorted(all_keys):
         rec = ir["functions"].get(key) or ir["functions"].get(key.lower(), {})
         is_data = bool(rec) and not rec.get("blocks")
-        if key in overrides:
-            status = "manual-cpuless-override"
-        elif key in promoted:
+        if key in promoted:
             status = "generated-cpuless"
         elif is_data:
             status = "data-non-function"
         elif key in runtime_frontier:
-            status = "fail-loud-unsupported"      # reachable but not promoted
+            status = "not-emitted-observed-frontier"
         elif key in static_only or key in refused:
-            status = "dead-unreachable"           # no runtime evidence it runs
+            status = "not-emitted-no-observed-evidence"
         else:
-            status = "dead-unreachable"
+            status = "not-emitted-no-observed-evidence"
         entry = {"status": status}
         if key in refused:
             entry["refusal"] = refused[key]
@@ -141,79 +216,53 @@ def _write_manifest(overrides: set[str]) -> dict:
     counts = Counter(e["status"] for e in entries.values())
     manifest = {
         "_notice": "GENERATED by scripts/build_recovered.py -- the "
-                   "persistent per-function status manifest for the STANDALONE "
-                   "CPUless corpus. Regenerate with that script; do not "
-                   "hand-edit. Statuses: generated-cpuless | "
-                   "manual-cpuless-override | native-platform-replacement | "
-                   "fail-loud-unsupported | dead-unreachable | data-non-function.",
+                   "local diagnostic manifest for the generated ABI-recovered "
+                   "corpus. It describes the inputs used for this generation "
+                   "and is not a coverage or release-readiness authority. "
+                   "Regenerate with that script; do not hand-edit.",
         "import_base": IMPORT_BASE,
         "canonical_entry": CANONICAL_ENTRY,
+        "evidence_scope": "local-observed-generation-inputs",
+        "atlas_release_authority": False,
         "counts": dict(sorted(counts.items())),
-        "runtime_frontier": sorted(runtime_frontier),
-        "runtime_closure_complete": bool(rep["closure_complete"]),
-        # non-function addresses reached only via an UNTAKEN static call (no
-        # runtime evidence they execute): resume points / external targets, not
-        # IR functions. Reported, never dropped -- coverage is not proof of
-        # deadness (docs/dead_code_analysis.md).
-        "static_only_addresses": sorted(static_only),
+        "observed_generation_frontier": sorted(runtime_frontier),
+        "observed_generation_closed": bool(rep["closure_complete"]),
+        "unobserved_or_static_only_addresses": sorted(static_only),
         "functions": entries,
     }
     MANIFEST.write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
     return manifest
 
 
-def _require_fresh_ir() -> None:
-    """Refuse to build a corpus from an IR older than the census it came from.
-
-    The pipeline is ORDERED -- ``build_codemap.py`` (observed.json) ->
-    ``close_vmless_wall.py`` (entries.txt -> recovery_ir.json -> lifted corpus)
-    -> this script -- and skipping the middle step is silent and expensive:
-    functions the new census discovered have no IR entry, so every caller of one
-    refuses ``contains-call``.  That cascaded to FIVE refusals including
-    1010:61F3, the C-startup root, which left play_cpuless unable to import its
-    entry point at all.  Nothing in the output said "stale IR"; it looked like a
-    capability regression and was diagnosed the long way.
-
-    Mtime is a heuristic (a touch defeats it), so this is a guard-rail, not a
-    proof -- but it fires exactly where the mistake is made.
-    """
-    if not (IR.exists() and OBSERVED.exists()):
-        return
-    if IR.stat().st_mtime >= OBSERVED.stat().st_mtime:
-        return
-    raise SystemExit(
-        f"[standalone] STALE IR: {IR.name} is older than {OBSERVED.name}.\n"
-        f"  The census changed but the IR was not regenerated, so functions it\n"
-        f"  discovered have no IR entry and their callers will refuse\n"
-        f"  'contains-call' (this is how 1010:61F3 dropped out and broke the\n"
-        f"  runner). Regenerate the IR first:\n\n"
-        f"      python scripts/close_vmless_wall.py\n\n"
-        f"  Full order: build_codemap.py -> close_vmless_wall.py -> "
-        f"build_recovered.py\n"
-        f"  (or just: python scripts/rebuild_all.py)")
-
-
 def build() -> int:
-    _require_fresh_ir()
-    # 1. per-site dispatch evidence, OBSERVED-filtered (standalone corpus).
+    if not IR.exists():
+        raise SystemExit(
+            f"retained Recovery IR is missing: {IR}\n"
+            "run: python scripts/build_atlas.py --snapshot artifacts/SNAPSHOT_DIR")
+    for local_input in (OBSERVED, BOUNDARY_HEADS):
+        if not local_input.exists():
+            raise SystemExit(
+                f"generated-ABI build input is missing: {local_input}\n"
+                "Record or regenerate the local observation inputs before "
+                "rebuilding this optional representation.")
+
+    # Per-site dispatch evidence specialized by the local observed selections.
     subprocess.run([sys.executable, str(ROOT / "scripts/find_dispatch_evidence.py"),
                     "--observed", str(OBSERVED), "--out", str(DYN_OBS)], check=True)
 
-    # 2. fresh recovered package each build (a stale module for a since-refused
-    #    function would import-resolve to dead code).
-    if STANDALONE_DIR.exists():
-        shutil.rmtree(STANDALONE_DIR)
-    STANDALONE_DIR.mkdir(parents=True)
-    (STANDALONE_DIR / "__init__.py").write_text(
-        '"""GENERATED recovered (CPUless) corpus (dos_re stage 2).\n\n'
+    # Recreate the package so a stale module cannot survive a changed IR.
+    if RECOVERED_DIR.exists():
+        shutil.rmtree(RECOVERED_DIR)
+    RECOVERED_DIR.mkdir(parents=True)
+    (RECOVERED_DIR / "__init__.py").write_text(
+        '"""Generated ABI-recovered SkyRoads implementation corpus.\n\n'
         "Build artifact -- regenerate with scripts/build_recovered.py,\n"
-        "do not hand-edit. Manual fixes go in skyroads/recovered_overrides/ as\n"
-        'address-keyed func_CCCC_IIII.py modules, layered on top here."""\n',
+        "do not hand-edit. Authored implementations are declared separately in\n"
+        'the skyroads.execution ImplementationCatalog."""\n',
         encoding="utf-8")
 
-    # 3. the STANDALONE promotion config (see the module docstring).
-    # the CPU-ABI adapters are a HYBRID artifact (they bridge the interpreter to
-    # a recovered body); the standalone runner calls recovered functions
+    # CPU-ABI adapters bridge the interpreter to a recovered body. The generated
+    # ABI provider calls recovered functions
     # directly, so route them to a throwaway dir OUTSIDE the pure corpus package
     # -- else the recovered-purity lint (rightly) flags their make_cpu_platform
     # import.
@@ -222,7 +271,7 @@ def build() -> int:
         shutil.rmtree(adapters)
     cmd = [sys.executable, str(ROOT / "dos_re/tools/cpuless_promote.py"),
            "--ir", str(IR),
-           "--recovered-dir", str(STANDALONE_DIR),
+           "--recovered-dir", str(RECOVERED_DIR),
            "--adapter-dir", str(adapters),
            "--import-base", IMPORT_BASE,
            "--boundary-heads", f"@{BOUNDARY_HEADS}",
@@ -231,31 +280,26 @@ def build() -> int:
            "--observed", str(OBSERVED),
            "--census-out", str(CENSUS),
            "--apply"]
-    print("[standalone] " + " ".join(str(c) for c in cmd))
+    print("[generated-abi] " + " ".join(str(c) for c in cmd))
     r = subprocess.run(cmd, text=True)
     if r.returncode != 0:
         return r.returncode
+    _staticize_dynamic_dispatch()
 
-    # 4. layer address-keyed manual overrides on top of the generated bodies.
-    overrides = _override_keys()
-    for p in OVERRIDES_DIR.glob("func_*.py") if OVERRIDES_DIR.exists() else ():
-        shutil.copy2(p, STANDALONE_DIR / p.name)
-    if overrides:
-        print(f"[standalone] layered {len(overrides)} manual override(s): "
-              + ", ".join(sorted(overrides)))
-
-    # 5. the persistent status manifest.
-    manifest = _write_manifest(overrides)
-    n_rec = len(list(STANDALONE_DIR.glob("func_*.py")))
-    print(f"\n[standalone] corpus ready: {n_rec} recovered modules -> "
-          f"{STANDALONE_DIR}")
-    print("[standalone] manifest: " + ", ".join(
+    manifest = _write_manifest()
+    n_rec = len(list(RECOVERED_DIR.glob("func_*.py")))
+    print(f"\n[generated-abi] corpus ready: {n_rec} recovered modules -> "
+          f"{RECOVERED_DIR}")
+    print("[generated-abi] manifest: " + ", ".join(
         f"{k}={v}" for k, v in manifest["counts"].items()))
-    print(f"[standalone] runtime frontier: {len(manifest['runtime_frontier'])} "
-          f"(closure complete: {manifest['runtime_closure_complete']})")
-    print(f"[standalone] wrote {MANIFEST.relative_to(ROOT)}")
-    print("[standalone]   play:   python scripts/play_cpuless.py --headless")
-    print("[standalone]   purity: python tools/lint_cpuless.py")
+    print(
+        "[generated-abi] observed generation frontier: "
+        f"{len(manifest['observed_generation_frontier'])} "
+        f"(closed for these inputs: {manifest['observed_generation_closed']})")
+    print(f"[generated-abi] wrote {MANIFEST.relative_to(ROOT)}")
+    print("[generated-abi]   play:   python scripts/play.py --profile development "
+          "--composition generated-abi --headless")
+    print("[generated-abi]   purity: python tools/lint_cpuless.py")
     return 0
 
 
@@ -268,7 +312,7 @@ def main(argv=None) -> int:
     if args.print_manifest:
         m = json.loads(MANIFEST.read_text(encoding="utf-8"))
         print(json.dumps(m["counts"], indent=1))
-        print("runtime frontier:", m["runtime_frontier"])
+        print("observed generation frontier:", m["observed_generation_frontier"])
         return 0
     return build()
 

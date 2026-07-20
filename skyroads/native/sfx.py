@@ -1,6 +1,6 @@
-"""Native gameplay SFX — the `1010:03C2` trigger + the SFX.SND sample bank.
+"""Recovered gameplay SFX trigger ``1010:03C2`` and ``SFX.SND`` bank.
 
-`03C2(id)` decoded from a live disassembly (2026-07-13, see run_status.md):
+``03C2(id)``:
 
 * stamps `[AF38] = [1600]` (the tick counter) unconditionally, then bails if
   `[451A] != 0` (muted);
@@ -19,19 +19,15 @@ The one caller-side gate: `0476` ("channel busy") returns 1 while
 landing SFX (`03C2(1)`, from the bounce-decay branch `2470-249E`) and some
 menu sounds consult it; bump/crash (`03C2(2)`) fire unconditionally.
 
-Gameplay id map — VM-VERIFIED by capturing every `03C2` call over the
-collision demo (demo_skyroads_20260710_213019: 5 calls -- 2x id 1 ret `249E`,
-2x id 0 ret `27EA`, 1x id 2 ret `2763`):
+Observed gameplay id map:
 
 ====  =========================================================
  id   trigger (return-ip of the captured call site)
 ====  =========================================================
  0    wall CRASH thud (`27E7`, on flagging `[456A]`) -- fires the instant
       `resolve_lateral_crash` sets `[456A]` 0 -> nonzero (ship past
-      `CRASH_MILESTONE_POS`, not already flagged), REGARDLESS of
-      `[456E]`/game_state (2026-07-13: re-verified on
-      demo_skyroads_20260710_213019 -- one call fires from game_state 0,
-      one from game_state 3, both on the 0->nonzero grounded edge). A
+      `CRASH_MILESTONE_POS`, not already flagged), regardless of
+      `[456E]`/game_state. A
       pre-milestone or already-flagged lateral block does NOT fire this --
       see `native_gameplay_substep`'s collision-response comment; also the
       level-select "enter" (menu action 0xC)

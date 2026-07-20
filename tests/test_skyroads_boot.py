@@ -22,7 +22,7 @@ from skyroads.runtime import create_game_runtime  # noqa: E402
 
 
 def test_boots_and_reaches_a_stable_wait_without_raising() -> None:
-    rt = create_game_runtime(_EXE, install_replacements=False)
+    rt = create_game_runtime(_EXE)
     # The title screen's steady state waits on the PIT/timer tick (INT 08h);
     # a driver must pump it or the wait spins without ever raising (see
     # skyroads/runtime.py docstring). A few simulated frames is enough to

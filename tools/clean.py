@@ -1,9 +1,8 @@
 """Remove local generated files that should not be committed.
 
 By default this removes Python/tool build products and local viewer dumps only.
-Use ``--artifacts`` to also remove generated artifact families that are safe to
-recreate and should not be kept unless promoted to ``artifacts/test_oracles`` or
-``artifacts/evidence``.
+Use ``--artifacts`` to also remove the local generated-artifact directory.
+Retained evidence under ``recovery/`` is never touched.
 """
 from __future__ import annotations
 
@@ -30,15 +29,10 @@ DEFAULT_DIR_GLOBS = (
     "*.egg-info",
 )
 
-# Regenerable artifact families (snapshots, demos, frame-verify dumps).  Game
-# adapters typically extend these with their own capture folders.
+# All content under artifacts/ is local and regenerable. Retained evidence is
+# explicitly promoted to recovery/ before this cleanup is used.
 ARTIFACT_DIR_GLOBS = (
-    "artifacts/snapshot_*",
-    "artifacts/demo_*",
-    "artifacts/tmp_*",
-    "artifacts/frame_verify",
-    "artifacts/verify_*",
-    "artifacts/repros",
+    "artifacts",
 )
 
 ARTIFACT_FILE_GLOBS = ()
@@ -87,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--artifacts",
         action="store_true",
-        help="also remove generated artifact families that are not promoted evidence/test oracles",
+        help="also remove the local artifacts/ directory",
     )
     parser.add_argument("--dry-run", action="store_true", help="show what would be removed")
     args = parser.parse_args(argv)

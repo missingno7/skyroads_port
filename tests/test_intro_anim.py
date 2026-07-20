@@ -1,13 +1,13 @@
 """Verify the recovered intro animation-frame unpacker
 (skyroads.handrecovered.intro_anim) against real ASM I/O captured over the E2E
-demo (1010:3A96, one segment's worth of the fixed 1040-row unpack).
+replay (1010:3A96, one segment's worth of the fixed 1040-row unpack).
 
 Recovered via lift-then-refactor: `dos_re.tools.liftverify` proved a literal
 transcription byte-exact against the ASM oracle first (see run_status.md).
 The full register-exact VM hook (`skyroads/hooks.py::intro_anim_unpack_hook`)
 was separately proven against real gameplay with the project's strict
 differential verifier: 1/1 real call (it unpacks the whole intro animation
-once, not per-frame) over both the E2E and cold-sound demos, zero
+once, not per-frame) over both the E2E and cold-sound replays, zero
 divergences. Getting there caught a real bug independently of the algorithm
 recovery itself: the hook read the return address off the stack but never
 actually advanced SP past it (an omission caught by the SP-only divergence

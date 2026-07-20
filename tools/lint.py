@@ -9,9 +9,8 @@ Two checks:
    that knows a specific game's addresses, filenames, or formats belongs in a
    game adapter built *on top of* this repo, never inside ``dos_re/``.
 
-Game adapters that vendor this framework should extend PACKAGE_ROOTS with
-their own package and add a rule that ``dos_re`` does not import it (see the
-pre2_port original: scripts/lint.py).
+Game adapters extend ``PACKAGE_ROOTS`` with their own package and keep the
+framework-to-game dependency direction forbidden.
 """
 from __future__ import annotations
 
@@ -41,7 +40,7 @@ KNOWN_OPTIONAL = ("pynuked_opl3", "numpy", "pygame", "pytest", "cffi")
 # game or the fast OPL path is actually driven — verified: `import dos_re`
 # imports none of numpy/pygame/sounddevice).
 FRONTEND_RING = {"player.py", "display.py", "audio_sink.py",
-                 "pm_player.py", "framebuffer.py", "textmode.py",
+                 "pm_backend.py", "framebuffer.py", "textmode.py",
                  "opl3_fast.py", "dos4gw.py"}
 FRONTEND_ALLOWED = ("numpy", "pygame", "pynuked_opl3", "sounddevice")
 

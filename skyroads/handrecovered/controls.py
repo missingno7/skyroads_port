@@ -29,7 +29,6 @@ from __future__ import annotations
 
 from typing import NamedTuple, Sequence
 
-from skyroads.islands import oracle_link
 
 #: DGROUP base of the per-key pressed-state row the ISR maintains.
 KEY_ROW_BASE = 0x0BD0
@@ -51,16 +50,6 @@ class Controls(NamedTuple):
     jump: int    # ds:[547A]  jump request, 0 or 1
 
 
-@oracle_link(
-    boundary="1010:0758",
-    contract="decode_keyboard(key_row): fold the ISR key-state row at ds:0x0BD0 "
-             "into (speed=[9330], steer=[95F4], jump=[547A]). A key is down iff "
-             "bit7 of its byte is set. speed=(up|upL|upR)-(down|dnL|dnR); "
-             "steer=(right|upR|dnR)-(left|upL|dnL); jump=jumpkey. This is the "
-             "95F6==0 (keyboard) case of the 074C control dispatcher.",
-    status="ASM_MATCHED",  # 1466/1466 full-demo 074C calls (497 with keys down) byte-exact
-    merge_target="skyroads.native.controls (future)",
-)
 def decode_keyboard(key_row: Sequence[int]) -> Controls:
     """Decode the keyboard row into the ship control axes.
 

@@ -1,17 +1,16 @@
 r"""Recover the dispatch-table targets a census structurally cannot see.
 
-``codemap.py`` keeps a call target only if a demo EXECUTED it and only if it can
+``codemap.py`` keeps a call target only if a replay EXECUTED it and only if it can
 SEE the call. Both rules are right, and together they are blind to every target
 reached through a table: nothing in the instruction stream calls those
-addresses, so the census is never told they exist. Behind the strict-VMless wall
-that surfaces as a violation in a function nobody lifted because nobody knew it
-was a function -- one crash at a time, days apart, each looking like a census
-bug rather than the one missing fact it is.
+addresses, so the census is never told they exist. An interpreter-free
+composition reports that as an unresolved target in a function nobody
+recovered because nobody knew it was a function.
 
 Two shapes, one standard: take the bound from the PROGRAM, never from what a
-demo happened to do. Observation is exactly what under-covers a dispatch --
+replay happened to do. Observation is exactly what under-covers a dispatch --
 which entries run depends on data (which song, which level, which video mode),
-so a demo-derived set always misses the branch nobody took yet.
+so a replay-derived set always misses the branch nobody took yet.
 
 1. BOUNDED INDEXED DISPATCH  (``indexed_tables``)
 
@@ -23,10 +22,10 @@ so a demo-derived set always misses the branch nobody took yet.
    program can ever take. Skyroads has two: the music driver (5A6F/5A77, `and
    bx,7` -> 8 handlers, and the boot picks a track at random) and the per-object
    renderer (2DCF/2DD4, `and bx,0Fh` -> 16). The entries are ordinary DGROUP
-   data, so they are read from images -- and from EVERY image available, boot
-   plus every demo snapshot, because what a table holds depends on what the
-   machine was doing when it was caught. The renderer's table is empty in a menu
-   snapshot and full in a gameplay one.
+   data, so they are read from images -- both the boot image and every
+   ReplayArtifact recording base, because what a table holds depends on what
+   the machine was doing when it was captured. The renderer's table is empty
+   at a menu base and full at a gameplay base.
 
 2. TABLES BUILT AT RUNTIME  (``code_pointer_stores``)
 
@@ -40,10 +39,10 @@ so a demo-derived set always misses the branch nobody took yet.
 
    Here an image is no good: it only ever shows the variant that boot chose. So
    read the fill instead -- but the VALUE proves nothing on its own. "An
-   immediate that is an address some demo executed" also describes `mov word
+   immediate that is an address some replay executed" also describes `mov word
    [AF2C],0` (1010:0000 is executed -- it is the entry) and every 1 and 2 in the
    program; that test alone returned 81 "targets", mostly integers. And it fails
-   in the direction that costs most: it drops variant B, which no demo runs.
+   in the direction that costs most: it drops variant B, which no replay runs.
 
    The SHAPE is the proof. A table fill is a straight-line run of word stores
    over consecutive slots; if such a run covers a slot the program reaches with
@@ -59,9 +58,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "dos_re"))
+sys.path.insert(0, str(ROOT))
+
+from skyroads.replay import recording_base_memories  # noqa: E402
 
 CODE_SEG = 0x1010
 DGROUP_SEG = 0x1686
@@ -122,10 +126,10 @@ def indexed_tables(ir: dict) -> list[tuple]:
 
     ``and bx,MASK`` means exactly MASK+1 entries, no more, so enumerating the
     table covers every branch the program can ever take -- including the ones
-    no demo has taken. That is the whole point: which entries run depends on
+    no replay has taken. That is the whole point: which entries run depends on
     data (which song, which level), and a census built from observation gets
-    only the ones those runs happened to need. The wall then fires on the first
-    unseen one, one crash at a time, days apart.
+    only the ones those runs happened to need. The unresolved frontier then
+    appears on the first unseen target.
 
     Both of skyroads' indexed dispatches have it: the music driver
     (`and bx,7; call ds:[bx+0C5B]` at 5A6F/5A77 -- 8 handlers) and the
@@ -191,17 +195,17 @@ def code_pointer_stores(ir: dict) -> list[tuple]:
     the program. That test alone yielded 81 "targets", mostly integers.
 
     Worse, it is wrong in the direction that costs the most. Requiring the value
-    to have EXECUTED drops the variant a demo never took: the render dispatch is
+    to have EXECUTED drops the variant a replay never took: the render dispatch is
     filled twice, variant A at 2CD3 and variant B at 2CF2, chosen by the mode
-    flag at ds:003C -- and no demo runs B, so the executed test silently drops
-    exactly the four routines the wall fires on the day someone plays that mode.
+    flag at ds:003C -- and no replay runs B, so the executed test silently drops
+    exactly the routines the runtime guard reports when that mode is exercised.
     Under-covering an indirect dispatch from observation is the very failure the
     music table above exists to avoid; the answer there was a proof (`and bx,7`),
     and it is a proof here too.
 
     So: a run of word stores over consecutive slots (``_table_fills``) that
     includes a slot reached by ``call [imm16]`` IS a call table, and every value
-    it stores IS a code pointer -- whether or not any demo has been there yet.
+    it stores IS a code pointer -- whether or not any replay has been there yet.
     A run with no called slot in it (ds:0E44's 000B/0001/0000) is just data.
     """
     anchors = called_slots(ir)
@@ -215,24 +219,27 @@ def code_pointer_stores(ir: dict) -> list[tuple]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--image", action="append", dest="images", default=None,
-                    help="booted memory images to read the tables out of "
-                         "(repeatable; defaults to the boot image + every demo "
-                         "snapshot, because a table's contents depend on what "
-                         "the machine was DOING)")
+                    help="additional raw memory images to inspect (repeatable; "
+                         "the default source is the boot image plus every "
+                         "ReplayArtifact recording base)")
     ap.add_argument("--ir",
-                    default=str(ROOT / "artifacts" / "codemap" / "recovery_ir.json"),
+                    default=str(ROOT / "recovery" / "recovery_ir.json"),
                     help="recovery IR -- both derivations read the program from it")
     ap.add_argument("--out",
                     default=str(ROOT / "artifacts" / "codemap" / "dispatch_extra.txt"))
     ap.add_argument("--print", dest="show", action="store_true")
     args = ap.parse_args(argv)
 
-    images = args.images
-    if images is None:
-        images = [str(ROOT / "artifacts" / "boot_image" / "memory_1mb.bin")]
-        images += [str(p) for p in sorted(
-            (ROOT / "artifacts" / "demos").glob("*/snapshot/memory_1mb.bin"))]
-    images = [p for p in images if Path(p).exists()]
+    image_records: list[tuple[str, bytes]] = []
+    boot_image = ROOT / "artifacts" / "boot_image" / "memory_1mb.bin"
+    if boot_image.is_file():
+        image_records.append(("boot_image", boot_image.read_bytes()))
+    image_records.extend(recording_base_memories(ROOT / "recovery" / "replays"))
+    image_records.extend(recording_base_memories(ROOT / "artifacts" / "replays"))
+    for raw in args.images or ():
+        path = Path(raw)
+        if path.is_file():
+            image_records.append((path.stem, path.read_bytes()))
 
     ir = json.loads(Path(args.ir).read_text(encoding="utf-8"))
     tables = indexed_tables(ir)
@@ -247,28 +254,27 @@ def main(argv=None) -> int:
         "#",
         "# 1. BOUNDED INDEXED DISPATCH -- `and bx,MASK; shl bx,1; call [bx+TABLE]`.",
         "#    The mask is a PROOF of the entry count, so enumerating the table covers",
-        "#    every branch the program can take, including the ones no demo took.",
+        "#    every branch the program can take, including the ones no replay took.",
         "#    That matters: which entries run depends on data (which song, which",
         "#    level), so a census built from observation gets only the ones those",
-        "#    runs needed, and the wall fires on the first unseen one -- one crash at",
+        "#    runs needed; the runtime guard reports the first unseen one",
         "#    a time, days apart. Tables are read from every image below, because",
         "#    their contents depend on what the machine was doing when it was caught.",
     ]
-    for img in images:
-        lines.append(f"#      image: {Path(img).parent.parent.name}/{Path(img).name}")
+    for name, _memory in image_records:
+        lines.append(f"#      image: {name}")
 
     targets: list[int] = []
     for call_ip, off, count in tables:
         lines.append(f"#    {CODE_SEG:04X}:{call_ip:04X} calls [bx+{off:04X}], "
                      f"{count} entries:")
-        for img in images:
-            vals = read_table(Path(img).read_bytes(), seg=DGROUP_SEG,
-                              off=off, count=count)
+        for name, memory in image_records:
+            vals = read_table(memory, seg=DGROUP_SEG, off=off, count=count)
             for i, t in enumerate(vals):
                 if t and t not in targets:
                     targets.append(t)
                     lines.append(f"#      [{i:2d}] (ds:{off + 2 * i:04X}) -> "
-                                 f"{CODE_SEG:04X}:{t:04X}  ({Path(img).parent.parent.name})")
+                                 f"{CODE_SEG:04X}:{t:04X}  ({name})")
 
     lines += [
         "#",
@@ -296,7 +302,7 @@ def main(argv=None) -> int:
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(text)
     print(f"[dispatch] {len(seen)} targets -> {args.out} "
-          f"({len(tables)} indexed table(s) over {len(images)} image(s) -> "
+          f"({len(tables)} indexed table(s) over {len(image_records)} image(s) -> "
           f"{len(targets)}; {len(stores)} runtime-stored)")
     return 0
 

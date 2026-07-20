@@ -1,10 +1,6 @@
 """SkyRoads road-column strip COMPOSITOR — `1010:38BF`.
 
-The single most-called rasterizer in gameplay (34 callsites, ~13% of real
-render work — see `skyroads/hooks.py`'s ``road_column_strip_hook`` for the
-original register-exact port this was derived from; its comment there
-describes ``ax`` bit15 as "just position, don't composite" — WRONG, corrected
-below). Given a column descriptor (``ax``: low byte = which stride-3
+Given a column descriptor (``ax``: low byte = which stride-3
 display-list record to reach, skipping that many `0xFF`-terminated columns;
 bit15 = :data:`SKIP_SYNC_LOOP_BIT`), it scans two stride-3 display-list
 segments to locate the target column's records, then ALWAYS walks the second
@@ -15,11 +11,8 @@ pre-loop beforehand, it does not skip compositing.
 
 Ported here as a PURE function reading/writing through ``(seg, offset)``
 callbacks — the same shape `skyroads.native.image.NativeGameImage`'s own
-`rb`/`rw`/`ww` methods have, and the same shape a VM's `cpu.mem.rb`/`rw`/`ww`
-already have (see `hooks.py`'s ``_road_column_strip_hook``), so this one
-function runs over either unchanged, matching this session's established
-`visible(...)` / `rw(...)` callback pattern (`collision.py`, `classify.py`)
-extended to multi-segment addressing.
+``rb``/``rw``/``ww`` methods have, and the same shape a VM memory adapter
+provides, so this function can run over either representation.
 
 Unlike the hook (which must reproduce exact register/flag exit state for the
 differential verifier), this pure port only returns whether it composited —
@@ -29,13 +22,11 @@ from __future__ import annotations
 
 from typing import Callable
 
-from skyroads.islands import oracle_link
 
 #: Column-descriptor bit that SKIPS the bp/si synchronization pre-loop
 #: (1010:3937-393E `jnz -> 3954`, jumping straight into composite prep) --
 #: compositing still happens either way; this only skips the "advance until
-#: bp>=si" wait. (An earlier reading of this bit as "position only, don't
-#: composite" was wrong -- see run_status.md.)
+#: bp>=si" wait.
 SKIP_SYNC_LOOP_BIT = 0x8000
 #: The stride-3 display-list record terminator (1010:38EA `al=0xFF`).
 RECORD_TERMINATOR = 0xFF
@@ -48,32 +39,6 @@ ORIGIN_BIAS = 0x2800
 COLUMN_DESCRIPTOR_SCRATCH = 0x0E74
 
 
-@oracle_link(
-    boundary="1010:38BF",
-    contract="road_column_strip(rb, rw, ww, ax, ds_seg, e44, e46, e48_down, "
-             "e64, seg_records_a, seg_records_b, seg_src, seg_dst): first, "
-             "unconditionally, ds_seg:[0E74] := ax (a scratch mirror every "
-             "call makes, 1010:38C2). Then locate the (ax&0xFF)-th column in "
-             "TWO stride-3 display-list segments (seg_records_a then "
-             "seg_records_b), starting from a screen offset derived from "
-             "e44/e46/e64. Unless ax&0x8000 (SKIP_SYNC_LOOP_BIT): advance "
-             "through seg_records_b's records until bp>=si (or a 0xFF marker "
-             "ends the column with no compositing). Then -- ALWAYS, whether "
-             "or not that pre-loop ran -- composite a word-aligned horizontal "
-             "pixel run per record (source seg_src, dest seg_dst, direction "
-             "from e48_down) each advanced by SCANLINE_STRIDE, until a 0xFF "
-             "length marker. Returns True iff any compositing happened.",
-    status="ASM_MATCHED",  # ported from hooks.py's road_column_strip_hook
-    # (itself register-exact verified against the ASM oracle over the full
-    # gameplay demo -- see docs/skyroads/symbol_ledger.md), then independently
-    # re-verified as a pure port: 196/196 real 1010:38BF calls over the E2E
-    # demo reproduce the ASM's FULL memory diff exactly (every byte the real
-    # call touched, not just a sampled field) -- see tests/test_road_column.py.
-    # This process caught two real bugs the first port had (a missing scratch
-    # write, and the inverted SKIP_SYNC_LOOP_BIT semantic above) -- see
-    # run_status.md's "road_column_strip ported to a pure function" entry.
-    merge_target="skyroads.native.road_column (future)",
-)
 def road_column_strip(
     rb: Callable[[int, int], int], rw: Callable[[int, int], int],
     ww: Callable[[int, int, int], None],

@@ -1,130 +1,167 @@
-"""Run SKYROADS.EXE in the dos_re VM — the skyroads adapter's interactive runner.
+"""The single SkyRoads execution, verification and release launch pipeline.
 
-A thin :class:`dos_re.player.GameFrontend` over the unified play runner
-(``dos_re/dos_re/player.py`` documents the full standard CLI: viewer by
-default / ``--headless``; ``--snapshot`` / ``--save-snapshot``;
-``--record-demo`` / ``--play-demo`` / ``--demo-continue``; hook-mode flags;
-F10 screenshot, F11 demo-record toggle, F12 snapshot).  This file holds only
-what is skyroads-specific:
+Examples::
 
-  - SKYROADS busy-waits on the INT 08h timer tick in its title/menu idle loop;
-    a driver that never delivers it appears to hang forever — hence
-    ``--timer-irqs-per-frame`` defaults to 1 (confirmed during bring-up, see
-    skyroads/runtime.py and docs/skyroads/run_status.md).
-  - SKYROADS reprograms PIT channel-0 to divisor 6628 (OUT 40h at boot), i.e.
-    1193182/6628 = 180.0 Hz IRQ0 — NOT the 18.2 Hz BIOS default. Its INT 08h ISR
-    (1010:3B17) runs a software prescaler (ds:[3192]) that advances the
-    elapsed-ticks counter (ds:[1600]) once every 6 real IRQs, so game logic ticks
-    at 180/6 = 30 Hz — the native frame rate. (An earlier note here read the
-    prescaler against the 18.2 Hz default and wrongly concluded ~3 Hz; the PIT
-    reprogramming was missed.) ``default_timer_irqs_per_frame = 6`` matches the
-    prescaler exactly (6 IRQs = 1 game tick = 1 presented frame), and
-    ``default_present_hz = 30`` reproduces 180 Hz IRQ0 / 30 Hz logic in the
-    viewer (IRQ0 Hz = 6*present_hz). The base 60 ran music and physics at 2x.
-  - The pacing model is the library's fixed (steps-per-frame, timer-irqs-per-
-    frame) budget per frame — no wall-clock time source, so the frame index
-    alone is the demo clock and record/replay stay deterministic. On top of it,
-    ``--frame-park`` (default on) ends a frame the moment the game parks in its
-    INT 08h tick-wait (1010:22F8 / 434A): ds:[1600] can't advance again until
-    the next frame, so the rest of the budget would only be spun away. This is
-    byte-equivalent for the game trajectory (every rendered frame + all game
-    state identical across the E2E demo; only fade-loop scratch differs) and
-    makes gameplay ~4-6x faster — SKYROADS' analogue of pre2_port's classified
-    ``--fast-retrace-waits``. See skyroads/pacing.py.
-  - Recovered hooks (skyroads/hooks.py) replace the render/math hot path and the
-    timer ISR; ``--no-replacements`` runs the pure ASM oracle instead, and
-    ``--safe-hooks``/``--verify-hooks``/``--trace-hooks`` select the hook tier.
+    python scripts/play.py
+    python scripts/play.py --composition authored-candidates
+    python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_name --verify-start 0 --verify-end 10
+    python scripts/play.py --profile development --composition generated-abi --headless
+    python scripts/play.py --profile release --composition generated-abi --plan-only
 
-Usage:
-    python scripts/play.py                                      # live play
-    python scripts/play.py --snapshot artifacts/snap_x          # resume a snapshot
-    python scripts/play.py --record-demo NAME                   # live play, recording from frame 0
-    python scripts/play.py --play-demo artifacts/demo_x         # watch a replay
-    python scripts/play.py --play-demo artifacts/demo_x --headless   # fast deterministic replay
+Execution profile controls what dependencies and services are legal.
+Composition controls which implementations satisfy the program identities.
+Recovery levels are implementation properties, not separate players.
 """
 from __future__ import annotations
 
+from copy import copy
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))              # the skyroads adapter package
-sys.path.insert(0, str(ROOT / "dos_re"))   # the dos_re submodule's repo root
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "dos_re"))
 
 from dos_re import player  # noqa: E402
+from dos_re.execution import DependencyCapability  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
+from skyroads.identities import PROGRAM_ID  # noqa: E402
+from skyroads.execution import (  # noqa: E402
+    FRAME_PARK_SERVICE_ID,
+    catalog,
+    configuration,
+    coverage,
+    selected_whole_program_provider,
+    services,
+)
+from skyroads.pacing import FrameIdle, install_frame_park  # noqa: E402
 from skyroads.runtime import create_game_runtime, load_game_snapshot  # noqa: E402
-from skyroads.pacing import install_frame_park, FrameIdle  # noqa: E402
 
 
 class SkyroadsFrontend(player.GameFrontend):
     name = "skyroads"
     default_exe = str(ROOT / "assets" / "SKYROADS.EXE")
     default_game_root = str(ROOT / "assets")
-    # With --frame-park (default), most frames end at the tick-wait (real work
-    # p50 ~9.2k steps), so this is a *ceiling*, not the per-frame cost. Size it
-    # ABOVE the game's peak per-frame work so no frame is cut mid-tick: measured
-    # peak over the full level is 37,309 steps (113/1906 frames exceed 30,000);
-    # 48,000 clears it with ~28% headroom. Do NOT shrink it toward the average
-    # -- a budget below peak makes the original ASM see itself lagging and engage
-    # its own lag compensation (pre2_port learned this; see run_status.md).
-    # steps_per_frame is stored in demo_metadata, so existing demos still replay
-    # at their recorded budget regardless of this default.
     default_steps_per_frame = 48_000
-    default_timer_irqs_per_frame = 6   # matches SKYROADS' own 6:1 INT 08h software prescaler
-    # SKYROADS reprograms PIT channel-0 to divisor 6628 => 1193182/6628 = 180.0 Hz
-    # IRQ0 (NOT the 18.2 Hz BIOS default; confirmed by tracing OUT 40h at boot).
-    # Its INT 08h ISR prescales /6, so game logic ticks at 180/6 = 30 Hz -- the
-    # native frame rate.  The viewer delivers timer_irqs_per_frame (6) INT 08h per
-    # presented frame and paces frames at present_hz, so IRQ0 Hz = 6*present_hz and
-    # logic Hz = present_hz.  present_hz=30 reproduces the real 180 Hz IRQ0 / 30 Hz
-    # logic (1 game tick per frame); the base 60 ran everything -- music, physics --
-    # at 2x speed.  (Wall-clock pacing only; headless demo replay ignores present_hz,
-    # so determinism is unaffected.)
+    default_timer_irqs_per_frame = 6
     default_present_hz = 30
+    # 3x produces a 960x720 client area before window chrome and Windows DPI
+    # scaling, which can place the title bar above a 768-line desktop. Keep the
+    # portable default at 640x480; larger displays can opt into --scale 3.
+    default_scale = 2
 
     def add_arguments(self, parser) -> None:
-        import argparse
-        pace = parser.add_argument_group("skyroads pacing")
-        pace.add_argument(
-            "--frame-park", action=argparse.BooleanOptionalAction, default=True,
-            help="end each frame when the game parks in its INT 08h tick-wait "
-                 "(22F8 / 434A) instead of spinning out the step budget. "
-                 "Byte-equivalent game trajectory, ~4-6x faster gameplay "
-                 "(see skyroads/pacing.py). --no-frame-park forces the full spin.")
+        execution = parser.add_argument_group("skyroads composition")
+        execution.add_argument(
+            "--composition",
+            choices=(
+                "auto", "oracle", "generated-functions",
+                "authored-candidates", "play",
+                "generated-cpu", "generated-abi",
+            ),
+            default="auto",
+            help="implementation composition (generated-functions mixes literal "
+                 "generated functions with interpreter fallback; auto selects "
+                 "practical play for development, literal generated functions "
+                 "for verification, and the generated ABI-recovered region for "
+                 "detached/release)",
+        )
+        execution.add_argument(
+            "--no-sound", action="store_true",
+            help="run without SkyRoads sound hardware",
+        )
+    def program_identity(self, args):
+        return PROGRAM_ID
 
-    def _install_frame_park(self, args, rt):
-        """Install the tick-wait frame-park unless disabled or running the pure
-        ASM oracle (--no-replacements has no fade-loop gate to compose with)."""
-        if getattr(args, "frame_park", True) and not getattr(args, "no_replacements", False):
-            install_frame_park(rt)
-        self._pin_demo_mouse_presence(args, rt)
-        return rt
+    def execution_configuration(self, args):
+        return configuration(
+            args.profile,
+            args.composition,
+            requested_capabilities=self.requested_capabilities(args),
+        )
 
-    def _pin_demo_mouse_presence(self, args, rt) -> None:
-        """Pin INT 33h mouse presence for a REPLAY, centrally.
+    def execution_coverage(self, args):
+        return coverage()
 
-        dos_re keeps the mouse OFF unless opted in, so a keyboard demo already
-        replays correctly; this is what turns it ON for a demo that was recorded
-        WITH one (manifest ``metadata.mouse_present``) -- without it, that
-        recording would replay against an absent mouse and diverge. Demos
-        predating the field are keyboard-only, hence the False fallback.
+    def execution_implementations(self, args):
+        return catalog()
 
-        Applied here (the one funnel both create_runtime and
-        load_snapshot_runtime pass through) so no caller can forget it; the
-        interactive viewer sets it itself and never calls apply_demo_metadata.
-        """
-        pinned = getattr(args, "demo_mouse_present", None)
-        if pinned is not None:
-            rt.dos.mouse_present = bool(pinned)
+    def execution_services(self, args):
+        return services()
 
-    def apply_demo_metadata(self, args, meta: dict) -> None:
-        super().apply_demo_metadata(args, meta)
-        args.demo_mouse_present = bool(meta.get("mouse_present", False))
+    def bind_execution_plan(self, runtime, plan) -> None:
+        super().bind_execution_plan(runtime, plan)
+        if FRAME_PARK_SERVICE_ID in {
+            service.service_id for service in plan.services
+        }:
+            install_frame_park(runtime)
+
+    def launch(self, args, plan):
+        provider = selected_whole_program_provider(plan)
+        bootstrap_artifacts = plan.bootstrap_artifact_paths()
+        if provider == "baseline:generated-vmless":
+            from skyroads.vmless_backend import launch
+            return launch(args, bootstrap_artifacts=bootstrap_artifacts)
+        if provider == "baseline:generated-cpuless":
+            from skyroads.development_guard import (
+                arm_cpuless_import_guard,
+                report_cpuless_crash,
+            )
+            from skyroads.cpuless_backend import run
+            arm_cpuless_import_guard()
+            return run(
+                args,
+                bootstrap_artifacts=bootstrap_artifacts,
+                diagnostics=report_cpuless_crash,
+            )
+        return super().launch(args, plan)
+
+    def _capture_sb(self, args) -> bool:
+        return (
+            not args.no_sound
+            and getattr(args, "audio", "off") == "adlib"
+            and not args.headless
+        )
+
+    def create_runtime(self, args):
+        args.execution_plan.require_capability(
+            DependencyCapability.ORIGINAL_EXE,
+            consumer=f"{type(self).__name__}.create_runtime",
+        )
+        args.execution_plan.require_capability(
+            DependencyCapability.INTERPRETER,
+            consumer=f"{type(self).__name__}.create_runtime",
+        )
+        return create_game_runtime(
+            args.exe,
+            game_root=args.game_root,
+            command_tail=args.dos_args,
+            enable_sound=not args.no_sound,
+            capture_sb_pcm=self._capture_sb(args),
+        )
+
+    def load_snapshot_runtime(self, args, snapshot_dir):
+        args.execution_plan.require_capability(
+            DependencyCapability.SNAPSHOTS,
+            consumer=f"{type(self).__name__}.load_snapshot_runtime",
+        )
+        args.execution_plan.require_capability(
+            DependencyCapability.ORIGINAL_EXE,
+            consumer=f"{type(self).__name__}.load_snapshot_runtime",
+        )
+        args.execution_plan.require_capability(
+            DependencyCapability.INTERPRETER,
+            consumer=f"{type(self).__name__}.load_snapshot_runtime",
+        )
+        return load_game_snapshot(
+            args.exe,
+            snapshot_dir,
+            game_root=args.game_root,
+            enable_sound=not args.no_sound,
+            capture_sb_pcm=self._capture_sb(args),
+        )
 
     def advance_frame(self, rt, args, frame: int) -> None:
-        """Deliver the frame's timer IRQs, then run the step budget — but stop
-        early when the game parks in a tick-wait it can't leave this frame."""
         for _ in range(max(0, args.timer_irqs_per_frame)):
             deliver_interrupt(rt, 0x08)
         try:
@@ -132,32 +169,60 @@ class SkyroadsFrontend(player.GameFrontend):
         except FrameIdle:
             pass
 
-    def _capture_sb(self, args) -> bool:
-        """Capture the game's Sound Blaster DMA PCM (digital SFX) only when the
-        viewer audio is on.  It is a determinism-safe observer (byte-identical
-        CPU timeline), but off by default so headless/demo/test runs keep the
-        exact detection-only path and accumulate no captured PCM."""
-        return getattr(args, "audio", "off") == "adlib" and not args.headless
+    def verification_drivers(self, args, plan, artifact):
+        provider = selected_whole_program_provider(plan)
+        if provider not in {"baseline:interpreted-exe"}:
+            raise RuntimeError(
+                "ReplayArtifact differential verification currently requires a "
+                "DOS-memory-backed interpreted composition; select "
+                "--composition generated-functions or authored-candidates"
+            )
+        from skyroads.replay import (
+            SkyroadsReplayDriver,
+            recording_base,
+            recording_profile,
+        )
 
-    def create_runtime(self, args):
-        rt = create_game_runtime(args.exe, game_root=args.game_root,
-                                 command_tail=args.dos_args,
-                                 capture_sb_pcm=self._capture_sb(args))
-        return self._install_frame_park(args, rt)
-
-    def load_snapshot_runtime(self, args, snapshot_dir):
-        rt = load_game_snapshot(args.exe, snapshot_dir, game_root=args.game_root,
-                                capture_sb_pcm=self._capture_sb(args))
-        return self._install_frame_park(args, rt)
+        oracle_args = copy(args)
+        oracle_args.profile = "development"
+        oracle_args.composition = "oracle"
+        oracle_args.execution_plan = self.resolve_execution_plan(oracle_args)
+        oracle = self.create_runtime(oracle_args)
+        self.bind_execution_plan(oracle, oracle_args.execution_plan)
+        recorded_oracle_profile = recording_profile(artifact)
+        current_oracle_profile = self.replay_profile(oracle_args, oracle)
+        if current_oracle_profile != recorded_oracle_profile:
+            raise RuntimeError(
+                "ReplayArtifact oracle identity is stale for the current "
+                "executable/runtime/device/schema; re-record it with "
+                "`python scripts/record_atlas_evidence.py ... --replace`"
+            )
+        candidate = self.create_runtime(args)
+        self.bind_execution_plan(candidate, plan)
+        oracle_profile = recorded_oracle_profile
+        candidate_profile = self.replay_profile(args, candidate)
+        known_profiles = {profile.profile_id for profile, _ in artifact.profiles()}
+        if candidate_profile.profile_id not in known_profiles:
+            artifact.register_profile(
+                candidate_profile,
+                base_point=artifact.cached_points(oracle_profile)[0],
+                base_state=recording_base(artifact),
+            )
+        return (
+            SkyroadsReplayDriver(
+                self, args, oracle, artifact,
+                oracle_profile,
+            ),
+            SkyroadsReplayDriver(
+                self, args, candidate, artifact,
+                candidate_profile,
+            ),
+        )
 
     def create_audio_sink(self, pygame, rt, args):
-        """SkyRoads viewer audio: OPL music + PC speaker + Sound Blaster PCM SFX.
-        Extends the stock AdLib/speaker sink with the game's digital ``*.SND``
-        effects (see skyroads/audio.py)."""
         if args.audio != "adlib":
             return None
-        from skyroads.audio import SkyroadsAudioSink
-
+        from skyroads.audio.sink import SkyroadsAudioSink
         sink = SkyroadsAudioSink(pygame, rt, args.present_hz)
         return sink if sink.available else None
 

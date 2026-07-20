@@ -1,16 +1,12 @@
-"""Proof of "full vmless native gameplay": skyroads.native.loop.NativeGameplayDriver
-runs the recovered gameplay engine INDEFINITELY -- through level-complete,
-respawn, and crash transitions -- with no VM ever consulted after the initial
-seed.
+"""Focused tests for the authored ``NativeGameplayDriver`` subsystem.
 
 Two tests:
 * a pure smoke test (no game files needed) that the driver never crashes over
   thousands of ticks even from an empty (all-zero) level;
 * a live-oracle test that seeds real level geometry + tables from the VM once,
-  then drives with the E2E demo's REAL recorded input for its whole length,
-  proving the driver plays through multiple real transitions (the demo's E2E
-  run itself completes and restarts several levels) without ever raising an
-  unhandled exception or needing the VM again after the seed.
+  then drives the subsystem with recorded input without consulting the VM
+  again. This proves the selected subsystem behavior; it does not claim
+  whole-program implementation coverage or release readiness.
 """
 from __future__ import annotations
 
@@ -70,9 +66,9 @@ def test_driver_transitions_are_well_formed() -> None:
 
 
 def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
-    """A presentation layer (play_native.py's windowed viewer) needs to hold
+    """A presentation layer needs to hold
     the frozen frame on screen for a beat before respawning -- see
-    NativeGameplayDriver's docstring and docs/skyroads/run_status.md's
+    NativeGameplayDriver's docstring and docs/history/skyroads/run_status.md's
     2026-07-13 crash/finish settle-window entry."""
     view = GameView(NativeGameState())
     driver = NativeGameplayDriver(view, jump_level_gate=9, auto_respawn=False)
@@ -110,36 +106,29 @@ def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
     assert next_outcome != outcome
 
 
-# ---- live-oracle: real level data + real recorded input, driven standalone --
+# ---- live oracle: real level data + recorded input, then detached subsystem --
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_e2e_20260710_132930"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_e2e_20260710_132930"
 
 
-@pytest.mark.skipif(not (EXE.exists() and DEMO.exists()),
-                    reason="needs SKYROADS.EXE + the E2E demo")
-def test_driver_plays_the_whole_demo_standalone() -> None:
+@pytest.mark.skipif(not (EXE.exists() and REPLAY.exists()),
+                    reason="needs SKYROADS.EXE + the E2E replay")
+def test_driver_plays_the_whole_replay_standalone() -> None:
     import scripts.play as sp
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = (frontend.create_runtime(args) if pb.is_cold_start
-          else frontend.load_snapshot_runtime(args, pb.snapshot_path()))
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-replay", str(REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, REPLAY)
 
     # Seed ONCE from the VM at the first real gameplay sub-step, then replay
-    # the demo's recorded INPUT into the standalone driver -- the VM is only
+    # the replay's recorded INPUT into the authored driver -- the VM is only
     # a source of (a) the initial level data and (b) recorded input from here.
     LOOP = 0x2324
     seed = {}
@@ -205,6 +194,6 @@ def test_driver_plays_the_whole_demo_standalone() -> None:
         driver.tick()  # must not raise
 
     assert driver.ticks == len(inputs)
-    # The real demo (attract mode, replaying one level repeatedly) completes
-    # and restarts multiple times -- the standalone driver should too.
+    # The real replay (attract mode, replaying one level repeatedly) completes
+    # and restarts multiple times -- the authored subsystem should too.
     assert driver.transitions >= 1, "the driver never crossed a single transition"

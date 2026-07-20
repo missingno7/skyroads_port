@@ -8,7 +8,7 @@ from skyroads.native.sfx import EFFECT_COUNT, load_sfx_bank
 ROOT = Path(__file__).resolve().parents[1]
 SFX_SND = ROOT / "assets" / "SFX.SND"
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-SLOW_CRASH_DEMO = ROOT / "artifacts" / "demos" / "demo_skyroads_20260713_095814"
+SLOW_CRASH_REPLAY = ROOT / "artifacts" / "replays" / "replay_skyroads_20260713_095814"
 
 
 @pytest.mark.skipif(not SFX_SND.exists(), reason="game assets not present")
@@ -68,16 +68,16 @@ def test_jump_landing_emits_sfx_1_with_debounce():
     assert all(i == 1 for _, i in events), f"unexpected ids: {events}"
 
 
-@pytest.mark.skipif(not (EXE.exists() and SLOW_CRASH_DEMO.exists()),
-                    reason="needs SKYROADS.EXE + demo_skyroads_20260713_095814")
+@pytest.mark.skipif(not (EXE.exists() and SLOW_CRASH_REPLAY.exists()),
+                    reason="needs SKYROADS.EXE + replay_skyroads_20260713_095814")
 def test_slow_wall_crash_emits_no_thud():
     """2026-07-13 user report: a slow-speed wall crash played a sound the
-    real game keeps silent. `demo_skyroads_20260713_095814` reproduces it:
+    real game keeps silent. `replay_skyroads_20260713_095814` reproduces it:
     the ship hits a wall at `ship_pos=2325`, well below `CRASH_MILESTONE_POS`
     (0x0E38=3640) -- `resolve_lateral_crash`'s "flagged" branch never fires
     (`grounded` stays 0), so the real ASM only ever calls the id-2 "blocked
     thump", never id-0 "crash thud" (VM-verified: the real `03C2` call log
-    over this whole demo is id 2 once, id 1 twice, id 0 NEVER). The bug was
+    over this whole replay is id 2 once, id 1 twice, id 0 NEVER). The bug was
     gating id-0 on `LateralCrashResult.crashed` (true for ANY lateral
     mismatch) instead of the real "grounded 0 -> nonzero" flagging edge --
     see native_gameplay_substep's collision-response comment.
@@ -94,8 +94,7 @@ def test_slow_wall_crash_emits_no_thud():
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import InputDemoPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     from skyroads.bridge.dgroup_view import GameView
     from skyroads.native.gaps import SkyroadsGap
@@ -106,13 +105,8 @@ def test_slow_wall_crash_emits_no_thud():
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(SLOW_CRASH_DEMO), "--headless"])
-    pb = InputDemoPlayback.load(str(SLOW_CRASH_DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_snapshot_runtime(args, pb.snapshot_path())
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+        ["--play-replay", str(SLOW_CRASH_REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, SLOW_CRASH_REPLAY)
 
     LOOP = 0x2324
 

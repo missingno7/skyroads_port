@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from typing import Callable
 
-from skyroads.islands import oracle_link
 
 MASK_BUF = 0x0E86          # DGROUP coverage/clip mask, 29 bytes/row x 33 rows
 MASK_ROWS = 0x21
@@ -33,17 +32,6 @@ def _sgn16(v: int) -> int:
     return v - 0x10000 if v >= 0x8000 else v
 
 
-@oracle_link(
-    boundary="1010:32C1",
-    contract="tile_mask_build(rw, ww, wb): clear 0x1DE words at [0E86], then "
-             "for 33 rows (bx from [0E2C] downward, in range 0x14..0x9D only) "
-             "compute the row's covered column span from the per-row extent "
-             "word [si+0x47A] (si = (0x9D-[0E2C])*2, +2/row) vs the screen "
-             "center [0E28], clipped to the 29-column window, and fill it with "
-             "1s. At dx==0x0A an extra ([0E34]-8)-row skip is applied.",
-    status="ASM_MATCHED",  # promoted from the differential-verified hook body
-    merge_target="skyroads.native.tile_dispatch",
-)
 def tile_mask_build(rw: Callable[[int], int], ww: Callable[[int, int], None],
                     wb: Callable[[int, int], None]) -> None:
     """Build the 29x33 coverage mask at DGROUP `[0E86]` (`1010:32C1`).
@@ -99,17 +87,6 @@ def tile_mask_build(rw: Callable[[int], int], ww: Callable[[int, int], None],
             return
 
 
-@oracle_link(
-    boundary="1010:33FD",
-    contract="tile_shade(rb, wb, rw, ww, dgroup_seg, dest_seg): select the 9x29 "
-             "pattern at [0x68E + ([0E34]/5)*0x105] (index >= 5 -> no-op); "
-             "walk it column-major over the coverage bytes [0x113E+]; where "
-             "both non-zero, mark coverage 2 and recolour the dest pixel "
-             "(0x3D -> 0x40; 1..0xF -> +0x2D). Dest offset from "
-             "(0x9D-[0E2C]+0x10+[0E34])*0x140 + [0E28] - 0x6E, stored [0E70].",
-    status="ASM_MATCHED",  # promoted from the differential-verified hook body
-    merge_target="skyroads.native.tile_dispatch",
-)
 def tile_shade(rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
                rw: Callable[[int], int], ww: Callable[[int, int], None],
                dgroup_seg: int, dest_seg: int) -> None:
@@ -143,17 +120,6 @@ def tile_shade(rb: Callable[[int, int], int], wb: Callable[[int, int, int], None
         bx = (bx - 0x0104) & 0xFFFF
 
 
-@oracle_link(
-    boundary="1010:325B",
-    contract="tile_rasterize(rb, wb, rw, ww, dgroup_seg): the whole ship-row "
-             "tile draw. es = [0E36]; build the coverage mask (32C1); dest "
-             "offset (0x9D-[0E2C])*0x140 + [0E28] - 0x6E (stored [0E6C]); blit "
-             "the 29x24 bitmap at far ptr [0E2E] column-major -- each non-zero "
-             "pixel where the mask permits, marking the mask byte 2; then "
-             "shade (33FD).",
-    status="ASM_MATCHED",  # promoted from the differential-verified hook body
-    merge_target="skyroads.native.tile_dispatch",
-)
 def tile_rasterize(rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
                    rw: Callable[[int], int], ww: Callable[[int, int], None],
                    dgroup_seg: int) -> None:

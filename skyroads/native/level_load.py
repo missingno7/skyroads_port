@@ -1,25 +1,28 @@
-"""Native, VM-free level loading — the milestone-1 spine (`play_native --level N`).
+"""Recovery-evidence level-state initialization from original game data files.
 
-Goal (user-set 2026-07-12): boot a `NativeGameState` for ANY level from the game
-files alone — no demo, no snapshot, no VM. This module is the SkyRoads analog of
-`pre2_port`'s `pre2/native/level_load.py`: it owns the **DGROUP gameplay-state
-contract** the native sim reads, reproduced from the level files, and FAILS LOUD
+This module can initialize a `NativeGameState` for any level without replay,
+snapshot, or instruction interpretation. It owns the DGROUP gameplay-state
+contract the authored simulation reads, reproduced from the level files, and fails loud
 on anything not yet recovered (never a silent VM fallback). Render side effects
 (the level-select → gameplay transition palette fade `4331`/`43A9`, the menu
 glyph blits `0F62`, the tile-bitmap banks at segments `0x7176`/`0x7c3e`) are
 deliberately OUT of scope here — they are the renderer's job, not the sim
-contract. (There is NO separate "loading screen": the demos start ON the
+contract. (There is NO separate "loading screen": the replays start ON the
 level-select screen and run the level; the load is interleaved with the menu +
 transition render, which is why it can't be cleanly isolated by write-tracing.)
 
-What the native SIM actually reads per level (see docs/skyroads/run_status.md):
+This candidate is not currently registered as a runtime implementation or
+bootstrap provider.
+
+What the authored simulation reads per level
+(see docs/history/skyroads/run_status.md):
   * the `0x162C` perspective LUT (LZS-decompressed from `WORLD<n>.LZS` block B),
   * the road-cell geometry (derived from `ROADS.LZS[level]` `road[]`),
   * per-level scalars — gravity (via the jump-level gate), fuel, oxygen.
 
-STATUS: RECOVERED + VM-verified. The loader `1010:5614` was disassembled
+The faithful loader implementation for `1010:5614` was disassembled
 (churn-immune, from `gameplay_f640`) and its DGROUP writes reproduced here;
-verified byte-exact against the VM (the level-select demo loads level 14 — its
+verified byte-exact against the VM (the level-select replay loads level 14 — its
 `[4562]`/`[54A2]`/`[4566]`, `road[]@0x162C` and `palette@0x41C2` all match
 `roads_archive`). KEY finding: the sim's "perspective table" at `0x162C` is
 simply `road[]` from `ROADS.LZS` (LZS-decoded) — there is NO separate `WORLD`
@@ -91,7 +94,7 @@ def decode_level_files(level: int, *, game_root: str | Path) -> DecodedLevel:
 
 # DGROUP placement of the level geometry, recovered from the loader `1010:5614`
 # (disassembled from gameplay_f640; churn-immune) and VERIFIED byte-exact against
-# the VM (the level-select demo loads level 14: [4562]==gravity, [54A2]==fuel,
+# the VM (the level-select replay loads level 14: [4562]==gravity, [54A2]==fuel,
 # [4566]==oxygen, road[]@0x162C and palette@0x41C2 all match roads_archive).
 _PERSP_OFF = 0x162C       # road[] (the sim's "perspective"/geometry) — [asm 5614: call 66E6(0x162C, size)]
 _PERSP_CLEAR = 0x1B58     # region cleared before the road decode — [asm 5614: call 5D07(0x162C, 0, 0x1B58)]
@@ -101,7 +104,7 @@ _OXYGEN_OFF = 0x4566      # [asm 5614: 6576 -> [4566]]
 _PALETTE_OFF = 0x41C2     # 216-byte level palette — [asm 5614: call 6595(0x41C2, 0xD8)]
 _LENGTH_OFF = 0x41C0      # level length in road ROWS (7 UINT16 = 14 bytes each);
 #                           the progress-bar denominator. `1010:5614` decodes the
-#                           road and returns len(road)//14 (VM-verified: the demo
+#                           road and returns len(road)//14 (VM-verified: the replay
 #                           level's 770-byte road -> 55, matching ds:[41C0]).
 _ROAD_ROW_BYTES = 14
 
@@ -110,7 +113,7 @@ def native_level_load(state, level: int, *, game_root: str | Path) -> DecodedLev
     """Populate ``state`` (a :class:`~skyroads.native.state.NativeGameState`)
     with level ``level``'s geometry seed, 100% VM-free, and return the decode.
     The caller then runs ``apply_level_init`` (player state) to reach a playable
-    cold start — see ``scripts/play_native.py``.
+    cold start.
 
     Reproduces the loader `1010:5614`'s DGROUP writes (verified byte-exact vs the
     VM): clear `[0x162C..+0x1B58]`, LZS-decode `road[]` into `0x162C`, and store

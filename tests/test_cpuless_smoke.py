@@ -1,17 +1,16 @@
-"""Clean-checkout smoke for the STANDALONE (no-CPU) CPUless port.
+"""Smoke test for the generated ABI-recovered SkyRoads provider.
 
-From tracked inputs only, this:
-  1. regenerates the standalone corpus (build_recovered.py);
-  2. verifies the expected recovered-function count + the manifest;
+When the user's local generation evidence and boot image are available, this:
+  1. regenerates the committed generated corpus (build_recovered.py);
+  2. verifies the expected recovered-function count and diagnostic manifest;
   3. runs the purity lint (no path reaches a CPU);
-  4. starts the standalone runner (scripts/play_cpuless.py), which boots from
+  4. starts the unified player with the generated ABI composition, which boots from
      1010:61F3 through CPUlessPlatformRuntime with NO interpreter and reaches
-     the explicitly recorded cold-start frontier (fail-loud, exit 3).
+     the first frame boundary.
 
-The recovered corpus + boot image are gitignored regenerable artifacts; this
-test rebuilds the corpus itself but needs the boot image (which is built from
-the user's own game files), so it SKIPS when the boot image is absent (CI
-without assets), exactly like the native-sfx smoke.
+The retained Recovery IR and generated corpus are committed. The observed
+generation inputs and boot image are local project assets, so this test skips
+when either is absent.
 """
 from __future__ import annotations
 
@@ -29,15 +28,17 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 BOOT = ROOT / "artifacts" / "boot_image" / "memory_1mb.bin"
 MANIFEST = ROOT / "artifacts" / "codemap" / "cpuless_manifest.json"
+OBSERVED = ROOT / "artifacts" / "codemap" / "observed.json"
+BOUNDARIES = ROOT / "artifacts" / "codemap" / "boundary_heads.txt"
 CORPUS = ROOT / "skyroads" / "recovered"
 
-#: the standalone corpus's expected recovered-function count (every
-#: runtime-reachable IR function). Bump deliberately when the census changes.
+#: Expected generated-function count for the retained IR and local generation
+#: evidence. Bump deliberately when those inputs change.
 #:
-#: 182 -> 180 when the block-type coverage demos landed: censusing block types 3
-#: and 5 (levels 14 and 8) regenerated the IR, which reclassified two functions
-#: as dead-unreachable -- they are proven unreachable, not missing. The runtime
-#: closure stays COMPLETE, which is the property that actually matters.
+#: 182 -> 180 when the block-type coverage replays landed: censusing block types 3
+#: and 5 (levels 14 and 8) regenerated the IR, after which two functions lacked
+#: observed generation evidence. This does not claim closed-world unreachability;
+#: the Execution Atlas owns that question.
 EXPECTED_FUNCTIONS = 180
 #: IR functions proven unreachable at runtime (emitted as nothing, not stubs).
 EXPECTED_DEAD_UNREACHABLE = 2
@@ -101,9 +102,11 @@ def _corpus_lock(timeout: float = 900.0):
             pass
 
 
-@pytest.mark.skipif(not BOOT.exists(),
-                    reason="boot image absent (needs the user's game files)")
-def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
+@pytest.mark.skipif(
+    not all(path.exists() for path in (BOOT, OBSERVED, BOUNDARIES)),
+    reason="local generation evidence or boot image is absent",
+)
+def test_generated_abi_corpus_regenerates_lints_and_boots():
     with _corpus_lock():                            # the rebuild DELETES the corpus
         # 1. regenerate the corpus from tracked inputs.
         b = _run("scripts/build_recovered.py")
@@ -114,23 +117,26 @@ def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
         assert n == EXPECTED_FUNCTIONS, f"expected {EXPECTED_FUNCTIONS} funcs, got {n}"
         man = json.loads(MANIFEST.read_text(encoding="utf-8"))
         assert man["counts"].get("generated-cpuless") == EXPECTED_FUNCTIONS
-        assert man["counts"].get("dead-unreachable", 0) == EXPECTED_DEAD_UNREACHABLE
-        # Nothing runtime-reachable may be left unpromoted: a fail-loud-unsupported
-        # here is the wall firing during play (that is how 1010:2F57 reached a
-        # player), so it is the assertion that actually protects the runner.
-        assert man["counts"].get("fail-loud-unsupported", 0) == 0
-        assert man["runtime_closure_complete"] is True
-        assert man["runtime_frontier"] == []          # closed vs the observed trace
+        assert (
+            man["counts"].get("not-emitted-no-observed-evidence", 0)
+            == EXPECTED_DEAD_UNREACHABLE
+        )
+        assert man["counts"].get("not-emitted-observed-frontier", 0) == 0
+        assert man["observed_generation_closed"] is True
+        assert man["observed_generation_frontier"] == []
+        assert man["atlas_release_authority"] is False
 
         # 3. purity lint: no CPU on any import path.
         lint = _run("tools/lint_cpuless.py")
         assert lint.returncode == 0, lint.stdout + lint.stderr
         assert "PASS" in lint.stdout
 
-        # 4. the runner cold-boots from 61F3 with NO CPU / NO interpreter, runs the
+        # 4. the provider cold-boots from 61F3 with NO CPU / NO interpreter, runs the
         #    whole C startup + intro decompression to the frame loop, and RENDERS
         #    frames (timer IRQs delivered through the recovered INT 08h ISR).
-        play = _run("scripts/play_cpuless.py", "--headless", "--frames", "12",
+        play = _run(
+            "scripts/play.py", "--profile", "development", "--composition",
+            "generated-abi", "--headless", "--frames", "12",
                     timeout=600)
         assert play.returncode == 0, (play.stdout + play.stderr)[-2000:]
         assert "REACHED FIRST FRAME BOUNDARY" in play.stdout
@@ -139,7 +145,7 @@ def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
         assert m and int(m.group(1)) > 0, "expected a rendered (nonzero) frame"
 
 
-#: Drive the INTERACTIVE runner (the default, user-facing path) off-screen: a
+#: Drive the interactive provider path off-screen: a
 #: dummy SDL video driver plus an injected QUIT, so CI exercises the real window
 #: loop -- Display sizing, frame decode, key dispatch, quit handling -- without a
 #: display.  The headless test above cannot cover any of that.
@@ -147,7 +153,8 @@ _INTERACTIVE_DRIVER = """
 import sys
 sys.path.insert(0, "scripts"); sys.path.insert(0, "."); sys.path.insert(0, "dos_re")
 import pygame
-import play_cpuless as P
+from pathlib import Path
+from skyroads import cpuless_backend as P
 n = [0]
 real_get = pygame.event.get
 def fake_get(*a, **k):
@@ -156,7 +163,12 @@ def fake_get(*a, **k):
         return [pygame.event.Event(pygame.QUIT)]
     return real_get(*a, **k)
 pygame.event.get = fake_get
-rc = P.run_interactive(2, False, 1000, False)   # high present-hz: no pacing stall
+bootstrap = {
+    "skyroads-boot-state": Path("artifacts/boot_image/state.json"),
+    "skyroads-boot-memory": Path("artifacts/boot_image/memory_1mb.bin"),
+    "skyroads-boot-manifest": Path("artifacts/boot_image/manifest.json"),
+}
+rc = P.run_interactive(2, False, 1000, bootstrap)
 print("RC", rc, "PUMPS", n[0])
 """
 

@@ -1,6 +1,7 @@
-"""Native HUD gauges — `1010:12F8` (the per-frame updater) + `1010:0F8C`
-(the widget drawer), decoded live (2026-07-13, see run_status.md) and wired
-onto the pure `stencil_blit` (`skyroads/handrecovered/blit.py`) primitive.
+"""Recovered HUD gauges: ``1010:12F8`` and widget drawer ``1010:0F8C``.
+
+The candidate is composed over the pure
+``skyroads.handrecovered.blit.stencil_blit`` primitive.
 
 ## `0F8C` — draw one widget cell (VM-VERIFIED 28/28 bytes exact)
 
@@ -16,11 +17,7 @@ from the `*_DISP.DAT`/`SPEED.DAT` files — see `skyroads/native/boot.py`).
 2. `stencil_blit`s the record's stencil bytes through those colours (`0`
    stays `0`).
 3. paints the result onto VGA row-major at `dest_off + row*320 + col`,
-   **skipping zero bytes** (transparent) — verified against a live capture:
-   a real 7x4 widget draw matched the VM's VGA bytes 28/28 exactly with this
-   rule (masked_blit's own `[9614]`/`[AF3A]` thresholds were both 0 in the
-   capture, which naively reads as "no masking", but the empirical result is
-   unambiguous: zero pixels are never written).
+   **skipping zero bytes** (transparent).
 
 ## `12F8` — the per-frame updater (three gauges, each identical in shape)
 
@@ -129,7 +126,7 @@ def update_hud(img, dg: int, ship_pos: int) -> None:
     decrease. Call once per rendered frame.
 
     Because it is a delta, the dashboard must NOT be repainted over the gauge
-    region (rows 138..199) between frames -- ``play_native.py`` paints the full
+    region (rows 138..199) between frames -- the native renderer paints the full
     dashboard once and thereafter only re-overlays the road-overlapping bezel
     strip (``paint_dashboard(..., byte_count=DASHBOARD_BEZEL_OVERLAP)``), so the
     gauges the VM maintains incrementally stay standing here too.
@@ -152,10 +149,8 @@ def update_hud(img, dg: int, ship_pos: int) -> None:
 # ============================================================================
 # Level PROGRESS BAR -- the magenta strip filling left->right as the ship
 # travels the level. VM routine `1010:159C` (compute target column) + the
-# per-column fill `1010:1218`->putpixel `1010:11D3`. Recovered + verified
-# against demo_skyroads_L1FULL_20260713_212417 (see run_status.md 2026-07-13):
-# the target-column formula matched the VM 321/321 sub-steps; one column draw
-# is the 3px strip captured below.
+# per-column fill `1010:1218`->putpixel `1010:11D3`. Focused oracle evidence
+# covers the target-column formula and the 3px strip drawn for each column.
 #
 #   target_col = clamp( (prog32 - 0x30000) * 30 // ((L << 16) - 0x30000), 29 )
 #     prog32 = ds:[9618:961A]  -- the ship's 32-bit forward position (signed)
@@ -218,8 +213,7 @@ def update_progress_bar(img, dg: int) -> None:
 # ============================================================================
 # GRAV-O-METER numeric readout -- `1010:1114` (draw_number) driving `1010:1073`
 # (draw_glyph_at), called from `1010:2BC3`. A 4-digit LCD showing the level's
-# gravity as `(gravity - 3) * 100`. Recovered + verified byte-exact vs the VM
-# over demo_cold_20260713_213510 (see run_status.md 2026-07-13):
+# gravity as `(gravity - 3) * 100`. Focused oracle evidence is byte-exact:
 #
 #   2BC5: ax = ds:[4562] (gravity);  ax += -3;  ax *= 100   -> value
 #         call 1114(col=0x60, row=0x9C, value, width=4)

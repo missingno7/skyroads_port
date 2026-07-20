@@ -1,21 +1,8 @@
-"""Verify the recovered buffer-relocation patch (skyroads.handrecovered.relocate)
-against real ASM I/O captured over the E2E demo (1010:4052/4062-4069).
+"""Check the pure recovered buffer relocation against captured oracle cases.
 
-Recovered via lift-then-refactor: `dos_re.tools.liftverify` first proved a
-literal transcription byte-exact (ORACLE_PASSING, a bounded-count sample, 8/9
-blocks) — see run_status.md — and this pure function + the VM hook
-(``skyroads/hooks.py::buffer_relocate_hook``) were written from that proven
-block structure rather than derived by reading the disassembly alone. The full
-register-exact hook was then proven against real gameplay with the project's
-strict differential verifier: 252/252 calls over the E2E demo + 230/230 over
-a cold-sound-demo window, zero divergences, on the first attempt (no
-correction rounds needed, unlike the earlier stencil-blit hook that skipped
-the lift step).
-
-Coverage note: neither demo happens to exercise a call whose scan crosses a
-64K segment boundary or arms the "extra full-pass" counter (`ss:[bp+0xA]`) —
-those branches are mechanically proven by the lift's own bounded sample but
-not exercised end-to-end against real gameplay. See run_status.md.
+The lift-then-refactor path first proved a literal transcription byte-exact;
+the retained semantic function was derived from that block structure. The
+fixtures cover the observed 1010:4052/4062-4069 behavior.
 """
 from __future__ import annotations
 
@@ -24,7 +11,9 @@ from pathlib import Path
 
 from skyroads.handrecovered.relocate import patch_nonzero_bytes
 
-_CASES = json.loads((Path(__file__).parent / "fixtures" / "relocate_trace.json").read_text())
+_CASES = json.loads(
+    (Path(__file__).parent / "fixtures" / "relocate_trace.json").read_text()
+)
 
 
 def test_patch_nonzero_bytes_matches_asm() -> None:
@@ -36,9 +25,11 @@ def test_patch_nonzero_bytes_matches_asm() -> None:
 
 
 def test_patch_nonzero_bytes_leaves_zero_alone() -> None:
-    assert patch_nonzero_bytes(b"\x00\x01\x02\xff\x00", 0x0A) == bytes([0, 0x0B, 0x0C, 0x09, 0])
+    assert patch_nonzero_bytes(
+        b"\x00\x01\x02\xff\x00", 0x0A
+    ) == bytes([0, 0x0B, 0x0C, 0x09, 0])
 
 
 def test_patch_nonzero_bytes_wraps_mod_256() -> None:
     assert patch_nonzero_bytes(b"\xff", 1) == b"\x00"
-    assert patch_nonzero_bytes(b"\x01", 0x1FF) == b"\x00"  # delta masked to its low byte
+    assert patch_nonzero_bytes(b"\x01", 0x1FF) == b"\x00"

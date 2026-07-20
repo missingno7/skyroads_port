@@ -3,8 +3,7 @@ format, not SkyRoads-proprietary; no VM recovery needed).
 
 ``LOGO.PCX``: 8bpp, 1-plane, RLE-encoded, 279x156, with the standard
 256-colour palette in the trailing 769 bytes (marker `0x0C` + 768 RGB
-bytes). Decoded natively and matches visually (a "Creative Dimensions"
-splash) — see run_status.md.
+bytes).
 """
 from __future__ import annotations
 

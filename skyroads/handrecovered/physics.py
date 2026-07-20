@@ -1,13 +1,9 @@
 """SkyRoads per-frame movement-TARGET computation — `1010:2635-26E6`.
 
-This is the block `movement.resolve_move` (`1010:186B`) needs but doesn't
-compute itself: the (tgt_lateral, tgt_af1c, tgt_af2c) triple resolve_move
-sweeps toward each frame. Previously mapped only at a high level (see
-run_status.md's "Vertical/lateral physics" entry, 2026-07-11); this module is
-the actual recovered formula, cross-checked against 682 real calls captured
-over the full E2E demo (58 with real steering held — `lateral_accel != 0`).
-**682/682 exact** on all three targets, given the right `af1c_base_offset`
-(see below — that ONE input remains a documented gap, not a formula bug).
+This is the block ``movement.resolve_move`` (`1010:186B`) needs but does not
+compute itself: the ``(tgt_lateral, tgt_af1c, tgt_af2c)`` triple swept toward
+each frame. Focused oracle evidence covers all three targets; the
+``af1c_base_offset`` selector remains an explicit evidence boundary below.
 
 ## The formulas
 
@@ -23,7 +19,7 @@ just "where gravity/impulse says velocity will carry it this frame".
 Adding the 32-bit forward position (`ship_pos`, `ds:[54AC:54AE]`) to the
 current lateral coordinate re-centers the target each frame as the (curving)
 track advances — not a "how far should I turn" delta, a "where the road puts
-me" recompute. **No offset term** — 0/682 mismatches across the whole demo,
+me" recompute. **No offset term** — 0/682 mismatches across the whole replay,
 including every steering sample.
 
     tgt_af1c_raw = af1c + slong_div(ulong_mul(lateral_accel_s16_as_s32,
@@ -46,7 +42,7 @@ as the multiply's `base` operand).
 **`af1c_base_offset` is `0x0618` in all observed gameplay** — the default.
 The ASM selects `0` vs `0x0618` on a stack-local `ss:[bp-16]` (`1010:2650`:
 `bp-16 == 0 → +0x0618`, else `+0`), and `bp-16` was directly probed as `0`
-in every one of 682 real E2E-demo calls (at the decision point itself), so
+in every one of 682 real E2E-replay calls (at the decision point itself), so
 the base is always `ship_pos + 0x0618`. An earlier version of this module
 reported the offset as "0 for non-steering, 0x0618 for steering" — that was a
 measurement artifact: when `lateral_accel == 0` (not steering) the multiply is
@@ -55,7 +51,7 @@ first" arbitrarily recorded 0 for those frames even though the real base still
 had `+0x0618`. With `lateral_accel` held nonzero, only `0x0618` matches
 (58/58). `bp-16` becomes nonzero (making the offset `0`) only via the
 `af2c > 0x2800` + `ds:[0x228]`-table-match circuit at `1010:2340-23BF`, which
-never triggered in the demo — a real but UNEXERCISED branch, documented in the
+never triggered in the replay — a real but UNEXERCISED branch, documented in the
 caveat below, not a blocking gap for any observed frame.
 
 **Wrap-seam clamp** (`1010:26AA-26D7`): if `af1c` and the raw target straddle
@@ -73,7 +69,7 @@ independently confirmed.
 `ss:[bp-16]` selector is nonzero — reached only through the `af2c > 0x2800` +
 `ds:[0x228 + 2*idx]`-table-match path at `1010:2340-23BF` (also entangled with
 a side-effect call into `menu.dispatch_menu_action`). That path never fired in
-the full E2E demo, so passing `af1c_base_offset=0` is CORRECT-but-untested; the
+the full E2E replay, so passing `af1c_base_offset=0` is CORRECT-but-untested; the
 default `0x0618` is what every observed frame uses. A caller wiring this into a
 native stepper can rely on the default and treat the selector as a documented
 latent branch, not an undischarged gap.
@@ -82,7 +78,6 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from skyroads.islands import oracle_link
 from skyroads.handrecovered.movement import _slong_div, _ulong_mul
 
 #: The wrap-seam band `1010:26AA-26D7` guards against crossing in one frame.
@@ -93,8 +88,6 @@ AF1C_WRAP_HIGH = 0xD080
 #: 1010:2662). The alternate value (0) is an unexercised branch -- see the
 #: module docstring. This is the default `af1c_base_offset`.
 AF1C_BASE_OFFSET = 0x0618
-#: Back-compat alias (older name); prefer AF1C_BASE_OFFSET.
-AF1C_BASE_OFFSET_ALT = AF1C_BASE_OFFSET
 
 
 class MovementTargets(NamedTuple):
@@ -103,25 +96,6 @@ class MovementTargets(NamedTuple):
     tgt_af2c: int       # ds:[AF2C]'s target
 
 
-@oracle_link(
-    boundary="1010:2635",
-    contract="compute_movement_targets(ship_pos, lateral, af1c, af2c, vvel, "
-             "lateral_accel, unknown_5496, af1c_base_offset): the "
-             "(tgt_lateral, tgt_af1c, tgt_af2c) triple resolve_move (1010:186B) "
-             "sweeps toward. tgt_af2c = af2c+vvel. tgt_lateral = ship_pos + "
-             "lateral (32-bit, no offset term). tgt_af1c = af1c + "
-             "slong_div(ulong_mul(lateral_accel, ship_pos+af1c_base_offset), "
-             "0x200) + unknown_5496, clamped to af1c if that raw value and "
-             "af1c straddle the [0x2F80,0xD080) wrap-seam band from opposite "
-             "sides. af1c_base_offset is 0x0618 in all observed gameplay "
-             "(ss:[bp-16]==0); the alternate 0 is an unexercised ASM branch "
-             "-- see the module docstring.",
-    status="ASM_MATCHED",  # 682/682 real E2E-demo calls (58 with real steering
-    # held, lateral_accel != 0) exact for all three targets with the default
-    # af1c_base_offset=0x0618 (ss:[bp-16] probed as 0 at the decision point in
-    # every one) -- see the module docstring for the full account.
-    merge_target="skyroads.native.physics (future)",
-)
 def compute_movement_targets(
     ship_pos: int, lateral: int, af1c: int, af2c: int, vvel: int,
     lateral_accel: int, unknown_5496: int, af1c_base_offset: int = AF1C_BASE_OFFSET,

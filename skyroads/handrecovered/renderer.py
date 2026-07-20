@@ -1,7 +1,7 @@
-"""SkyRoads renderer island — recovered, VM-agnostic rendering algorithms.
+"""Authored SkyRoads renderer implementations independent of CPU execution.
 
 This module grows bottom-up into a clean reimplementation of the road/object
-renderer (see docs/skyroads/run_status.md "the renderer-island plan"). Each
+renderer (see docs/history/skyroads/run_status.md "the renderer plan"). Each
 function here knows nothing about the CPU or memory layout; the VM-facing hooks
 in skyroads/hooks.py adapt registers/memory to these pure calls and reproduce
 the exact original register/flag state for the differential verifier.
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from skyroads.islands import oracle_link
 
 #: ds-relative base of the perspective word table read at 1010:0521.
 PERSPECTIVE_TABLE_BASE = 0x162C
@@ -40,17 +39,6 @@ class PerspectiveResult(NamedTuple):
     add_rhs: int
 
 
-@oracle_link(
-    boundary="1010:04C0",
-    contract="perspective_row_offset(x_lo, x_hi, depth): row idx = "
-             "((depth>>7) - 95) mod 2^16; if idx>=322 (unsigned) the ASM returns 0; "
-             "else offset = 0x162C + low16(((x_hi:x_lo)/0x2000)/8*14) + 2*(idx/46), "
-             "and the caller's AX becomes ds:[offset]. Two unsigned truncating "
-             "divides (ulong_div) then an unsigned multiply (ulong_mul, by 14), "
-             "in sequence; then a 16-bit /46. Only low words feed the offset.",
-    status="VERIFIED",
-    merge_target="skyroads.native.renderer (future)",
-)
 def perspective_row_offset(x_lo: int, x_hi: int, depth: int) -> PerspectiveResult:
     idx = (((depth & 0xFFFF) // 128) + 0xFFA1) & 0xFFFF
     rem128 = (depth & 0xFFFF) % 128
@@ -88,8 +76,9 @@ class SegmentClipResult(NamedTuple):
 
     ``result`` is the returned AX and is the whole SEMANTIC answer; the rest is
     the structure an exact-state adapter needs and cannot re-derive without
-    duplicating the decision the island just made. Nothing here is virtual time
-    or a flag: the island owns the CONTROL FLOW, the adapter owns the ABI.
+    duplicating the decision the implementation just made. Nothing here is
+    virtual time or a flag: semantic code owns control flow, the adapter owns
+    the ABI.
 
     ``second_test`` says whether the arm ran its SECOND comparison (the bound
     read at 1696/16BB/16E5). It is what discriminates the two costs an arm can
@@ -114,36 +103,6 @@ class SegmentClipResult(NamedTuple):
     cmp_rhs: int
 
 
-@oracle_link(
-    boundary="1010:1631",
-    contract="road_segment_clip(dir_sel, seg, coord, low_bound, high_bound): "
-             "segment visibility/clip test. seg>37 -> 0. row di=((coord-0x2200)&0xFFFF)>>7 "
-             "(unsigned). Switch on dir_sel&0xF00: 0x100 -> low<=di<high; "
-             "0x200 -> coord<0x3200; 0x300 -> coord<0x3200 and di>=low; "
-             "0x400 -> coord<0x3C00; 0x500 -> coord<0x3C00 and di>=low; "
-             "else -> the selector value itself. All compares unsigned. "
-             "low_bound/high_bound are ds:[0x4C+2*seg]/ds:[0x98+2*seg].",
-    # Byte-exact against the generated 1010:1631 -- which is itself byte-exact
-    # against the interpreted ASM oracle from cold start -- on the WHOLE
-    # contract: all seven output registers, exit flags, fmask, virtual-time cost
-    # and the ordered byte-write log, with NO exemptions. Two populations, and
-    # the claim is exactly their union and no wider:
-    #
-    #  * dos_re.lift.shadow over 1,851 REAL calls -- demo_cold_20260718_003412
-    #    (2) + demo_colde2e_full_20260713_144604 (1,849). MEASURED arm coverage,
-    #    7 of the 10 (arm, second_test) combinations: CULLED 774, 0x300+second
-    #    399, 0x100+second 372, DEFAULT 134, 0x100 short 103, 0x200 68,
-    #    0x400 1. The two demos are BOTH needed: 0x400 occurs only in the cold
-    #    demo, everything else only in the E2E one.
-    #  * tests/test_island_bodies.py forced states for all 10 arms, 50 randomized
-    #    register sets each -- which is the only evidence covering the three no
-    #    demo reaches: (0x300, no-second), (0x500, no-second), (0x500, second).
-    #
-    # So the 0x500 arm has never run in a real playthrough; it is proven against
-    # the generated body, not observed in the game.
-    status="VERIFIED",
-    merge_target="skyroads.native.renderer (future)",
-)
 def road_segment_clip(dir_sel: int, seg: int, coord: int,
                       low_bound: int, high_bound: int) -> int:
     """The pure predicate. Bounds are supplied eagerly; see
@@ -205,45 +164,6 @@ def road_segment_clip_detail(dir_sel: int, seg: int, coord: int,
                              sel, 0x500)
 
 
-@oracle_link(
-    boundary="1010:1732",
-    contract="road_object_visible(persp_word, clip, x_lo, x_hi, depth, screen_y): "
-             "the layer-2 per-segment cull. Projects the segment's near/far edges "
-             "(depth +/- 0x700) via persp_word; a segment with a nonzero low nibble "
-             "on either edge that also straddles the near screen band "
-             "(screen_y<0x2800 and screen_y+0x600>0x2480) is visible (1). Otherwise "
-             "cull if screen_y+0x680<=0x2800, or if both edges' 0xF00 nibble is 0. "
-             "Surviving segments run a mirrored two-sided clip (1631): compute "
-             "seg=23-((depth>>7 - 49) mod 46), mirror it (and the x-delta) when <=0, "
-             "clip the center edge, else clip the far edge at depth+delta. All "
-             "compares unsigned. persp_word(depth) = the 04C0 table word (0 if out "
-             "of range); clip = road_segment_clip bound to this frame's tables.",
-    # Byte-exact against the generated 1010:1732 -- itself byte-exact against
-    # the interpreted ASM oracle from cold start -- on the WHOLE contract: all
-    # seven output registers, exit flags, fmask, virtual-time cost and the
-    # ordered byte-write log, with NO exemptions. Two populations, and the claim
-    # is exactly their union and no wider:
-    #
-    #  * dos_re.lift.shadow over 66,144 REAL calls -- demo_cold_20260718_003412
-    #    (6,878) + demo_colde2e_full_20260713_144604 (59,266). MEASURED block
-    #    coverage: 15 distinct basic-block paths reaching 26 of the function's
-    #    27 blocks. The two demos are BOTH needed, and on a knife edge: they
-    #    share six paths, the E2E demo contributes eight of its own, and the
-    #    cold demo contributes exactly ONE -- on exactly ONE call in 672 frames
-    #    -- which is the only real-playthrough evidence that the SECOND 1631
-    #    call can succeed (block 22 -> 24). The E2E demo takes 22 -> 23, the
-    #    failing side of that same test, 907 times and never once the other.
-    #  * tests/test_island_bodies.py forced states: 42 distinct block paths,
-    #    27 of 27 blocks, 20 randomized register sets each.
-    #
-    # So block 7 (the 1797 jump) has never run in a real playthrough; it is
-    # proven against the generated body, not observed in the game. A companion
-    # test proves by exhaustion over all 65,536 screen_y values that every path
-    # through it falls straight into the 17A5 cull, so it contributes a fixed 1
-    # to the cost and can change no answer.
-    status="VERIFIED",
-    merge_target="skyroads.native.renderer (future)",
-)
 def road_object_visible(persp_word, clip, x_lo: int, x_hi: int,
                         depth: int, screen_y: int) -> int:
     """The pure 0/1 decision; see :func:`road_object_visible_detail` for the
@@ -262,7 +182,7 @@ class RoadObjectResult(NamedTuple):
     branch prefix that costs 1 or 4 depending on WHICH edge's low nibble was
     nonzero, and a mirror prefix worth 3, 7 or 8 multiply out to dozens of
     static totals on top of four variable callee costs. Summing the blocks the
-    island actually walked is the same derivation the generated body performs,
+    implementation actually walked is the same derivation the generated body performs,
     per call, instead of a table that has to be enumerated correctly.
 
     ``cmp_lhs``/``cmp_rhs`` are the operands of the LAST compare executed --

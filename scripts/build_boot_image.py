@@ -1,13 +1,8 @@
-"""Build the data-only BOOT IMAGE — SkyRoads without SKYROADS.EXE.
+"""Materialize SkyRoads' EXE-derived ``BuildImageBootstrapProvider``.
 
-The EXE-independence step of the DOS_RE 2.0 pipeline (``dos_re/docs/dos_re_2.0.md``
-section 1a'; runtime counterpart ``dos_re.independence``, audit
-``dos_re/tools/audit_boot_image.py``):
-
-    The EXE goes into the recovery pipeline.  Generated host code and data
-    come out.  The VMless runtime never sees the EXE again.
-
-Game-specific half (the framework does the rest in ``dos_re.bootimage``):
+This is one bootstrap implementation for generated, EXE-detached compositions.
+It captures the deterministic post-unpack machine state during development so
+the packaged runtime can initialize without opening ``SKYROADS.EXE``:
 
 1. boot the interpreted runtime on the real EXE and run its packer stub to the
    CANONICAL POST-DECOMPRESSION ENTRY -- ``1010:61F3``, the far jump the stub
@@ -15,17 +10,15 @@ Game-specific half (the framework does the rest in ``dos_re.bootimage``):
    relocations (see ``skyroads/native/exe_image.py``, which reproduces that
    unpack from the file alone and is verified byte-exact at this exact moment);
 2. ``write_snapshot`` the whole 1 MB machine there;
-3. hand it to :func:`dos_re.bootimage.poison_snapshot_to_boot_image`, which
-   ZEROES every byte the recovery IR decoded as an instruction, scrubs the EXE
-   path out of ``state.json``, and records provenance (source SHA-256, the
-   canonical entry, the exact poison ranges) in ``manifest.json``.
+3. normalize it through :func:`dos_re.bootimage.poison_snapshot_to_boot_image`,
+   scrubbing runtime EXE paths and recording source/format provenance.
 
-What survives the poison is data the game genuinely reads: DGROUP, the unpack's
-materialized tables, the display-list buffers. What dies is the code -- because
-the code now lives in ``skyroads/lifted`` as generated Python. The poison is
-what makes independence STRUCTURAL rather than a promise: the recovered program
-cannot silently fall back to interpreting original bytes, because those bytes
-are zeros.
+Code-byte poisoning is enabled by default as additional destructive evidence:
+it proves this image cannot execute those original instructions. It is not the
+release or detachment authority. The execution plan, Atlas coverage, dependency
+closure, import audit, and exported payload decide whether a build is detached.
+``--no-poison`` is useful when the bytes are still needed as data or for
+diagnosis; its manifest records that choice explicitly.
 
 Usage:
     python scripts/build_boot_image.py                    # -> artifacts/boot_image/
@@ -47,8 +40,8 @@ from skyroads.runtime import create_game_runtime  # noqa: E402
 
 #: The game's real entry: the packer stub's far jump, taken once the ~30 KB
 #: program image is decompressed and relocated (exe_image.py). Everything before
-#: it is the stub; everything after is the game. This is the ONLY state the boot
-#: image needs to capture, because the stub never runs again.
+#: it is the stub; everything after is the game. This provider captures that
+#: state because the selected generated compositions begin there.
 CANONICAL_CS = 0x1010
 CANONICAL_IP = 0x61F3
 CODE_SEG = 0x1010
@@ -80,17 +73,21 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--exe", default=str(ROOT / "assets" / "SKYROADS.EXE"))
     ap.add_argument("--game-root", default=str(ROOT / "assets"))
-    ap.add_argument("--ir", default=str(ROOT / "artifacts" / "codemap" / "recovery_ir.json"))
+    ap.add_argument(
+        "--ir", default=str(ROOT / "recovery" / "recovery_ir.json"),
+        help="retained Recovery IR used to identify optional poison ranges",
+    )
     ap.add_argument("--out", default=str(ROOT / "artifacts" / "boot_image"))
     ap.add_argument("--no-poison", action="store_true",
-                    help="skip zeroing the code (DEBUG ONLY -- the result is NOT "
-                         "an independent image and must never be shipped)")
+                    help="retain original instruction bytes; detachment remains "
+                         "a planner/export property and the manifest records this")
     args = ap.parse_args(argv)
 
     ir_path = Path(args.ir)
     if not ir_path.exists():
-        raise SystemExit(f"no recovery IR at {ir_path} -- run scripts/build_codemap.py "
-                         f"then dos_re/tools/codemap.py + irgen.py first")
+        raise SystemExit(
+            f"retained Recovery IR is missing: {ir_path}\n"
+            "run: python scripts/build_atlas.py --snapshot artifacts/SNAPSHOT_DIR")
 
     print(f"[boot] booting the interpreted runtime on {Path(args.exe).name}")
     rt = create_game_runtime(args.exe, game_root=args.game_root)
@@ -126,7 +123,9 @@ def main(argv=None) -> int:
     print(f"[boot] source EXE sha256={sha256_file(args.exe)[:16]}... recorded as provenance")
     print(f"[boot] boot image ready -> {out}")
     if args.no_poison:
-        print("[boot] WARNING: --no-poison image still contains original code; debug only")
+        print(
+            "[boot] NOTE: original instruction bytes retained; this image supplies "
+            "no destructive no-fallback evidence")
     return 0
 
 

@@ -1,18 +1,13 @@
-"""SkyRoads player / gameplay-state update — the first game-logic island.
+"""Authored SkyRoads gameplay-state implementations over named state.
 
-This begins the *game-logic* recovery (as opposed to the render/asset hooks in
-skyroads/hooks.py), following the pre2_port endgame model: clean, VM-independent
-logic operating on **named game state**, verified byte-exact against the ASM,
-grown until the whole game runs native and the VM is retired (see
-docs/skyroads/vmless_roadmap.md).
+These rules are independent of CPU instruction interpretation and are verified
+against the oracle at their declared boundaries. Selection and whole-program
+coverage belong to the implementation catalog and Execution Atlas.
 
 Unlike the renderer, the gameplay update is not a set of small callable
 routines — it is one large monolithic handler inline in the main loop's
 gameplay branch (the game state dispatch on ds:[456A]/[456E]/[4558]). So these
-functions are recovered as clean rules first (from disassembly, `world7` /
-menu→gameplay demos); byte-exact verification will come when the whole gameplay
-handler is stood up as an island (hybrid mode) or under frame-verify, the same
-way pre2 proves its player/collision islands.
+functions are represented as focused rules over the named state view.
 
 ## Game-state field map (the "state-view" seam — DOS DGROUP offsets -> names)
 
@@ -31,7 +26,6 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from skyroads.islands import oracle_link
 from skyroads.handrecovered.movement import _ulong_div, _ulong_mul
 
 #: Per-level gravity is `-((jump_level_gate * 0x1680) / 0x190)` (1010:1FFA-201C).
@@ -60,16 +54,6 @@ def _s16(v: int) -> int:
     return v - 0x10000 if v & 0x8000 else v
 
 
-@oracle_link(
-    boundary="1010:24C4",
-    contract="advance_ship(pos, speed): pos += sign_extend16(speed)*75 (32-bit), "
-             "then clamp the signed result to [0, 0x2AAA]. Reaching 0x2AAA "
-             "completes the level. The ASM sign-extends speed (cwd at 24C7) into "
-             "a 32-bit value before the ulong_mul by 75, so a negative speed "
-             "moves the ship backward.",
-    status="ASM_MATCHED",  # reproduces the ASM post-clamp pos over all full-demo samples
-    merge_target="skyroads.native.player (future)",
-)
 def advance_ship(pos: int, speed: int) -> int:
     """The per-frame forward-motion rule (1010:24C4-2528).
 
@@ -87,15 +71,6 @@ def advance_ship(pos: int, speed: int) -> int:
     return pos
 
 
-@oracle_link(
-    boundary="1010:24A1",
-    contract="decay_bounce(bounce) = -(bounce*5)/10 = trunc(-bounce/2), signed "
-             "toward zero -- a damped alternating-sign oscillation (the landing "
-             "bounce). Added to the view Y base to make the road bounce when the "
-             "ship lands; decays to 0.",
-    status="ASM_MATCHED",  # matches the ASM on the (rare) bounce events sampled (-1148->+574, -461->+230)
-    merge_target="skyroads.native.player (future)",
-)
 def decay_bounce(bounce: int) -> int:
     """The per-frame vertical landing-bounce decay (1010:24A1-24AE).
 
@@ -109,31 +84,6 @@ def decay_bounce(bounce: int) -> int:
     return q & 0xFFFF
 
 
-@oracle_link(
-    boundary="1010:2582",
-    contract="update_vertical_velocity(vvel, jumped, af2c, gravity, grounded): the "
-             "jump-impulse + gravity stage of the per-frame vertical-velocity "
-             "([9336]) update, applied AFTER decay_bounce. If jumped, vvel:=0x480 "
-             "(2596). Then if airborne (grounded==0): af2c>=0x2800 -> vvel+=gravity "
-             "([54AA], 25F0); else clamp vvel down to -106 (25FA). If grounded: "
-             "ramp vvel toward +0x47 (>=0, +0x27/step). Returns the 16-bit vvel.",
-    # ASM_MATCHED on the gravity + jump-impulse path: 238/238 deaths-demo frames
-    # byte-exact (all airborne, af2c>=0x2800, incl. 3 jump frames). The terminal
-    # clamp (af2c<0x2800) and grounded ramp (456A!=0) branches are transcribed
-    # from the ASM but NOT yet exercised by any demo -- see run_status.md.
-    #
-    # 2026-07-11: real E2E-demo data shows this function is NOT safe to CALL
-    # unconditionally every frame outside the verified envelope above -- not
-    # just an unexercised branch, but evidence the whole decay_bounce/
-    # update_vertical_velocity block is skipped by an unrecovered gate for
-    # several frames around a jump (ds:[9336] observed frozen for 8 straight
-    # frames where this function's transcribed terminal-clamp branch would
-    # predict an immediate change). See run_status.md's "first native
-    # (VM-less) frame steppers" entry and skyroads.native.gaps.VerticalVelocityGap,
-    # which is how skyroads/native/loop.py guards this.
-    status="ASM_MATCHED",
-    merge_target="skyroads.native.player (future)",
-)
 def update_vertical_velocity(vvel: int, jumped: bool, af2c: int,
                              gravity: int, grounded: bool) -> int:
     """Per-frame vertical-velocity (`ds:[9336]`) jump+gravity update (1010:2582-2635).
@@ -142,15 +92,15 @@ def update_vertical_velocity(vvel: int, jumped: bool, af2c: int,
     ``jumped`` is whether the jump gate fired an impulse. The gate itself is
     NOT fully recovered: it is `ds:[547A]!=0 and ds:[4562]<0x14` (2582/258C —
     ``[4562]`` is a per-level constant, not a per-frame counter; the deaths
-    demo has it pinned at 8), **guarded further** by two frame-local flags
+    replay has it pinned at 8), **guarded further** by two frame-local flags
     `ss:[bp-8]` and `ss:[bp-18]` (2570/2579 — skip the whole jump block if
     either is nonzero) that this module doesn't yet compute: they are set
     earlier in the same per-frame handler, likely from the collision/height
-    classification around 1010:2340-2385, and are why in the deaths demo the
+    classification around 1010:2340-2385, and are why in the deaths replay the
     impulse fires only on the *first* frame of each held jump-key press
     (3 times, not the 29 frames the key was actually held) — almost certainly
     an "already airborne, ignore jump" latch. Recovering it requires tracing
-    where bp-8/bp-18 get set, which the current demo corpus hasn't forced yet.
+    where bp-8/bp-18 get set, which the current replay corpus hasn't forced yet.
     ``af2c`` is `ds:[AF2C]`, ``gravity`` is `ds:[54AA]` (signed, per-level),
     ``grounded`` is `ds:[456A] != 0`.
     """
@@ -173,22 +123,6 @@ def update_vertical_velocity(vvel: int, jumped: bool, af2c: int,
 RESUME_HEIGHT_GATE = 0x2800
 
 
-@oracle_link(
-    boundary="1010:2AB1",
-    contract="is_landed_for_resume(af2c): gates resuming gameplay (ds:[456E]:=3) "
-             "after a respawn/reset. True iff af2c < 0x2800 -- the ASM's `jb` at "
-             "2AB7 resumes when AF2C is BELOW the gate (the ship has descended). "
-             "A fresh respawn writes AF2C = 0x2800 exactly, which does NOT resume "
-             "yet; the ship stays transitional (game_state 0) until AF2C drops "
-             "below the gate.",
-    status="ASM_MATCHED",  # 682/682 real E2E-demo frames via the full progression
-    # state machine (skyroads.handrecovered.progression.step_level_progression),
-    # including the real 0->3 transitions. NOTE 2026-07-11: this CORRECTS an
-    # earlier inverted reading (>= gate) that had wrongly inferred, from all 3
-    # respawns writing exactly 0x2800, that 0x2800 "immediately satisfied" resume
-    # -- the real `jb` needs af2c strictly below the gate.
-    merge_target="skyroads.native.player (future)",
-)
 def is_landed_for_resume(af2c: int) -> bool:
     """Whether the ship has descended enough (`ds:[AF2C]`) to resume gameplay
     (1010:2AB1 `jb`): True iff af2c < RESUME_HEIGHT_GATE."""
@@ -201,7 +135,7 @@ class RespawnState(NamedTuple):
     Every field here is a **constant** -- the block does not read any prior
     state to compute them (the one branch it has, `ds:[95F6]==2` for a
     joystick-recenter call, is a side call this doesn't model and is untested:
-    the deaths demo only plays with the keyboard). Call sites: after a death
+    the deaths replay only plays with the keyboard). Call sites: after a death
     (`ds:[456E]` was 1 or 3), to reset the ship to the start of its (fixed)
     spawn position and clear the level's transition timers.
     """
@@ -226,33 +160,11 @@ class RespawnState(NamedTuple):
     unknown_af38: int = 0x0000      # ds:[AF38]
 
 
-@oracle_link(
-    boundary="1010:201F",
-    contract="respawn(): the reset block that runs after a death, before "
-             "gameplay resumes (1010:201F-20A7, inside the larger 1FD9 "
-             "monolithic-handler block). Writes a fixed set of DGROUP fields to "
-             "constants -- ship position, vertical/lateral state, game_state, "
-             "and the level's post-completion timers -- unconditionally "
-             "resetting to the (single, fixed) spawn point.",
-    status="ASM_MATCHED",  # 3/3 real deaths-demo respawns byte-exact (all 19 fields)
-    merge_target="skyroads.native.player (future)",
-)
 def respawn() -> RespawnState:
     """The fixed post-death reset state (1010:201F-20A7)."""
     return RespawnState()
 
 
-@oracle_link(
-    boundary="1010:1FFA",
-    contract="level_gravity(jump_level_gate): the per-level downward gravity "
-             "written to ds:[54AA] at level init (1010:1FFA-201C). = "
-             "-(ulong_div(ulong_mul(jump_level_gate, 0x1680), 0x190)) as a "
-             "16-bit value. Higher jump_level_gate (ds:[4562]) -> stronger "
-             "(more negative) gravity.",
-    status="ASM_MATCHED",  # matches the ASM's ax at 201C for the jump_gate
-    # values the E2E demo inits with (8 -> 0xFF8D, 9 -> 0xFF7F).
-    merge_target="skyroads.native.player (future)",
-)
 def level_gravity(jump_level_gate: int) -> int:
     """The per-level gravity ``ds:[54AA]`` derived from ``jump_level_gate``
     (``ds:[4562]``) at level init (1010:1FFA-201C)."""

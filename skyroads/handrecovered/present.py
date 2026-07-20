@@ -1,20 +1,11 @@
 """SkyRoads screen-present masked blits — `1010:41A0` (`masked_blit`),
 `1010:4201` (`present_rect`), and `1010:3A22` (`sprite_blit`).
 
-General masked/color-keyed blits that put composited pixels onto the screen.
-`masked_blit` copies a BACKGROUND buffer (source A) verbatim in a top and bottom
-band, and in the middle band composites a foreground buffer (source B) over the
-background with a two-threshold color key.
-
-ROLE CORRECTION (2026-07-12, see run_status.md): `masked_blit`/`present_rect`
-are the **HUD/dashboard** present path, NOT the gameplay road. A definitive
-`write_watchers` scan of VGA (`0xA000`) over steady-gameplay frames shows the
-road and ship draw DIRECTLY to VGA via `road_column_strip` (`1010:38BF`,
-`recovered/road_column.py`) and `sprite_blit` (`1010:3A22`, below);
-`masked_blit` (`1010:41f1`) contributes only ~2.4 KB/100 frames — the small
-dashboard widgets, not the full-screen road. The functions here remain
-byte-exact against their real ASM calls (19/20 and 12/12); only the earlier
-"this flushes the road" framing was wrong.
+These general masked/color-keyed blits serve the HUD/dashboard present path.
+The road and ship use the separate ``road_column_strip`` and ``sprite_blit``
+paths. ``masked_blit`` copies a background buffer verbatim in top and bottom
+bands, and composites a foreground buffer over it in the middle band with a
+two-threshold color key.
 
 Decoded from the disassembly (`1010:41A0-4200`):
 
@@ -42,22 +33,8 @@ from __future__ import annotations
 
 from typing import Callable, NamedTuple
 
-from skyroads.islands import oracle_link
 
 
-@oracle_link(
-    boundary="1010:41A0",
-    contract="masked_blit(rb, wb, dest_seg, srcA_seg, srcB_seg, dest_off, "
-             "srcB_off, top_count, bottom_count, total, thresh_lo, thresh_hi): "
-             "the screen-present masked blit. TOP top_count bytes: dest[off..] = "
-             "A[off..]. MIDDLE (total-top-bottom) bytes, per source-B pixel p at "
-             "srcB_off++ (dest cursor di from dest_off+top_count): p<thresh_lo -> "
-             "leave dest (transparent); p<thresh_hi -> dest[di]=A[di]; else "
-             "dest[di]=p. BOTTOM bottom_count bytes: dest[di..] = A[di..]. Source "
-             "A is read at the dest offset; source B sequentially.",
-    status="ASM_MATCHED",  # full-memory-diff verified over real 1010:41A0 calls
-    merge_target="skyroads.native.present (future)",
-)
 def masked_blit(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
     dest_seg: int, srcA_seg: int, srcB_seg: int,
@@ -100,19 +77,6 @@ def masked_blit(
 VGA_SCANLINE = 0x140
 
 
-@oracle_link(
-    boundary="1010:4201",
-    contract="present_rect(rb, wb, dest_seg, srcA_seg, srcB_seg, dest_off, rows, "
-             "width, thresh_lo, thresh_hi): present a rows x width rectangle from "
-             "source B onto the destination, one scanline per row via masked_blit "
-             "(top=bottom=0, total=width). Per row: dest cursor advances by "
-             "VGA_SCANLINE (0x140), source-B cursor advances by width. This is "
-             "34AE's off-screen road buffer -> VGA scanline flush (the row-loop "
-             "path of 1010:4201; the [003C]==0 fast-VGA branch to 1010:3D18 is a "
-             "separate path not modelled here).",
-    status="ASM_MATCHED",  # full-memory-diff verified over real 1010:4201 row-loop calls
-    merge_target="skyroads.native.present (future)",
-)
 def present_rect(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
     dest_seg: int, srcA_seg: int, srcB_seg: int,
@@ -142,41 +106,6 @@ SPRITE_BLIT_WIDTH = 0x1D
 _SPRITE_BLIT_ROW_SKIP = 0x0123  # 0x1D + 0x123 == 0x140 (one screen row)
 
 
-@oracle_link(
-    boundary="1010:3A22",
-    contract="sprite_blit(rb, wb, dest_seg, src_seg, mask_seg, src_off, "
-             "mask_off, rows): a 29-wide masked flip of a sprite/overlay onto "
-             "the visible buffer. For each of `rows` rows: the dest cursor di "
-             "starts at the CURRENT source offset si (dest and source share "
-             "row*0x140+col, different segments); for the 29 columns copy "
-             "src[si] -> dest[di] ONLY where mask[bx]==2 (opaque), advancing "
-             "si/di/bx by 1 each; after the row si += 0x123 (so si advances a "
-             "full 0x140 screen row) while the packed mask bx just continues "
-             "(29 bytes/row, no padding). This is the gameplay ship/object "
-             "compositor that draws DIRECTLY to VGA (see run_status.md).",
-    # Byte-exact against the generated 1010:3A22 -- itself byte-exact against
-    # the interpreted ASM oracle from cold start -- on the WHOLE contract: all
-    # six output registers, exit flags, fmask, virtual-time cost and the
-    # ordered byte-write log, with NO exemptions. Two populations, and the
-    # claim is exactly their union and no wider:
-    #
-    #  * dos_re.lift.shadow over 8,634 REAL calls -- demo_cold_20260718_003412
-    #    (1,392) + demo_colde2e_full_20260713_144604 (7,242), 64 distinct costs.
-    #    MEASURED: exactly TWO row counts ever occur, 24 and 9, split evenly;
-    #    and 1,751 of those calls run a FULLY TRANSPARENT mask, which is the
-    #    real-game evidence for the AL-threading rule (3A2D is the only writer
-    #    of AL, so those calls must return the caller's AX untouched).
-    #  * tests/test_island_bodies.py forced states: 9 masks x 10 randomized
-    #    register sets, plus the DX = 0 run on its own.
-    #
-    # THREE THINGS NO DEMO ESTABLISHES: no real mask is fully opaque; every one
-    # of the 8,634 calls exits with CF CLEAR, so the carrying `add si,0x123`
-    # that sets it is unobserved; and no real DX is 0, so the 65,536-row
-    # reading of the do-while is unobserved. Forced states are their only
-    # evidence -- proven against the generated body, not seen in the game.
-    status="VERIFIED",
-    merge_target="skyroads.native.present (future)",
-)
 def sprite_blit(
     rb: Callable[[int, int], int], wb: Callable[[int, int, int], None],
     dest_seg: int, src_seg: int, mask_seg: int,

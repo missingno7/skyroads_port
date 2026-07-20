@@ -1,14 +1,14 @@
 """SkyRoads AdLib/OPL music engine — the song-bytecode interpreter.
 
 Recovered from the driver at ``1010:5892-5A54`` (runtime-loaded; see
-``docs/skyroads/sound_engine.md``). SkyRoads plays FM music by walking a song
+``docs/history/skyroads/sound_engine.md``). SkyRoads plays FM music by walking a song
 event stream once per timer tick and programming the OPL2. This module is that
 engine as pure, VM-free Python: :meth:`Engine.run_tick` reads the song stream,
 data tables, and engine state through two DGROUP memory readers and returns the
 exact list of ``(register, value)`` OPL writes the ASM would emit that tick.
 
 Verified byte-exact against the ASM: the emitted OPL register-write stream
-matches over the **whole cold-sound demo — 12,882 ticks across intro + menu,
+matches over the **whole cold-sound replay — 12,882 ticks across intro + menu,
 zero divergences** (lockstep per tick, the same proof style as the SB-PCM work).
 
 ## The tick (``1010:5A55``)
@@ -41,7 +41,6 @@ from __future__ import annotations
 
 from typing import Callable
 
-from skyroads.islands import oracle_link
 
 # DGROUP offsets — state
 DELAY = 0x0C83; CURSOR = 0x3196; LOOP = 0x3198; INSTR_BASE = 0x3194
@@ -178,16 +177,6 @@ class Engine:
 
     _DISPATCH = (_op0, _op1, _op2, _op3, _op4, _op5, _op6, _op7)
 
-    @oracle_link(
-        boundary="1010:5A55",
-        contract="run_tick(): one music-engine tick. If [0C83]!=0 wait (no OPL "
-                 "writes); else walk song words from cursor [3196], dispatch "
-                 "op=word&7 (al=channel, ah=note/val) through the 8 handlers, "
-                 "programming the OPL2, until a delay op arms [0C83]. Returns the "
-                 "ordered (reg,val) OPL register writes for the tick.",
-        status="VERIFIED",  # OPL write stream byte-exact vs ASM: 12,882/12,882 cold-sound-demo ticks
-        merge_target="skyroads.native.music (future)",
-    )
     def run_tick(self) -> list[tuple[int, int]]:
         """Run one tick against the current memory; return its OPL ``(reg, val)`` writes.
 
@@ -233,20 +222,6 @@ class Engine:
     #: own `[3194]`, which run_tick reads fresh each tick.
     RESET_INSTR_BASE = 0x0C84
 
-    @oracle_link(
-        boundary="1010:58A5",
-        contract="reset_opl(): the one-time OPL reset + percussion-patch init "
-                 "(1010:58A5-5913), run at driver start / song load. Silences all "
-                 "operators (0x40-0x55 := 0x3F), key-offs channels 7..0 (melodic "
-                 "B0+ch:=0, channels 6/7 via the rhythm mask), enables waveform "
-                 "select (reg 0x01) and rhythm mode (0xBD:=0xE0), loads 4 fixed "
-                 "percussion instrument patches (channel slots 7..10 from a fixed "
-                 "table at 0x0C84, +0x0B/slot) via the same op1 patch-load path as "
-                 "run_tick, then fixes the two percussion channels' pitch (A7/B7, "
-                 "A8/B8). Returns the ordered (reg,val) OPL writes.",
-        status="VERIFIED",  # byte-exact vs ASM: every occurrence in the cold-sound demo
-        merge_target="skyroads.native.music (future)",
-    )
     def reset_opl(self) -> list[tuple[int, int]]:
         """Run the one-time OPL reset/init; return its ordered OPL writes."""
         self.ovl = {}

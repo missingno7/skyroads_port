@@ -1,8 +1,7 @@
 """Enforce pitfall #17 (tools/audit_layers.py) on every pure layer: no
-dos_re/cpu/mem imports, no VM types. skyroads/handrecovered/__init__.py's own
-docstring documents this bar for that directory; skyroads/native and
-skyroads/bridge (added 2026-07-11 with the native frame-stepper work) hold
-the same bar -- see docs/state_mirrors.md.
+dos_re/cpu/mem imports, no VM types. ``skyroads.handrecovered``,
+``skyroads.native``, and ``skyroads.bridge`` all share this dependency
+boundary.
 """
 from __future__ import annotations
 
