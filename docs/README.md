@@ -6,6 +6,9 @@ Current architecture:
   composition catalog, profiles, override policy, coverage and release rules.
 - [Replay verification](replay_verification.md) — authoritative
   `ReplayArtifact` recording and interval verification.
+- [Execution Atlas](execution_atlas.md) — retained static and oracle replay
+  evidence, stable identities, navigation, coverage, and honest release
+  frontiers.
 
 Everything under `history/` predates the dos_re 3.0 migration. It is retained
 only as design evidence; its commands, imports and APIs are not supported.

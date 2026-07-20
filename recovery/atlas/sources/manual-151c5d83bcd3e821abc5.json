@@ -1,0 +1,1185 @@
+{
+  "edges": [
+    {
+      "kind": "entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A61f3"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0000"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0046"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0069"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A00bb"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A019c"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A01b8"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A03c2"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0476"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A04c0"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0533"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0707"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A074c"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0baf"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0be9"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0c26"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0c98"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0ed0"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0eeb"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0f05"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0f62"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0f8c"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1073"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1114"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1191"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A11d3"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1218"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1282"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A12f8"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1631"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1732"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A186b"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1b49"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1c62"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1ccd"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1dfa"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1fd9"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2b3d"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2cce"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2d1f"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2e6c"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2ebb"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2efd"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2f58"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2fcc"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3059"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A309f"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A30f5"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3153"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3190"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A31d1"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A31db"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A325b"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A32c1"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A33fd"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A347e"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A34a7"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A34ae"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A364f"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A36f3"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A38bf"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A39d4"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3a22"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3a96"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3ac9"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3acc"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b17"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b6b"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b9d"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3bcc"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3c03"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3c52"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3c9a"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3ef4"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3f20"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3f3b"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3f91"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3fe2"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4052"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4084"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A411b"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A413c"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A417e"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A41a0"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4201"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A427c"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A42af"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4331"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4485"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A44be"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4526"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4591"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4acb"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4afe"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4b43"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4b8e"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4c20"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4dc8"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4e2e"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4e52"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5080"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5180"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5387"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5481"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5508"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5567"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5614"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A56df"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5737"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A578c"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A57c4"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5892"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A58a5"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A58cd"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5914"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5919"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5971"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A59cf"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A59ef"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a0d"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a42"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a49"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a50"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a55"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a7d"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a98"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5b39"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5b76"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5bc0"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5bdb"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5c11"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5c26"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5c36"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5c59"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5c6a"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5c77"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5c82"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5c96"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5ca6"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5cd1"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5ce3"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5d07"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5d1b"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5d33"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5d4c"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5d80"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5d8c"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5e5a"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5ef6"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f52"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f7d"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fb5"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fcc"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fd4"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5feb"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6001"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A601d"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A603b"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6053"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A609f"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A60ab"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A60e9"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A60ee"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6151"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6168"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A61f3"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6326"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6350"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6364"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A63d3"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A63f0"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6420"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6490"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A64ab"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A64ff"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6576"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6595"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6679"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A66e6"
+    },
+    {
+      "kind": "manually-recovered-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3283"
+    },
+    {
+      "kind": "manually-recovered-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4344"
+    },
+    {
+      "kind": "manually-recovered-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A434a"
+    },
+    {
+      "kind": "manually-recovered-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A43a9"
+    },
+    {
+      "kind": "manually-recovered-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6712"
+    }
+  ],
+  "format_version": 1,
+  "identity": "manual:skyroads-retained-entry-census-v1",
+  "kind": "manual",
+  "nodes": [
+    {
+      "id": "skyroads:1.0:region:program",
+      "kind": "region",
+      "label": "SkyRoads program",
+      "metadata": {
+        "role": "product-root"
+      }
+    },
+    {
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3283",
+      "kind": "function",
+      "label": "1010:3283",
+      "metadata": {
+        "entry": "1010:3283",
+        "liftable": null,
+        "manual_recovered_identity": true
+      }
+    },
+    {
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4344",
+      "kind": "function",
+      "label": "1010:4344",
+      "metadata": {
+        "entry": "1010:4344",
+        "liftable": null,
+        "manual_recovered_identity": true
+      }
+    },
+    {
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A434a",
+      "kind": "function",
+      "label": "1010:434A",
+      "metadata": {
+        "entry": "1010:434A",
+        "liftable": null,
+        "manual_recovered_identity": true
+      }
+    },
+    {
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A43a9",
+      "kind": "function",
+      "label": "1010:43A9",
+      "metadata": {
+        "entry": "1010:43A9",
+        "liftable": null,
+        "manual_recovered_identity": true
+      }
+    },
+    {
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6712",
+      "kind": "function",
+      "label": "1010:6712",
+      "metadata": {
+        "entry": "1010:6712",
+        "liftable": null,
+        "manual_recovered_identity": true
+      }
+    }
+  ],
+  "program_id": "skyroads:1.0",
+  "source_digest": "ba9a48128a0adb6e0324800a68cc214cc509d94273ff1d223b4fcb1f6a5d5d06"
+}

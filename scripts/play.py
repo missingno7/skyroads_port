@@ -6,8 +6,8 @@ Examples::
     python scripts/play.py --composition faithful
     python scripts/play.py --profile verification --composition faithful \
         --play-demo artifacts/demos/replay_name
-    python scripts/play.py --profile detached --composition cpuless --headless
-    python scripts/play.py --profile release --composition cpuless --plan-only
+    python scripts/play.py --profile development --composition cpuless --headless
+    python scripts/play.py --profile release --composition cpuless --plan-only  # frontier report
 
 Execution profile controls what dependencies and services are legal.
 Composition controls which implementations satisfy the program identities.

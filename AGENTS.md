@@ -7,8 +7,8 @@ corpora remain in this repository.
 ## Architecture invariants
 
 - `scripts/play.py` is the only player and launch entrypoint.
-- `skyroads.execution` is the only implementation catalog, coverage source and
-  composition authority.
+- `skyroads.execution` is the only implementation catalog and composition
+  authority; `recovery/atlas` is the persistent coverage source.
 - Execution profiles express dependency policy. Recovery level is a property
   of an implementation, never a separate player.
 - `skyroads.runtime` constructs the untouched interpreted baseline. It has no
@@ -44,10 +44,11 @@ python scripts/play.py --plan-only
 python scripts/play.py --profile release --composition cpuless --plan-only
 ```
 
-The release plan-only gate passes after `python scripts/build_boot_image.py`.
-When the build image has not been generated, its required result is an
-immediate `missing bootstrap artifacts` diagnostic naming that command; a
-backend traceback or late file-open failure is never acceptable.
+The release plan-only gate currently fails on the Atlas's named unresolved
+control-flow frontiers. It may pass only after those frontiers are recovered or
+closed by explicit evidence and `python scripts/build_boot_image.py` has
+materialized the bootstrap. A backend traceback or late file-open failure is
+never acceptable.
 
 Current documentation starts at `docs/README.md`. Material under
 `docs/history/` is evidence only and does not define supported commands or

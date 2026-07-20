@@ -68,7 +68,7 @@ def test_default_play_is_fast_but_has_no_behavioral_modifications(
     }
 
 
-def test_release_plan_is_closed_world_and_exe_detached(
+def test_release_readiness_rejects_atlas_control_flow_frontiers(
     tmp_path, monkeypatch,
 ) -> None:
     boot = tmp_path / "boot"
@@ -77,16 +77,16 @@ def test_release_plan_is_closed_world_and_exe_detached(
     (boot / "memory_1mb.bin").write_bytes(b"\0")
     (boot / "manifest.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(execution_model, "BOOT_DIR", boot)
-    plan = _plan("release", "cpuless")
-    assert plan.report.package_ready
-    assert plan.report.is_detached_from("original-exe")
-    assert plan.report.is_detached_from("interpreter")
-    assert plan.report.bootstrap_provider_id == "skyroads-cpuless-build-image"
-    assert plan.report.bootstrap_build_capabilities == ("original-exe",)
-    assert not plan.report.missing_bootstrap_artifacts
-    assert {item.implementation_id for item in plan.implementations} == {
-        "baseline:generated-cpuless"
-    }
+    with pytest.raises(ExecutionPlanError) as caught:
+        _plan("release", "cpuless")
+    report = caught.value.report
+    assert report.unresolved_edges
+    assert not report.missing_bootstrap_artifacts
+    assert report.is_detached_from("original-exe")
+    assert report.is_detached_from("interpreter")
+    assert report.bootstrap_provider_id == "skyroads-cpuless-build-image"
+    assert not report.package_ready
+    assert "unresolved control-flow edges" in str(caught.value)
 
 
 def test_release_plan_fails_before_launch_when_bootstrap_is_missing(
