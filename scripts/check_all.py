@@ -108,8 +108,9 @@ def main(argv=None) -> int:
                                             "-n", "auto"]))
     results.append(_run("dos_re test suite",
                         ["-m", "pytest", "dos_re/tests/", "-q", "-n", "auto"]))
-    results.append(_run("play_cpuless boots (no CPU)",
-                        ["scripts/play_cpuless.py", "--headless", "--frames", "12"],
+    results.append(_run("unified player boots CPUless (no CPU)",
+                        ["scripts/play.py", "--profile", "detached",
+                         "--composition", "cpuless", "--headless", "--frames", "12"],
                         expect="REACHED FIRST FRAME BOUNDARY"))
 
     if not args.quick:
@@ -123,16 +124,12 @@ def main(argv=None) -> int:
         # nothing extra about it and is most of the wall clock. This is also the
         # gate that catches an override which is never CALLED -- that reports
         # INCONCLUSIVE, not success.
-        results.append(_run("island shadows (candidates vs generated, full contract)",
-                            ["scripts/verify_cpuless.py", args.demo, "--shadow-only"],
-                            expect="PASS", python=fast))
-        print("[check] frame-exact differentials (the ones that actually prove it)")
-        results.append(_run("verify_vmless  (lifted corpus vs ASM oracle)",
-                            ["scripts/verify_vmless_demo.py", args.demo],
-                            expect="PASS", python=fast))
-        results.append(_run("verify_cpuless (recovered corpus, NO CPU, overrides DRIVING)",
-                            ["scripts/verify_cpuless.py", args.demo],
-                            expect="PASS", python=fast))
+        print("[check] ReplayArtifact differential (selected faithful overrides)")
+        results.append(_run(
+            "faithful composition vs untouched oracle",
+            ["scripts/play.py", "--profile", "verification",
+             "--composition", "faithful", "--play-demo", args.demo],
+            expect="PASS", python=fast))
     else:
         print("[check] --quick: differentials SKIPPED (they are the real proof)")
 

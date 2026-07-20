@@ -40,7 +40,7 @@ is WEAKER than the byte-exact standard the generated corpus already meets, so st
 one on its recorded status would LOWER the proof standard.  Shadow mode is the rung
 between, and ``tests/test_cpuless_overrides.py`` pins the gate.
 
-Usage (see scripts/play_cpuless.py):
+Used by :mod:`skyroads.cpuless_backend` when that provider is selected:
 
     from skyroads.cpuless_overrides import install_overrides
     install_overrides()              # BEFORE the first corpus import

@@ -53,10 +53,10 @@ def write_extras(extras: list[str]) -> None:
 
 
 DISPATCH_FILE = CODEMAP / "dispatch_extra.txt"
-#: scripts/find_snapshot_entries.py -- the addresses demo snapshots were CAUGHT
-#: at. Re-entry points (--dispatch-entries), not new functions: they are almost
-#: always interior addresses of a function that is already lifted.
-SNAPSHOT_ENTRIES_FILE = CODEMAP / "snapshot_entries.txt"
+#: scripts/find_replay_base_entries.py -- the addresses ReplayArtifact recording
+#: bases were captured at. Re-entry points (--dispatch-entries), not new
+#: functions: they are usually interior addresses of a function already lifted.
+REPLAY_BASE_ENTRIES_FILE = CODEMAP / "replay_base_entries.txt"
 
 
 def read_dispatch() -> list[str]:
@@ -84,14 +84,15 @@ def regenerate(lift_dir: Path, extras: list[str]) -> None:
                     "--out", str(CODEMAP / "entries.txt"),
                     "--seg", "1010", "--extra", "1010:61F3", *extra_args],
                    check=True, capture_output=True, text=True)
-    # Snapshot re-entry points go in as --dispatch-entries, NOT --extra: a
-    # snapshot catches the machine at an interior address of a function that is
+    # Replay-base re-entry points go in as --dispatch-entries, NOT --extra: a
+    # recording base can catch the machine at an interior address of a function
+    # that is
     # already lifted (1010:3199 sits inside 3190), so it needs a hook that
     # re-enters THAT body at THAT block -- not a second module cloning its
     # blocks and losing the enclosing frame.
     dispatch_entries: list[str] = []
-    if SNAPSHOT_ENTRIES_FILE.exists():
-        dispatch_entries = [f"@{SNAPSHOT_ENTRIES_FILE}"]
+    if REPLAY_BASE_ENTRIES_FILE.exists():
+        dispatch_entries = [f"@{REPLAY_BASE_ENTRIES_FILE}"]
     subprocess.run([sys.executable, str(ROOT / "dos_re/tools/irgen.py"),
                     "--exe", str(ROOT / "assets/SKYROADS.EXE"),
                     "--snapshot", str(ROOT / "artifacts/snapshots/menu_code_live_f250"),
@@ -125,16 +126,15 @@ def try_boot(lift_dir: Path, steps: int) -> tuple[bool, str]:
 
     Frames, not raw steps: the corpus parks at tick-wait boundary heads and
     only makes progress when the next frame's timer IRQs arrive (see
-    scripts/play_vmless.py).  A raw step loop stalls at the first park and so
+    skyroads.vmless_backend).  A raw step loop stalls at the first park and so
     never reaches the code the game runs from its ISRs and later screens --
     which is exactly the code the census is missing.  ``steps`` is read as a
     FRAME budget here.
     """
     code = f'''
 import sys; sys.path.insert(0, r"{ROOT / 'dos_re'}"); sys.path.insert(0, r"{ROOT}")
-sys.path.insert(0, r"{ROOT / 'scripts'}")
 from pathlib import Path
-from play_vmless import build, VmlessDriver
+from skyroads.vmless_backend import build, VmlessDriver
 rt, m = build(Path(r"{ROOT / 'artifacts/boot_image'}"), Path(r"{lift_dir}"),
               Path(r"{ROOT / 'assets'}"))
 drv = VmlessDriver(rt)

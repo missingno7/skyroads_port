@@ -27,7 +27,10 @@ jobs:
       - name: Undefined-name guard
         run: python tools/check_undefined_names.py skyroads
       - name: Doc links resolve
-        run: python dos_re/tools/check_doc_links.py . --exclude dos_re
+        # Historical evidence is intentionally non-executable and may name
+        # files removed by the 3.0 cleanup. Current agent-facing docs remain
+        # link-checked.
+        run: python dos_re/tools/check_doc_links.py . --exclude dos_re --exclude history
       - name: Test suite
         run: python -m pytest tests -q -n auto
       - name: End-to-end example (oracle -> hook -> verify -> snapshot)

@@ -70,7 +70,7 @@ def test_driver_transitions_are_well_formed() -> None:
 
 
 def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
-    """A presentation layer (play_native.py's windowed viewer) needs to hold
+    """A presentation layer needs to hold
     the frozen frame on screen for a beat before respawning -- see
     NativeGameplayDriver's docstring and docs/skyroads/run_status.md's
     2026-07-13 crash/finish settle-window entry."""
@@ -124,18 +124,12 @@ def test_driver_plays_the_whole_demo_standalone() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from skyroads.replay import SkyroadsReplayPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
         ["--play-demo", str(DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+    pb, rt = open_oracle_replay(frontend, args, DEMO)
 
     # Seed ONCE from the VM at the first real gameplay sub-step, then replay
     # the demo's recorded INPUT into the standalone driver -- the VM is only

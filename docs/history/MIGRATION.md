@@ -1,4 +1,4 @@
-# MIGRATION.md — how this repo was extracted
+# MIGRATION.md — historical repository extraction
 
 ## The second split (2026-07-08): dos_re → dos_re + template_dos_port + pynuked_opl3
 

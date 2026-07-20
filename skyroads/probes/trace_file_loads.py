@@ -25,7 +25,7 @@ def main() -> None:
     n_frames = int(sys.argv[1]) if len(sys.argv) > 1 else 40
     irqs_per_frame = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 
-    rt = create_game_runtime(ROOT / "assets" / "SKYROADS.EXE", install_replacements=False)
+    rt = create_game_runtime(ROOT / "assets" / "SKYROADS.EXE")
     dos = rt.dos
     real_int21 = dos.int21
 

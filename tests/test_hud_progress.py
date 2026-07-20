@@ -50,20 +50,14 @@ def test_progress_bar_draw_is_byte_exact_vs_vm() -> None:
     from dos_re import player
     from dos_re.cpu import HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from skyroads.replay import SkyroadsReplayPlayback
-    from dos_re.player import _use_real_console_input
+    from tests.replay_support import open_oracle_replay
     from skyroads.native.image import NativeGameImage
     from skyroads.native.state import DATA_SEG
     from skyroads.native.hud import update_progress_bar, PROGRESS_SRC, PROGRESS_LEN
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(["--play-demo", str(DEMO), "--headless"])
-    pb = SkyroadsReplayPlayback.load(str(DEMO))
-    frontend.apply_demo_metadata(args, pb.manifest.get("metadata", {}))
-    rt = frontend.load_demo_runtime(args, pb)
-    args.install_replacements = False
-    frontend.apply_hook_mode(rt, args)
-    _use_real_console_input(rt)
+    pb, rt = open_oracle_replay(frontend, args, DEMO)
     rt.dos.mouse_present = pb.mouse_present_hint
 
     def vmw(off):

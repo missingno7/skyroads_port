@@ -20,7 +20,7 @@ see the design note's proposed roots.json schema):
     IVT handlers      observed.json  ivt_game_vectors  (hardware-entered ISRs)
     dynamic dispatch  artifacts/codemap/dispatch_extra.txt   (indirect-call targets)
     boundary heads    artifacts/codemap/boundary_heads.txt   (scheduler resume points)
-    snapshot entries  artifacts/codemap/snapshot_entries.txt (resumed-into addresses)
+    replay bases      artifacts/codemap/replay_base_entries.txt (resume addresses)
 
 Usage:
     python scripts/reachability_audit.py
@@ -94,13 +94,13 @@ def audit(ir: dict, roots_by_source: dict[str, set[str]]) -> dict:
                 work.append(t)
 
     # 2. per-function retention reason, by precedence:
-    #    interrupt/root entry > dynamic dispatch > boundary/snapshot resume >
+    #    interrupt/root entry > dynamic dispatch > boundary/replay-base resume >
     #    reachable via static calls > NOT reached (requires explanation).
     ivt = roots_by_source["ivt"]
     canon = roots_by_source["canonical"]
     dyn = roots_by_source["dynamic"]
     heads = roots_by_source["boundary"]
-    snap = roots_by_source["snapshot"]
+    replay_bases = roots_by_source["replay_base"]
 
     buckets = {
         "interrupt_or_root_entry": [],
@@ -114,7 +114,7 @@ def audit(ir: dict, roots_by_source: dict[str, set[str]]) -> dict:
             buckets["interrupt_or_root_entry"].append(k)
         elif k in dyn:
             buckets["retained_dynamic_dispatch"].append(k)
-        elif k in heads or k in snap:
+        elif k in heads or k in replay_bases:
             buckets["retained_scheduler_resume"].append(k)
         elif k in static_reached:
             buckets["reachable_static_calls"].append(k)
@@ -156,7 +156,7 @@ def main(argv=None) -> int:
         "ivt": ivt,
         "dynamic": _load_pairs(cm / "dispatch_extra.txt"),
         "boundary": _load_pairs(cm / "boundary_heads.txt"),
-        "snapshot": _load_pairs(cm / "snapshot_entries.txt"),
+        "replay_base": _load_pairs(cm / "replay_base_entries.txt"),
     }
 
     rep = audit(ir, roots_by_source)
@@ -166,7 +166,7 @@ def main(argv=None) -> int:
     print(f"Reachable by static call edges .............. {c['reachable_static_calls']}")
     print(f"Retained by dynamic dispatch evidence ....... {c['retained_dynamic_dispatch']}")
     print(f"Retained as IVT / root entry ................ {c['interrupt_or_root_entry']}")
-    print(f"Retained as scheduler resume (head/snapshot)  {c['retained_scheduler_resume']}")
+    print(f"Retained as scheduler resume (head/replay) ... {c['retained_scheduler_resume']}")
     print(f"NOT reached by assembled roots (EXPLAIN) .... {c['not_reached_requires_explanation']}")
     print(f"Unresolved indirect edge sites .............. {len(rep['unresolved_indirect_sites'])}")
     print()

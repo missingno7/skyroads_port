@@ -20,7 +20,7 @@ a counter that read like an assertion and asserted nothing. The candidate is now
 a drop-in with the generated signature, so the comparison is total by
 construction and the thing being proven is the thing that would ship.
 
-Run it:  python scripts/verify_cpuless.py <demo> --shadow-islands
+The shadow checks run directly in the test suite.
          python scripts/check_all.py            (gated there too)
 
 NOT SHADOWED: ``1010:3A96`` unpack_animation_segment

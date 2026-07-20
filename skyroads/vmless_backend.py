@@ -1,4 +1,4 @@
-"""Play SKYROADS from the data-only BOOT IMAGE — no SKYROADS.EXE, no interpreter.
+"""Generated VMless provider for the unified SkyRoads player.
 
 The runner named for the wall its artifacts satisfy (DOS_RE 2.0's rule; see
 ``dos_re/docs/migration_1.0_to_2.0.md``): every instruction executed here is
@@ -28,14 +28,10 @@ continues from the right basic block. That is the same "end the frame at the
 tick-wait" semantics pacing.py already proved byte-equivalent to burning the
 full step budget.
 
-Usage:
-    python scripts/play_vmless.py                     # play it (window)
-    python scripts/play_vmless.py --headless --frames 400
-    python scripts/play_vmless.py --verify-demo artifacts/demos/demo_cold_20260713_213510
+Selected with ``scripts/play.py --profile detached --composition vmless``.
 """
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 
@@ -57,7 +53,7 @@ from dos_re.crash import crash_dir, save_crash  # noqa: E402
 from dos_re.runtime_core import (enable_sound_blaster,  # noqa: E402
                                  use_real_console_input)
 
-#: Measured from the VM (see play_native.py): the PIT reload is 6628, so the
+#: Measured from the oracle: the PIT reload is 6628, so the
 #: timer runs at 1193182/6628 = 180 Hz and the music ISR fires once per IRQ —
 #: 6 IRQs per displayed frame, i.e. 30 fps.
 GAME_FPS = 30
@@ -220,7 +216,7 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
     #    quit itself seconds after the menu appears, with no keypress. This
     #    driver has a frame loop and handles ConsoleInputWouldBlock, so the
     #    synthesis is not needed here and is only harmful. (dos_re's
-    #    _use_real_console_input documents this exact failure; play_vmless was
+    #    the canonical real-mode player documents this exact failure; this was
     #    the one path that never called it.)
     use_real_console_input(rt)
 
@@ -245,34 +241,28 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
     return rt, manifest
 
 
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--boot-dir", default=str(ROOT / "artifacts" / "boot_image"))
-    ap.add_argument("--lift-dir", default=str(ROOT / "skyroads" / "lifted" / "functions"))
-    ap.add_argument("--game-root", default=str(ROOT / "assets"))
-    ap.add_argument("--frames", type=int, default=0, help="stop after N frames")
-    ap.add_argument("--headless", action="store_true")
-    ap.add_argument("--present-hz", type=int, default=60,
-                    help="audio present rate (matches play.py's default)")
-    ap.add_argument("--no-sound", action="store_true",
-                    help="leave the sound hardware detached (silent run)")
-    ap.add_argument("--crash-root", default=str(ROOT / "artifacts" / "crashes"),
-                    help="where a crash leaves its resumable snapshot")
-    ap.add_argument("--report", action="store_true",
-                    help="print the independence hard-gate banner and exit")
-    args = ap.parse_args(argv)
-
+def launch(args, *, bootstrap_artifacts: dict[str, Path]) -> int:
+    """Launch the selected whole-program VMless provider."""
     # Capture the DMA PCM only for the interactive viewer: it is a
     # determinism-safe observer, but headless must keep the detection-only
     # path so demo replay and the differential stay byte-identical.
-    rt, manifest = build(Path(args.boot_dir), Path(args.lift_dir),
+    boot_files = (
+        bootstrap_artifacts["skyroads-boot-state"],
+        bootstrap_artifacts["skyroads-boot-memory"],
+        bootstrap_artifacts["skyroads-boot-manifest"],
+    )
+    boot_dirs = {path.parent.resolve() for path in boot_files}
+    if len(boot_dirs) != 1:
+        raise RuntimeError(
+            "SkyRoads bootstrap artifacts do not share one boot-image directory"
+        )
+    rt, manifest = build(boot_dirs.pop(),
+                         ROOT / "skyroads" / "lifted" / "functions",
                          Path(args.game_root), sound=not args.no_sound,
                          capture_sb=not args.no_sound and not args.headless)
-    if args.report:
-        print(independence_report(manifest))
-        return 0
     print(independence_report(manifest))
-    drv = VmlessDriver(rt, crash_root=args.crash_root, stamp=_stamp())
+    drv = VmlessDriver(
+        rt, crash_root=ROOT / "artifacts" / "crashes", stamp=_stamp())
 
     if args.headless:
         n = args.frames or 400
@@ -386,7 +376,3 @@ def _deliver_scancode(rt, sc: int) -> None:
     rt.dos.current_scancode = sc & 0xFF
     rt.dos.kbd_output_buffer_full = True
     deliver_interrupt(rt, 0x09)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

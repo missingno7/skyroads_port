@@ -4,7 +4,7 @@ See docs/porting_new_game.md and docs/<game>/run_status.md (once started) for
 the bring-up ledger. Boot-up findings so far: the game busy-waits on the raw
 PIT channel-0 counter (a direct hardware delay loop, not IRQ0-driven) and also
 blocks on real INT 08h ticks elsewhere — an interactive/headless driver must
-pump timer interrupts (see tools/view.py --timer-irqs-per-frame) or the VM
+pump timer interrupts through the canonical frontend or the VM
 will appear to hang. Both gaps were fixed at the framework level (dos_re/dos.py,
 dos_re/cpu.py PUSHA/POPA), not here — this file has no SKYROADS-specific
 bootstrap accelerator yet (the EXE is not packed: plain MZ header, no LZEXE
@@ -27,7 +27,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dos_re.hooks import registry
 from dos_re.runtime import Runtime, create_runtime, enable_sound_blaster
 from dos_re.snapshot import load_snapshot
 
@@ -39,28 +38,14 @@ def create_game_runtime(
     *,
     game_root: str | Path | None = None,
     command_tail: bytes | str = b"",
-    install_replacements: bool = True,
     enable_sound: bool = True,
     capture_sb_pcm: bool = False,
 ) -> Runtime:
-    """Boot a fresh runtime. ``install_replacements=False`` is the pure-ASM
-    oracle: no recovered hooks, the CPU runs the original code verbatim.
-    ``enable_sound=False`` reproduces the original "Not enough sound
-    hardware" exit path for study; leave it on for normal play/bring-up.
+    """Boot the untouched interpreted baseline runtime.
 
-    The flag is passed DOWN to dos_re.runtime.create_runtime, which strips the
-    registry after boot. Guarding the ``from . import hooks`` import instead —
-    which this function used to do — does NOT gate anything: hooks register at
-    decoration time and ``skyroads.hooks`` is transitively imported by nearly
-    every entry point long before we get here, so the registry is already
-    populated and create_runtime wired all of it onto the "pure" CPU anyway.
-    That silently put 31 replacements on scripts/verify_cpuless.py's oracle,
-    including the deliberately behaviour-changing ``fade_loop_tick_gate``
-    optimisation, and the differential then blamed its candidate for a
-    palette divergence the ORACLE was producing. The import stays
-    unconditional because it is what populates the registry for the True case;
-    installation, not import, is what the flag gates. Same shape as
-    load_game_snapshot below.
+    Implementations are selected by :mod:`skyroads.execution` and activated
+    only after dos_re has resolved an immutable execution plan. This runtime
+    factory deliberately has no hook or override switches.
 
     ``capture_sb_pcm`` attaches the Sound Blaster in *capture* mode instead of
     the detection-only stub: single-cycle DMA-out blocks (the game's digital
@@ -71,9 +56,7 @@ def create_game_runtime(
     -- demos still replay deterministically.  Off by default so the headless/
     test path keeps the exact detection-only behaviour and does not accumulate
     captured PCM."""
-    from . import hooks  # noqa: F401  (populates the registry; see docstring)
-    rt = create_runtime(exe_path, game_root=game_root, command_tail=command_tail,
-                        install_replacements=install_replacements)
+    rt = create_runtime(exe_path, game_root=game_root, command_tail=command_tail)
     if enable_sound:
         enable_sound_blaster(rt, detection_only=not capture_sb_pcm)
     return rt
@@ -84,24 +67,17 @@ def load_game_snapshot(
     snapshot_dir: str | Path,
     *,
     game_root: str | Path | None = None,
-    install_replacements: bool = True,
     enable_sound: bool = True,
     capture_sb_pcm: bool = False,
 ) -> Runtime:
-    """Resume a snapshot. Unlike dos_re.runtime.create_runtime,
-    dos_re.snapshot.load_snapshot does NOT install the hook registry on the
-    restored CPU by itself — a snapshot resume that skipped this silently ran
-    pure ASM regardless of which hooks were registered (found during the
-    palette-fade hook's performance validation, 2026-07-08: identical step
-    counts with and without the hook "installed" turned out to mean it was
-    never actually wired onto the resumed CPU). enable_sound here only helps
+    """Resume the untouched interpreted baseline from a snapshot.
+
+    The unified player activates the resolved plan after restoration.
+    ``enable_sound`` here only helps
     snapshots taken before SKYROADS' own sound-detection ran; a snapshot
     where detection already failed keeps that outcome regardless (it's
     already recorded in the snapshot's own game memory)."""
     rt = load_snapshot(exe_path, snapshot_dir, game_root=game_root)
-    if install_replacements:
-        from . import hooks  # noqa: F401
-        registry.install(rt.cpu)
     if enable_sound:
         enable_sound_blaster(rt, detection_only=not capture_sb_pcm)
     return rt

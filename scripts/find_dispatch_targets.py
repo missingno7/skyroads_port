@@ -23,10 +23,10 @@ so a demo-derived set always misses the branch nobody took yet.
    program can ever take. Skyroads has two: the music driver (5A6F/5A77, `and
    bx,7` -> 8 handlers, and the boot picks a track at random) and the per-object
    renderer (2DCF/2DD4, `and bx,0Fh` -> 16). The entries are ordinary DGROUP
-   data, so they are read from images -- and from EVERY image available, boot
-   plus every demo snapshot, because what a table holds depends on what the
-   machine was doing when it was caught. The renderer's table is empty in a menu
-   snapshot and full in a gameplay one.
+   data, so they are read from images -- both the boot image and every
+   ReplayArtifact recording base, because what a table holds depends on what
+   the machine was doing when it was captured. The renderer's table is empty
+   at a menu base and full at a gameplay base.
 
 2. TABLES BUILT AT RUNTIME  (``code_pointer_stores``)
 
@@ -59,9 +59,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "dos_re"))
+sys.path.insert(0, str(ROOT))
+
+from skyroads.replay import recording_base_memories  # noqa: E402
 
 CODE_SEG = 0x1010
 DGROUP_SEG = 0x1686
@@ -215,10 +220,9 @@ def code_pointer_stores(ir: dict) -> list[tuple]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--image", action="append", dest="images", default=None,
-                    help="booted memory images to read the tables out of "
-                         "(repeatable; defaults to the boot image + every demo "
-                         "snapshot, because a table's contents depend on what "
-                         "the machine was DOING)")
+                    help="additional raw memory images to inspect (repeatable; "
+                         "the default source is the boot image plus every "
+                         "ReplayArtifact recording base)")
     ap.add_argument("--ir",
                     default=str(ROOT / "artifacts" / "codemap" / "recovery_ir.json"),
                     help="recovery IR -- both derivations read the program from it")
@@ -227,12 +231,15 @@ def main(argv=None) -> int:
     ap.add_argument("--print", dest="show", action="store_true")
     args = ap.parse_args(argv)
 
-    images = args.images
-    if images is None:
-        images = [str(ROOT / "artifacts" / "boot_image" / "memory_1mb.bin")]
-        images += [str(p) for p in sorted(
-            (ROOT / "artifacts" / "demos").glob("*/snapshot/memory_1mb.bin"))]
-    images = [p for p in images if Path(p).exists()]
+    image_records: list[tuple[str, bytes]] = []
+    boot_image = ROOT / "artifacts" / "boot_image" / "memory_1mb.bin"
+    if boot_image.is_file():
+        image_records.append(("boot_image", boot_image.read_bytes()))
+    image_records.extend(recording_base_memories(ROOT / "artifacts" / "demos"))
+    for raw in args.images or ():
+        path = Path(raw)
+        if path.is_file():
+            image_records.append((path.stem, path.read_bytes()))
 
     ir = json.loads(Path(args.ir).read_text(encoding="utf-8"))
     tables = indexed_tables(ir)
@@ -254,21 +261,20 @@ def main(argv=None) -> int:
         "#    a time, days apart. Tables are read from every image below, because",
         "#    their contents depend on what the machine was doing when it was caught.",
     ]
-    for img in images:
-        lines.append(f"#      image: {Path(img).parent.parent.name}/{Path(img).name}")
+    for name, _memory in image_records:
+        lines.append(f"#      image: {name}")
 
     targets: list[int] = []
     for call_ip, off, count in tables:
         lines.append(f"#    {CODE_SEG:04X}:{call_ip:04X} calls [bx+{off:04X}], "
                      f"{count} entries:")
-        for img in images:
-            vals = read_table(Path(img).read_bytes(), seg=DGROUP_SEG,
-                              off=off, count=count)
+        for name, memory in image_records:
+            vals = read_table(memory, seg=DGROUP_SEG, off=off, count=count)
             for i, t in enumerate(vals):
                 if t and t not in targets:
                     targets.append(t)
                     lines.append(f"#      [{i:2d}] (ds:{off + 2 * i:04X}) -> "
-                                 f"{CODE_SEG:04X}:{t:04X}  ({Path(img).parent.parent.name})")
+                                 f"{CODE_SEG:04X}:{t:04X}  ({name})")
 
     lines += [
         "#",
@@ -296,7 +302,7 @@ def main(argv=None) -> int:
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(text)
     print(f"[dispatch] {len(seen)} targets -> {args.out} "
-          f"({len(tables)} indexed table(s) over {len(images)} image(s) -> "
+          f"({len(tables)} indexed table(s) over {len(image_records)} image(s) -> "
           f"{len(targets)}; {len(stores)} runtime-stored)")
     return 0
 

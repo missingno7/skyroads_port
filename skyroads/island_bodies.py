@@ -591,14 +591,16 @@ def func_1010_0f62(mem, *, _df=0, ax=0, bp=0, di=0, ds=0, si=0, sp=0, ss=0):
     count = mem.rw(ss, (sp + 6) & 0xFFFF)
     template = mem.rw(ss, (sp + 8) & 0xFFFF)
     other = mem.rw(ss, (sp + 10) & 0xFFFF)
-    es = mem.rw(ds, _STENCIL_ES_PTR)             # 0F68, through the CALLER's ds
-
-    # `push bp; mov bp,sp; push si; push di` ... `push ds`. The ds push is
-    # AFTER the es load and the `xor di,di`, and it saves the caller's ds --
-    # `lds si,[bp+4]` has not run yet.
+    # `push bp; mov bp,sp; push si; push di` happen BEFORE the ES load. This
+    # ordering is observable when the caller deliberately aliases ds:AF2A with
+    # one of those stack slots: the pushed word then becomes the segment read
+    # by `mov es,[AF2A]`.
     mem.ww(ss, (sp - 2) & 0xFFFF, bp)
     mem.ww(ss, (sp - 4) & 0xFFFF, si)
     mem.ww(ss, (sp - 6) & 0xFFFF, di)
+    es = mem.rw(ds, _STENCIL_ES_PTR)             # 0F68, through the CALLER's ds
+    # The DS push is after the ES load and `xor di,di`; `lds si,[bp+4]` has not
+    # run yet, so this still saves the caller's DS.
     mem.ww(ss, (sp - 8) & 0xFFFF, ds)
 
     step = -1 if _df else 1
