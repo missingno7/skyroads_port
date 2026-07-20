@@ -18,6 +18,8 @@ CPUless and native are properties of implementations, not player modes.
 - `oracle` is the untouched interpreted EXE.
 - `faithful` overlays verified authored replacements and generated function
   lifts on the interpreted baseline.
+- `play` adds non-authoritative host pacing enhancements to `faithful`; this is
+  the default development composition.
 - `behavioral` explicitly opts into intentional behavior changes.
 - `vmless` selects the complete generated VMless provider.
 - `cpuless` selects the complete generated ABI-recovered provider.

@@ -46,10 +46,14 @@ class SkyroadsFrontend(player.GameFrontend):
         execution = parser.add_argument_group("skyroads composition")
         execution.add_argument(
             "--composition",
-            choices=("auto", "oracle", "faithful", "behavioral", "vmless", "cpuless"),
+            choices=(
+                "auto", "oracle", "faithful", "play",
+                "behavioral", "vmless", "cpuless",
+            ),
             default="auto",
-            help="implementation composition (auto selects oracle for development, "
-                 "faithful for verification, and cpuless for detached/release)",
+            help="implementation composition (auto selects practical faithful play "
+                 "for development, faithful for verification, and cpuless for "
+                 "detached/release)",
         )
         execution.add_argument(
             "--rebuild", action="store_true",

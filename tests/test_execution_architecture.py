@@ -33,6 +33,20 @@ def test_faithful_plan_selects_authored_replacements_explicitly() -> None:
     )
 
 
+def test_default_play_is_fast_but_has_no_behavioral_modifications() -> None:
+    plan = _plan("development", "auto")
+    categories = {
+        item.category for item in plan.implementations
+        if item.category is not None
+    }
+    assert OverrideCategory.FAITHFUL in categories
+    assert OverrideCategory.ENHANCEMENT in categories
+    assert OverrideCategory.BEHAVIORAL not in categories
+    assert "enhancement:frame-park" in {
+        item.implementation_id for item in plan.implementations
+    }
+
+
 def test_release_plan_is_closed_world_and_exe_detached() -> None:
     plan = _plan("release", "cpuless")
     assert plan.report.standalone_executable_ready

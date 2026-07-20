@@ -150,10 +150,10 @@ def catalog() -> ImplementationCatalog:
         PACING_SPIN_IP, FADE_WAIT_IP, MENU_ANIM_WAIT_IP))
     entries.append(ImplementationEntry(
         ImplementationDescriptor(
-            implementation_id="behavioral:frame-park",
+            implementation_id="enhancement:frame-park",
             targets=park_targets,
             origin=ImplementationOrigin.AUTHORED,
-            category=OverrideCategory.BEHAVIORAL,
+            category=OverrideCategory.ENHANCEMENT,
             properties=frozenset({"cpu-adapted", "dos-memory-backed"}),
             implementation_digest="skyroads-frame-park-v1",
             region_id="skyroads:frame-pacing",
@@ -190,7 +190,7 @@ def configuration(
     """Map a product composition onto dos_re's orthogonal policy axes."""
     if composition == "auto":
         composition = "cpuless" if profile in {"detached", "release"} else (
-            "faithful" if profile == "verification" else "oracle"
+            "faithful" if profile == "verification" else "play"
         )
     preferences: tuple[str, ...]
     selected: tuple[str, ...] = ()
@@ -201,9 +201,18 @@ def configuration(
         preferences = (
             *selected, *generated_function_ids(), "baseline:interpreted-exe",
         )
+    elif composition == "play":
+        selected = (
+            *implementation_ids(OverrideCategory.FAITHFUL),
+            *implementation_ids(OverrideCategory.ENHANCEMENT),
+        )
+        preferences = (
+            *selected, *generated_function_ids(), "baseline:interpreted-exe",
+        )
     elif composition == "behavioral":
         selected = (
             *implementation_ids(OverrideCategory.FAITHFUL),
+            *implementation_ids(OverrideCategory.ENHANCEMENT),
             *implementation_ids(OverrideCategory.BEHAVIORAL),
         )
         preferences = (

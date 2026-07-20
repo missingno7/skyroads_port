@@ -9,6 +9,10 @@ The port has one player:
 python scripts/play.py
 ```
 
+The default development composition uses verified faithful replacements plus
+the non-authoritative frame-pacing enhancement. Use `--composition oracle`
+when an untouched, intentionally slow interpreter run is required.
+
 Execution policy and implementation composition are separate:
 
 ```text
