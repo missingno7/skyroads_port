@@ -1,5 +1,5 @@
 """Verify the recovered movement-target formula (skyroads.handrecovered.physics)
-against real 186B call arguments captured over the full E2E demo.
+against real 186B call arguments captured over the full E2E replay.
 
 682/682 real calls matched (58 with real steering held, lateral_accel != 0)
 with af1c_base_offset == 0x618 -- the value ss:[bp-16]==0 selects, which was

@@ -240,12 +240,12 @@ def test_probes_screen_y_is_af2c_minus_one() -> None:
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_menu_3levels_20260713_144256"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_menu_3levels_20260713_144256"
 
 
-@pytest.mark.skipif(not (EXE.exists() and DEMO.exists()),
-                    reason="needs SKYROADS.EXE + the E2E demo")
-def test_native_vertical_scan_matches_asm_over_demo() -> None:
+@pytest.mark.skipif(not (EXE.exists() and REPLAY.exists()),
+                    reason="needs SKYROADS.EXE + the E2E replay")
+def test_native_vertical_scan_matches_asm_over_replay() -> None:
     import scripts.play as sp
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
@@ -257,8 +257,8 @@ def test_native_vertical_scan_matches_asm_over_demo() -> None:
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb, rt = open_oracle_replay(frontend, args, DEMO)
+        ["--play-replay", str(REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, REPLAY)
 
     IP_IN, IP_OUT = 0x2963, 0x2A24
     pending: dict = {}
@@ -309,14 +309,14 @@ def test_native_vertical_scan_matches_asm_over_demo() -> None:
     assert checked[0] > 50, f"only {checked[0]} scan frames checked"
 
 
-# A demo that actually exercises the wall-bump (274B) and the af1c-contact
-# fix-up (283C with af1c != tgt) -- the E2E demo is a clean run that never does.
-COLLISION_DEMO = ROOT / "artifacts" / "demos" / "demo_skyroads_20260710_213019"
+# A replay that actually exercises the wall-bump (274B) and the af1c-contact
+# fix-up (283C with af1c != tgt) -- the E2E replay is a clean run that never does.
+COLLISION_REPLAY = ROOT / "artifacts" / "replays" / "replay_skyroads_20260710_213019"
 
 
-@pytest.mark.skipif(not (EXE.exists() and COLLISION_DEMO.exists()),
-                    reason="needs SKYROADS.EXE + a collision demo")
-def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
+@pytest.mark.skipif(not (EXE.exists() and COLLISION_REPLAY.exists()),
+                    reason="needs SKYROADS.EXE + a collision replay")
+def test_wall_bump_and_contact_fixup_match_asm_over_collision_replay() -> None:
     import scripts.play as sp
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
@@ -328,8 +328,8 @@ def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(COLLISION_DEMO), "--headless"])
-    pb, rt = open_oracle_replay(frontend, args, COLLISION_DEMO)
+        ["--play-replay", str(COLLISION_REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, COLLISION_REPLAY)
 
     def _bpw(m, ss, bp, o):
         return m.rw(ss, (bp - o) & 0xFFFF)
@@ -407,14 +407,14 @@ def test_wall_bump_and_contact_fixup_match_asm_over_collision_demo() -> None:
     finally:
         CPU8086.step = orig
 
-    # The whole point of this demo is that the ACTIVE branches actually fire.
+    # The whole point of this replay is that the ACTIVE branches actually fire.
     assert stats["bump_active"] >= 1, f"no real wall-bump exercised ({stats})"
     assert stats["fixup_active"] >= 1, f"no real af1c contact exercised ({stats})"
 
 
-@pytest.mark.skipif(not (EXE.exists() and COLLISION_DEMO.exists()),
-                    reason="needs SKYROADS.EXE + a collision demo")
-def test_resolve_landing_matches_asm_over_demo() -> None:
+@pytest.mark.skipif(not (EXE.exists() and COLLISION_REPLAY.exists()),
+                    reason="needs SKYROADS.EXE + a collision replay")
+def test_resolve_landing_matches_asm_over_replay() -> None:
     import scripts.play as sp
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
@@ -423,8 +423,8 @@ def test_resolve_landing_matches_asm_over_demo() -> None:
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(COLLISION_DEMO), "--headless"])
-    pb, rt = open_oracle_replay(frontend, args, COLLISION_DEMO)
+        ["--play-replay", str(COLLISION_REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, COLLISION_REPLAY)
 
     def _bpw(m, ss, bp, o):
         return m.rw(ss, (bp - o) & 0xFFFF)
@@ -486,9 +486,9 @@ def test_resolve_landing_matches_asm_over_demo() -> None:
     assert checked[0] > 20, f"only {checked[0]} landing frames checked"
 
 
-@pytest.mark.skipif(not (EXE.exists() and COLLISION_DEMO.exists()),
-                    reason="needs SKYROADS.EXE + a collision demo")
-def test_resolve_lateral_crash_matches_asm_over_demo() -> None:
+@pytest.mark.skipif(not (EXE.exists() and COLLISION_REPLAY.exists()),
+                    reason="needs SKYROADS.EXE + a collision replay")
+def test_resolve_lateral_crash_matches_asm_over_replay() -> None:
     import scripts.play as sp
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
@@ -497,8 +497,8 @@ def test_resolve_lateral_crash_matches_asm_over_demo() -> None:
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(COLLISION_DEMO), "--headless"])
-    pb, rt = open_oracle_replay(frontend, args, COLLISION_DEMO)
+        ["--play-replay", str(COLLISION_REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, COLLISION_REPLAY)
 
     def _bpw(m, ss, bp, o):
         return m.rw(ss, (bp - o) & 0xFFFF)

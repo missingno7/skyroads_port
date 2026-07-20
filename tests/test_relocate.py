@@ -1,5 +1,5 @@
 """Verify the recovered buffer-relocation patch (skyroads.handrecovered.relocate)
-against real ASM I/O captured over the E2E demo (1010:4052/4062-4069).
+against real ASM I/O captured over the E2E replay (1010:4052/4062-4069).
 
 Recovered via lift-then-refactor: `dos_re.tools.liftverify` first proved a
 literal transcription byte-exact (ORACLE_PASSING, a bounded-count sample, 8/9
@@ -7,12 +7,12 @@ blocks) — see run_status.md — and this pure function + the VM hook
 (``skyroads/hooks.py::buffer_relocate_hook``) were written from that proven
 block structure rather than derived by reading the disassembly alone. The full
 register-exact hook was then proven against real gameplay with the project's
-strict differential verifier: 252/252 calls over the E2E demo + 230/230 over
-a cold-sound-demo window, zero divergences, on the first attempt (no
+strict differential verifier: 252/252 calls over the E2E replay + 230/230 over
+a cold-sound-replay window, zero divergences, on the first attempt (no
 correction rounds needed, unlike the earlier stencil-blit hook that skipped
 the lift step).
 
-Coverage note: neither demo happens to exercise a call whose scan crosses a
+Coverage note: neither replay happens to exercise a call whose scan crosses a
 64K segment boundary or arms the "extra full-pass" counter (`ss:[bp+0xA]`) —
 those branches are mechanically proven by the lift's own bounded sample but
 not exercised end-to-end against real gameplay. See run_status.md.

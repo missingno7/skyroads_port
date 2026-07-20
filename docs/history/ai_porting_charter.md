@@ -26,7 +26,7 @@ code*, not original *data*.
 **"Provably equivalent"** does not mean a formal proof (infeasible for a whole
 ASM game). It means the strongest practical proof available to us:
 deterministic, **frame-and-state-exact** equivalence against the original,
-replayed over a demo corpus that exercises the whole game. (Scope note:
+replayed over a replay corpus that exercises the whole game. (Scope note:
 "byte-exact" applies to *gameplay state*; rendering is pixel-exact but
 mechanism-flexible, audio event-exact but mixer-flexible, timing
 heartbeat-exact but never the waiting machinery — the per-subsystem contracts
@@ -111,7 +111,7 @@ video layout, or data formats. Key modules:
   poll their own ISR/key-state table.
 - **`keyboard.py` — `KeyDispatcher`.** Holds each key down for ≥1 full polled
   frame before releasing (same-frame make+break taps are lost otherwise).
-- **`input_demo.py` — `InputDemoRecorder` / `InputDemoPlayback`.** Record a
+- **`replay_input.py` — `InputDemoRecorder` / `InputDemoPlayback`.** Record a
   start snapshot + VM-visible key events keyed to an **emulated boundary
   counter**; replay them deterministically into one or more runtimes. This is
   the substrate of the proof corpus. **Read §6 before trusting it.**
@@ -214,12 +214,12 @@ code loses per-hook granularity. Evolve it in this order:
    timers, and the framebuffer. *If it is not in the snapshot, divergence can
    hide there.* Locating the RNG state in memory is usually the first hard
    sub-task and a prerequisite for everything downstream.
-4. **Deterministic demo-replay harness**: for each recorded demo, assert
+4. **Deterministic replay-replay harness**: for each recorded replay, assert
    candidate ≡ oracle for **every frame to the end**. Determinism (fixed input +
    seed ⇒ identical state) becomes a hard requirement; any wall-clock or RNG
    nondeterminism must be modeled out in verify mode.
-5. **Demo corpus** covering all levels, bosses, spawn types, edge interactions,
-   and RNG paths. "Proven equivalent" = every demo passes full-frame/full-state,
+5. **Replay corpus** covering all levels, bosses, spawn types, edge interactions,
+   and RNG paths. "Proven equivalent" = every replay passes full-frame/full-state,
    and you track which behaviors/branches the corpus exercises so confidence is
    *measured*, not vibed.
 
@@ -229,15 +229,15 @@ code loses per-hook granularity. Evolve it in this order:
 
 **This is the most important non-obvious section. Read it twice.**
 
-Demo events are keyed to an **emulated boundary counter** ("the demo clock").
-A demo is only a valid proof artifact if it is **byte-for-byte reproducible
+Replay events are keyed to an **emulated boundary counter** ("the replay clock").
+A replay is only a valid proof artifact if it is **byte-for-byte reproducible
 across every driver** that replays it. There is typically more than one driver:
 
 - an interactive play loop,
 - a headless per-hook verifier,
 - the frame verifier (`run_frame_verifier`).
 
-If these count "a boundary" differently, the same demo replays at different
+If these count "a boundary" differently, the same replay replays at different
 internal points in each driver, gameplay diverges, and your corpus pass/fail
 becomes driver-dependent — i.e. the proof is an illusion. In the reference port
 this manifested as **freezes/deadlocks**, not loud errors, which is worse.
@@ -246,7 +246,7 @@ Two concrete failure modes you *will* hit:
 
 1. **Boundary-less input-wait loops.** Some original code busy-waits on the
    keyboard *without* reaching a timer/retrace/present boundary (e.g. a "press
-   FIRE to start" / "wait for FIRE release" poll). The demo clock is frozen
+   FIRE to start" / "wait for FIRE release" poll). The replay clock is frozen
    inside such a loop, so a recorded key *release* keyed to a later boundary is
    never delivered — the loop waits forever for input it can't receive. **Every
    driver must recognize these loops** and treat them as a boundary so input is
@@ -258,7 +258,7 @@ Two concrete failure modes you *will* hit:
    sub-positions of the loop they resume differently when input is pumped and
    diverge spuriously.
 
-2. **Driver-specific clocks.** Before standing up the demo-replay corpus,
+2. **Driver-specific clocks.** Before standing up the replay-replay corpus,
    **unify the boundary/clock definition** so record-time and replay-time, and
    every driver, agree on exactly what increments the counter. This is a
    prerequisite for step 4 of the proof spine, not a cleanup afterward.
@@ -300,7 +300,7 @@ but those waits must return deterministically.
   register/tone streams match.
 - **Phase 6 — Flip the engine, keep the VM as oracle.** Native loop drives; VM
   runs only in test/dev as the proof harness; ASM interpretation leaves the hot
-  path. Exit: standalone playable build. Proof: the full demo-corpus equivalence
+  path. Exit: standalone playable build. Proof: the full replay-corpus equivalence
   suite passes native-vs-VM end-to-end.
 
 Never break "always runnable, always verified" between phases.
@@ -341,8 +341,8 @@ Never break "always runnable, always verified" between phases.
    `sample_builder` (framebuffer + visible VRAM first). Confirm a no-op
    candidate (no hooks) matches the oracle frame-for-frame.
 5. **Build the input-wait registry** (`input_waits.py`) — find the boundary-less
-   poll loops (title/menu/“press fire”) before recording any demo (§6).
-6. **Record a first demo** that drives menus into gameplay; confirm it replays
+   poll loops (title/menu/“press fire”) before recording any replay (§6).
+6. **Record a first replay** that drives menus into gameplay; confirm it replays
    identically under every driver.
 7. **Start Phase 1** on the densest gameplay routines, one slice + one
    verification each, following §4.
@@ -357,12 +357,12 @@ Never break "always runnable, always verified" between phases.
 - **# of gameplay rules lifted to pure recovered functions, with tests.**
 - **Semantic-snapshot state coverage** (fraction of observable state decoded +
   diffed).
-- **Demo-corpus coverage** (levels/behaviors/RNG paths exercised) and **pass
+- **Replay-corpus coverage** (levels/behaviors/RNG paths exercised) and **pass
   rate**.
 
-**Definition of done:** the native loop runs the whole demo corpus with the VM
+**Definition of done:** the native loop runs the whole replay corpus with the VM
 disabled in the hot path, and the VM-as-oracle suite confirms frame-and-state
-exact equivalence for every demo in the corpus.
+exact equivalence for every replay in the corpus.
 
 ---
 
@@ -371,7 +371,7 @@ exact equivalence for every demo in the corpus.
 1. **The original executable is the oracle. Never guess** a routine's behavior —
    trace it and read what it did.
 2. **Verify before you trust.** No lift is "done" until diffed against the ASM
-   oracle (per-hook) and/or the frame/state oracle (demos).
+   oracle (per-hook) and/or the frame/state oracle (replays).
 3. **Thin slices only.** One routine or one understood chain at a time; the game
    stays runnable at every step.
 4. **Pure rule + thin adapter.** Keep recovered game logic side-effect-free and
@@ -379,7 +379,7 @@ exact equivalence for every demo in the corpus.
 5. **Game specifics never leak into `dos_re`.** Addresses, video modes, and
    formats live only in the adapter.
 6. **One shared definition of "a boundary" and "a wait loop."** All drivers must
-   agree, or the demo proof is void (§6).
+   agree, or the replay proof is void (§6).
 7. **Full-memory + full-state diffs by default.** Narrowing the diff hides bugs
    (freed-stack scratch, flags, off-screen state). Narrow only as a deliberate,
    temporary performance lever.

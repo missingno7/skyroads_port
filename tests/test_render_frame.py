@@ -1,7 +1,7 @@
 """Verify the assembled native mode-0 render pipeline (skyroads.native.render_frame)
 reproduces the VM's exact road_column_strip call sequence.
 
-Ground truth: one real mode-0 34AE composite pass from demo_e2e_20260710_132930
+Ground truth: one real mode-0 34AE composite pass from replay_e2e_20260710_132930
 made 24 road_column_strip calls. mode0_column_calls -- setup -> render_classify
 -> dispatch_variant_a, assembled over a NativeGameImage -- produces the identical
 24 (ax, e44, e46, e48) tuples, proving the render DECISION pipeline composes

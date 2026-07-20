@@ -14,7 +14,7 @@ verdict.  ``--quick`` stops before the differentials for an inner-loop check.
 Usage:
     python scripts/check_all.py              # everything (minutes)
     python scripts/check_all.py --quick      # lint + tests only (seconds)
-    python scripts/check_all.py --demo DIR   # differentials over another demo
+    python scripts/check_all.py --replay DIR   # differentials over another replay
     python scripts/check_all.py --no-pypy    # force CPython for every gate
 
 THE INTERPRETER SPLIT (2026-07-18).  The oracle-stepping gates are pure-Python
@@ -23,7 +23,7 @@ are fixture-bound and want CPython + xdist instead (every PyPy worker re-pays
 JIT warmup -- see dos_re/docs/performance.md).  So this script runs the
 differentials under ``pypy3`` when it is on PATH and everything else under the
 CPython that launched it.  It is an OPTIMISATION, NEVER A GATE CHANGE: same
-script, same demo, same comparison, same exit status.  The choice is PRINTED
+script, same replay, same comparison, same exit status.  The choice is PRINTED
 per gate so a fast run can never be mistaken for a different run, and
 ``--no-pypy`` forces CPython everywhere.
 
@@ -44,7 +44,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DEMO = ROOT / "artifacts" / "demos" / "demo_cold_20260718_003412"
+DEFAULT_REPLAY = ROOT / "artifacts" / "replays" / "replay_cold_20260718_003412"
 
 
 def fast_python(enabled: bool = True) -> str:
@@ -83,7 +83,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--quick", action="store_true",
                     help="skip the frame-exact differentials")
-    ap.add_argument("--demo", default=str(DEFAULT_DEMO))
+    ap.add_argument("--replay", default=str(DEFAULT_REPLAY))
     ap.add_argument("--no-pypy", action="store_true",
                     help="run the differentials under CPython too (identical "
                          "results, ~10x slower -- measured)")
@@ -110,7 +110,8 @@ def main(argv=None) -> int:
                         ["-m", "pytest", "dos_re/tests/", "-q", "-n", "auto"]))
     results.append(_run("unified player boots CPUless (no CPU)",
                         ["scripts/play.py", "--profile", "detached",
-                         "--composition", "cpuless", "--headless", "--frames", "12"],
+                         "--composition", "generated-abi",
+                         "--headless", "--frames", "12"],
                         expect="REACHED FIRST FRAME BOUNDARY"))
 
     if not args.quick:
@@ -124,11 +125,12 @@ def main(argv=None) -> int:
         # nothing extra about it and is most of the wall clock. This is also the
         # gate that catches an override which is never CALLED -- that reports
         # INCONCLUSIVE, not success.
-        print("[check] ReplayArtifact differential (selected faithful overrides)")
+        print("[check] ReplayArtifact differential (literal generated functions)")
         results.append(_run(
-            "faithful composition vs untouched oracle",
+            "generated functions vs untouched oracle",
             ["scripts/play.py", "--profile", "verification",
-             "--composition", "faithful", "--play-demo", args.demo],
+             "--composition", "generated-functions",
+             "--play-replay", args.replay],
             expect="PASS", python=fast))
     else:
         print("[check] --quick: differentials SKIPPED (they are the real proof)")

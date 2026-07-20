@@ -160,8 +160,8 @@ _SPRITE_BLIT_ROW_SKIP = 0x0123  # 0x1D + 0x123 == 0x140 (one screen row)
     # ordered byte-write log, with NO exemptions. Two populations, and the
     # claim is exactly their union and no wider:
     #
-    #  * dos_re.lift.shadow over 8,634 REAL calls -- demo_cold_20260718_003412
-    #    (1,392) + demo_colde2e_full_20260713_144604 (7,242), 64 distinct costs.
+    #  * dos_re.lift.shadow over 8,634 REAL calls -- replay_cold_20260718_003412
+    #    (1,392) + replay_colde2e_full_20260713_144604 (7,242), 64 distinct costs.
     #    MEASURED: exactly TWO row counts ever occur, 24 and 9, split evenly;
     #    and 1,751 of those calls run a FULLY TRANSPARENT mask, which is the
     #    real-game evidence for the AL-threading rule (3A2D is the only writer
@@ -169,7 +169,7 @@ _SPRITE_BLIT_ROW_SKIP = 0x0123  # 0x1D + 0x123 == 0x140 (one screen row)
     #  * tests/test_island_bodies.py forced states: 9 masks x 10 randomized
     #    register sets, plus the DX = 0 run on its own.
     #
-    # THREE THINGS NO DEMO ESTABLISHES: no real mask is fully opaque; every one
+    # THREE THINGS NO REPLAY ESTABLISHES: no real mask is fully opaque; every one
     # of the 8,634 calls exits with CF CLEAR, so the carrying `add si,0x123`
     # that sets it is unobserved; and no real DX is 0, so the 65,536-row
     # reading of the do-while is unobserved. Forced states are their only

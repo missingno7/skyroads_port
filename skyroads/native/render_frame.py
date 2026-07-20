@@ -27,7 +27,7 @@ stages, in the order `34AE` itself runs them:
       -- composites one column into the destination buffer.
 
 **Verified: this reproduces the VM's EXACT road_column_strip call sequence.**
-For a real mode-0 pass (demo_e2e_20260710_132930), the VM made 24
+For a real mode-0 pass (replay_e2e_20260710_132930), the VM made 24
 road_column_strip calls; :func:`mode0_column_calls` produces the identical 24
 ``(ax, e44, e46, e48)`` tuples with identical per-pass ``e60/e62/e64/e66/e68``
 (see ``tests/test_render_frame.py``). So the render DECISION pipeline

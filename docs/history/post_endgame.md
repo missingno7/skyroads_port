@@ -1,7 +1,7 @@
 # Post-endgame playbook — enhancements on the native product
 
 > **GATE: do not read this during recovery.** This playbook applies only after
-> the flip — a complete faithful VM-less game with the tick-demo corpus green
+> the flip — a complete faithful VM-less game with the tick-replay corpus green
 > (`verify_ticks` on every recording). If you are here earlier, close this and
 > go back to the checklist; pitfall #24 is how projects drown. The *rules*
 > (sequencing, the read-only boundary, the parity gate) are
@@ -22,13 +22,13 @@ menu.** One settings dict, persisted next to the game data, edited live. The
 menu widget is a framework piece now — `dos_re.overlay_menu` (tabbed modal
 overlay, pygame-injected, items-as-data closures, structural determinism
 firewall: the tick freezes while it is open, so nothing it consumes can
-perturb the game or a demo).
+perturb the game or a replay).
 
 **3. The tab taxonomy IS the accuracy boundary.** Three classes, never mixed:
 
 | Tab class | Contents | Contract |
 |---|---|---|
-| **Presentation** (Display / Audio / …) | read-only enhancements | parity gate: enhanced-at-neutral ≡ faithful, pixel- and state-exact; the demo corpus stays green with them on |
+| **Presentation** (Display / Audio / …) | read-only enhancements | parity gate: enhanced-at-neutral ≡ faithful, pixel- and state-exact; the replay corpus stays green with them on |
 | **Experimental** | anything that can affect game accuracy (state-writing opt-ins, input-layer comforts, gameplay-adjacent toggles) | quarantined in this one tab, labeled, default OFF; each documents exactly what it writes |
 | **Debug** (cheats) | deliberate game-state writes | exists only behind a `--debug`-style flag; hidden from the product |
 
@@ -46,7 +46,7 @@ cannot be traced from the binary. The loop:
 2. **Prototype behind a toggle** (faithful default), persisted, live-switchable.
 3. **Show, don't describe** — screenshots / before-after pairs (menu toggling
    makes A/B trivial); ask concrete taste questions.
-4. **Iterate on feedback**, then the parity gate + the full demo corpus
+4. **Iterate on feedback**, then the parity gate + the full replay corpus
    before the commit. Ledgers stay current — still the loop protocol.
 
 Expect much more human interaction per slice than recovery ever needed; that

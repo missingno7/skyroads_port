@@ -16,9 +16,9 @@ The project's vocabulary in one place. Terms link to the doc that owns them.
 | **Parity gate** | The enhanced layer's standing proof: at its neutral settings the enhanced game must be pixel- and state-identical to the faithful game, so "enhanced" can never silently mean "diverged". ([`enhancements.md`](enhancements.md)) |
 | **Hybrid runtime** | The workbench: the VM running the original game with recovered islands hooked live over it. |
 | **Native runtime** | The product: recovered source only — no VM, no EXE, no interpreted instruction in the hot path. |
-| **Demo** | A deterministic **input recording** (never a video): VM-visible key events keyed to the emulated boundary clock, plus metadata. Replays identically under every driver. ([`demos_and_snapshots.md`](demos_and_snapshots.md)) |
+| **Replay** | A deterministic **input recording** (never a video): VM-visible key events keyed to the emulated boundary clock, plus metadata. Replays identically under every driver. ([`demos_and_snapshots.md`](demos_and_snapshots.md)) |
 | **Snapshot** | A save-state-like repro artifact: full memory + CPU + DOS/hardware state. Makes bugs local ("resume here, run 4 frames, compare"). |
-| **Boundary clock** | The emulated counter demo events are keyed to. All drivers must agree on what increments it, or demo proofs are void. |
+| **Boundary clock** | The emulated counter replay events are keyed to. All drivers must agree on what increments it, or replay proofs are void. |
 | **Input-wait registry** | The one shared table of boundary-less keyboard-poll loops every driver treats as boundaries. |
 | **Hook oracle** | The differential per-hook verifier: clone, run original ASM to the continuation, run the hook, diff registers + flags + full memory. |
 | **Frame oracle** | The lockstep frame verifier: reference (pure ASM) vs candidate (hooked/native) diffed at frame boundaries. |

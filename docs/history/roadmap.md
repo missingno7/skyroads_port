@@ -1,7 +1,7 @@
 # Roadmap
 
 The framework is a living organism: it grows when a real game needs it to,
-under the rules in [`AGENTS.md`](../dos_re/AGENTS.md) (evidence-driven, stdlib-only
+under the rules in [`AGENTS.md`](../../../dos_re/AGENTS.md) (evidence-driven, stdlib-only
 core, no invention without an oracle). This file separates "next", "when a
 port needs it", and "long-term shape" so agents don't re-litigate scope every
 session. Items graduate off this list into `MIGRATION.md` when they land.
@@ -9,7 +9,7 @@ session. Items graduate off this list into `MIGRATION.md` when they land.
 ## Short-term (framework-side, no game required)
 
 - ~~tiny_frame_game example~~ **Done** (`examples/tiny_frame_game/`): a
-  synthetic frame-loop game driven through oracle boot, cold-start demo
+  synthetic frame-loop game driven through oracle boot, cold-start replay
   record/replay, snapshot restore, hook oracle (wrong + correct), frame
   verifier lockstep, and a state mirror — also serving as the repo's only
   full-stack integration test.
@@ -31,7 +31,7 @@ is the provenance record. The shortlist:
 
 - **Timing fast-forward** engine (closed-form wait collapsing; needs a
   per-game loop classification + clock model).
-- ~~Tick-demo equivalence harness~~ **Done** (`dos_re/tick_demo.py`):
+- ~~Tick-replay equivalence harness~~ **Done** (`dos_re/tick_demo.py`):
   `TickDemo` (seed + per-tick consumed keys + gameplay digests + named u16
   sidebands), `masked_digest`, `record_ticks` (seam-address recorder with the
   consumption-point refine pattern), `verify_ticks` — generalized from
@@ -53,7 +53,7 @@ is the provenance record. The shortlist:
   from Overkill's own `overkill/runtime_code.py` (a materially richer
   mechanism than the flat `self_disable_if_patched`/`code_matches` guards
   already in `dos_re/hooks.py`, which stay as the simpler single-variant case).
-- **Report generator / progress dashboard** (hooks by status, demo pass rate,
+- **Report generator / progress dashboard** (hooks by status, replay pass rate,
   interpreted-vs-native %, maturity counts, divergence list — the
   `source_port_status.py` pattern).
 - **State-view extensions** — U32/pointer/bitfield/fixed-point descriptors,
@@ -72,7 +72,7 @@ is the provenance record. The shortlist:
 
 ## Longer-term shape
 
-- **CLI** (`dos-re init/run/record-demo/replay/verify-hook/verify-frames/
+- **CLI** (`dos-re init/run/record-replay/replay/verify-hook/verify-frames/
   report ...`) — a standard ritual so every port stops reinventing runner
   scripts. Design it *after* the tiny_frame_game example exists, so the CLI
   wraps a demonstrated workflow instead of speculation.

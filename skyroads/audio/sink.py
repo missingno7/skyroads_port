@@ -7,14 +7,14 @@ renders the OPL + PC speaker but not the SB PCM, so the game's engine/jump/
 crash/pickup effects (the ``*.SND`` sample banks) were silent.
 
 This sink adds the missing digital layer as a **pure observer**, exactly like
-the AdLib sink: it never writes game state, so demos replay identically with
+the AdLib sink: it never writes game state, so replays replay identically with
 audio on or off.  The VM's emulated Sound Blaster is attached in *capture*
 mode (see :func:`skyroads.runtime.create_game_runtime` ``capture_sb_pcm``):
 every single-cycle DMA-out block is copied out of memory into ``sb.pcm_out``
 and its programmed sample rate recorded in ``sb.log`` — but no block-complete
 IRQ is delivered, so the CPU timeline is byte-identical to the detection-only
 stub the game already runs against (proven differentially over the full E2E
-demo).  We just drain those captured blocks, resample each from its DSP rate to
+replay).  We just drain those captured blocks, resample each from its DSP rate to
 the mixer rate, and sum them into the output.
 
 Because SkyRoads fires each effect as a one-shot ``0x14`` (never auto-init
@@ -26,7 +26,7 @@ needed — capturing and playing the bytes is enough.
 The base :class:`AdlibSpeakerSink.pump` generates and drains a **fixed**
 ``chunk = rate // present_hz`` samples per call, on the assumption that the
 viewer calls ``pump()`` at a steady ``present_hz``.  Under CPython the viewer
-loop cannot hold 30 Hz: ~29% of E2E-demo frames exceed the 33 ms budget (p99
+loop cannot hold 30 Hz: ~29% of E2E-replay frames exceed the 33 ms budget (p99
 230 ms, max 450 ms — measured), and ``clock.tick(present_hz)`` only pads a
 frame *up* to the budget, never speeds a slow one up.  So ``pump()`` is called
 well below 30 Hz on nearly a third of frames, and the fixed-chunk model then
@@ -39,7 +39,7 @@ emits fewer samples than the mixer consumes.  Two audible failures result:
   ``chunk`` samples *per pump*.  Coupled to pump frequency rather than the wall
   clock, that backlog ratchets up on every slow frame and never clears, so
   effects play seconds after their visual (measured structural deficit over
-  one demo: ~26 s).
+  one replay: ~26 s).
 
 The fix (this class's :meth:`pump`) sizes each pump by **real elapsed
 wall-clock time** instead of a fixed chunk, so samples produced/drained always

@@ -7,7 +7,7 @@ by menu time, per the VM-traced boot manifest (run_status.md 2026-07-13):
 2. `skyroads.cfg` -> `[4516]` (66 B),
 3. the gauge cell tables: `oxy_disp.dat` -> `[95F8]` (20 B),
    `ful_disp.dat` -> `[5480]` (20 B), `speed.dat` -> `[4572]` (68 B),
-4. `demo.rec` -> `[961E]` (6,398 B, the attract-mode input recording).
+4. `replay.rec` -> `[961E]` (6,398 B, the attract-mode input recording).
 
 The remaining VM-vs-native DGROUP differences at menu time are runtime state
 (counters, live cursors, the `31A8` LZS staging scratch) and the allocator's
@@ -98,6 +98,7 @@ def native_boot_dgroup(game_root: "str | Path") -> bytearray:
     dg[FUL_CELLS_OFF:FUL_CELLS_OFF + 20] = ful[:20]
     dg[SPEED_CELLS_OFF:SPEED_CELLS_OFF + 68] = spd[:68]
 
+    # SKYROADS' own attract-mode data file; this is not a dos_re ReplayArtifact.
     rec = read_game_file(root, "DEMO.REC")
     dg[DEMO_REC_OFF:DEMO_REC_OFF + len(rec)] = rec
 

@@ -2,7 +2,7 @@
 
 The screen-present masked blit (the routine that flushes composited frames to
 VGA -- see run_status.md's "FOUND the real screen present" entry). Verified by
-full-memory diff against real 41A0 invocations from demo_e2e_20260710_132930:
+full-memory diff against real 41A0 invocations from replay_e2e_20260710_132930:
 masked_blit reproduces every byte 41A0 writes to its destination segment,
 exactly. (The captured calls are small UI blits exercising the MIDDLE
 color-keyed band, top/bottom verbatim counts 0; the top/bottom bands are plain

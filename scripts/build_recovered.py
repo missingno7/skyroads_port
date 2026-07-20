@@ -357,7 +357,7 @@ def build() -> int:
           f"(closure complete: {manifest['runtime_closure_complete']})")
     print(f"[standalone] wrote {MANIFEST.relative_to(ROOT)}")
     print("[standalone]   play:   python scripts/play.py --profile detached "
-          "--composition cpuless --headless")
+          "--composition generated-abi --headless")
     print("[standalone]   purity: python tools/lint_cpuless.py")
     return 0
 

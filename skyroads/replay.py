@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from dos_re.input_demo import RealModeInputAdapter
+from dos_re.replay_input import RealModeInputAdapter
 from dos_re.replay import (
     CanonicalState,
     ContinuationState,

@@ -1,6 +1,6 @@
 """Verify the recovered jump-latch + steering + gravity block
 (skyroads.handrecovered.dynamics.step_jump_steer_gravity) against real ASM I/O
-captured over the full E2E demo (1010:252B-2635).
+captured over the full E2E replay (1010:252B-2635).
 
 415/416 real frames match byte-exact on (bounce, lateral_accel, bp-8, bp-10);
 the fixture keeps a representative spread plus every jump-fire, 1DFA-effect,

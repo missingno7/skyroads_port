@@ -1,6 +1,6 @@
 """Verify the recovered per-column road-draw dispatch
 (skyroads.handrecovered.render_dispatch) against real ASM I/O captured over the
-full E2E demo.
+full E2E replay.
 
 101 distinct field-snapshots per variant (deduped from ~1280 real invocations
 each), all matched exactly. A small number of invocations (16/1280 for variant

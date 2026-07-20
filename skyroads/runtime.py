@@ -52,8 +52,8 @@ def create_game_runtime(
     ``*.SND`` sound effects) are copied into ``sb.pcm_out`` and their sample
     rate logged, so a viewer audio sink can play them (see skyroads/audio.py).
     No block-complete IRQ is delivered, so the CPU timeline stays byte-identical
-    to the detection-only stub (verified differentially over the full E2E demo)
-    -- demos still replay deterministically.  Off by default so the headless/
+    to the detection-only stub (verified differentially over the full E2E replay)
+    -- replays still replay deterministically.  Off by default so the headless/
     test path keeps the exact detection-only behaviour and does not accumulate
     captured PCM."""
     rt = create_runtime(exe_path, game_root=game_root, command_tail=command_tail)

@@ -5,7 +5,7 @@ routine: each case replays the exact ``1732`` results the ASM saw, so the pure
 ``resolve_move`` is checked against the ASM both on its output accumulators AND
 on the exact sequence of collision probes it makes (an unrecorded probe means
 the reconstruction's interpolation diverged). Fixture captured from the level
-demo; the full-demo run verifies 1760/1760 calls (see run_status 2026-07-10).
+replay; the full-replay run verifies 1760/1760 calls (see run_status 2026-07-10).
 """
 from __future__ import annotations
 

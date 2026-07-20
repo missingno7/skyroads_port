@@ -28,7 +28,7 @@ continues from the right basic block. That is the same "end the frame at the
 tick-wait" semantics pacing.py already proved byte-equivalent to burning the
 full step budget.
 
-Selected with ``scripts/play.py --profile detached --composition vmless``.
+Selected with ``scripts/play.py --profile detached --composition generated-cpu``.
 """
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ sys.path.insert(0, str(ROOT))
 from dos_re.cpu import HaltExecution  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
 from dos_re.independence import boot_vmless_image, independence_report  # noqa: E402
-from dos_re.input_demo import mouse_sample  # noqa: E402
+from dos_re.replay_input import mouse_sample  # noqa: E402
 from dos_re.keyboard import KeyDispatcher, scancode_table  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
 # From runtime_core, NOT dos_re.runtime / skyroads.runtime / dos_re.player:
@@ -228,7 +228,7 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
     #    emits its audio commands, but no PCM is streamed -- music (OPL) plays,
     #    digital SFX do not. Capture mode streams the DMA PCM too, and is a
     #    determinism-safe OBSERVER (byte-identical CPU timeline), but it stays
-    #    OFF for headless/demo runs so the differential keeps the exact
+    #    OFF for headless/replay runs so the differential keeps the exact
     #    detection-only path and accumulates no captured PCM. Same rule as
     #    scripts/play.py::_capture_sb -- audio on and interactive.
     if sound:
@@ -245,7 +245,7 @@ def launch(args, *, bootstrap_artifacts: dict[str, Path]) -> int:
     """Launch the selected whole-program VMless provider."""
     # Capture the DMA PCM only for the interactive viewer: it is a
     # determinism-safe observer, but headless must keep the detection-only
-    # path so demo replay and the differential stay byte-identical.
+    # path so replay replay and the differential stay byte-identical.
     boot_files = (
         bootstrap_artifacts["skyroads-boot-state"],
         bootstrap_artifacts["skyroads-boot-memory"],
@@ -322,7 +322,7 @@ def _window(rt, drv, args) -> int:
     # there is one.
     #
     # mouse_sample() quantizes exactly as the recorder does, so what the game
-    # sees here is what a demo would replay -- live play and replay cannot drift.
+    # sees here is what a replay would replay -- live play and replay cannot drift.
     set_mouse = getattr(rt.dos, "set_mouse_norm", None)
     mouse_btn = [0]           # Microsoft mask: bit0=left, bit1=right, bit2=middle
     running = True

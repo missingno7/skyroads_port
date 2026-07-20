@@ -20,7 +20,7 @@ find_dispatch_targets, so the evidence is exactly as trustworthy:
      run of `mov word [imm16], imm16`
        site   = the call_ip (its disp16 IS the slot)
        targets = the code pointers stored into that slot (from the IR -- covers
-                 every fill variant, incl. the mode a demo never took), plus any
+                 every fill variant, incl. the mode a replay never took), plus any
                  runtime value caught in an image at that slot
 
 Emits ``artifacts/codemap/dispatch_evidence.json`` in cpuless_promote's
@@ -86,7 +86,7 @@ def build(
         key = f"{CODE_SEG:04X}:{target:04X}"
         # --observed: cpuless_promote's _gate_dyn_evidence gates a dispatcher on
         # its OBSERVED runtime targets. A bounded table also holds entries no run
-        # ever selects (a per-object render type the demos never show); requiring
+        # ever selects (a per-object render type the replays never show); requiring
         # the dispatcher to COMPOSE those -- and everything they transitively
         # reach -- blocks it on untested code. Keeping only observed targets makes
         # an unselected one a fail-loud UnknownDispatchTarget instead (hard-wall
@@ -152,7 +152,7 @@ def main(argv=None) -> int:
     boot_image = ROOT / "artifacts" / "boot_image" / "memory_1mb.bin"
     if boot_image.is_file():
         images.append(("boot_image", boot_image.read_bytes()))
-    images.extend(recording_base_memories(ROOT / "artifacts" / "demos"))
+    images.extend(recording_base_memories(ROOT / "artifacts" / "replays"))
     for raw in args.images or ():
         path = Path(raw)
         if path.is_file():

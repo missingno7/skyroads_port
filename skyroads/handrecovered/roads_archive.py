@@ -36,9 +36,9 @@ self-consistent. See `tests/test_roads_archive.py`'s
 
 **Verified 3/3 against real live-VM captures** (not a lift of one ASM routine,
 so `boundary` below names the real consumer instead of a single lifted
-address): `ROADS.LZS` directory index 16 → `(8, 200, 180)`, matching the demo
-`demo_cold_20260711_201855`'s frame-282 capture; index 17 → `(7, 175, 60)`,
-matching that same demo's frame-1327 capture (a REAL keyboard DOWN-ARROW +
+address): `ROADS.LZS` directory index 16 → `(8, 200, 180)`, matching the replay
+`replay_cold_20260711_201855`'s frame-282 capture; index 17 → `(7, 175, 60)`,
+matching that same replay's frame-1327 capture (a REAL keyboard DOWN-ARROW +
 ENTER level pick, traced via the pushed-argument register captures at
 `1010:568C-56A0`); index 1 → `(8, 150, 180)`, matching frame 2016. All three
 exact, including the "same gravity, different fuel" case (indices 0/6/8/etc.

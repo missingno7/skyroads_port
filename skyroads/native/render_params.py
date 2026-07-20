@@ -162,7 +162,7 @@ def compute_render_params(
     # unadjusted af2c. This only shows up in OFFSCREEN mode (af2c_eff = af2c-0x80
     # there), which is the native-render path -- with af2c_eff the ship drew
     # exactly one row (0x140) too low. VM-verified 2026-07-13 on
-    # demo_skyroads_20260713_103107 (3 frames: af2c 12800/18100/13603 ->
+    # replay_skyroads_20260713_103107 (3 frames: af2c 12800/18100/13603 ->
     # screen_row 100/141/106 == af2c//0x80, was 99/140/105 with af2c_eff).
     screen_row = 0 if si == 0xFFFF else (af2c // 0x80)                 # [asm 0E6D-0E85]
     lateral_col = (lateral32 // 0x2000) & 0xFFFF                       # [asm 0E86-0E98] 5D8C

@@ -1,7 +1,7 @@
 """Verify the pure render orchestrator (`skyroads.native.render_params`,
 = `1010:0C98`) against real VM invocations.
 
-Fixture: 8 real `0C98` calls captured from the level-14 demo — the DGROUP words
+Fixture: 8 real `0C98` calls captured from the level-14 replay — the DGROUP words
 the pure function actually reads, plus the 8 parameters the ASM then pushed to
 `2D1F`. Live verification was 40/40 (params byte-equal + render/skip decisions
 agree) — see run_status.md 2026-07-12. The dirty-cache SKIP path did not occur

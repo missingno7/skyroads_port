@@ -1,9 +1,9 @@
 """Verify the recovered ship physics (skyroads.handrecovered.player) against real
-ASM I/O captured over the level demo.
+ASM I/O captured over the level replay.
 
 ``advance_ship`` (1010:24C4) and ``decay_bounce`` (1010:24A1) are inline in the
 gameplay handler; the fixture is (input -> output) triples/pairs sampled by
-watching those IPs during the demo (full run: 1610/1610 advance_ship and 63/63
+watching those IPs during the replay (full run: 1610/1610 advance_ship and 63/63
 decay_bounce byte-exact). The fixture deliberately includes negative-speed
 cases: the ASM sign-extends speed (cwd) before multiplying by 75, so a negative
 speed moves the ship *backward* — an earlier unsigned reconstruction diverged on
@@ -23,7 +23,7 @@ from skyroads.handrecovered.player import (
 
 def test_level_gravity_matches_asm() -> None:
     # -(jump_level_gate * 0x1680 / 0x190); verified vs the ASM at 1010:201C for
-    # the E2E demo's init values (jump_gate 8 -> 0xFF8D, 9 -> 0xFF7F).
+    # the E2E replay's init values (jump_gate 8 -> 0xFF8D, 9 -> 0xFF7F).
     assert level_gravity(8) == 0xFF8D
     assert level_gravity(9) == 0xFF7F
 
@@ -64,7 +64,7 @@ def test_decay_bounce_matches_asm() -> None:
 
 
 def test_update_vertical_velocity_matches_asm() -> None:
-    # gravity + jump-impulse path: byte-exact vs the deaths demo (all airborne,
+    # gravity + jump-impulse path: byte-exact vs the deaths replay (all airborne,
     # af2c>=0x2800; the fixture includes a jump-impulse frame)
     cases = _VPHYS["update_vertical_velocity"]
     assert cases, "fixture empty"
@@ -86,7 +86,7 @@ def test_update_vertical_velocity_branches() -> None:
 
 
 def test_respawn_matches_asm() -> None:
-    # 3/3 real deaths-demo respawns byte-exact, all 19 fields (1010:201F-20A7)
+    # 3/3 real deaths-replay respawns byte-exact, all 19 fields (1010:201F-20A7)
     assert _RESPAWNS, "fixture empty"
     expected = respawn()._asdict()
     for event in _RESPAWNS:

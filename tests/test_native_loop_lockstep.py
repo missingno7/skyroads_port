@@ -25,11 +25,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_skyroads_L1FULL_20260713_212417"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_skyroads_L1FULL_20260713_212417"
 
 pytestmark = pytest.mark.skipif(
-    not (EXE.exists() and DEMO.exists()),
-    reason="needs SKYROADS.EXE + the E2E demo",
+    not (EXE.exists() and REPLAY.exists()),
+    reason="needs SKYROADS.EXE + the E2E replay",
 )
 
 # Input fields the outer loop / input handler sets between sub-steps -- injected
@@ -58,10 +58,10 @@ def test_native_loop_stays_in_lockstep_with_vm() -> None:
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless"])
-    pb, rt = open_oracle_replay(frontend, args, DEMO)
-    # Replay with the mouse-presence the demo was recorded under (pinned in its
-    # metadata), so a demo recorded with the mouse present reproduces faithfully.
+        ["--play-replay", str(REPLAY), "--headless"])
+    pb, rt = open_oracle_replay(frontend, args, REPLAY)
+    # Replay with the mouse-presence the replay was recorded under (pinned in its
+    # metadata), so a replay recorded with the mouse present reproduces faithfully.
     rt.dos.mouse_present = pb.mouse_present_hint
 
     def _bpw(m, ss, bp, o):
@@ -145,7 +145,7 @@ def test_native_loop_stays_in_lockstep_with_vm() -> None:
     finally:
         CPU8086.step = orig
 
-    assert runs, "no lockstep runs recorded -- harness/demo setup broken"
+    assert runs, "no lockstep runs recorded -- harness/replay setup broken"
     total_in_sync = sum(s for s, _ in runs)
     max_streak = max(s for s, _ in runs)
 

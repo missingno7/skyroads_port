@@ -1,7 +1,7 @@
 """coverage_audit.py -- find the coverage gaps BEFORE a player falls into one.
 
 A fail-loud stop in the recovered corpus is almost always a coverage bug: some
-function the demos never executed, whose exits were therefore stubbed. We found
+function the replays never executed, whose exits were therefore stubbed. We found
 the last two the expensive way -- a player hit ``1010:2F57`` in live play, and
 the diagnosis took a session. Both were sitting in plain sight the whole time.
 
@@ -13,7 +13,7 @@ executed is a gap, and it is knowable now rather than after a crash.
     1010:2DD4 dispatches `call [bx+0x0BAF]` with bx = (cell & 0x0F) * 2, so the
     table at 1686:0BAF is six block-type handlers plus a no-op default:
       [0]=2E6C [1]=3059 [2]=2EBB [3]=2EFD [4]=2F58 [5]=2FCC [6..]=3AC9
-    Slots 3 and 5 never appeared in any demo -> 2EFD/2FCC unobserved -> their
+    Slots 3 and 5 never appeared in any replay -> 2EFD/2FCC unobserved -> their
     `ret`s stubbed fail-loud -> the crash.
 
 For the block table it goes further and says WHICH LEVEL to drive: ROADS.LZS
@@ -22,7 +22,7 @@ low nibble, so the levels carrying an uncovered block type can be listed
 directly (that is how level 14 and level 8 were chosen).
 
 This reports; it never invents coverage. Closing a gap still means executing the
-code -- see docs/cpuless_standalone.md for the demo-synthesis recipe.
+code -- see docs/cpuless_standalone.md for the replay-synthesis recipe.
 
 Usage:
     python scripts/coverage_audit.py
@@ -128,8 +128,8 @@ def main() -> int:
             print(f"      drive one of these levels to cover it: {top}")
         else:
             print("      no level carries this cell -- reachable another way")
-    print("\n[audit] to close: synthesize a demo that plays such a level, add it "
-          "to DEFAULT_DEMOS + BOUNDARY_DEMOS in scripts/build_codemap.py, then "
+    print("\n[audit] to close: synthesize a replay that plays such a level, add it "
+          "to DEFAULT_REPLAYS + BOUNDARY_REPLAYS in scripts/build_codemap.py, then "
           "`python scripts/rebuild_all.py`.")
     return 1
 

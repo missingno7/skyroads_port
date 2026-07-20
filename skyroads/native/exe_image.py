@@ -26,7 +26,7 @@ disassembled from the live cold-boot capture — see run_status.md):
   decoded from the stub's table) get the load segment added.
 
 VERIFIED byte-exact vs the VM's memory at the moment of the stub's far jump
-(cold-demo capture at `1010:61F3`) — tests/test_exe_image.py.
+(cold-replay capture at `1010:61F3`) — tests/test_exe_image.py.
 """
 from __future__ import annotations
 

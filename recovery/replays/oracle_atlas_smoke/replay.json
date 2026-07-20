@@ -1,0 +1,391 @@
+{
+  "event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
+  "events": [
+    {
+      "channel": "mouse.normalized",
+      "payload": {
+        "buttons": 0,
+        "u": 0.5664,
+        "v": 0.3523
+      },
+      "point": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "sequence": 0
+    },
+    {
+      "channel": "mouse.normalized",
+      "payload": {
+        "buttons": 0,
+        "u": 0.5664,
+        "v": 0.3447
+      },
+      "point": {
+        "key": "f029e88d5c291312-0000000000000002",
+        "ordinal": 2,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "sequence": 1
+    }
+  ],
+  "execution_evidence": {
+    "incomplete_functions": [],
+    "profile_identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+    "runtime_variants": [],
+    "transfers": [
+      {
+        "count": 7,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000002",
+          "ordinal": 2,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "return",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000003",
+          "ordinal": 3,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b17",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153"
+      },
+      {
+        "count": 6,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000001",
+          "ordinal": 1,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "return",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000001",
+          "ordinal": 1,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b17",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459"
+      },
+      {
+        "count": 18,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000000",
+          "ordinal": 0,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "call",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000002",
+          "ordinal": 2,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b17",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a55"
+      },
+      {
+        "count": 2,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000002",
+          "ordinal": 2,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "return",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000003",
+          "ordinal": 3,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153"
+      },
+      {
+        "count": 6545,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000001",
+          "ordinal": 1,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "return",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000003",
+          "ordinal": 3,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459"
+      },
+      {
+        "count": 6546,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000000",
+          "ordinal": 0,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "call",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000002",
+          "ordinal": 2,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fcc"
+      },
+      {
+        "count": 6546,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000000",
+          "ordinal": 0,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "call",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000002",
+          "ordinal": 2,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153"
+      },
+      {
+        "count": 2,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000002",
+          "ordinal": 2,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "return",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000003",
+          "ordinal": 3,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153"
+      },
+      {
+        "count": 18,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000001",
+          "ordinal": 1,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "return",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000003",
+          "ordinal": 3,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a55",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b17"
+      },
+      {
+        "count": 6545,
+        "first_observed": {
+          "key": "f029e88d5c291312-0000000000000001",
+          "ordinal": 1,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "kind": "return",
+        "last_observed": {
+          "key": "f029e88d5c291312-0000000000000003",
+          "ordinal": 3,
+          "timeline_id": "skyroads-presented-frame-boundaries-v1"
+        },
+        "source_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fcc",
+        "target_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153"
+      }
+    ],
+    "version": 1
+  },
+  "format_version": 1,
+  "function_visits": [
+    {
+      "first_entry": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A3b17",
+      "invocation_count": 13,
+      "last_exit": {
+        "key": "f029e88d5c291312-0000000000000003",
+        "ordinal": 3,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      }
+    },
+    {
+      "first_entry": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153",
+      "invocation_count": 6548,
+      "last_exit": {
+        "key": "f029e88d5c291312-0000000000000003",
+        "ordinal": 3,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      }
+    },
+    {
+      "first_entry": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459",
+      "invocation_count": 3,
+      "last_exit": {
+        "key": "f029e88d5c291312-0000000000000003",
+        "ordinal": 3,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      }
+    },
+    {
+      "first_entry": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5a55",
+      "invocation_count": 18,
+      "last_exit": {
+        "key": "f029e88d5c291312-0000000000000003",
+        "ordinal": 3,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      }
+    },
+    {
+      "first_entry": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "function_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5fcc",
+      "invocation_count": 6546,
+      "last_exit": {
+        "key": "f029e88d5c291312-0000000000000003",
+        "ordinal": 3,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      }
+    }
+  ],
+  "metadata": {
+    "artifact_kind": "oracle-verifiable-replay",
+    "end_point": {
+      "key": "f029e88d5c291312-0000000000000003",
+      "ordinal": 3,
+      "timeline_id": "skyroads-presented-frame-boundaries-v1"
+    },
+    "game": "skyroads",
+    "mouse_present": true,
+    "purpose": "execution-atlas-oracle-evidence",
+    "recording_profile_id": "real-mode-development-3e4188fc390a",
+    "source_event_stream_sha256": "88a8938328964bbbb93bcf745bf135e82c8794fddd2fbe6e5ce2f963720f3795",
+    "steps_per_frame": 48000,
+    "timer_irqs_per_frame": 6
+  },
+  "page_size": 4096,
+  "points": {
+    "f029e88d5c291312-0000000000000003": {
+      "annotations": [
+        {
+          "kind": "verified-endpoint",
+          "metadata": {
+            "candidate_profile": "skyroads-candidate-7ad31fdefa63",
+            "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
+            "oracle_profile": "real-mode-development-3e4188fc390a",
+            "projection_schema": "dos-re-complete-machine-v1"
+          }
+        }
+      ],
+      "point": {
+        "key": "f029e88d5c291312-0000000000000003",
+        "ordinal": 3,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      }
+    }
+  },
+  "profiles": {
+    "real-mode-development-3e4188fc390a": {
+      "base": "profiles/real-mode-development-3e4188fc390a-3ab4f31d02a45082/base/state.json",
+      "base_point": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "base_state_sha256": "dac47e2b944e0948e30525041dc2126d8ed9f0089287eb02a5ed89edecb1b6be",
+      "boundaries": {
+        "f029e88d5c291312-0000000000000003": {
+          "manifest": "profiles/real-mode-development-3e4188fc390a-3ab4f31d02a45082/boundaries/f029e88d5c291312-0000000000000003/state.json",
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        }
+      },
+      "identity": {
+        "continuation_schema": "dos-re-real-mode-continuation-v1",
+        "devices": "dos-re-real-mode-devices-v1",
+        "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+        "implementation": "58d76a603bf8a1d1e89bfec93a47de45a6c8cd8d2104142669d767b121fcac94",
+        "overrides": [
+          "(61440, 59783):bios_int9_keyboard",
+          "(61440, 65363):bios_iret_stub"
+        ],
+        "profile_id": "real-mode-development-3e4188fc390a",
+        "projection_schema": "dos-re-complete-machine-v1",
+        "role": "oracle",
+        "runtime": "5527ddc3f845ee1b9db0194284cc0f62cfb82436ea8f777c2d0538425c766f0b"
+      },
+      "identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+      "pending_boundaries": {}
+    },
+    "skyroads-candidate-7ad31fdefa63": {
+      "base": "profiles/skyroads-candidate-7ad31fdefa63-618524a31ffcafe9/base/state.json",
+      "base_point": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "base_state_sha256": "dac47e2b944e0948e30525041dc2126d8ed9f0089287eb02a5ed89edecb1b6be",
+      "boundaries": {
+        "f029e88d5c291312-0000000000000003": {
+          "manifest": "profiles/skyroads-candidate-7ad31fdefa63-618524a31ffcafe9/boundaries/f029e88d5c291312-0000000000000003/state.json",
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        }
+      },
+      "identity": {
+        "continuation_schema": "dos-re-real-mode-continuation-v1",
+        "devices": "skyroads-dos-devices-v1",
+        "image": "sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+        "implementation": "0ca904d6dac564b7a9acf8b20c45189f937281fbe194b6a8422c1e48edb42fae",
+        "overrides": [
+          "1010:0baf:lifted_bounds_check_0BAF",
+          "1010:0be9:lifted_project_row_0BE9",
+          "1010:186b:lifted_road_stepper_186B",
+          "1010:2d1f:lifted_road_render_driver_2D1F",
+          "1010:34ae:lifted_tile_render_34AE",
+          "1010:39d4:lifted_hud_blit_finalize_39D4",
+          "1010:5d80:lifted_shl32_5D80",
+          "f000:e987:bios_int9_keyboard",
+          "f000:ff53:bios_iret_stub"
+        ],
+        "profile_id": "skyroads-candidate-7ad31fdefa63",
+        "projection_schema": "dos-re-complete-machine-v1",
+        "role": "candidate",
+        "runtime": "sha256:44bc0b88822880c8926cd9fc2b508879166b59bf3b99e2d69335342a15ff3a64"
+      },
+      "identity_digest": "618524a31ffcafe93f15aa5fb2940cb53d8499a3c5703b392595e03cb9b973d0",
+      "pending_boundaries": {}
+    }
+  },
+  "revision": 10,
+  "timeline_id": "skyroads-presented-frame-boundaries-v1"
+}

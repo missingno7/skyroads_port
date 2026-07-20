@@ -1,7 +1,7 @@
 """Verify skyroads.handrecovered.render_classify against a real 34AE render pass.
 
 Ground truth: one full 34AE render invocation (variant A, record_base 0x16B8)
-captured from demo_e2e_20260710_132930 -- 80 dispatch calls (= 10 outer x 4
+captured from replay_e2e_20260710_132930 -- 80 dispatch calls (= 10 outer x 4
 middle x 2 inner). render_classify reproduces every classification field of
 every call byte-exact (80/80). See the module docstring + run_status.md.
 """

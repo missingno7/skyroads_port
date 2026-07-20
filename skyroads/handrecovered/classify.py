@@ -14,7 +14,7 @@ three per-frame classification flags the rest of the frame gates on:
 
 `class_skip`/`class_zero` are exactly the inputs
 `dynamics.step_jump_steer_gravity` needs. Verified 682/682 against the real
-ASM over the full E2E demo (computing the perspective word natively via
+ASM over the full E2E replay (computing the perspective word natively via
 `perspective_row_offset` + a DGROUP read, and the table lookup via the same
 reader).
 
@@ -73,7 +73,7 @@ class ClassifyResult(NamedTuple):
              "leave it; a side-effect 1B49(word) call fires; then class_skip = "
              "(word & 0xF == 8), bp16 = (word & 0xF == 2). Returns the flags "
              "plus the reduced word and whether 1B49 was called.",
-    status="ASM_MATCHED",  # 682/682 real E2E-demo frames byte-exact on
+    status="ASM_MATCHED",  # 682/682 real E2E-replay frames byte-exact on
     # (class_skip, bp16, class_zero), computing persp_word natively via
     # renderer.perspective_row_offset + a DGROUP read and the table lookup via
     # the same reader. See tests/test_classify.py + run_status.md.

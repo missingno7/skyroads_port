@@ -11,7 +11,7 @@ window with live keyboard, running until you quit.  ``--headless`` is the opt-in
 for agents/CI (no window, frame-capped, no input source).
 
 The frame model lives in :mod:`skyroads.cpuless_driver`. Select this provider
-with ``scripts/play.py --profile detached --composition cpuless``.
+with ``scripts/play.py --profile detached --composition generated-abi``.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_ENTRY = (0x1010, 0x61F3)
 STANDALONE_DIR = ROOT / "skyroads" / "recovered"
 #: SkyRoads presents at 30 Hz with 6 IRQ0 ticks per frame (= 180 Hz IRQ0), the
-#: ratio every recorded demo carries as ``timer_irqs_per_frame``.
+#: ratio every recorded replay carries as ``timer_irqs_per_frame``.
 PRESENT_HZ = 30
 
 
@@ -191,7 +191,7 @@ def run_headless(
         print(f"[cpuless] the game exited (int 21/4C) after {done['n']} "
               f"frame(s) -- no CPU, no interpreter")
     except BaseException as e:           # noqa: BLE001 -- report ANY stop, then re-raise
-        # No input source here, so no demo to record; the machine state and the
+        # No input source here, so no replay to record; the machine state and the
         # recovered call chain are still worth having.
         if diagnostics is not None:
             diagnostics(

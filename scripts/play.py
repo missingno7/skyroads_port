@@ -3,11 +3,11 @@
 Examples::
 
     python scripts/play.py
-    python scripts/play.py --composition faithful
-    python scripts/play.py --profile verification --composition faithful \
-        --play-demo artifacts/demos/replay_name
-    python scripts/play.py --profile detached --composition cpuless --headless
-    python scripts/play.py --profile release --composition cpuless --plan-only
+    python scripts/play.py --composition authored-candidates
+    python scripts/play.py --profile verification --composition generated-functions \
+        --play-replay artifacts/replays/replay_name
+    python scripts/play.py --profile development --composition generated-abi --headless
+    python scripts/play.py --profile release --composition generated-abi --plan-only
 
 Execution profile controls what dependencies and services are legal.
 Composition controls which implementations satisfy the program identities.
@@ -51,12 +51,15 @@ class SkyroadsFrontend(player.GameFrontend):
         execution.add_argument(
             "--composition",
             choices=(
-                "auto", "oracle", "faithful", "play",
-                "behavioral", "vmless", "cpuless",
+                "auto", "oracle", "generated-functions",
+                "authored-candidates", "play",
+                "behavioral", "generated-cpu", "generated-abi",
             ),
             default="auto",
-            help="implementation composition (auto selects practical faithful play "
-                 "for development, faithful for verification, and cpuless for "
+            help="implementation composition (generated-functions mixes literal "
+                 "generated functions with interpreter fallback; auto selects "
+                 "practical play for development, literal generated functions "
+                 "for verification, and the generated ABI-recovered region for "
                  "detached/release)",
         )
         execution.add_argument(
@@ -137,7 +140,8 @@ class SkyroadsFrontend(player.GameFrontend):
         if provider not in {"baseline:interpreted-exe"}:
             raise RuntimeError(
                 "ReplayArtifact differential verification currently requires a "
-                "DOS-memory-backed interpreted composition; select --composition faithful"
+                "DOS-memory-backed interpreted composition; select "
+                "--composition generated-functions or authored-candidates"
             )
         from skyroads.replay import (
             SkyroadsReplayDriver,

@@ -1,7 +1,7 @@
 """The complete native gameplay FRAME — every stage pure recovered Python.
 
 Composes the proven pieces in `2D1F`'s exact order (call-boundary capture of
-demo_e2e frame 571, 2026-07-13 — see run_status.md):
+replay_e2e frame 571, 2026-07-13 — see run_status.md):
 
     compute_render_params (0C98, 40/40)        -- sim state -> 8 params + skip
       -> params stored to [0E28..0E36]         -- 2D1F prologue

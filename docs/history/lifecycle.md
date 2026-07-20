@@ -35,7 +35,7 @@ The geography of recovery, in one picture:
 The project starts by getting the original EXE to boot and run inside the VM:
 MZ loading, the packer bootstrap (run once, snapshot past it), DOS/BIOS
 services, video output you can decode into an image, keyboard delivery the
-game's own ISR sees, and deterministic input demos that replay a session
+game's own ISR sees, and deterministic input replays that replay a session
 byte-for-byte. At this stage the original game **is** the game: it boots,
 runs, accepts input, renders frames, and every run is replayable evidence.
 ([`porting_new_game.md`](porting_new_game.md) steps 1–6.)
@@ -56,7 +56,7 @@ can look at). Both source ports started exactly here.
 Each replacement goes through the same loop (one routine, one verification,
 per slice): trace → snapshot fixture → thin hook over a pure rule → verify
 against the interpreted original — registers, flags, full memory, and for
-visual paths, frames. ([`hooks_and_verification.md`](../dos_re/docs/hooks_and_verification.md).)
+visual paths, frames. ([`hooks_and_verification.md`](../../dos_re/docs/hooks_and_verification.md).)
 
 **Start the island ledger on the first island.** Every recovered function
 carries `@oracle_link(boundary, contract, status, merge_target)`
@@ -79,7 +79,7 @@ the memory. (Charter Phase 1.)
 
 A pile of low-level hooks is scaffolding, not the goal. As neighbouring
 islands are proven, the glue between them (tails, helpers, per-row scan steps
-— `glue` in the [hook taxonomy](../dos_re/docs/hooks_and_verification.md#hook-roles-and-lifetimes-dos_rehook_taxonomypy))
+— `glue` in the [hook taxonomy](../../dos_re/docs/hooks_and_verification.md#hook-roles-and-lifetimes-dos_rehook_taxonomypy))
 collapses into single native chains, and verified behaviour is lifted into
 higher-level representations: objects instead of slot bytes, render states,
 level data, input state, audio command streams, animation state, game rules.
@@ -122,7 +122,7 @@ backends (video/audio/input/timing), the game can run **without** the VM: a
 native source port that cold-boots from the original data files plus recovered
 boot constants — the post-bootstrap initialized state extracted once into
 native data, so the shipped game needs **no EXE and no snapshot** at runtime
-(snapshots and demos are recovery *evidence*, never a runtime dependency).
+(snapshots and replays are recovery *evidence*, never a runtime dependency).
 No emulator, no interpreted instruction in the hot path. (Charter Phases 5–6.)
 
 This stage does not wait for Stage 3 to finish everywhere — convergence is
@@ -147,7 +147,7 @@ verification needs it, but gameplay code reads it through human-named views
 (`player.x`, `slot.sprite`), so readable code and byte-exact comparability
 coexist. Offsets are quarantined in one bridge module; the "clean"
 representation and the "verifiable" representation are the same bytes.
-([`state_mirrors.md`](../dos_re/docs/state_mirrors.md).) The mirror **verifies** the native
+([`state_mirrors.md`](../../dos_re/docs/state_mirrors.md).) The mirror **verifies** the native
 game; it does not **power** it — with verification off, no VM starts and no
 projection runs.
 
@@ -180,7 +180,7 @@ faithfulness.
 
 At the end, the VM is no longer a runtime dependency. It remains as the
 offline proof harness behind a **verification switch**: ON, the oracle runs
-beside the native game — a recorded demo replays through the ASM and the
+beside the native game — a recorded replay replays through the ASM and the
 native core **tick by tick** and the full data-segment image is compared
 byte-exact (render/async offsets aside); OFF, no VM starts and the native game
 runs by itself. The VM is the microscope for regressions, the debugger for
@@ -194,7 +194,7 @@ proves it did not drift.
 
 ## Stage 6 — the enhanced layer: the real endgame
 
-Only now — with a complete, stable, faithful VM-less game that passes the demo
+Only now — with a complete, stable, faithful VM-less game that passes the replay
 corpus — does the enhanced presentation layer become the focus: widescreen,
 frame interpolation, smooth transitions, modern scaling, CRT/square-pixel
 aspect, stereo expansion. This ordering is deliberate and learned: building

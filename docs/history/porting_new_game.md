@@ -4,7 +4,7 @@ This is the concrete path from "an original EXE + its data files" to "the
 oracle-driven recovery loop is running". The full method is in
 [`ai_porting_charter.md`](ai_porting_charter.md); this guide is the ordered
 to-do list with the framework touchpoints named.
-[`START_HERE.md`](../START_HERE.md) is your boot sequence (it routes here) and
+[`START_HERE.md`](START_HERE.md) is your boot sequence (it routes here) and
 [`pitfalls.md`](pitfalls.md) is the list of mistakes already made for you.
 
 ## Know your game's style first
@@ -31,7 +31,7 @@ Three docs count differently; they describe one process:
 
 | This guide (steps) | [`lifecycle.md`](lifecycle.md) (stages) | [`ai_porting_charter.md`](ai_porting_charter.md) (phases) |
 |---|---|---|
-| 0–6 (bring-up: adapter, boot, output, boundaries, verifier, input waits, first demo) | Stage 0 | charter §9 (bootstrapping checklist) |
+| 0–6 (bring-up: adapter, boot, output, boundaries, verifier, input waits, first replay) | Stage 0 | charter §9 (bootstrapping checklist) |
 | 7 (the lifting loop) | Stages 1–2 | Phase 1 |
 | 8 (coverage telemetry) | ongoing | §10 (metrics) |
 | Endgame steps 1–5 | Stages 3–5 | Phases 2–6 |
@@ -39,7 +39,7 @@ Three docs count differently; they describe one process:
 
 ## 0. Set up the adapter
 
-Copy the shape of [`examples/adapter_skeleton/`](../examples/adapter_skeleton/README.md)
+Copy the shape of [`examples/adapter_skeleton/`](../../dos_re/examples/tiny_frame_game/README.md)
 into your own package (`mygame/`). From day one, enforce the boundaries:
 `dos_re` never learns your game; your `recovered/` layer never imports `dos_re`.
 Extend `dos_re/tools/lint.py`'s pattern with those rules.
@@ -70,11 +70,11 @@ print(rt.cpu.addr(), rt.cpu.instruction_count)
   saved DAC palette and display start). If your game uses a mode it doesn't
   cover (CGA, Tandy, text), your adapter grows a rasterizer — the tool is the
   template.
-- Watch it live: copy this repo's [`scripts/play.py`](../scripts/play.py)
+- Watch it live: copy this repo's [`scripts/play.py`](../../scripts/play.py)
   (a thin `GameFrontend` over `dos_re.player`, the unified play runner) and
   fill in its GAME-SPECIFIC blocks — that IS your port's runner and the
   human owner's window from day one: viewer by default (`--headless` to
-  disable), snapshot save/resume, demo record/replay, F10/F11/F12 hotkeys,
+  disable), snapshot save/resume, replay record/replay, F10/F11/F12 hotkeys,
   paced with `--present-hz` / `--steps-per-frame` / `--timer-irqs-per-frame`.
   Keep the standard flag names; the cookbook's play-runner entry maps the
   game-specific ideas (pacing models, `--safe-hooks` tiers, verify modes) to
@@ -98,26 +98,26 @@ Adapter `frame_verify.py`: boundaries + a `sample_builder` (framebuffer +
 visible VRAM first). Confirm a no-op candidate (no hooks) matches the oracle
 frame-for-frame before trusting anything else.
 
-## 5. Build the input-wait registry (before any demo)
+## 5. Build the input-wait registry (before any replay)
 
 Find the boundary-less poll loops (title/menu/"press fire") and register their
 canonical head addresses in the adapter's `input_waits.py`, consumed by every
-driver. Read [`demos_and_snapshots.md`](../dos_re/docs/demos_and_snapshots.md) — recording
-demos before this step produces proofs that freeze or lie.
+driver. Read [`demos_and_snapshots.md`](../../dos_re/docs/replay_architecture.md) — recording
+replays before this step produces proofs that freeze or lie.
 
-## 6. Record the first demo
+## 6. Record the first replay
 
-Drive menus into gameplay; confirm the demo replays identically under every
-driver (interactive, headless, frame verifier). This demo is your first
+Drive menus into gameplay; confirm the replay replays identically under every
+driver (interactive, headless, frame verifier). This replay is your first
 regression asset: record into `artifacts/` (scratch), then **promote** it to
 `artifacts/test_oracles/` with a `docs/<game>/demo_manifest.md` entry — the
 storage convention is in
-[`demos_and_snapshots.md`](../dos_re/docs/demos_and_snapshots.md#where-evidence-lives-git-convention).
+[`demos_and_snapshots.md`](../../dos_re/docs/replay_architecture.md#where-evidence-lives-git-convention).
 
-You can usually script this first demo yourself (a few keys through the menus
-into gameplay). For demos that need real *play* — clearing a level, reaching a
+You can usually script this first replay yourself (a few keys through the menus
+into gameplay). For replays that need real *play* — clearing a level, reaching a
 boss, dying in a specific way — **ask the human**: give them the exact command
-(`python scripts/play.py --record-demo NAME`), what to do in-game, and where
+(`python scripts/play.py --record-replay NAME`), what to do in-game, and where
 the artifact lands. The human records; you promote it into the corpus and it
 becomes a proof. (Corpus breadth matters more than skill — deaths, game-overs
 and full playthroughs are the proof spine's spine; pitfall #22.)
@@ -133,7 +133,7 @@ here). Then move inward to the densest gameplay routines the profiler shows.
 For each slice: trace → snapshot fixture → thin hook over a pure recovered
 rule → declare its `HookStop` (or use strict mode) → verify against the ASM
 oracle → document. One routine, one verification, per slice. See
-[`hooks_and_verification.md`](../dos_re/docs/hooks_and_verification.md), and
+[`hooks_and_verification.md`](../../dos_re/docs/hooks_and_verification.md), and
 [`lifecycle.md`](lifecycle.md) for where this stage sits in the whole arc.
 
 **Optional accelerator — don't hand-translate the first draft.** The
@@ -179,13 +179,13 @@ from dos_re.coverage import CoverageCollector
 cov = CoverageCollector(classifier=my_addr_to_island,
                         cache_path=Path("artifacts/coverage_cache.json"))
 rt.cpu.coverage_telemetry = cov
-# ... replay a demo ...
+# ... replay a replay ...
 print(cov.format_summary()); cov.save_cache()
 ```
 
 The headline metric, defined precisely so reports are comparable: **native %
 = hook-covered ASM-equivalent instructions / all measured work**, accumulated
-over a full demo replay. Hooked work is measured by the verifier (the
+over a full replay replay. Hooked work is measured by the verifier (the
 replaced-instruction count per verified call), estimated from the JSON cache
 on unverified runs, and reported *unmeasured* — outside the percentage —
 when neither exists; wrap oracle reference runs in `cov.bounded_original()`.
@@ -223,9 +223,9 @@ to "a standalone native game ships" (full rationale in
    pixel-exact but mechanism-flexible; audio event-exact but mixer-flexible;
    input semantic-exact. Write these down for your game before flipping, or
    you will argue every divergence twice.
-4. **The tick-equivalence harness.** Replay a recorded demo through the ASM
+4. **The tick-equivalence harness.** Replay a recorded replay through the ASM
    oracle and the native core tick by tick and compare the data-segment image
-   byte-exact. This — over a demo corpus that reaches death, respawn,
+   byte-exact. This — over a replay corpus that reaches death, respawn,
    level-end, and game-over — is the proof the flip changed nothing.
    **The engine is a framework tool now**: `dos_re.tick_demo`
    (`record_ticks`/`verify_ticks`/`masked_digest`; usage skeleton in dos_re's
@@ -255,7 +255,7 @@ detach the native game from the ASM audio path entirely.
 ## What is game-specific (yours to write)
 
 Boot constants and EXE identity/signatures; command-tail policy; asset codecs;
-DGROUP layout + state views ([`state_mirrors.md`](../dos_re/docs/state_mirrors.md)); hook
+DGROUP layout + state views ([`state_mirrors.md`](../../dos_re/docs/state_mirrors.md)); hook
 registrations + continuation metadata; frame boundaries + sample builder;
 input-wait registry; island/coverage classification; the recovered logic
 itself. The framework gives you the machine, the proof engines, and the

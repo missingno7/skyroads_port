@@ -20,7 +20,7 @@ real block is **gated by session-persistent stack locals** the earlier
 functions couldn't see (the jump latch `ss:[bp-8]`, jump-start height
 `ss:[bp-10]`) plus two per-frame classification flags (`ss:[bp-14]`,
 `ss:[bp-18]`). Modelled here explicitly as a small `JumpScratch` carried
-across frames, this block matches the real ASM 415/416 over the full E2E demo
+across frames, this block matches the real ASM 415/416 over the full E2E replay
 (the one miss is a frame where the rare `25AC-25D6` effect path — a `1DFA`
 call gated by `ds:[4570]`/`bp-6`/`af2c>=0x3700` — separately rewrote
 `lateral_accel`; that path is flagged, not modelled, see `hit_effect_path`).
@@ -76,9 +76,9 @@ def _s16(v: int) -> int:
              "bounce := decay_bounce(bounce). scan_cell is ss:[bp-24] (the "
              "vertical scan's last cell index, session state); jump_gate is "
              "ds:[4562]; grounded is ds:[456A].",
-    status="ASM_MATCHED",  # 682/682 real E2E-demo frames byte-exact
+    status="ASM_MATCHED",  # 682/682 real E2E-replay frames byte-exact
     # (unchanged 236, zero-small 439, decay 6, zero-5496 1). The grounded!=0
-    # zero branch was decoded but not exercised by the demo; the ASM also plays
+    # zero branch was decoded but not exercised by the replay; the ASM also plays
     # a landing SFX (03C2(1), gated by a 0476 predicate) on some decay frames --
     # audio only, so not modelled here.
     merge_target="skyroads.native.dynamics (future)",
@@ -140,11 +140,11 @@ class DynamicsResult(NamedTuple):
              "When moving is False (game_state != 0, the 24BA->25AC frozen path), "
              "the steering and jump-latch stages (2534-25A9) are SKIPPED -- only "
              "the effect + gravity stages (25AC-2635) run.",
-    status="ASM_MATCHED",  # 415/416 real E2E-demo frames byte-exact on
+    status="ASM_MATCHED",  # 415/416 real E2E-replay frames byte-exact on
     # (bounce, lateral_accel, bp-8, bp-10); the single miss is a hit_effect_path
     # frame whose 1DFA call rewrote lateral_accel (correctly flagged, not
     # modelled). The grounded ramp (260D-262F) and the airborne terminal clamp
-    # (af2c<0x2800) branches are transcribed from the ASM; whether the demo
+    # (af2c<0x2800) branches are transcribed from the ASM; whether the replay
     # exercised each is asserted by tests/test_dynamics.py. The moving=False
     # (frozen) path is verified via the lockstep loop (test_native_loop_lockstep).
     merge_target="skyroads.native.dynamics (future)",

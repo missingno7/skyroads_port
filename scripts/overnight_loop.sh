@@ -16,7 +16,7 @@
 # examples/ledgers/overnight_goal.md into docs/<game>/ and fill it in first.
 #
 # WHEN TO DEPLOY: the middle of the port — the massive hook/lift grind AFTER the game is
-# fully runnable in the VM and a demo corpus spans gameplay (ideally e2e cold-start demos,
+# fully runnable in the VM and a replay corpus spans gameplay (ideally e2e cold-start replays,
 # reaching death/level-end/game-over). The corpus is what makes unattended commits safe;
 # the brief's §0 preconditions checklist is the gate. Bring-up and the flip's design
 # decisions stay attended.

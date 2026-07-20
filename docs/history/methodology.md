@@ -5,7 +5,7 @@ MZ/COM programs, expose deterministic snapshots/traces, and provide enough
 device/DOS behaviour for the target game to reach useful runtime states.
 
 Target-specific knowledge belongs outside `dos_re`, in a per-game adapter
-package that you create (see [`examples/adapter_skeleton/`](../examples/adapter_skeleton/README.md)).
+package that you create (see [`examples/adapter_skeleton/`](../../dos_re/examples/tiny_frame_game/README.md)).
 
 This document is the **naming / altitude discipline** that keeps recovery honest.
 For the full porting *process* — proof spine, determinism trap, phased roadmap,

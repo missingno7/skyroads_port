@@ -43,14 +43,14 @@ derived from the program. `tools/absorption_ledger.py --native` measures this.
 
 Work the cold path **forward**:
 
-1. Oracle + one cold demo = the authoritative path.
+1. Oracle + one cold replay = the authoritative path.
 2. Run the CPUless candidate beside it.
 3. The **first** divergence is the frontier. Nothing else is in scope.
 4. Localize the earliest differing *observable effect*.
 5. Instrument the function/boundary that **actually produces it** — not
    likely-looking areas, not arbitrary functions, not out of order.
 6. Repair only that seam.
-7. Rerun the **whole** demo from frame 0. The frontier advances only if the
+7. Rerun the **whole** replay from frame 0. The frontier advances only if the
    earliest divergence moves.
 8. Repeat.
 
@@ -61,7 +61,7 @@ prove the ORACLE is the original program.** See §4 and §5.
 Goal: ONE continuous oracle-proven path from startup, not a collection of
 locally passing islands.
 
-**Acceptance** is *not* "the generated corpus passes". It is: **an E2E cold demo
+**Acceptance** is *not* "the generated corpus passes". It is: **an E2E cold replay
 passes against the oracle with the manual overrides DRIVING** (`OVERRIDES`
 non-empty). With `OVERRIDES` empty the composite is bit-for-bit the generated
 program, so shadow mode alone does not clear the bar.
@@ -88,7 +88,7 @@ Manifest: 180 generated-cpuless, runtime frontier 0, closure complete.
 longer a statement about generated code alone — for that one address. See §7.
 
 **Both differentials pass, against a PROVEN-pure oracle**, over the frame ranges
-they were actually run on (§4 — the attract demo's frames 1300+ were not among
+they were actually run on (§4 — the attract replay's frames 1300+ were not among
 them). `check_all` 6/6; port suite 475 passed / 1 skipped; lint passed. Port
 HEAD: `a0904a4`.
 
@@ -101,7 +101,7 @@ python scripts/coverage_audit.py  # dispatch-table gaps before a player finds th
 python tools/absorption_ledger.py [--native|--unstitch]
 
 # a differential by hand: pypy3 is a drop-in, -u keeps the heartbeat live
-pypy3 -u scripts/verify_cpuless.py artifacts/demos/demo_attract_20260718_135434
+pypy3 -u scripts/verify_cpuless.py artifacts/replays/demo_attract_20260718_135434
 ```
 
 **`check_all.py` runs the differentials under PyPy automatically** (2026-07-18)
@@ -122,18 +122,18 @@ instead of calling their Python replacements. Measured peak **17.1M steps/frame*
 the default `--step-budget` is now **64M** and run-to-cut **raises** on
 exhaustion. Do not lower it to make something fast.
 
-### Demos (roles are distinct — do not consolidate)
+### Replays (roles are distinct — do not consolidate)
 
-| demo | frames | role |
+| replay | frames | role |
 |---|---|---|
 | `demo_cold_20260718_134357` | 261 | spine; **PASSES**; fast acceptance vehicle (~160 s now) |
 | `demo_attract_20260718_135434` | 5109 | **ZERO input**; **PASSES ALL 5109 frames** (2026-07-18, both interpreters) — §4. 47 s under PyPy, so it is now cheap enough to gate |
-| `demo_cold_20260718_003412` | 672 | older spine; passes (the `verify_vmless` gate demo) |
+| `demo_cold_20260718_003412` | 672 | older spine; passes (the `verify_vmless` gate replay) |
 | `demo_intro_20260717_125403` | 1832 | older attract; previously "failed f1115" — same misdiagnosis |
 
-Record cold demos with `python scripts/play.py --record-demo NAME` — it starts at
+Record cold replays with `python scripts/play.py --record-replay NAME` — it starts at
 frame 0, which is what makes them cold. Pressing F11 later writes a start
-snapshot, and `verify_cpuless` rejects snapshot demos outright.
+snapshot, and `verify_cpuless` rejects snapshot replays outright.
 
 ---
 
@@ -198,17 +198,17 @@ Both now **raise**, with a 64M default against the measured 17.1M peak.
 ### Acceptance evidence for the fix
 
 ```
-$ python scripts/verify_cpuless.py artifacts/demos/demo_attract_20260718_135434 --frames 1300
+$ python scripts/verify_cpuless.py artifacts/replays/demo_attract_20260718_135434 --frames 1300
 [verify-cpuless] oracle peak 17126327 steps/frame (budget 64000000)
 [verify-cpuless] PASS -- 1300 frames: VGA plane AND DAC palette identical to the
 ASM oracle, NO CPU, over demo_attract_20260718_135434
 ```
 
-Frame 1115 included. Spine demo passes its full 261 frames. `check_all` 6/6.
+Frame 1115 included. Spine replay passes its full 261 frames. `check_all` 6/6.
 
 ### The isolation that prevented a second wrong answer
 
-When the fix first made *both* demos fail at frame 0, that failure was **not**
+When the fix first made *both* replays fail at frame 0, that failure was **not**
 accepted at face value:
 
 | configuration | result |
@@ -221,13 +221,13 @@ accepted at face value:
 Row 2 is the important one: it proves the fade hook was never the frame-0 cause,
 and sent the investigation to the step budget instead of back into the candidate.
 
-### RESOLVED 2026-07-18 — the attract demo passes ALL 5,109 frames
+### RESOLVED 2026-07-18 — the attract replay passes ALL 5,109 frames
 
 **The 3,809 unrun frames have now been run.** Under both interpreters,
 end-to-end, no truncation:
 
 ```
-[verify-cpuless] demo=demo_attract_20260718_135434 frames=5109 mouse_present=True;
+[verify-cpuless] replay=demo_attract_20260718_135434 frames=5109 mouse_present=True;
                  cut = 2nd pass at 11 boundary heads
 [verify-cpuless] oracle peak 17126327 steps/frame (budget 64000000)
 [verify-cpuless] oracle captured 5109 frames
@@ -249,12 +249,12 @@ turns the whole thing into a 47-second gate.
 **What this does and does not establish.** It establishes that over these 5,109
 frames the CPUless corpus is byte-identical to a *proven-pure* oracle in both
 the VGA index plane and the DAC palette, with `1010:04C0` DRIVING. It does NOT
-establish that the corpus is clean: this is one demo with **zero input events**,
+establish that the corpus is clean: this is one replay with **zero input events**,
 so it exercises the attract path and nothing a player does. §10's lesson stands
 — "672 frames byte-exact" was restated as a general claim once already and a
-second demo then found a divergence. The honest statement is **"no known
-frontier remains on the demos that have been run"**, and the lever on that is
-DEMO BREADTH, not more frames of this one.
+second replay then found a divergence. The honest statement is **"no known
+frontier remains on the replays that have been run"**, and the lever on that is
+REPLAY BREADTH, not more frames of this one.
 
 <details><summary>The superseded section, kept because its reasoning still applies</summary>
 
@@ -263,10 +263,10 @@ point. What had been **observed**:
 
 | claim | status |
 |---|---|
-| attract demo, frames 0–1299 | **PASS**, observed |
-| spine demo, all 261 frames | **PASS**, observed |
-| `verify_vmless` 672-frame demo | **PASS**, observed (gate) |
-| attract demo, frames 1300–5108 | **NOT RUN — NOTHING IS KNOWN** |
+| attract replay, frames 0–1299 | **PASS**, observed |
+| spine replay, all 261 frames | **PASS**, observed |
+| `verify_vmless` 672-frame replay | **PASS**, observed (gate) |
+| attract replay, frames 1300–5108 | **NOT RUN — NOTHING IS KNOWN** |
 
 The full-length run was started and then **abandoned before producing any
 output**; no partial result beyond frame 1300 was ever observed, so none was
@@ -281,15 +281,15 @@ ETA — run it with `-u` and you can see it working.
 </details>
 
 This document previously reported "672 frames byte-exact" as though it were a
-general claim; it was demo-specific and a second demo then found a divergence.
+general claim; it was replay-specific and a second replay then found a divergence.
 §10 records that as a lesson. **"Passes to 1300" is exactly the same shape of
-claim.** Do not restate it as "the attract demo passes", and do not conclude the
+claim.** Do not restate it as "the attract replay passes", and do not conclude the
 corpus is clean.
 
 #### RECORDED NEXT STEP — not yet run
 
 ```sh
-python scripts/verify_cpuless.py artifacts/demos/demo_attract_20260718_135434
+python scripts/verify_cpuless.py artifacts/replays/demo_attract_20260718_135434
 ```
 
 **Estimated cost, extrapolated — NOT measured**: the 1300-frame run took roughly
@@ -475,7 +475,7 @@ Evidence, all against the FULL contract, zero disagreements:
 - **E2E cold differential with it DRIVING**: 261 frames and 672 frames, VGA plane
   and DAC palette identical to the pure ASM oracle.
 
-**Validating on the spine demo alone would have been useless**: it never takes the
+**Validating on the spine replay alone would have been useless**: it never takes the
 short path, so its cost model is the constant 104 and is silently wrong.
 
 ### The negative control, and what the E2E differential CANNOT see
@@ -536,9 +536,9 @@ than rediscovering §4 independently.
 1. ~~**Frontier**: run `demo_attract_20260718_135434` to its full 5,109
    frames.~~ **DONE 2026-07-18** — PASS on all 5,109 frames under CPython
    (500.8 s) and PyPy (47.3 s), byte-identical output. See §4. The frontier is
-   now *absent on the demos that have been run*, which is not the same as
-   *absent*: this demo has ZERO input events. **The successor top item is DEMO
-   BREADTH** — a demo that exercises player input end-to-end would prove
+   now *absent on the replays that have been run*, which is not the same as
+   *absent*: this replay has ZERO input events. **The successor top item is REPLAY
+   BREADTH** — a replay that exercises player input end-to-end would prove
    something this one structurally cannot.
 2. ~~**Acceptance** with `OVERRIDES` driving.~~ **DONE** — see §7. `1010:04C0`
    drives, and both cold differentials pass with it driving. Note carefully what
@@ -546,12 +546,12 @@ than rediscovering §4 independently.
    insensitive to its flags and short-path cost (§7's control table). The corpus
    remains overwhelmingly generated.
 3. Add `demo_attract_20260718_135434` to `check_all.py` so the gate covers two
-   cold demos. `check_all` is now **7/7 in ~6 min** (the port suite moved to
+   cold replays. `check_all` is now **7/7 in ~6 min** (the port suite moved to
    `-n auto`, 263s → 47s, which paid for the new shadow gate at 17s).
 4. ~~Reduce `skyroads/cpuless_overrides.py` to a wrapper.~~ **DONE** — 226 → 107
    lines over `dos_re.lift.standalone`.
 5. **Next absorption candidate**: nothing is queued. The bar for the second one
-   is the same as the first — a drop-in body, shadow-VERIFIED on demos that
+   is the same as the first — a drop-in body, shadow-VERIFIED on replays that
    exercise every path, then driving. Note that 39 of the 42 islands are
    `ASM_MATCHED` and 22 anchor to no IR function at all, so the pool of
    absorbable addresses is much smaller than "42".
@@ -562,8 +562,8 @@ than rediscovering §4 independently.
   entry `ds` while the body reloads it. **Withdrawn.**
 - Claimed the boundary driver ran an extra pass. **Refuted by measurement.**
 - Claimed the doubling originated at/above `4591`. **Refuted by an ungated control.**
-- Reported "672 frames byte-exact" as a general claim. It was **demo-specific**;
-  a second demo found a real divergence.
+- Reported "672 frames byte-exact" as a general claim. It was **replay-specific**;
+  a second replay found a real divergence.
 - **Localized a frontier inside the candidate for a defect the ORACLE was
   producing.** Sustained instrumentation went into `1010:6168`'s write loop —
   measuring ever more precisely a divergence that a behaviour-changing

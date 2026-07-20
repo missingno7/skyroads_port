@@ -1,6 +1,6 @@
 """Unit tests for skyroads.native.loop -- the frame steppers composing
-currently-recovered islands against a GameView. No real demo needed here
-(synthetic states); the real-demo cross-check against the ASM oracle lives in
+currently-recovered islands against a GameView. No real replay needed here
+(synthetic states); the real-replay cross-check against the ASM oracle lives in
 test_native_loop_integration.py.
 """
 from __future__ import annotations

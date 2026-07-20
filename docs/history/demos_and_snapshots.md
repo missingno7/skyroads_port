@@ -1,6 +1,6 @@
-# Deterministic demos and snapshots
+# Deterministic replays and snapshots
 
-Demos and snapshots are the *evidence substrate*: every proof the framework
+Replays and snapshots are the *evidence substrate*: every proof the framework
 offers ("the recovered code equals the original") is ultimately "replay this
 recorded input from this pinned state and diff everything."
 
@@ -17,7 +17,7 @@ Uses:
   it, and start every investigation from there;
 - **pin a reproducible fixture** — a snapshot before/after a routine is the
   entry state for its oracle;
-- **anchor a demo** — a demo's start snapshot is what makes its replay exact.
+- **anchor a replay** — a replay's start snapshot is what makes its replay exact.
 
 Snapshots are evidence: name them descriptively, keep the ones that justify
 hooks/tests/findings, prune scratch ones freely.
@@ -32,14 +32,14 @@ oracle from a snapshot, clear/skip the registry installs explicitly (the
 ## Where evidence lives (git convention)
 
 Everything under `artifacts/` is **regenerable scratch and gitignored** —
-record freely, prune freely. When a demo or snapshot becomes *evidence* (a
+record freely, prune freely. When a replay or snapshot becomes *evidence* (a
 test replays it, a ledger cites it, the proof corpus includes it), **promote
 it**: move it to `artifacts/test_oracles/` or `artifacts/evidence/` (both
 tracked) and give it an entry in your `docs/<game>/demo_manifest.md` (name,
-purpose, length, what it exercises, pass status). An unpromoted demo is a
-scratch run; an unlisted promoted demo is a corpus blind spot — the manifest
+purpose, length, what it exercises, pass status). An unpromoted replay is a
+scratch run; an unlisted promoted replay is a corpus blind spot — the manifest
 is what makes corpus coverage a measured number (pitfall #22). Mind size:
-demos are small (events + one snapshot); prefer promoting demos over raw
+replays are small (events + one snapshot); prefer promoting replays over raw
 memory dumps, and never commit anything containing original game data beyond
 what a snapshot inherently embeds (snapshots contain the game's memory image —
 they stay local/private unless the rights situation allows otherwise).
@@ -52,18 +52,18 @@ manifest of when/why — a ready-to-load repro.
 registers) as an alternative evidence source; the adapter locates the program
 image inside it by code signature.
 
-## Input demos (`dos_re/input_demo.py`)
+## Input replays (`dos_re/replay_input.py`)
 
-A demo = an optional start snapshot + VM-visible key events keyed to an
-**emulated boundary counter** (the "demo clock") + opaque metadata (the adapter
+A replay = an optional start snapshot + VM-visible key events keyed to an
+**emulated boundary counter** (the "replay clock") + opaque metadata (the adapter
 records video/sound mode, command tail, …). Replay delivers each event when the
 counter reaches its boundary — deterministically, into one runtime or a
 reference/candidate pair at once.
 
 Two anchoring styles:
 
-- **snapshot demos** — start from the recorded snapshot; the default.
-- **cold-start demos** (`recorder.start(rt, boundary=0, write_start_snapshot=False)`)
+- **snapshot replays** — start from the recorded snapshot; the default.
+- **cold-start replays** (`recorder.start(rt, boundary=0, write_start_snapshot=False)`)
   — no snapshot; playback boots a fresh runtime from the boot params in
   `metadata` and replays from boundary 0: an input-only capture of a whole
   session from power-on. (`playback.is_cold_start` tells the driver.)
@@ -77,10 +77,10 @@ two states instead of collapsing.
 
 ## The boundary-clock invariant (the trap that voids proofs)
 
-**Read this twice.** A demo is a valid proof artifact only if it replays
+**Read this twice.** A replay is a valid proof artifact only if it replays
 byte-for-byte identically under **every driver** — the interactive play loop,
 the headless hook verifier, and the frame verifier. If they count "a boundary"
-differently, the same demo replays at different internal points per driver and
+differently, the same replay replays at different internal points per driver and
 the corpus pass/fail becomes driver-dependent: the proof is an illusion. In
 practice this manifests as **freezes**, not loud errors.
 
@@ -88,14 +88,14 @@ Two concrete failure modes:
 
 1. **Boundary-less input-wait loops.** Some original code busy-waits on the
    keyboard *without* reaching a timer/retrace/present boundary ("press FIRE to
-   start"). The demo clock is frozen inside the loop, so a recorded key release
+   start"). The replay clock is frozen inside the loop, so a recorded key release
    keyed to a later boundary is never delivered — the loop waits forever. Every
    driver must recognize these loops (at their **canonical head address**,
    checked **every step**) and treat them as a boundary. Keep the detectors in
    **one shared registry** in the adapter (`input_waits.py`) consumed by all
    drivers — per-driver copies drift.
 
-2. **Driver-specific clocks.** Before standing up a demo corpus, unify the
+2. **Driver-specific clocks.** Before standing up a replay corpus, unify the
    boundary/clock definition so record-time, replay-time, and every driver
    agree on exactly what increments the counter.
 
@@ -104,15 +104,15 @@ delivery, RNG seeding. The oracle keeps the hardware-wait hooks (timer,
 retrace) so the ASM doesn't spin on a flag a real IRQ would clear — but those
 waits must return deterministically.
 
-## The proof spine (how demos become "proven equivalent")
+## The proof spine (how replays become "proven equivalent")
 
 1. Per-hook ASM match for every hooked address.
 2. Semantic frame verifier at each frame boundary.
 3. Widen the frame sample until it covers all observable state (find the RNG
    state early — it is usually the first hard sub-task).
-4. Deterministic demo-replay harness: candidate ≡ oracle for every frame to the
-   end of each demo.
-5. A demo corpus covering all levels, bosses, spawn types, and RNG paths —
+4. Deterministic replay-replay harness: candidate ≡ oracle for every frame to the
+   end of each replay.
+5. A replay corpus covering all levels, bosses, spawn types, and RNG paths —
    with coverage *measured*, not vibed.
 
 See [`ai_porting_charter.md`](ai_porting_charter.md) §5–6 for the full

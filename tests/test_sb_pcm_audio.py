@@ -10,7 +10,7 @@ Two things are locked in here:
    the CPU timeline at all versus the detection-only stub the game normally runs
    against — same instruction count and same full memory image — while actually
    capturing the intro's INTRO.SND digital sample.  This is what lets the viewer
-   play the game's PCM effects without breaking demo determinism.
+   play the game's PCM effects without breaking replay determinism.
 """
 from __future__ import annotations
 
@@ -94,7 +94,7 @@ def test_capture_mode_is_byte_identical_and_captures_intro_pcm() -> None:
     from skyroads.runtime import create_game_runtime
 
     faithful = plan_execution(
-        configuration("development", "faithful"), coverage(), catalog())
+        configuration("development", "authored-candidates"), coverage(), catalog())
     frontend = SkyroadsFrontend(ROOT)
 
     def boot_and_run(capture: bool):

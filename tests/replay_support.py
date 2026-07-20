@@ -1,7 +1,7 @@
 """Test-only convenience around the authoritative ReplayArtifact APIs."""
 from __future__ import annotations
 
-from dos_re.input_demo import RealModeInputAdapter
+from dos_re.replay_input import RealModeInputAdapter
 from dos_re.replay import ReplayArtifact
 from dos_re.snapshot import apply_runtime_continuation
 from skyroads.replay import recording_base
@@ -24,7 +24,7 @@ class OracleReplaySession:
 
 def open_oracle_replay(frontend, args, path):
     artifact = ReplayArtifact.open(path)
-    frontend.apply_demo_metadata(args, artifact.metadata)
+    frontend.apply_replay_metadata(args, artifact.metadata)
     runtime = frontend.create_runtime(args)
     apply_runtime_continuation(runtime, recording_base(artifact))
     runtime.dos.console_input_fallback = None

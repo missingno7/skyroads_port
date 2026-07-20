@@ -10,6 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Iterable
 
+from dos_re.atlas import ExecutionAtlas
 from dos_re.execution import (
     BootstrapArtifact,
     BuildImageBootstrapProvider,
@@ -22,22 +23,21 @@ from dos_re.execution import (
     ImplementationEntry,
     ImplementationOrigin,
     OverrideCategory,
-    ProgramCoverage,
     profile_configuration,
 )
 
-PROGRAM_ID = "skyroads:1.0"
-PROGRAM_ROOT = f"{PROGRAM_ID}:program"
-CODE_SEG = 0x1010
+from skyroads.identities import (
+    CODE_SEG,
+    PROGRAM_ID,
+    PROGRAM_ROOT,
+    execution_point_identity,
+    function_identity,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
+ATLAS_DIR = ROOT / "recovery" / "atlas"
 BOOT_DIR = ROOT / "artifacts" / "boot_image"
 BOOTSTRAP_INSTRUCTION = "run: python scripts/build_boot_image.py"
-
-
-def function_identity(offset: int) -> str:
-    """Stable identity shared by replay metadata and the future atlas."""
-    return f"{PROGRAM_ID}:function:{CODE_SEG:04x}:{offset:04x}"
-
 
 def _hook_tables():
     from skyroads.hooks import (
@@ -52,19 +52,15 @@ def _hook_tables():
     )
 
 
-def coverage() -> ProgramCoverage:
-    faithful, behavioral, generated = _hook_tables()
-    from skyroads.pacing import MENU_ANIM_WAIT_IP, PACING_SPIN_IP
-    offsets = (
-        set(faithful) | set(behavioral) | set(generated)
-        | {PACING_SPIN_IP, MENU_ANIM_WAIT_IP}
-    )
-    reachable = {PROGRAM_ROOT, *(function_identity(ip) for ip in offsets)}
-    return ProgramCoverage(
-        roots=(PROGRAM_ROOT,),
-        reachable=frozenset(reachable),
-        evidence_identity="skyroads-recovery-ir-2026-07-20",
-    )
+def coverage() -> ExecutionAtlas:
+    """The persistent Atlas is the sole reachability authority."""
+    try:
+        return ExecutionAtlas.open(ATLAS_DIR)
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "SkyRoads Execution Atlas is missing; run "
+            "`python scripts/build_atlas.py --from-ir`"
+        ) from exc
 
 
 def _activate_cpu_hook(ip: int, name: str, implementation):
@@ -111,7 +107,7 @@ def _function_entries(
 
 def catalog() -> ImplementationCatalog:
     faithful, behavioral, generated = _hook_tables()
-    all_targets = coverage().reachable
+    all_targets = coverage().coverage_for("game/play").reachable
     entries: list[ImplementationEntry] = [
         ImplementationEntry(ImplementationDescriptor(
             implementation_id="baseline:interpreted-exe",
@@ -177,7 +173,7 @@ def catalog() -> ImplementationCatalog:
         PACING_SPIN_IP,
         install_frame_park,
     )
-    park_targets = frozenset(function_identity(ip) for ip in (
+    park_targets = frozenset(execution_point_identity(ip) for ip in (
         PACING_SPIN_IP, FADE_WAIT_IP, MENU_ANIM_WAIT_IP))
     entries.append(ImplementationEntry(
         ImplementationDescriptor(
@@ -219,7 +215,10 @@ def generated_function_ids() -> tuple[str, ...]:
 
 
 def bootstrap_provider(composition: str):
-    if composition in {"oracle", "faithful", "play", "behavioral"}:
+    if composition in {
+        "oracle", "generated-functions", "authored-candidates", "play",
+        "behavioral",
+    }:
         exe = ROOT / "assets" / "SKYROADS.EXE"
         return ExeBootstrapProvider(
             provider_id="skyroads-exe-bootstrap",
@@ -256,7 +255,7 @@ def bootstrap_provider(composition: str):
         DependencyCapability.DOS_SERVICES.value,
         DependencyCapability.DOS_RE_RUNTIME.value,
     }
-    if composition == "vmless":
+    if composition == "generated-cpu":
         runtime_capabilities.add(DependencyCapability.CPU_MODEL.value)
     return BuildImageBootstrapProvider(
         provider_id=f"skyroads-{composition}-build-image",
@@ -300,14 +299,16 @@ def configuration(
 ) -> ExecutionConfiguration:
     """Map a product composition onto dos_re's orthogonal policy axes."""
     if composition == "auto":
-        composition = "cpuless" if profile in {"detached", "release"} else (
-            "faithful" if profile == "verification" else "play"
+        composition = "generated-abi" if profile in {"detached", "release"} else (
+            "generated-functions" if profile == "verification" else "play"
         )
     preferences: tuple[str, ...]
     selected: tuple[str, ...] = ()
     if composition == "oracle":
         preferences = ("baseline:interpreted-exe",)
-    elif composition == "faithful":
+    elif composition == "generated-functions":
+        preferences = (*generated_function_ids(), "baseline:interpreted-exe")
+    elif composition == "authored-candidates":
         selected = implementation_ids(OverrideCategory.FAITHFUL)
         preferences = (
             *selected, *generated_function_ids(), "baseline:interpreted-exe",
@@ -329,9 +330,9 @@ def configuration(
         preferences = (
             *selected, *generated_function_ids(), "baseline:interpreted-exe",
         )
-    elif composition == "vmless":
+    elif composition == "generated-cpu":
         preferences = ("baseline:generated-vmless",)
-    elif composition == "cpuless":
+    elif composition == "generated-abi":
         preferences = ("baseline:generated-cpuless",)
     else:
         raise ValueError(f"unknown SkyRoads composition {composition!r}")

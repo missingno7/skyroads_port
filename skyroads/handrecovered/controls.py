@@ -58,7 +58,7 @@ class Controls(NamedTuple):
              "bit7 of its byte is set. speed=(up|upL|upR)-(down|dnL|dnR); "
              "steer=(right|upR|dnR)-(left|upL|dnL); jump=jumpkey. This is the "
              "95F6==0 (keyboard) case of the 074C control dispatcher.",
-    status="ASM_MATCHED",  # 1466/1466 full-demo 074C calls (497 with keys down) byte-exact
+    status="ASM_MATCHED",  # 1466/1466 full-replay 074C calls (497 with keys down) byte-exact
     merge_target="skyroads.native.controls (future)",
 )
 def decode_keyboard(key_row: Sequence[int]) -> Controls:

@@ -8,8 +8,8 @@ comparison that quietly covers less is indistinguishable from one that does not.
 
 The states are randomized but SEEDED, so a failure is reproducible, and the two
 paths are forced in equal measure. That last part is load-bearing: two of the
-four recorded demos never take 04C0's short path at all, so evidence gathered
-only from a demo can be blind to half the function while looking complete.
+four recorded replays never take 04C0's short path at all, so evidence gathered
+only from a replay can be blind to half the function while looking complete.
 """
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ def test_04c0_island_body_reproduces_the_full_generated_contract(path):
 
 def test_both_paths_are_actually_reached_by_the_random_states():
     """Without this the test above could pass while exercising one path only --
-    the exact blindness that makes a spine-demo-derived cost model look sound."""
+    the exact blindness that makes a spine-replay-derived cost model look sound."""
     rng = random.Random(1234)
     costs = set()
     for _ in range(400):
@@ -181,7 +181,7 @@ def test_every_declared_body_matches_its_generated_signature():
 
 # --- 1010:1631 road_segment_clip ---------------------------------------------
 #
-# The demos leave three of the ten (arm, second_test) combinations UNTOUCHED --
+# The replays leave three of the ten (arm, second_test) combinations UNTOUCHED --
 # (0x300, False), (0x500, False) and (0x500, True) -- so no amount of replay
 # proves them. These forced states do, against the same authority and with the
 # same total comparison, which is what lets the body drive without its
@@ -523,7 +523,7 @@ _OBJ_CASES = _obj_cases()
 def test_1732_island_body_reproduces_the_full_contract_on_every_block_path(path):
     """FORCED-STATE evidence, distinct from the shadow's real-call evidence.
 
-    It is what covers block 7 (the 1797 jump), which no recorded demo reaches:
+    It is what covers block 7 (the 1797 jump), which no recorded replay reaches:
     it needs a screen_y at or below 0x1E80 while an edge's low nibble is set,
     and every such state falls straight through 17A5 to the cull -- so 1797 is
     structurally always followed by 17AA and can never change an answer.
@@ -566,7 +566,7 @@ def test_the_1732_forced_cases_reach_every_basic_block():
 
 
 def test_1732_block_7_is_always_followed_by_the_cull():
-    """WHY the one block no demo reaches cannot matter, proven by exhaustion.
+    """WHY the one block no replay reaches cannot matter, proven by exhaustion.
 
     1797 is reached when screen_y < 0x2800 and (screen_y + 0x600) & 0xFFFF is at
     or below 0x2480 -- i.e. screen_y <= 0x1E80 -- and 17A5 then tests
@@ -587,8 +587,8 @@ def test_1732_block_7_is_always_followed_by_the_cull():
 # --- 1010:0F62 stencil_blit ---------------------------------------------------
 #
 # The first LOOP absorbed, and the only body whose fmask is not constant. Three
-# things a recorded demo cannot establish and these cases must: the DF-set
-# direction (both demos enter with DF clear on all 347 calls), an all-zero
+# things a recorded replay cannot establish and these cases must: the DF-set
+# direction (both replays enter with DF clear on all 347 calls), an all-zero
 # source (so `cmp al,1` never runs and the mask is 0x8C5 instead of 0x8D5), and
 # a count of 0 -- which `loop` turns into 65,536 iterations, not none.
 
@@ -711,7 +711,7 @@ def test_0f62_count_zero_means_65536_iterations_not_none():
     Separated from the parametrized cases because it is the one state whose
     whole point is its size, and because reading it as "no iterations" is the
     natural mistake: it would make the body return with AX untouched and write
-    nothing at all, and no recorded demo would ever contradict it (both demos'
+    nothing at all, and no recorded replay would ever contradict it (both replays'
     counts run 18..150).
     """
     rng = random.Random(0x0F62)
@@ -760,7 +760,7 @@ def test_0f62_cost_is_linear_in_the_source_byte_census():
 # --- 1010:3A22 sprite_blit ----------------------------------------------------
 #
 # No stack frame at all: 3A22 pushes nothing and takes every argument in a
-# register, so SI, DI and BX are live outputs. Three things the two demos never
+# register, so SI, DI and BX are live outputs. Three things the two replays never
 # produce and these cases must: a mask with NO transparent column (all 8,634
 # real calls are either mixed or fully transparent), a final `add si,0x123`
 # that CARRIES (every real call exits with CF clear), and DX = 0.
@@ -809,7 +809,7 @@ def _sprite_cases():
         ("single_row", 1, lambda i: (2, 0)[i % 2], 0x0100),
         ("trailing_transparent_columns", 3,
          lambda i: 2 if i % SPRITE_BLIT_WIDTH < 4 else 0, 0x0100),
-        # the LAST row's `add si,0x123` carries -- unobserved in both demos
+        # the LAST row's `add si,0x123` carries -- unobserved in both replays
         ("carry_out_of_the_row_add", 1, lambda i: (2, 0)[i % 2], 0xFFE0),
         ("carry_multi_row", 3, lambda i: (2, 0)[i % 2], 0xFD00),
         # mask bytes that are neither 0 nor 2: only ==2 is opaque
@@ -840,10 +840,10 @@ def test_3a22_island_body_reproduces_the_full_contract(name, rows, mask_of, src_
         assert i.log == g.log, f"the byte-write log differs; {ctx}"
 
 
-def test_3a22_forced_cases_force_the_two_exits_no_demo_produces():
+def test_3a22_forced_cases_force_the_two_exits_no_replay_produces():
     """The cases are evidence only if they reach what they name.
 
-    Both demos run ONLY mixed and fully transparent masks, and every one of
+    Both replays run ONLY mixed and fully transparent masks, and every one of
     their 8,634 calls exits with CF clear -- so a body that hard-coded either
     would pass on the whole recorded population.
     """
@@ -865,7 +865,7 @@ def test_3a22_forced_cases_force_the_two_exits_no_demo_produces():
 def test_3a22_dx_zero_means_65536_rows_not_none():
     """The outer loop is a do-while, so DX = 0 is the longest run there is.
 
-    Both demos pass only 24 or 9, so nothing recorded contradicts reading DX = 0
+    Both replays pass only 24 or 9, so nothing recorded contradicts reading DX = 0
     as "draw nothing" -- which would return with AX, SI, BX untouched and write
     no pixels. One state, not twenty: the point of this one is its size.
     """

@@ -25,7 +25,7 @@ timer waiting for >=2 ticks rather than "changed"), found profiling the
 *entire* step budget here.  Same fix, same proof obligation (it is
 runtime-loaded code, unlike the other two — the byte-equivalence check below
 also stands in for confirming its instruction bytes are what they appear to be
-in the demos this was verified against).
+in the replays this was verified against).
 
 All three are provably stuck for the rest of the frame the moment their tick
 guard holds, so we END THE FRAME there.  The parked spins have no side effects,
@@ -72,8 +72,8 @@ def _keys_pending(rt) -> bool:
 def install_frame_park(rt) -> None:
     """Install the two tick-wait park hooks on ``rt``'s CPU.
 
-    Byte-equivalent to the full-budget spin (verified over the full E2E demo),
-    so it is safe for live play, demo record and demo replay alike.  Idempotent
+    Byte-equivalent to the full-budget spin (verified over the full E2E replay),
+    so it is safe for live play, replay record and replay replay alike.  Idempotent
     per runtime.  Requires the recovered hooks to be installed (it composes with
     the fade-loop gate); call it after ``registry.install``.
     """

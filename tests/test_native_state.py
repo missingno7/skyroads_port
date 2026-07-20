@@ -1,7 +1,7 @@
 """Unit tests for skyroads.native.state.NativeGameState and
 skyroads.bridge.dgroup_view.GameView -- the plumbing every native frame
-stepper runs through (no real demo needed; that proof is
-test_native_loop.py's real-demo integration test)."""
+stepper runs through (no real replay needed; that proof is
+test_native_loop.py's real-replay integration test)."""
 from __future__ import annotations
 
 from skyroads.bridge.dgroup_view import GameView

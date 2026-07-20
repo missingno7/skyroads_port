@@ -10,7 +10,7 @@ Two steppers today, matching how much of the game is actually recovered
   (``1010:1B49``). Complete: every state transition ``dispatch_menu_action``
   needs is recovered, so this stepper never raises.
 * :func:`native_gameplay_frame` -- the per-frame gameplay update. Commits
-  ONLY forward motion (``advance_ship``, real-demo-proven: 0 mismatches over
+  ONLY forward motion (``advance_ship``, real-replay-proven: 0 mismatches over
   8 real gameplay samples in the 2026-07-11 integration proof, see
   run_status.md) and then raises a typed gap (skyroads.native.gaps) the
   instant it reaches something not yet SAFE to compute -- not just "not
@@ -46,7 +46,7 @@ superseded it:
   `native_gameplay_substep` detects.
 * :class:`NativeGameplayDriver` -- composes the two above into a
   COMPLETE, SELF-CONTAINED, INDEFINITELY-RUNNING gameplay loop: "full vmless
-  native gameplay". Proven driving the E2E demo's full length of real recorded
+  native gameplay". Proven driving the E2E replay's full length of real recorded
   input purely natively (`tests/test_native_driver.py`) -- the VM is touched
   once, to seed real level data, and never again.
 """
@@ -144,7 +144,7 @@ def native_gameplay_frame(view: GameView) -> None:
     """
     controls = decode_keyboard(view.key_row)
 
-    # Forward motion never depends on anything below -- real-demo-proven.
+    # Forward motion never depends on anything below -- real-replay-proven.
     new_ship_pos = advance_ship(view.ship_pos, controls.speed)
     view.ship_pos = new_ship_pos
 
@@ -156,8 +156,8 @@ def native_gameplay_frame(view: GameView) -> None:
     # decay_bounce + update_vertical_velocity are individually ASM_MATCHED,
     # but composing them UNCONDITIONALLY every frame is proven wrong outside
     # the one directly-verified envelope (airborne, af2c already at/above the
-    # gravity gate -- player.py's 238/238 deaths-demo match). Below the gate,
-    # real E2E-demo data shows the block gets skipped for multiple frames by
+    # gravity gate -- player.py's 238/238 deaths-replay match). Below the gate,
+    # real E2E-replay data shows the block gets skipped for multiple frames by
     # something this session hasn't recovered (most likely jump-in-flight
     # state persisting past the frame the key was released) -- see
     # VerticalVelocityGap. Don't guess there; only commit the proven case.
@@ -249,7 +249,7 @@ def native_gameplay_substep(
     # too. An earlier version added an extra `game_state in {0,3}` guard here;
     # that WRONGLY exited on the very first crash frame (game_state:=1) and so
     # never played the explosion settle window -- 2026-07-13, verified against
-    # demo_skyroads_20260710_213019 (grounded 2->42 / si 0->13 over ~34 frames).
+    # replay_skyroads_20260710_213019 (grounded 2->42 / si 0->13 over ~34 frames).
     if not should_run_gameplay(view.game_state, view.grounded, view.frame_ctr):
         raise LevelEndTransition(
             f"transition: game_state={view.game_state} f456a={view.grounded} "
@@ -261,7 +261,7 @@ def native_gameplay_substep(
 
     # Fall-off-the-road death check (23CA-2421): fires past the [41C0] lateral
     # threshold while game_state == 0. (Verified no false positives; a real fall
-    # was not exercised by the demos -- see FallDeathTransition.)
+    # was not exercised by the replays -- see FallDeathTransition.)
     if moving:
         thr = (((view.f41c0 // 0x10) + 0xFFFF8000) & 0xFFFFFFFF)
         if view.lateral >= thr and ship_fell_off(rw, view.lateral, view.af1c, view.af2c):
@@ -343,7 +343,7 @@ def native_gameplay_substep(
     crash = resolve_lateral_crash(
         view.lateral, tgt_lateral, view.ship_pos, view.grounded, view.game_state)
     # The crash handler's SFX (27A3-2828, VM-verified 2026-07-13 on both the
-    # original collision demo AND demo_skyroads_20260713_095814, a slow-crash
+    # original collision replay AND replay_skyroads_20260713_095814, a slow-crash
     # repro): a real flagged crash calls 03C2(0) at 27E7 -- but `crashed`
     # (any lateral mismatch, ship_pos always resets to 0) is NOT the same as
     # "flagged" (`resolve_lateral_crash`'s own `past_gate and f456a==0`
@@ -482,7 +482,7 @@ def _classify_transition(view: GameView, exc: Exception) -> str:
     :class:`~skyroads.native.gaps.FallDeathTransition` to a coarse,
     caller-facing ``TickOutcome.kind``.
 
-    VM-traced 2026-07-13 (``demo_skyroads_crash_20260713_085908``): a wall
+    VM-traced 2026-07-13 (``replay_skyroads_crash_20260713_085908``): a wall
     crash that happens AFTER the ship has already resumed (``game_state``
     already ``3`` from a prior landing) does NOT flip ``game_state`` to ``1``
     -- ``resolve_lateral_crash`` only sets it when ``game_state`` was ``0``.

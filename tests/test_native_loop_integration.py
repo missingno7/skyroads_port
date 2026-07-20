@@ -1,4 +1,4 @@
-"""Real-demo integration proof for skyroads.native.* against the pure ASM
+"""Real-replay integration proof for skyroads.native.* against the pure ASM
 oracle -- NOT re-proving individual islands (advance_ship/decay_bounce/
 update_vertical_velocity/dispatch_menu_action are already ASM_MATCHED, see
 their own @oracle_link status), but proving the NEW plumbing around them:
@@ -24,7 +24,7 @@ import scripts.play as sp
 from dos_re import player
 from dos_re.cpu import HaltExecution
 from dos_re.dos import ConsoleInputWouldBlock
-from dos_re.input_demo import RealModeInputAdapter
+from dos_re.replay_input import RealModeInputAdapter
 from dos_re.replay import ReplayArtifact
 from dos_re.snapshot import apply_runtime_continuation
 from skyroads.replay import recording_base
@@ -37,12 +37,12 @@ from skyroads.handrecovered.player import GRAVITY_HEIGHT_GATE
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_e2e_20260710_132930"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_e2e_20260710_132930"
 MAX_FRAMES = 900  # enough to collect several samples of each kind; keeps the test fast
 
 pytestmark = pytest.mark.skipif(
-    not (EXE.exists() and DEMO.exists()),
-    reason="needs SKYROADS.EXE + the E2E demo",
+    not (EXE.exists() and REPLAY.exists()),
+    reason="needs SKYROADS.EXE + the E2E replay",
 )
 
 SHIP_POS = 0x54AC
@@ -53,7 +53,7 @@ def _dword(buf: bytes, off: int) -> int:
 
 
 def _collect_samples():
-    """Replay the E2E demo on the pure ASM oracle (no recovered hooks), and
+    """Replay the E2E replay on the pure ASM oracle (no recovered hooks), and
     for each frame capture (before-DGROUP, after-DGROUP, kind) where kind is
     "envelope" / "outside" (gameplay, split on the vertical-velocity gap's
     condition) or "menu-noop" (a level-select frame whose real dispatch left
@@ -61,9 +61,9 @@ def _collect_samples():
     reproduces it)."""
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless", "--composition", "oracle"])
-    artifact = ReplayArtifact.open(DEMO)
-    frontend.apply_demo_metadata(args, artifact.metadata)
+        ["--play-replay", str(REPLAY), "--headless", "--composition", "oracle"])
+    artifact = ReplayArtifact.open(REPLAY)
+    frontend.apply_replay_metadata(args, artifact.metadata)
     rt = frontend.create_runtime(args)
     apply_runtime_continuation(rt, recording_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)
@@ -88,7 +88,7 @@ def _collect_samples():
             # ctrl_device selects only WHERE steering input comes from (0=kbd,
             # 2=mouse-mode); the native gameplay sub-step consumes the already-
             # computed input and is device-independent (the movement-pipeline
-            # oracle proves it for this same demo, which runs at device 2). Accept
+            # oracle proves it for this same replay, which runs at device 2). Accept
             # either so a faithful mouse-absent replay still yields samples.
             if (game_state == 3 and ctrl_device in (0, 2) and not jump_held
                     and ((in_envelope and envelope_seen < 4) or (not in_envelope and outside_seen < 4))):
@@ -130,8 +130,8 @@ def _collect_samples():
 @pytest.fixture(scope="module")
 def samples():
     gameplay, menu = _collect_samples()
-    assert gameplay, "collected no gameplay samples -- demo/oracle setup broken"
-    assert menu, "collected no menu no-op samples -- demo/oracle setup broken"
+    assert gameplay, "collected no gameplay samples -- replay/oracle setup broken"
+    assert menu, "collected no menu no-op samples -- replay/oracle setup broken"
     return gameplay, menu
 
 

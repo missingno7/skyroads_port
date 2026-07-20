@@ -1,8 +1,8 @@
 """Verify the recovered keyboard control decode (skyroads.handrecovered.controls)
-against real ASM I/O captured over the level demo.
+against real ASM I/O captured over the level replay.
 
 Fixture: unique (key-state row -> speed/steer/jump) samples recorded at every
-``074C`` keyboard-case call (``95F6==0``) over the demo. The full run matched
+``074C`` keyboard-case call (``95F6==0``) over the replay. The full run matched
 1466/1466 calls byte-exact (497 with keys held); the fixture keeps the distinct
 key combinations that actually occurred.
 """

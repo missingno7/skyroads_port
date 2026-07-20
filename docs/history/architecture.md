@@ -67,7 +67,7 @@ in what order, across every screen transition.
 Skin is what makes a routine readable: a named, typed, portable implementation of
 what one address *means*. Skin never holds shape. It attaches to the skeleton at a
 single address, through the stitch seam
-([`skyroads/cpuless_overrides.py`](../skyroads/cpuless_overrides.py)), and every
+([`skyroads/cpuless_overrides.py`](../../skyroads/cpuless_overrides.py)), and every
 address with no skin is served by the generated body automatically. That is what
 lets the composite always run: there is no intermediate state where the program is
 half-converted, because the skeleton is complete on its own.
@@ -77,17 +77,17 @@ Three rules follow, and each was learned the expensive way:
 1. **Skin may not re-implement flow.** The previous hand-written port did, and its
    menu flow drifted: `skyroads/native/menus.py` and `level_select.py` carry ZERO
    recovered-address anchors between them (`tools/absorption_ledger.py --native`).
-   Flow inferred from the screen cannot be compared against a cold-start demo;
+   Flow inferred from the screen cannot be compared against a cold-start replay;
    flow lifted from the program is comparable by construction.
 2. **Skin earns its place by differential, not by reputation.** An island runs only
    at `VERIFIED`/`CANONICAL`, and shadow mode
-   ([`skyroads/island_shadows.py`](../skyroads/island_shadows.py)) is how it gets
+   ([`skyroads/island_shadows.py`](../../skyroads/island_shadows.py)) is how it gets
    there: the generated body drives while the island is checked against it on every
    real call. Both islands shadowed so far were correct and both checkers were
    wrong — which is exactly the mistake a direct swap makes silently.
 3. **The skeleton is only as good as the gate that proves it.** It is proven
-   against the ORACLE, and a gate that runs one demo proves one demo. Running a
-   second cold demo exposed a frame-driver asymmetry (task #11) that a single-demo
+   against the ORACLE, and a gate that runs one replay proves one replay. Running a
+   second cold replay exposed a frame-driver asymmetry (task #11) that a single-replay
    gate had hidden indefinitely.
 
 The ladder above this: as ABI recovery and the Memory Schema advance, the skeleton
@@ -131,7 +131,7 @@ from the source projects). Grouped by concern:
 | `verification.py` | The differential **hook oracle**: clone the runtime, run the original ASM to the hook's continuation, run the hook, diff registers + flags + full memory. Metadata mode (`GenericHookStop` per address) or strict auto-continuation mode (no metadata). `OK_TRACE_HOOK=CS:IP` prints the ASM oracle trace on divergence. |
 | `frame_verify.py` | The **semantic/frame oracle**: step a reference (pure ASM) and a candidate (hooked/native) runtime to adapter-defined frame boundaries, build `FrameSample`s, diff raw VRAM + rendered RGB, dump PNG/report artifacts on divergence. |
 | `snapshot.py` | Full machine freeze/thaw (`write_snapshot` / `load_snapshot`): memory image + CPU + DOS + program metadata. Snapshots pin reproducible starting points and skip slow bootstraps. |
-| `input_demo.py` | Deterministic input demos: record VM-visible key events keyed to an emulated boundary counter; replay into one or more runtimes. Supports snapshot-anchored demos and cold-start demos (boot fresh, replay from boundary 0), suffix extraction, and single-event delivery for menu poll waits. |
+| `replay_input.py` | Deterministic input replays: record VM-visible key events keyed to an emulated boundary counter; replay into one or more runtimes. Supports snapshot-anchored replays and cold-start replays (boot fresh, replay from boundary 0), suffix extraction, and single-event delivery for menu poll waits. |
 | `repro_artifacts.py` | Divergence/crash repro capture: detached runtime clones + manifest. |
 | `hook_taxonomy.py` | Role-based hook classification (checkpoint / env_wait / debug_probe / glue) with adapter-supplied address sets. |
 | `islands.py` | `@oracle_link` recovered-island metadata (boundary, contract, confidence status, merge target) + auto-discovery and manifest generation — the generated progress ledger both source ports were steered by. |
@@ -144,7 +144,7 @@ from the source projects). Grouped by concern:
 dos_re/       the framework package (above)
 nuked_opl3/   vendored OPL2/OPL3 backend (optional, cffi)
 docs/         methodology + guides (start at docs/README.md)
-examples/     minimal_adapter/ (runnable end-to-end demo), adapter_skeleton/ (template)
+examples/     minimal_adapter/ (runnable end-to-end replay), adapter_skeleton/ (template)
 tests/        framework test suite (no game assets needed)
 tools/        lint, test runner, cleaner, linear disassembler, hotspot profiler,
               hook-composition audit, pure-layer VM-leak audit, undefined-name
@@ -161,7 +161,7 @@ Every game port built on this framework runs in one of four explicit modes:
 |------|-----------|-----|
 | **oracle / original** | pure original ASM in the VM | reference, observation, capturing oracles |
 | **hybrid (workbench)** | recovered native replacements over the VM | preparing/recording new islands against the live ASM |
-| **verify** | ASM oracle + recovered logic, diffed at contract boundaries | offline proof against recorded demos/snapshots |
+| **verify** | ASM oracle + recovered logic, diffed at contract boundaries | offline proof against recorded replays/snapshots |
 | **native (product)** | recovered source only, NO VM | the standalone source port; shipping |
 
 **No silent fallbacks.** If the hybrid runtime reaches unrecovered behaviour it
@@ -176,7 +176,7 @@ only; the pure layer never imports the VM.
 
 | Layer | Role | May depend on |
 |-------|------|---------------|
-| **vm / orchestration** | `dos_re`: interpreter, verifiers, snapshots, demos | anything |
+| **vm / orchestration** | `dos_re`: interpreter, verifiers, snapshots, replays | anything |
 | **hook_boundary** | thin `@registry.replace` wrappers — no game logic | lifted, bridge, pure, vm |
 | **lifted** | VM-aware Python reproducing an original routine byte/flag-exact | bridge, pure, vm |
 | **backend** | rendering / sound / file I/O implementations | pure, bridge, vm |

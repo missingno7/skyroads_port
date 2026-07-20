@@ -153,7 +153,7 @@ def update_hud(img, dg: int, ship_pos: int) -> None:
 # Level PROGRESS BAR -- the magenta strip filling left->right as the ship
 # travels the level. VM routine `1010:159C` (compute target column) + the
 # per-column fill `1010:1218`->putpixel `1010:11D3`. Recovered + verified
-# against demo_skyroads_L1FULL_20260713_212417 (see run_status.md 2026-07-13):
+# against replay_skyroads_L1FULL_20260713_212417 (see run_status.md 2026-07-13):
 # the target-column formula matched the VM 321/321 sub-steps; one column draw
 # is the 3px strip captured below.
 #
@@ -219,7 +219,7 @@ def update_progress_bar(img, dg: int) -> None:
 # GRAV-O-METER numeric readout -- `1010:1114` (draw_number) driving `1010:1073`
 # (draw_glyph_at), called from `1010:2BC3`. A 4-digit LCD showing the level's
 # gravity as `(gravity - 3) * 100`. Recovered + verified byte-exact vs the VM
-# over demo_cold_20260713_213510 (see run_status.md 2026-07-13):
+# over replay_cold_20260713_213510 (see run_status.md 2026-07-13):
 #
 #   2BC5: ax = ds:[4562] (gravity);  ax += -3;  ax *= 100   -> value
 #         call 1114(col=0x60, row=0x9C, value, width=4)

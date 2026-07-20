@@ -21,7 +21,7 @@ promote it (see `roadmap.md`, "parameterize-and-promote").
 → *Deterministic timing fast-forward*: collapse provably-identical poll
 iterations in closed form, re-emitting every due IRQ at its emulated-time
 point, never skipping across a pump boundary. The emulated timeline stays
-byte-identical — demos don't re-record. Worked examples:
+byte-identical — replays don't re-record. Worked examples:
 `pre2/bridge/timing_fastforward.py` (+ `tests/test_timing_fastforward.py`,
 whose mock-CPU sweep is the template for proving skip arithmetic) and the
 simpler `overkill/timing_fastforward.py`. Read pitfalls #12–13 first.
@@ -39,8 +39,8 @@ Deliver the *real installed IRQ0 ISR* at the wait points (never poke the flag
 Worked example: `overkill/timing_fastforward.py::advance_frames_fast`.
 
 **Every probe/investigation replays minutes of VM to reach its target.**
-→ *Walk-shadow cache*: record a demo's per-frame states once (delta-encoded;
-~10–20 MB for an 8000-frame demo), replay in seconds, keyed by the demo file's
+→ *Walk-shadow cache*: record a replay's per-frame states once (delta-encoded;
+~10–20 MB for an 8000-frame replay), replay in seconds, keyed by the replay file's
 hash so it can't go stale. Worked example: `overkill/probes/_shadow_cache.py`;
 the probe scaffolding around it is `overkill/probes/_harness.py`.
 
@@ -97,7 +97,7 @@ and the layered section of `docs/pre2/source_port_plan.md`.
 **Audio makes bring-up unbearably slow before you care about it.**
 → *Fast-AdLib service*: replace the driver's delay/write loops with an
 instant-return service during bring-up — reaches graphics fastest, mutes
-music, and is recorded in demo manifests so replays stay compatible. Worked
+music, and is recorded in replay manifests so replays stay compatible. Worked
 example: `pre2/bootstrap_hooks.py` (`install_fast_adlib_service`).
 
 **You need to hear/verify FM music without the game running.**
@@ -135,7 +135,7 @@ let a wall of unread-but-verified lifted code inflate the campaign's
 ## Verification depth (the endgame)
 
 **Proving the native port equals the VM, tick by tick, over whole playthroughs.**
-→ *Tick-demo harness* — **now a framework engine**: `dos_re/tick_demo.py`
+→ *Tick-replay harness* — **now a framework engine**: `dos_re/tick_demo.py`
 (`TickDemo` + `masked_digest` + `record_ticks` + `verify_ticks`; usage
 skeleton in dos_re's `docs/agent_toolbox.md` §12). Record seed + per-tick
 consumed input + a gameplay-state digest (render-only ranges masked out — ONE
@@ -149,10 +149,10 @@ the richest reference): `pre2/native/game_tick_demo.py`,
 
 **Proving the native FRONT END behaves like the original — the screens with no game tick.**
 → *The FOUR-GATE front-end proof* — **a framework engine**: `dos_re/frontend_timeline.py`
-(usage skeleton in dos_re's `docs/agent_toolbox.md` §12b). The tick demo captures
+(usage skeleton in dos_re's `docs/agent_toolbox.md` §12b). The tick replay captures
 none of the intro / title / menu / attract / map / tally — they run with no tick —
 so those flows ship verified against nothing and drift (a screen shown in the wrong
-ORDER, an attract demo entered instead of the recorded selection, a wall screen
+ORDER, an attract replay entered instead of the recorded selection, a wall screen
 after the level load instead of before). A per-frame pixel diff is the WRONG proof
 (the VM recording and the native scene generator share no frame clock); the proof is
 the flow's discrete structure: **[1] screen ORDER** (`capture`/`collapse`/
@@ -167,20 +167,20 @@ Input honesty: capture the raw key-flag window the VM's front end sampled per fr
 (include EVERYTHING the flow reads — menu key flags can live below the scancode
 table) and feed it to native CAUSALLY per screen (`input_segments`/`SegmentedInput`),
 so presses land on the same screen at the same relative moment. Needs a
-**cold-start demo**; seed the candidate from the FRONT-END entry state (boot
+**cold-start replay**; seed the candidate from the FRONT-END entry state (boot
 constants), not a level-jump bootstrap. Worked end-to-end (all four gates green on a
-real cold-start demo; gate 2 caught a menu-entry fresh-start block on its first run):
+real cold-start replay; gate 2 caught a menu-entry fresh-start block on its first run):
 `pre2_port/scripts/verify_native_frontend.py`, plus `probe_frontend_timeline.py`
-(ground-truth prober — run on any demo) and `frontend_capture.py`.
+(ground-truth prober — run on any replay) and `frontend_capture.py`.
 
-**A divergence appears 10 minutes into a demo.**
+**A divergence appears 10 minutes into a replay.**
 → *Suffix repro*: `InputDemoPlayback.write_suffix` (already in the core)
 carves a snapshot + rebased event tail at the divergence boundary — "resume
 here, run 4 frames" instead of "replay everything". The frame verifier's
 repro-artifact capture (`dos_re/repro_artifacts.py`) pairs with it.
 
-**Tracking what the demo corpus actually covers.**
-→ Corpus census: enumerate demos, their length, and which
+**Tracking what the replay corpus actually covers.**
+→ Corpus census: enumerate replays, their length, and which
 levels/scenes/behaviours each reaches; blind spots are reported risks. Worked
 examples: `pre2/probes/demo_census.py`, `pre2_port/docs/pre2/demo_manifest.md`.
 
@@ -188,18 +188,18 @@ examples: `pre2/probes/demo_census.py`, `pre2_port/docs/pre2/demo_manifest.md`.
 
 The runner itself is UNIFIED now: `dos_re/dos_re/player.py` owns the standard
 CLI (viewer by default / `--headless`; `--snapshot`/`--save-snapshot`;
-`--record-demo`/`--play-demo`/`--demo-continue`; the four hook-mode flags;
+`--record-replay`/`--play-replay`/`--replay-continue`; the four hook-mode flags;
 pacing knobs), the viewer loop with the standard hotkeys (F10 screenshot,
-F11 demo-record toggle, F12 snapshot), headless replay and crash snapshots.
+F11 replay-record toggle, F12 snapshot), headless replay and crash snapshots.
 Your port subclasses `GameFrontend` — start from this repo's
-[`scripts/play.py`](../scripts/play.py) and keep the flag names; the worked
+[`scripts/play.py`](../../scripts/play.py) and keep the flag names; the worked
 examples below are the GAME-SPECIFIC ideas you graduate into as the port
 matures.
 
 **Which pacing model? (the main thing ports actually differ in).**
 → Start with the library default: a fixed `--steps-per-frame` budget +
 `--timer-irqs-per-frame` INT 08h ticks — no wall clock, the frame index IS
-the demo clock, record/replay trivially deterministic. Graduate only when the
+the replay clock, record/replay trivially deterministic. Graduate only when the
 game demands it, cheapest first:
 - **Deterministic tick-wait park** (simplest, no wall clock): the game paces
   off a timer-tick counter its INT 08h ISR bumps, but the driver delivers all
@@ -211,7 +211,7 @@ game demands it, cheapest first:
   fewer interpreted steps on gameplay-heavy frames, keeping the deterministic
   fixed-budget clock.
 - **Wall-clock model** (P2): PIT ch0 + the 70 Hz retrace on the WALL clock for
-  live play, while demos keep a deterministic instruction-count clock
+  live play, while replays keep a deterministic instruction-count clock
   (`pre2_port/scripts/play.py`, `docs/pre2/timing_hook_design.md` — read its §7
   before touching live pacing).
 - **Modelled wait boundaries** (Overkill): present at the game's timer/retrace
@@ -219,7 +219,7 @@ game demands it, cheapest first:
   (`overkill_port/scripts/play.py`).
 
 Whatever you pick: every knob a replay must match goes into
-`demo_metadata`/`apply_demo_metadata`, or old demos lie.
+`demo_metadata`/`apply_demo_metadata`, or old replays lie.
 
 **How big should `--steps-per-frame` be?** Size it *above* the game's peak
 per-frame work, never toward the average. A budget below the real per-frame cost
@@ -233,11 +233,11 @@ frames — size it to peak + headroom (SkyRoads: measured peak 37.3k steps →
 budget 48k). Because `steps_per_frame` lives in `demo_metadata`, raising the
 default never disturbs existing recordings.
 
-**A hook tier safe enough to record demos over (`--safe-hooks`).**
+**A hook tier safe enough to record replays over (`--safe-hooks`).**
 → Classify hooks by WRITE-SET: render/audio-owned hooks (their writes cannot
 touch the gameplay state a recording certifies) plus input-closed asset
 decoders proven byte-identical over the whole asset set. Running only that
-tier keeps the wall-clock playable for fluent human demo recording while
+tier keeps the wall-clock playable for fluent human replay recording while
 every gameplay byte still comes from original ASM. Worked example:
 `pre2.checkpoints.SAFE_ORACLE_HOOKS` + the `--safe-hooks` help text in
 `pre2_port/scripts/play.py`.
@@ -268,8 +268,8 @@ blocks to the host mixer (worked example: P2 `--audio adlib`, and
 **Convenience fast-paths behind flags (never silent).**
 → Recovered accelerators the human toggles: P2's `--fast-song-load`
 (byte-exact MOD-loader fast-forward, default ON live / OFF for replays so old
-demos still verify) and `--fast-adlib` (mute the hot AdLib thunk to reach
-graphics fastest). The pattern: default them by MODE, record them in demo
+replays still verify) and `--fast-adlib` (mute the hot AdLib thunk to reach
+graphics fastest). The pattern: default them by MODE, record them in replay
 metadata, document the byte-exactness status in the help text. Worked
 example: `pre2_port/scripts/play.py`.
 
@@ -298,7 +298,7 @@ template `examples/ledgers/overnight_goal.md` (preconditions checklist,
 done-condition, gates, work-queue buckets; run_status's frontier statement
 overrides the queue). Deploy it in the MIDDLE of the port — the hook/lift
 grind after the game is fully runnable and the corpus spans gameplay
-(ideally e2e cold-start demos); the corpus is what makes unattended commits
+(ideally e2e cold-start replays); the corpus is what makes unattended commits
 safe. Bring-up and the flip's design decisions stay attended.
 Worked examples of a long campaign's brief evolving:
 `overkill_port/scripts/overnight_loop.sh`,

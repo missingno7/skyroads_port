@@ -21,40 +21,48 @@ Execution policy and implementation composition are separate:
 # untouched interpreted oracle
 python scripts/play.py --profile development --composition oracle
 
-# interpreted baseline with selected faithful replacements
-python scripts/play.py --profile development --composition faithful
+# interpreted baseline with authored faithful candidates
+python scripts/play.py --profile development --composition authored-candidates
 
 # differential verification over a ReplayArtifact
-python scripts/play.py --profile verification --composition faithful \
-  --play-demo artifacts/demos/replay_name
+python scripts/play.py --profile verification --composition generated-functions \
+  --play-replay artifacts/replays/replay_name
 
-# EXE-detached generated implementation
-python scripts/play.py --profile detached --composition cpuless --headless
+# generated CPUless implementation while recovery frontiers remain visible
+python scripts/play.py --profile development --composition generated-abi --headless
 
-# closed-world release readiness (also validates the bootstrap image)
-python scripts/play.py --profile release --composition cpuless --plan-only
+# strict readiness report (currently rejects named Atlas frontiers)
+python scripts/play.py --profile release --composition generated-abi --plan-only
 
-# generate the declared build-image bootstrap, then export
+# rebuild/query the persistent evidence map
+python scripts/build_atlas.py --from-ir
+python dos_re/tools/atlas.py unresolved recovery/atlas --json
+
+# materialize the declared bootstrap; export remains blocked until closure
 python scripts/build_boot_image.py
-python scripts/export_release.py dist/skyroads
 ```
 
-`skyroads.execution` is the single implementation catalog and coverage model.
+`skyroads.execution` is the single implementation catalog and composition
+authority; `recovery/atlas` is the persistent coverage model.
 Generated VMless and CPUless code are baseline providers; authored faithful
 replacements, presentation enhancements and behavioral modifications are
 separate override categories. Importing an adapter never installs it.
 
 The selected `BuildImageBootstrapProvider` declares `state.json`,
 `memory_1mb.bin`, and `manifest.json`, including their packaged paths and the
-command that generates them. Release planning fails immediately with that
-instruction when any file is missing. Export materializes the provider
-automatically, rejects original executables and interpreter/development
-imports, and publishes only the audited runtime, bootstrap, and data closure.
-Code poisoning remains optional additional evidence, not release authority.
+command that generates them. Release planning reports missing bootstrap inputs
+and unresolved Atlas control-flow sites before launch. Once both are closed,
+export materializes the provider, rejects original executables and
+interpreter/development imports, and publishes only the audited runtime,
+bootstrap, and data closure. Code poisoning remains optional additional
+evidence, not release authority.
 
-`ReplayArtifact` is the only persistent demo/replay format. Recording is
-restricted to the untouched oracle; selected faithful replacements are checked
-over exact replay intervals with complete continuation-state comparison.
+`ReplayArtifact` is the only persistent record/replay format. Recording is
+restricted to the untouched oracle. Literal generated functions are green over
+the committed exact interval with complete continuation-state comparison.
+Authored faithful candidates retain their call-level oracle evidence, but must
+also become instruction-clock transparent before the same interval proof can
+promote the complete composition.
 
 See [current documentation](docs/README.md). Pre-3.0 recovery notes are kept
 under `docs/history/` as evidence only.

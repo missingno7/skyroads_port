@@ -14,7 +14,7 @@ EXE = ROOT / "assets" / "SKYROADS.EXE"
 
 
 @pytest.mark.skipif(not EXE.exists(), reason="needs SKYROADS.EXE")
-def test_faithful_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
+def test_generated_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
     frontend = SkyroadsFrontend(ROOT)
     oracle_args = player.build_arg_parser(frontend).parse_args([
         "--headless", "--composition", "oracle",
@@ -28,7 +28,7 @@ def test_faithful_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
         timeline_id="real-mode-frame-boundaries:skyroads:v1",
         profile=profile,
         base_state=base,
-        metadata=frontend.demo_metadata(oracle_args),
+        metadata=frontend.replay_metadata(oracle_args),
     )
     frontend.advance_frame(oracle_runtime, oracle_args, 0)
     artifact = recording.finish(
@@ -39,7 +39,7 @@ def test_faithful_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
 
     verify_args = player.build_arg_parser(frontend).parse_args([
         "--headless", "--profile", "verification",
-        "--composition", "faithful",
+        "--composition", "generated-functions",
     ])
     plan = frontend.resolve_execution_plan(verify_args)
     verify_args.execution_plan = plan

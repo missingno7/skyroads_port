@@ -33,7 +33,7 @@ import scripts.play as sp
 from dos_re import player
 from dos_re.cpu import CPU8086, HaltExecution
 from dos_re.dos import ConsoleInputWouldBlock
-from dos_re.input_demo import RealModeInputAdapter
+from dos_re.replay_input import RealModeInputAdapter
 from dos_re.replay import ReplayArtifact
 from dos_re.snapshot import apply_runtime_continuation
 from skyroads.replay import recording_base
@@ -45,25 +45,25 @@ from skyroads.handrecovered.physics import compute_movement_targets
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_e2e_20260710_132930"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_e2e_20260710_132930"
 
 pytestmark = pytest.mark.skipif(
-    not (EXE.exists() and DEMO.exists()),
-    reason="needs SKYROADS.EXE + the E2E demo",
+    not (EXE.exists() and REPLAY.exists()),
+    reason="needs SKYROADS.EXE + the E2E replay",
 )
 
 CODE_SEG = 0x1010
 IP_PRE = 0x2635    # start of the movement-target computation (post advance_ship/vvel)
 IP_POST = 0x26E9   # right after resolve_move (186B) returns
-MAX_FRAMES = 1200  # steering starts partway through the demo; go far enough to catch it
+MAX_FRAMES = 1200  # steering starts partway through the replay; go far enough to catch it
 
 
 def _collect(max_cases: int = 160):
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless", "--composition", "oracle"])
-    artifact = ReplayArtifact.open(DEMO)
-    frontend.apply_demo_metadata(args, artifact.metadata)
+        ["--play-replay", str(REPLAY), "--headless", "--composition", "oracle"])
+    artifact = ReplayArtifact.open(REPLAY)
+    frontend.apply_replay_metadata(args, artifact.metadata)
     rt = frontend.create_runtime(args)
     apply_runtime_continuation(rt, recording_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)
@@ -129,7 +129,7 @@ def _collect(max_cases: int = 160):
 @pytest.fixture(scope="module")
 def cases():
     got = _collect()
-    assert got, "collected no movement-pipeline samples -- demo/oracle setup broken"
+    assert got, "collected no movement-pipeline samples -- replay/oracle setup broken"
     return got
 
 
