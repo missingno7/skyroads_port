@@ -79,7 +79,11 @@ def recording_profile(artifact: ReplayArtifact) -> ExecutionProfile:
         if profile.profile_id == profile_id
     ]
     if len(matches) != 1:
-        raise RuntimeError("ReplayArtifact has no unique recording profile")
+        raise RuntimeError(
+            f"ReplayArtifact {artifact.directory} has no unique untouched-oracle "
+            "recording profile; discard it and record again with "
+            "--composition oracle"
+        )
     profile = matches[0]
     if profile.role != "oracle":
         raise RuntimeError(
@@ -93,6 +97,28 @@ def recording_base(artifact: ReplayArtifact) -> ContinuationState:
     profile = recording_profile(artifact)
     base = artifact.cached_points(profile)[0]
     return artifact.restore(profile, base)
+
+
+def recording_artifacts(directory: str | Path) -> tuple[ReplayArtifact, ...]:
+    """Open every authoritative replay artifact directly below *directory*."""
+    root = Path(directory)
+    artifacts = tuple(
+        ReplayArtifact.open(manifest.parent)
+        for manifest in sorted(root.glob("*/replay.json"))
+    )
+    for artifact in artifacts:
+        recording_profile(artifact)
+    return artifacts
+
+
+def recording_base_memories(
+    directory: str | Path,
+) -> tuple[tuple[str, bytes], ...]:
+    """Return named memory images from authoritative replay recording bases."""
+    return tuple(
+        (artifact.directory.name, recording_base(artifact).regions["memory"])
+        for artifact in recording_artifacts(directory)
+    )
 
 
 class SkyroadsReplayDriver:

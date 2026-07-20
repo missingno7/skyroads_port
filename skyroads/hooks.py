@@ -2245,7 +2245,7 @@ from skyroads.lifted.functions.lifted_1010_39d4 import lifted_1010_39d4 as _lift
 # calls 34AE to finalize, and copies the occlusion mask (0E86->1243). This is
 # the last unrecovered node in the per-frame render call tree (34AE/39D4 already
 # lifted; road_column/sprite_blit/masked_blit/present_rect/stencil_blit pure).
-# Lifted 2026-07-12 via lindis --live-demo -> liftgen -> liftverify from a
+# Lifted 2026-07-12 via live replay disassembly -> liftgen -> liftverify from a
 # gameplay-frame-640 snapshot (the cold snapshot has code-overlay garbage here).
 # liftverify: ORACLE_PASSING, 7/7 byte-exact vs ASM (full machine state incl.
 # VGA), 16/17 blocks (the [003C]==0 non-gameplay branch not exercised in the

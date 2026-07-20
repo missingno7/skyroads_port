@@ -53,10 +53,10 @@ def write_extras(extras: list[str]) -> None:
 
 
 DISPATCH_FILE = CODEMAP / "dispatch_extra.txt"
-#: scripts/find_snapshot_entries.py -- the addresses demo snapshots were CAUGHT
-#: at. Re-entry points (--dispatch-entries), not new functions: they are almost
-#: always interior addresses of a function that is already lifted.
-SNAPSHOT_ENTRIES_FILE = CODEMAP / "snapshot_entries.txt"
+#: scripts/find_replay_base_entries.py -- the addresses ReplayArtifact recording
+#: bases were captured at. Re-entry points (--dispatch-entries), not new
+#: functions: they are usually interior addresses of a function already lifted.
+REPLAY_BASE_ENTRIES_FILE = CODEMAP / "replay_base_entries.txt"
 
 
 def read_dispatch() -> list[str]:
@@ -84,14 +84,15 @@ def regenerate(lift_dir: Path, extras: list[str]) -> None:
                     "--out", str(CODEMAP / "entries.txt"),
                     "--seg", "1010", "--extra", "1010:61F3", *extra_args],
                    check=True, capture_output=True, text=True)
-    # Snapshot re-entry points go in as --dispatch-entries, NOT --extra: a
-    # snapshot catches the machine at an interior address of a function that is
+    # Replay-base re-entry points go in as --dispatch-entries, NOT --extra: a
+    # recording base can catch the machine at an interior address of a function
+    # that is
     # already lifted (1010:3199 sits inside 3190), so it needs a hook that
     # re-enters THAT body at THAT block -- not a second module cloning its
     # blocks and losing the enclosing frame.
     dispatch_entries: list[str] = []
-    if SNAPSHOT_ENTRIES_FILE.exists():
-        dispatch_entries = [f"@{SNAPSHOT_ENTRIES_FILE}"]
+    if REPLAY_BASE_ENTRIES_FILE.exists():
+        dispatch_entries = [f"@{REPLAY_BASE_ENTRIES_FILE}"]
     subprocess.run([sys.executable, str(ROOT / "dos_re/tools/irgen.py"),
                     "--exe", str(ROOT / "assets/SKYROADS.EXE"),
                     "--snapshot", str(ROOT / "artifacts/snapshots/menu_code_live_f250"),

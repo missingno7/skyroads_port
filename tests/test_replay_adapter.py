@@ -6,10 +6,12 @@ from dos_re.input_demo import SCAN_CHANNEL, scan_payload
 from dos_re.replay import (
     ContinuationState,
     ExecutionProfile,
+    ReplayArtifact,
     ReplayEvent,
     ReplayPoint,
 )
 from skyroads import replay
+from scripts.find_replay_base_entries import replay_base_entries
 
 
 class FakeDOS:
@@ -19,6 +21,40 @@ class FakeDOS:
 
     def set_mouse_norm(self, u, v, buttons):
         self.mouse = (u, v, buttons)
+
+
+def test_recording_base_discovery_uses_replayartifact(tmp_path):
+    timeline = "real-mode-frame-boundaries:skyroads:v1"
+    profile = ExecutionProfile(
+        "oracle", "oracle", "implementation", "image", "runtime",
+        "devices", "continuation", replay.PROJECTION_SCHEMA)
+    directory = tmp_path / "replays" / "recording"
+    artifact = ReplayArtifact.create(
+        directory,
+        timeline_id=timeline,
+        events=(),
+        metadata={"recording_profile_id": profile.profile_id},
+    )
+    base = ContinuationState(
+        "continuation",
+        {"cpu": {"cs": 0x1010, "ip": 0x3199}},
+        {"memory": b"base-memory"},
+        0,
+    )
+    artifact.register_profile(
+        profile,
+        base_point=ReplayPoint(0, timeline),
+        base_state=base,
+    )
+
+    found = replay.recording_artifacts(directory.parent)
+    assert tuple(item.directory for item in found) == (directory,)
+    assert replay.recording_base_memories(directory.parent) == (
+        ("recording", b"base-memory"),
+    )
+    assert replay_base_entries(directory.parent) == [
+        ("recording", 0x1010, 0x3199),
+    ]
 
 
 def test_driver_consumes_replayartifact_events_and_tracks_cursor(monkeypatch):

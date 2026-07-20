@@ -173,7 +173,8 @@ def _closure_roots() -> str:
     roots = {CANONICAL_ENTRY}
     roots |= {v.upper() for v in (obs.get("ivt_game_vectors") or {}).values()}
     roots |= {v.upper() for v in (obs.get("int_entries") or [])}
-    for f in ("dispatch_extra.txt", "boundary_heads.txt", "snapshot_entries.txt"):
+    for f in ("dispatch_extra.txt", "boundary_heads.txt",
+              "replay_base_entries.txt"):
         roots |= _load_pairs(CODEMAP / f)
     return ",".join(sorted(roots))
 
