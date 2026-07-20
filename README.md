@@ -31,10 +31,10 @@ python scripts/play.py --profile verification --composition faithful \
 # EXE-detached generated implementation
 python scripts/play.py --profile detached --composition cpuless --headless
 
-# closed-world release readiness
+# closed-world release readiness (also validates the bootstrap image)
 python scripts/play.py --profile release --composition cpuless --plan-only
 
-# export the audited standalone product after generating a poisoned boot image
+# generate the declared build-image bootstrap, then export
 python scripts/build_boot_image.py
 python scripts/export_release.py dist/skyroads
 ```
@@ -44,9 +44,13 @@ Generated VMless and CPUless code are baseline providers; authored faithful
 replacements, presentation enhancements and behavioral modifications are
 separate override categories. Importing an adapter never installs it.
 
-Release export requires a code-poisoned boot image, rejects original
-executables and interpreter/development imports, and publishes only the
-statically audited runtime and data closure.
+The selected `BuildImageBootstrapProvider` declares `state.json`,
+`memory_1mb.bin`, and `manifest.json`, including their packaged paths and the
+command that generates them. Release planning fails immediately with that
+instruction when any file is missing. Export materializes the provider
+automatically, rejects original executables and interpreter/development
+imports, and publishes only the audited runtime, bootstrap, and data closure.
+Code poisoning remains optional additional evidence, not release authority.
 
 `ReplayArtifact` is the only persistent demo/replay format. Recording is
 restricted to the untouched oracle; selected faithful replacements are checked

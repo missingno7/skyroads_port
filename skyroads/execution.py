@@ -11,8 +11,12 @@ from pathlib import Path
 from typing import Iterable
 
 from dos_re.execution import (
+    BootstrapArtifact,
+    BuildImageBootstrapProvider,
     BuildTarget,
+    DependencyCapability,
     ExecutionConfiguration,
+    ExeBootstrapProvider,
     ImplementationCatalog,
     ImplementationDescriptor,
     ImplementationEntry,
@@ -25,6 +29,9 @@ from dos_re.execution import (
 PROGRAM_ID = "skyroads:1.0"
 PROGRAM_ROOT = f"{PROGRAM_ID}:program"
 CODE_SEG = 0x1010
+ROOT = Path(__file__).resolve().parents[1]
+BOOT_DIR = ROOT / "artifacts" / "boot_image"
+BOOTSTRAP_INSTRUCTION = "run: python scripts/build_boot_image.py"
 
 
 def function_identity(offset: int) -> str:
@@ -89,6 +96,12 @@ def _function_entries(
                 origin=origin,
                 category=category,
                 properties=frozenset({"cpu-adapted", "dos-memory-backed"}),
+                required_capabilities=frozenset({
+                    DependencyCapability.CPU_MODEL.value,
+                    DependencyCapability.DOS_MEMORY.value,
+                    DependencyCapability.DOS_SERVICES.value,
+                    DependencyCapability.DOS_RE_RUNTIME.value,
+                }),
                 implementation_digest=f"skyroads-{name}-v1",
             ),
             implementation=implementation,
@@ -105,8 +118,15 @@ def catalog() -> ImplementationCatalog:
             targets=all_targets,
             origin=ImplementationOrigin.INTERPRETED,
             properties=frozenset({"cpu-backed", "dos-memory-backed"}),
-            requires_original_exe=True,
-            requires_interpreter=True,
+            required_capabilities=frozenset({
+                DependencyCapability.ORIGINAL_EXE.value,
+                DependencyCapability.ORIGINAL_CODE.value,
+                DependencyCapability.INTERPRETER.value,
+                DependencyCapability.CPU_MODEL.value,
+                DependencyCapability.DOS_MEMORY.value,
+                DependencyCapability.DOS_SERVICES.value,
+                DependencyCapability.DOS_RE_RUNTIME.value,
+            }),
             implementation_digest="skyroads-exe-interpreter-v1",
         )),
         ImplementationEntry(ImplementationDescriptor(
@@ -115,6 +135,12 @@ def catalog() -> ImplementationCatalog:
             origin=ImplementationOrigin.GENERATED,
             properties=frozenset({
                 "cpu-backed", "vmless", "dos-memory-backed", "exe-detached",
+            }),
+            required_capabilities=frozenset({
+                DependencyCapability.CPU_MODEL.value,
+                DependencyCapability.DOS_MEMORY.value,
+                DependencyCapability.DOS_SERVICES.value,
+                DependencyCapability.DOS_RE_RUNTIME.value,
             }),
             implementation_digest="skyroads-generated-vmless-corpus-v1",
             region_id=PROGRAM_ROOT,
@@ -125,6 +151,11 @@ def catalog() -> ImplementationCatalog:
             origin=ImplementationOrigin.GENERATED,
             properties=frozenset({
                 "cpuless", "abi-recovered", "dos-memory-backed", "exe-detached",
+            }),
+            required_capabilities=frozenset({
+                DependencyCapability.DOS_MEMORY.value,
+                DependencyCapability.DOS_SERVICES.value,
+                DependencyCapability.DOS_RE_RUNTIME.value,
             }),
             implementation_digest="skyroads-generated-cpuless-corpus-v1",
             region_id=PROGRAM_ROOT,
@@ -155,6 +186,12 @@ def catalog() -> ImplementationCatalog:
             origin=ImplementationOrigin.AUTHORED,
             category=OverrideCategory.ENHANCEMENT,
             properties=frozenset({"cpu-adapted", "dos-memory-backed"}),
+            required_capabilities=frozenset({
+                DependencyCapability.CPU_MODEL.value,
+                DependencyCapability.DOS_MEMORY.value,
+                DependencyCapability.DOS_SERVICES.value,
+                DependencyCapability.DOS_RE_RUNTIME.value,
+            }),
             implementation_digest="skyroads-frame-park-v1",
             region_id="skyroads:frame-pacing",
         ),
@@ -178,6 +215,80 @@ def generated_function_ids() -> tuple[str, ...]:
         entry.descriptor.implementation_id
         for entry in catalog().entries
         if entry.descriptor.implementation_id.startswith("generated-function:")
+    )
+
+
+def bootstrap_provider(composition: str):
+    if composition in {"oracle", "faithful", "play", "behavioral"}:
+        exe = ROOT / "assets" / "SKYROADS.EXE"
+        return ExeBootstrapProvider(
+            provider_id="skyroads-exe-bootstrap",
+            state_outputs=(
+                "loaded SkyRoads process",
+                "CPU and DOS continuation state",
+            ),
+            artifacts=(BootstrapArtifact(
+                artifact_id="skyroads-exe",
+                runtime_path="SKYROADS.EXE",
+                source_path=str(exe),
+                generation_instruction=(
+                    "place the original SKYROADS.EXE under assets/"
+                ),
+            ),),
+            runtime_required_capabilities=frozenset({
+                DependencyCapability.INTERPRETER.value,
+                DependencyCapability.CPU_MODEL.value,
+                DependencyCapability.DOS_MEMORY.value,
+                DependencyCapability.DOS_SERVICES.value,
+                DependencyCapability.DOS_RE_RUNTIME.value,
+            }),
+            initialized_capabilities=frozenset({
+                DependencyCapability.CPU_MODEL.value,
+                DependencyCapability.DOS_MEMORY.value,
+                DependencyCapability.DOS_SERVICES.value,
+            }),
+            valid_profiles=frozenset({"development", "verification"}),
+            provider_digest="skyroads-exe-bootstrap-v1",
+        )
+
+    runtime_capabilities = {
+        DependencyCapability.DOS_MEMORY.value,
+        DependencyCapability.DOS_SERVICES.value,
+        DependencyCapability.DOS_RE_RUNTIME.value,
+    }
+    if composition == "vmless":
+        runtime_capabilities.add(DependencyCapability.CPU_MODEL.value)
+    return BuildImageBootstrapProvider(
+        provider_id=f"skyroads-{composition}-build-image",
+        state_outputs=(
+            "1 MiB DOS memory image",
+            "CPU/register seed",
+            "DOS and device continuation state",
+        ),
+        artifacts=tuple(
+            BootstrapArtifact(
+                artifact_id=f"skyroads-boot-{name}",
+                runtime_path=f"artifacts/boot_image/{filename}",
+                source_path=str(BOOT_DIR / filename),
+                generation_instruction=BOOTSTRAP_INSTRUCTION,
+            )
+            for name, filename in (
+                ("state", "state.json"),
+                ("memory", "memory_1mb.bin"),
+                ("manifest", "manifest.json"),
+            )
+        ),
+        build_required_capabilities=frozenset({
+            DependencyCapability.ORIGINAL_EXE.value,
+        }),
+        runtime_required_capabilities=frozenset(runtime_capabilities),
+        initialized_capabilities=frozenset({
+            DependencyCapability.CPU_MODEL.value,
+            DependencyCapability.DOS_MEMORY.value,
+            DependencyCapability.DOS_SERVICES.value,
+        }),
+        valid_profiles=frozenset({"development", "detached", "release"}),
+        provider_digest=f"skyroads-{composition}-build-image-v1",
     )
 
 
@@ -235,6 +346,7 @@ def configuration(
         product_profile="game",
         provider_preference=preferences,
         selected_overrides=selected,
+        bootstrap_provider=bootstrap_provider(composition),
         build_target=target,
     )
     # Preserve the resolved product composition in the profile identity without

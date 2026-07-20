@@ -2,19 +2,14 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 from pathlib import Path
 
 from dos_re.execution import plan_execution
-from dos_re.export import (
-    ExportError,
-    ExportFile,
-)
+from dos_re.export import ExportFile
 from skyroads.execution import catalog, configuration, coverage
 
 ROOT = Path(__file__).resolve().parents[1]
 LAUNCHER = "skyroads/release_launcher.py"
-BOOT_DIR = ROOT / "artifacts" / "boot_image"
 
 
 def _payload_paths() -> tuple[str, ...]:
@@ -49,36 +44,14 @@ def export_factory():
     """Return the package-ready plan and exact import/data closure."""
     plan = plan_execution(
         configuration("release", "cpuless"), coverage(), catalog())
-    required_boot_files = (
-        BOOT_DIR / "state.json",
-        BOOT_DIR / "memory_1mb.bin",
-        BOOT_DIR / "manifest.json",
-    )
-    missing = [path for path in required_boot_files if not path.is_file()]
-    if missing:
-        raise ExportError(
-            "release boot image is missing; build it with "
-            "scripts/build_boot_image.py before export: "
-            + ", ".join(str(path) for path in missing)
-        )
-    boot_manifest = json.loads(
-        (BOOT_DIR / "manifest.json").read_text(encoding="utf-8"))
-    poison = boot_manifest.get("poison", {})
-    if not poison.get("enabled") or poison.get("code_bytes_present_after") != 0:
-        raise ExportError(
-            "release boot image is not code-free; rebuild it with poisoning enabled"
-        )
     files = [
         ExportFile(ROOT / relative, _destination(relative))
         for relative in _payload_paths()
     ]
 
-    # The detached provider boots from the code-free recovered image and still
-    # consumes the original data files. The original executable is forbidden.
-    data_roots = (
-        (BOOT_DIR, Path("artifacts/boot_image")),
-        (ROOT / "assets", Path("assets")),
-    )
+    # The planner/exporter materializes the selected bootstrap image. The
+    # product closure below adds original data assets, but never the executable.
+    data_roots = ((ROOT / "assets", Path("assets")),)
     for root, destination_root in data_roots:
         if not root.exists():
             continue

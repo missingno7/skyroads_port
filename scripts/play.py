@@ -81,9 +81,10 @@ class SkyroadsFrontend(player.GameFrontend):
 
     def launch(self, args, plan):
         provider = selected_whole_program_provider(plan)
+        bootstrap_artifacts = plan.bootstrap_artifact_paths()
         if provider == "baseline:generated-vmless":
             from skyroads.vmless_backend import launch
-            return launch(args)
+            return launch(args, bootstrap_artifacts=bootstrap_artifacts)
         if provider == "baseline:generated-cpuless":
             from skyroads.development_guard import (
                 arm_cpuless_import_guard,
@@ -91,7 +92,11 @@ class SkyroadsFrontend(player.GameFrontend):
             )
             from skyroads.cpuless_backend import run
             arm_cpuless_import_guard()
-            return run(args, diagnostics=report_cpuless_crash)
+            return run(
+                args,
+                bootstrap_artifacts=bootstrap_artifacts,
+                diagnostics=report_cpuless_crash,
+            )
         return super().launch(args, plan)
 
     def _capture_sb(self, args) -> bool:

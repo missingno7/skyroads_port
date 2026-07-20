@@ -1,8 +1,11 @@
 """The SkyRoads planner is the only implementation-selection authority."""
 from __future__ import annotations
 
-from dos_re.execution import OverrideCategory, plan_execution
+import pytest
+
+from dos_re.execution import ExecutionPlanError, OverrideCategory, plan_execution
 from scripts.play import SkyroadsFrontend
+from skyroads import execution as execution_model
 from skyroads.execution import catalog, configuration, coverage
 
 
@@ -53,12 +56,33 @@ def test_default_play_is_fast_but_has_no_behavioral_modifications() -> None:
     }
 
 
-def test_release_plan_is_closed_world_and_exe_detached() -> None:
+def test_release_plan_is_closed_world_and_exe_detached(
+    tmp_path, monkeypatch,
+) -> None:
+    boot = tmp_path / "boot"
+    boot.mkdir()
+    (boot / "state.json").write_text("{}", encoding="utf-8")
+    (boot / "memory_1mb.bin").write_bytes(b"\0")
+    (boot / "manifest.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(execution_model, "BOOT_DIR", boot)
     plan = _plan("release", "cpuless")
-    assert plan.report.standalone_executable_ready
     assert plan.report.package_ready
-    assert not plan.report.exe_dependent
-    assert not plan.report.interpreter_dependent
+    assert plan.report.is_detached_from("original-exe")
+    assert plan.report.is_detached_from("interpreter")
+    assert plan.report.bootstrap_provider_id == "skyroads-cpuless-build-image"
+    assert plan.report.bootstrap_build_capabilities == ("original-exe",)
+    assert not plan.report.missing_bootstrap_artifacts
     assert {item.implementation_id for item in plan.implementations} == {
         "baseline:generated-cpuless"
     }
+
+
+def test_release_plan_fails_before_launch_when_bootstrap_is_missing(
+    tmp_path, monkeypatch,
+) -> None:
+    monkeypatch.setattr(execution_model, "BOOT_DIR", tmp_path / "missing")
+    with pytest.raises(ExecutionPlanError) as caught:
+        _plan("release", "cpuless")
+    message = str(caught.value)
+    assert "missing bootstrap artifacts" in message
+    assert "python scripts/build_boot_image.py" in message

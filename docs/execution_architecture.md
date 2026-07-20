@@ -28,6 +28,33 @@ CPUless and native are properties of implementations, not player modes.
 These axes are intentionally independent. Build platform and replay
 verification are separate concerns.
 
+## Declared bootstrap
+
+Composition also selects the plan's initial-state provider:
+
+- interpreted compositions use `ExeBootstrapProvider`;
+- VMless and CPUless compositions use `BuildImageBootstrapProvider`;
+- the build-image provider declares the memory image, continuation state, and
+  provenance manifest under stable artifact IDs.
+
+Creating the image requires the original EXE, but using the packaged image
+does not. Its build-time EXE requirement is therefore reported separately from
+the release runtime closure. The CPUless release remains EXE- and
+interpreter-detached while retaining DOS memory, DOS services, and the
+product-safe dos_re runtime.
+
+`--profile release --plan-only` validates all three source artifacts. If they
+are absent it fails before backend launch with:
+
+```text
+run: python scripts/build_boot_image.py
+```
+
+Export copies the declared artifacts automatically and records their IDs and
+runtime paths in `dos_re_release.json`. The standalone launcher resolves that
+index through `dos_re.bootstrap_runtime`; `cpuless_backend` no longer assumes a
+project-relative `artifacts/boot_image` directory.
+
 ## Single catalog and identity model
 
 `skyroads.execution` is the only implementation-selection authority. Stable
@@ -57,8 +84,11 @@ needed.
 - Detached and release plans fail before launch if any reachable identity
   requires the EXE or interpreter.
 - A release plan must have a build target and complete closed-world coverage.
-- Release export requires a poisoned, code-free boot image and rejects the
-  original EXE, interpreter, replay, snapshot and planner services.
+- Release planning requires a materializable build-image bootstrap; export
+  includes it automatically and rejects the original EXE, interpreter, replay,
+  snapshot and planner services.
+- Poisoning is optional destructive evidence, not bootstrap or release
+  authority.
 - Backend modules cannot be launched as independent players.
 
 Examples:

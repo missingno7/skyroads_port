@@ -13,6 +13,7 @@ PRODUCT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PRODUCT_ROOT))
 
 from skyroads.cpuless_backend import run
+from dos_re.bootstrap_runtime import packaged_bootstrap_artifacts
 
 
 def main(argv=None) -> int:
@@ -24,7 +25,11 @@ def main(argv=None) -> int:
     parser.add_argument("--present-hz", type=int, default=30)
     args = parser.parse_args(argv)
     args.rebuild = False
-    return run(args)
+    bootstrap_artifacts = packaged_bootstrap_artifacts(
+        PRODUCT_ROOT,
+        expected_provider="skyroads-cpuless-build-image",
+    )
+    return run(args, bootstrap_artifacts=bootstrap_artifacts)
 
 
 if __name__ == "__main__":

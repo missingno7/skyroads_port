@@ -44,6 +44,11 @@ python scripts/play.py --plan-only
 python scripts/play.py --profile release --composition cpuless --plan-only
 ```
 
+The release plan-only gate passes after `python scripts/build_boot_image.py`.
+When the build image has not been generated, its required result is an
+immediate `missing bootstrap artifacts` diagnostic naming that command; a
+backend traceback or late file-open failure is never acceptable.
+
 Current documentation starts at `docs/README.md`. Material under
 `docs/history/` is evidence only and does not define supported commands or
 APIs.

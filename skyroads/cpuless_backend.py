@@ -23,7 +23,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 CANONICAL_ENTRY = (0x1010, 0x61F3)
-BOOT_DIR = ROOT / "artifacts" / "boot_image"
 STANDALONE_DIR = ROOT / "skyroads" / "recovered"
 #: SkyRoads presents at 30 Hz with 6 IRQ0 ticks per frame (= 180 Hz IRQ0), the
 #: ratio every recorded demo carries as ``timer_irqs_per_frame``.
@@ -39,14 +38,16 @@ def _ensure_corpus(rebuild: bool) -> None:
             raise SystemExit(r.returncode)
 
 
-def _load_boot():
+def _load_boot(bootstrap_artifacts: dict[str, Path]):
     from dos_re.memory import Memory
-    state = json.loads((BOOT_DIR / "state.json").read_text(encoding="utf-8"))
-    img = (BOOT_DIR / "memory_1mb.bin").read_bytes()
+    state_path = bootstrap_artifacts["skyroads-boot-state"]
+    memory_path = bootstrap_artifacts["skyroads-boot-memory"]
+    manifest_path = bootstrap_artifacts["skyroads-boot-manifest"]
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    img = memory_path.read_bytes()
     mem = Memory()
     mem.data[:len(img)] = img
-    manifest = json.loads((BOOT_DIR / "manifest.json").read_text(encoding="utf-8")) \
-        if (BOOT_DIR / "manifest.json").exists() else {}
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     return mem, state["cpu"], state.get("dos", {}), manifest
 
 
@@ -79,14 +80,19 @@ class _Quit(Exception):
     """The player closed the window."""
 
 
-def _boot(rebuild: bool, *, mouse_present: bool):
+def _boot(
+    rebuild: bool,
+    *,
+    mouse_present: bool,
+    bootstrap_artifacts: dict[str, Path],
+):
     """Build the CPU-free runtime: boot image + device model + platform."""
     _ensure_corpus(rebuild)
     from dos_re.lift.platform import CPUlessPlatformRuntime
     from dos_re.dos import DOSMachine
     from dos_re.snapshot_headless import _restore_dos_state   # runtime CPU-free
 
-    mem, regs0, dos_meta, boot_manifest = _load_boot()
+    mem, regs0, dos_meta, boot_manifest = _load_boot(bootstrap_artifacts)
     poisoned = boot_manifest.get("code_bytes_present_after")
     if poisoned is not None:
         print(f"Recovered code present in boot image: {poisoned} bytes "
@@ -142,13 +148,22 @@ def _key_deliverer(mem, dos, rt):
     return deliver
 
 
-def run_headless(frames: int, rebuild: bool, diagnostics=None) -> int:
+def run_headless(
+    frames: int,
+    rebuild: bool,
+    bootstrap_artifacts: dict[str, Path],
+    diagnostics=None,
+) -> int:
     """No window, no input, frame-capped: the CI/agent probe."""
     from skyroads.cpuless_driver import CPUlessFrameDriver
     from skyroads.recovered.func_1010_3b17 import func_1010_3b17
     from dos_re.x86 import HaltExecution          # CPU-FREE shared leaf
 
-    mem, dos, rt, regs0 = _boot(rebuild, mouse_present=False)
+    mem, dos, rt, regs0 = _boot(
+        rebuild,
+        mouse_present=False,
+        bootstrap_artifacts=bootstrap_artifacts,
+    )
     limit = frames or 30
     done = {"n": 0}                 # frames actually presented
 
@@ -187,7 +202,8 @@ def run_headless(frames: int, rebuild: bool, diagnostics=None) -> int:
 
 
 def run_interactive(scale: int, square_pixels: bool, present_hz: int,
-                    rebuild: bool, diagnostics=None) -> int:
+                    rebuild: bool, bootstrap_artifacts: dict[str, Path],
+                    diagnostics=None) -> int:
     """The playable window: live keyboard, running until you quit."""
     import numpy as np
     import pygame
@@ -199,7 +215,11 @@ def run_interactive(scale: int, square_pixels: bool, present_hz: int,
     from skyroads.recovered.func_1010_3b17 import func_1010_3b17
     from dos_re.x86 import HaltExecution          # CPU-FREE shared leaf
 
-    mem, dos, rt, regs0 = _boot(rebuild, mouse_present=True)
+    mem, dos, rt, regs0 = _boot(
+        rebuild,
+        mouse_present=True,
+        bootstrap_artifacts=bootstrap_artifacts,
+    )
     shim = _RtShim(dos, mem)
     deliver = _key_deliverer(mem, dos, rt)
 
@@ -281,7 +301,7 @@ def run_interactive(scale: int, square_pixels: bool, present_hz: int,
     return 0
 
 
-def run(args, *, diagnostics=None) -> int:
+def run(args, *, bootstrap_artifacts: dict[str, Path], diagnostics=None) -> int:
     from dos_re.lift.platform import UnsupportedPlatformEffect
     try:
         from skyroads.recovered._dyncall import UnknownDispatchTarget
@@ -289,10 +309,15 @@ def run(args, *, diagnostics=None) -> int:
         UnknownDispatchTarget = ()
     try:
         if args.headless:
-            return run_headless(args.frames, args.rebuild, diagnostics)
+            return run_headless(
+                args.frames,
+                args.rebuild,
+                bootstrap_artifacts,
+                diagnostics,
+            )
         return run_interactive(
             args.scale, args.square_pixels, args.present_hz, args.rebuild,
-            diagnostics)
+            bootstrap_artifacts, diagnostics)
     except (UnsupportedPlatformEffect, *([UnknownDispatchTarget]
                                          if UnknownDispatchTarget else [])) as e:
         print(f"\n[cpuless] HARD-WALL FRONTIER (fail-loud, by design):\n  {e}")

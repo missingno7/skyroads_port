@@ -149,6 +149,7 @@ _INTERACTIVE_DRIVER = """
 import sys
 sys.path.insert(0, "scripts"); sys.path.insert(0, "."); sys.path.insert(0, "dos_re")
 import pygame
+from pathlib import Path
 from skyroads import cpuless_backend as P
 n = [0]
 real_get = pygame.event.get
@@ -158,7 +159,12 @@ def fake_get(*a, **k):
         return [pygame.event.Event(pygame.QUIT)]
     return real_get(*a, **k)
 pygame.event.get = fake_get
-rc = P.run_interactive(2, False, 1000, False)   # high present-hz: no pacing stall
+bootstrap = {
+    "skyroads-boot-state": Path("artifacts/boot_image/state.json"),
+    "skyroads-boot-memory": Path("artifacts/boot_image/memory_1mb.bin"),
+    "skyroads-boot-manifest": Path("artifacts/boot_image/manifest.json"),
+}
+rc = P.run_interactive(2, False, 1000, False, bootstrap)
 print("RC", rc, "PUMPS", n[0])
 """
 

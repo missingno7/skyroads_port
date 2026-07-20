@@ -241,12 +241,22 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
     return rt, manifest
 
 
-def launch(args) -> int:
+def launch(args, *, bootstrap_artifacts: dict[str, Path]) -> int:
     """Launch the selected whole-program VMless provider."""
     # Capture the DMA PCM only for the interactive viewer: it is a
     # determinism-safe observer, but headless must keep the detection-only
     # path so demo replay and the differential stay byte-identical.
-    rt, manifest = build(ROOT / "artifacts" / "boot_image",
+    boot_files = (
+        bootstrap_artifacts["skyroads-boot-state"],
+        bootstrap_artifacts["skyroads-boot-memory"],
+        bootstrap_artifacts["skyroads-boot-manifest"],
+    )
+    boot_dirs = {path.parent.resolve() for path in boot_files}
+    if len(boot_dirs) != 1:
+        raise RuntimeError(
+            "SkyRoads bootstrap artifacts do not share one boot-image directory"
+        )
+    rt, manifest = build(boot_dirs.pop(),
                          ROOT / "skyroads" / "lifted" / "functions",
                          Path(args.game_root), sound=not args.no_sound,
                          capture_sb=not args.no_sound and not args.headless)
