@@ -23,6 +23,12 @@ Use the same candidate composition that captured the replay; the verification
 runner constructs the untouched oracle side itself. `END` is the recording's
 final ordinal, shown by `python dos_re/tools/replay_info.py REPLAY`.
 
+Trust here is only an oracle-backed claim about that finite recording. A
+function may be used during development after one relevant passing interval
+and focused tests; SkyRoads does not wait for a global replay count or coverage
+percentage. Every additional replay that visits it adds another scoped claim,
+and every later divergence becomes a permanent focused regression.
+
 Verify the current literal generated candidates over an exact interval:
 
 ```text
@@ -48,6 +54,8 @@ Keeping this separate means normal capture does not pay instrumentation cost
 and hooks cannot hide the oracle edges. Atlas ingestion accepts only trusted
 artifacts with oracle-produced execution evidence and reports exactly which
 functions, invocations, edges, and new corpus identities each replay adds.
+Those coverage counts guide which scenarios to record next; they do not turn
+into an unqualified “verified function” bit.
 Normal runtime replay paths accept only current adapter channels and contain no
 legacy compatibility branch.
 

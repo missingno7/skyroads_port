@@ -163,7 +163,7 @@ def main(argv=None) -> int:
         f"{len(artifact.function_visits())} visited functions, "
         f"{len(artifact.execution_evidence().transfers)} observed edges; "
         f"{'updated' if changed else 'unchanged'}; "
-        f"trusted={'yes' if artifact.trusted else 'no'}"
+        f"oracle-backed-timeline={'yes' if artifact.trusted else 'no'}"
     )
     return 0
 
