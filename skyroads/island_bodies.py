@@ -61,7 +61,7 @@ CALLEE_FMASK = 0x8C5
 #: virtual-time cost, discriminated by ``in_range`` -- the ONLY thing that varies.
 #: out-of-range: 12 (prologue+range test) + 1 + 2 (ax=0) + 4 (epilogue).
 #: in-range:     12 + 34 (the tail) + 4, plus 21+21+12 for the three callee calls.
-#: Do NOT derive this from one demo: two of the four recorded demos never take
+#: Do NOT derive this from one replay: two of the four recorded replays never take
 #: the short path at all, so a cost model fitted to them is the constant 104 and
 #: is silently wrong everywhere else.
 COST_OUT_OF_RANGE = 19
@@ -178,7 +178,7 @@ _T_LOW, _T_HIGH = 76, 152
 #: Virtual-time cost per (arm, second_test). DERIVED BY SUMMING the generated
 #: body's own per-block ``_cost += n`` along each path -- the generated body is
 #: the authority, not a fit to observed data -- and then CONFIRMED against it:
-#: the union of the two demos produced exactly {12, 30, 31, 34, 36, 37} and no
+#: the union of the two replays produced exactly {12, 30, 31, 34, 36, 37} and no
 #: value outside this table, and every one of those is re-proven on every
 #: shadowed call. Two arms are absent from that set and their entries are
 #: therefore derivation only, flagged here rather than left to look measured:
@@ -722,7 +722,7 @@ def func_1010_3a22(mem, *, ax=0, bx=0, ds=0, dx=0, es=0, si=0, ss=0):
 
 
 #: address -> island-driven body. This is what may be shadowed, and -- once a
-#: shadow has VERIFIED it over demos exercising every path -- what may drive.
+#: shadow has VERIFIED it over replays exercising every path -- what may drive.
 BODIES = {"1010:04C0": func_1010_04c0,
           "1010:1631": func_1010_1631,
           "1010:0533": func_1010_0533,

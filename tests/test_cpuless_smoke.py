@@ -34,7 +34,7 @@ CORPUS = ROOT / "skyroads" / "recovered"
 #: the standalone corpus's expected recovered-function count (every
 #: runtime-reachable IR function). Bump deliberately when the census changes.
 #:
-#: 182 -> 180 when the block-type coverage demos landed: censusing block types 3
+#: 182 -> 180 when the block-type coverage replays landed: censusing block types 3
 #: and 5 (levels 14 and 8) regenerated the IR, which reclassified two functions
 #: as dead-unreachable -- they are proven unreachable, not missing. The runtime
 #: closure stays COMPLETE, which is the property that actually matters.
@@ -132,7 +132,7 @@ def test_standalone_corpus_regenerates_lints_and_boots_to_the_frontier():
         #    frames (timer IRQs delivered through the recovered INT 08h ISR).
         play = _run(
             "scripts/play.py", "--profile", "detached", "--composition",
-            "cpuless", "--headless", "--frames", "12",
+            "generated-abi", "--headless", "--frames", "12",
                     timeout=600)
         assert play.returncode == 0, (play.stdout + play.stderr)[-2000:]
         assert "REACHED FIRST FRAME BOUNDARY" in play.stdout

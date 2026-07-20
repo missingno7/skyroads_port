@@ -3,7 +3,7 @@
 The road-present scanline loop: 34AE fills the off-screen road buffer, then
 1010:4201 flushes a rows x width rectangle of it to VGA row-by-row (dest cursor
 += 0x140 per row) via masked_blit. Against real VM row-loop invocations from
-demo_e2e_20260710_132930, present_rect reproduces every VGA byte written:
+replay_e2e_20260710_132930, present_rect reproduces every VGA byte written:
 12/12 calls byte-exact (see run_status.md). This closes the road render->screen
 present pipeline: 34AE composite -> present_rect -> masked_blit, all VM-verified.
 """

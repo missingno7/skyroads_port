@@ -14,8 +14,8 @@ caller is simply those tiles IN FILE ORDER, one 10-byte record apiece.
 
 **What this recovers**: the tile data (dest/h/w/pixels, exact — full-file
 byte consumption confirmed, 220 tiles, 44,808/44,808 bytes) and the exact
-per-native-tick REVEAL COUNT the real boot demo used (`REVEAL_PACE`, VM-
-traced from `demo_cold_20260711_201855` run blind with zero input — the
+per-native-tick REVEAL COUNT the real boot replay used (`REVEAL_PACE`, VM-
+traced from `replay_cold_20260711_201855` run blind with zero input — the
 default/idle intro pacing). **What is NOT recovered**: the generic driver
 loop at whatever address calls `42AF` in a table walk (not isolated), and
 whether the real pacing is TIME-budgeted (would vary by host speed) or a
@@ -101,7 +101,7 @@ def paint_tile(canvas: bytearray, tile: AnimTile) -> None:
             canvas[o:o + tile.w] = tile.pixels[row * tile.w:(row + 1) * tile.w]
 
 
-#: VM-traced reveal pacing (demo_cold_20260711_201855, zero input, boot
+#: VM-traced reveal pacing (replay_cold_20260711_201855, zero input, boot
 #: frames 94-230): tiles-to-reveal at each successive native intro tick, in
 #: FILE ORDER. Sums to 219 against 221 real tiles (2 short -- the capture
 #: window's tail wasn't fully bracketed); `iter_reveal_counts` appends the

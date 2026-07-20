@@ -1,6 +1,6 @@
 r"""Recover the dispatch-table targets a census structurally cannot see.
 
-``codemap.py`` keeps a call target only if a demo EXECUTED it and only if it can
+``codemap.py`` keeps a call target only if a replay EXECUTED it and only if it can
 SEE the call. Both rules are right, and together they are blind to every target
 reached through a table: nothing in the instruction stream calls those
 addresses, so the census is never told they exist. Behind the strict-VMless wall
@@ -9,9 +9,9 @@ was a function -- one crash at a time, days apart, each looking like a census
 bug rather than the one missing fact it is.
 
 Two shapes, one standard: take the bound from the PROGRAM, never from what a
-demo happened to do. Observation is exactly what under-covers a dispatch --
+replay happened to do. Observation is exactly what under-covers a dispatch --
 which entries run depends on data (which song, which level, which video mode),
-so a demo-derived set always misses the branch nobody took yet.
+so a replay-derived set always misses the branch nobody took yet.
 
 1. BOUNDED INDEXED DISPATCH  (``indexed_tables``)
 
@@ -40,10 +40,10 @@ so a demo-derived set always misses the branch nobody took yet.
 
    Here an image is no good: it only ever shows the variant that boot chose. So
    read the fill instead -- but the VALUE proves nothing on its own. "An
-   immediate that is an address some demo executed" also describes `mov word
+   immediate that is an address some replay executed" also describes `mov word
    [AF2C],0` (1010:0000 is executed -- it is the entry) and every 1 and 2 in the
    program; that test alone returned 81 "targets", mostly integers. And it fails
-   in the direction that costs most: it drops variant B, which no demo runs.
+   in the direction that costs most: it drops variant B, which no replay runs.
 
    The SHAPE is the proof. A table fill is a straight-line run of word stores
    over consecutive slots; if such a run covers a slot the program reaches with
@@ -127,7 +127,7 @@ def indexed_tables(ir: dict) -> list[tuple]:
 
     ``and bx,MASK`` means exactly MASK+1 entries, no more, so enumerating the
     table covers every branch the program can ever take -- including the ones
-    no demo has taken. That is the whole point: which entries run depends on
+    no replay has taken. That is the whole point: which entries run depends on
     data (which song, which level), and a census built from observation gets
     only the ones those runs happened to need. The wall then fires on the first
     unseen one, one crash at a time, days apart.
@@ -196,9 +196,9 @@ def code_pointer_stores(ir: dict) -> list[tuple]:
     the program. That test alone yielded 81 "targets", mostly integers.
 
     Worse, it is wrong in the direction that costs the most. Requiring the value
-    to have EXECUTED drops the variant a demo never took: the render dispatch is
+    to have EXECUTED drops the variant a replay never took: the render dispatch is
     filled twice, variant A at 2CD3 and variant B at 2CF2, chosen by the mode
-    flag at ds:003C -- and no demo runs B, so the executed test silently drops
+    flag at ds:003C -- and no replay runs B, so the executed test silently drops
     exactly the four routines the wall fires on the day someone plays that mode.
     Under-covering an indirect dispatch from observation is the very failure the
     music table above exists to avoid; the answer there was a proof (`and bx,7`),
@@ -206,7 +206,7 @@ def code_pointer_stores(ir: dict) -> list[tuple]:
 
     So: a run of word stores over consecutive slots (``_table_fills``) that
     includes a slot reached by ``call [imm16]`` IS a call table, and every value
-    it stores IS a code pointer -- whether or not any demo has been there yet.
+    it stores IS a code pointer -- whether or not any replay has been there yet.
     A run with no called slot in it (ds:0E44's 000B/0001/0000) is just data.
     """
     anchors = called_slots(ir)
@@ -235,7 +235,7 @@ def main(argv=None) -> int:
     boot_image = ROOT / "artifacts" / "boot_image" / "memory_1mb.bin"
     if boot_image.is_file():
         image_records.append(("boot_image", boot_image.read_bytes()))
-    image_records.extend(recording_base_memories(ROOT / "artifacts" / "demos"))
+    image_records.extend(recording_base_memories(ROOT / "artifacts" / "replays"))
     for raw in args.images or ():
         path = Path(raw)
         if path.is_file():
@@ -254,7 +254,7 @@ def main(argv=None) -> int:
         "#",
         "# 1. BOUNDED INDEXED DISPATCH -- `and bx,MASK; shl bx,1; call [bx+TABLE]`.",
         "#    The mask is a PROOF of the entry count, so enumerating the table covers",
-        "#    every branch the program can take, including the ones no demo took.",
+        "#    every branch the program can take, including the ones no replay took.",
         "#    That matters: which entries run depends on data (which song, which",
         "#    level), so a census built from observation gets only the ones those",
         "#    runs needed, and the wall fires on the first unseen one -- one crash at",

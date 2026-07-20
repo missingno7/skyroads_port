@@ -70,8 +70,8 @@ def _s16(v: int) -> int:
     # seven output registers, exit flags, fmask, virtual-time cost and the
     # ordered byte-write log, no exemptions. Two populations:
     #
-    #  * dos_re.lift.shadow over 1,432 REAL calls -- demo_cold_20260718_003412
-    #    (230) + demo_colde2e_full_20260713_144604 (1,202). MEASURED shapes:
+    #  * dos_re.lift.shadow over 1,432 REAL calls -- replay_cold_20260718_003412
+    #    (230) + replay_colde2e_full_20260713_144604 (1,202). MEASURED shapes:
     #    NO_SEGMENT 1,376 (nibbles 0x000 and 0x200); DECIDED/no-mirror/0x300
     #    fell 17; DECIDED/no-mirror/0x100 fell 15; DECIDED/mirror-negative/0x100
     #    didn't-fall 12; DECIDED/no-mirror/0x100 didn't-fall 4.
@@ -80,8 +80,8 @@ def _s16(v: int) -> int:
     #    plus 04C0 in and out of range -- 30 randomized register sets each.
     #
     # CORRECTION, measured. This record previously said no real fall occurred in
-    # any demo and that the positive branch was ASM-derived only. That is FALSE:
-    # the predicate returns 1 on 32 calls in demo_colde2e_full, and those calls
+    # any replay and that the positive branch was ASM-derived only. That is FALSE:
+    # the predicate returns 1 on 32 calls in replay_colde2e_full, and those calls
     # are byte-exact. The unexercised-in-game shapes are the 0x500 nibble, the
     # MIRROR_ZERO case, and mirror-negative-with-fall -- forced states only.
     #
@@ -205,10 +205,10 @@ def fell_off_segment(af1c: int) -> int:
              "af1c+0x3A0; move af1c to the first UNBLOCKED one and snap "
              "tgt_lateral to cur_lateral. Returns (af1c, tgt_lateral), "
              "unchanged if no bump applies.",
-    status="ASM_MATCHED",  # entry/no-bump path 682/682 (E2E demo); the active
-    # down-bump branch verified on a collision demo (demo_skyroads_20260710_
+    status="ASM_MATCHED",  # entry/no-bump path 682/682 (E2E replay); the active
+    # down-bump branch verified on a collision replay (replay_skyroads_20260710_
     # 213019: 511/511 incl. 1 real bump). The up-bump branch (2788) is decoded
-    # from the ASM but was not itself triggered by any demo sampled.
+    # from the ASM but was not itself triggered by any replay sampled.
     merge_target="skyroads.native.collision_response (future)",
 )
 def lateral_wall_bump(
@@ -244,7 +244,7 @@ def lateral_wall_bump(
              "clamped >= 0. Returns (lateral_accel, cur_5496, ship_pos); "
              "unchanged if af1c == tgt_af1c.",
     status="ASM_MATCHED",  # 682/682 (E2E, mostly no-op) + 511/511 on a collision
-    # demo (demo_skyroads_20260710_213019, 4 real af1c collisions exercised).
+    # replay (replay_skyroads_20260710_213019, 4 real af1c collisions exercised).
     merge_target="skyroads.native.collision_response (future)",
 )
 def af1c_contact_fixup(
@@ -282,11 +282,11 @@ class LateralCrashResult(NamedTuple):
              "already past forward position 0x0E38 (signed 32-bit) AND "
              "f456a == 0, flag the crash: f456a := 1 and, if game_state == 0, "
              "game_state := 1. The ASM also fires SFX (03C2), not modelled.",
-    status="ASM_MATCHED",  # 511/511 real frames on a collision demo
-    # (demo_skyroads_20260710_213019) on (ship_pos, f456a, game_state) -- but
+    status="ASM_MATCHED",  # 511/511 real frames on a collision replay
+    # (replay_skyroads_20260710_213019) on (ship_pos, f456a, game_state) -- but
     # only 2 were actual lateral crashes (both past the gate with f456a==0);
     # the pre-gate branch (ship_pos < 0x0E38) and the already-flagged branch
-    # (f456a != 0) are decoded from the ASM but not exercised by any demo
+    # (f456a != 0) are decoded from the ASM but not exercised by any replay
     # sampled. The 2800-2828 SFX sub-branch touches only audio, so it does not
     # affect the returned game-state fields.
     merge_target="skyroads.native.collision_response (future)",
@@ -326,8 +326,8 @@ class LandingResult(NamedTuple):
              "subtract the 32-bit [af30:af2e] from ship_pos and clamp to "
              "[0, 0x2AAA]. bp-10 (jump_start_y) is preserved. Otherwise nothing "
              "else changes.",
-    status="ASM_MATCHED",  # 224/224 real landing frames (collision demo
-    # demo_skyroads_20260710_213019) byte-exact on (bp-6, bp-8, bp-12, [455A],
+    status="ASM_MATCHED",  # 224/224 real landing frames (collision replay
+    # replay_skyroads_20260710_213019) byte-exact on (bp-6, bp-8, bp-12, [455A],
     # ship_pos). The non-landing branch just leaves gameplay_active=0 and is
     # trivial by construction (28E5/28EF jmp past everything). [af2e]/[af30]
     # were nonzero in only 1/224 frames -- the ship_pos back-off is a no-op in
@@ -359,7 +359,7 @@ def resolve_landing(
              "found below), so net in {-1,0,+1}. If net != 0: return "
              "(cur_5496 + net*17) & 0xFFFF; else return 0. (`visible` returns "
              "non-zero when that probe is blocked, matching road_object_visible.)",
-    status="ASM_MATCHED",  # 314/314 real E2E-demo scans byte-exact on ds:[5496],
+    status="ASM_MATCHED",  # 314/314 real E2E-replay scans byte-exact on ds:[5496],
     # computing every probe through renderer.road_object_visible bound to the
     # frame's DGROUP tables. See tests/test_collision_response.py + run_status.md.
     merge_target="skyroads.native.collision_response (future)",

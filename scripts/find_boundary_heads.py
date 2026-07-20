@@ -94,7 +94,7 @@ def compare_heads(ir: dict) -> dict[int, str]:
     """The ORIGINAL rule: a tick-COMPARE inside a backward loop.
 
     Kept, and kept first, because it is the proven one -- this exact set drives
-    26 demos and 10,941 frames of pixel-identical replay. The read-loop rule
+    26 replays and 10,941 frames of pixel-identical replay. The read-loop rule
     below is strictly ADDITIVE to it. They disagree about which instruction to
     name (this one names the compare, that one the loop header), and both are
     valid observation points, so union them rather than pick: a head that is

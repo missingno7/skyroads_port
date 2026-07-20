@@ -10,7 +10,7 @@ Unlike the renderer, the gameplay update is not a set of small callable
 routines — it is one large monolithic handler inline in the main loop's
 gameplay branch (the game state dispatch on ds:[456A]/[456E]/[4558]). So these
 functions are recovered as clean rules first (from disassembly, `world7` /
-menu→gameplay demos); byte-exact verification will come when the whole gameplay
+menu→gameplay replays); byte-exact verification will come when the whole gameplay
 handler is stood up as an island (hybrid mode) or under frame-verify, the same
 way pre2 proves its player/collision islands.
 
@@ -67,7 +67,7 @@ def _s16(v: int) -> int:
              "completes the level. The ASM sign-extends speed (cwd at 24C7) into "
              "a 32-bit value before the ulong_mul by 75, so a negative speed "
              "moves the ship backward.",
-    status="ASM_MATCHED",  # reproduces the ASM post-clamp pos over all full-demo samples
+    status="ASM_MATCHED",  # reproduces the ASM post-clamp pos over all full-replay samples
     merge_target="skyroads.native.player (future)",
 )
 def advance_ship(pos: int, speed: int) -> int:
@@ -117,12 +117,12 @@ def decay_bounce(bounce: int) -> int:
              "(2596). Then if airborne (grounded==0): af2c>=0x2800 -> vvel+=gravity "
              "([54AA], 25F0); else clamp vvel down to -106 (25FA). If grounded: "
              "ramp vvel toward +0x47 (>=0, +0x27/step). Returns the 16-bit vvel.",
-    # ASM_MATCHED on the gravity + jump-impulse path: 238/238 deaths-demo frames
+    # ASM_MATCHED on the gravity + jump-impulse path: 238/238 deaths-replay frames
     # byte-exact (all airborne, af2c>=0x2800, incl. 3 jump frames). The terminal
     # clamp (af2c<0x2800) and grounded ramp (456A!=0) branches are transcribed
-    # from the ASM but NOT yet exercised by any demo -- see run_status.md.
+    # from the ASM but NOT yet exercised by any replay -- see run_status.md.
     #
-    # 2026-07-11: real E2E-demo data shows this function is NOT safe to CALL
+    # 2026-07-11: real E2E-replay data shows this function is NOT safe to CALL
     # unconditionally every frame outside the verified envelope above -- not
     # just an unexercised branch, but evidence the whole decay_bounce/
     # update_vertical_velocity block is skipped by an unrecovered gate for
@@ -142,15 +142,15 @@ def update_vertical_velocity(vvel: int, jumped: bool, af2c: int,
     ``jumped`` is whether the jump gate fired an impulse. The gate itself is
     NOT fully recovered: it is `ds:[547A]!=0 and ds:[4562]<0x14` (2582/258C —
     ``[4562]`` is a per-level constant, not a per-frame counter; the deaths
-    demo has it pinned at 8), **guarded further** by two frame-local flags
+    replay has it pinned at 8), **guarded further** by two frame-local flags
     `ss:[bp-8]` and `ss:[bp-18]` (2570/2579 — skip the whole jump block if
     either is nonzero) that this module doesn't yet compute: they are set
     earlier in the same per-frame handler, likely from the collision/height
-    classification around 1010:2340-2385, and are why in the deaths demo the
+    classification around 1010:2340-2385, and are why in the deaths replay the
     impulse fires only on the *first* frame of each held jump-key press
     (3 times, not the 29 frames the key was actually held) — almost certainly
     an "already airborne, ignore jump" latch. Recovering it requires tracing
-    where bp-8/bp-18 get set, which the current demo corpus hasn't forced yet.
+    where bp-8/bp-18 get set, which the current replay corpus hasn't forced yet.
     ``af2c`` is `ds:[AF2C]`, ``gravity`` is `ds:[54AA]` (signed, per-level),
     ``grounded`` is `ds:[456A] != 0`.
     """
@@ -181,7 +181,7 @@ RESUME_HEIGHT_GATE = 0x2800
              "A fresh respawn writes AF2C = 0x2800 exactly, which does NOT resume "
              "yet; the ship stays transitional (game_state 0) until AF2C drops "
              "below the gate.",
-    status="ASM_MATCHED",  # 682/682 real E2E-demo frames via the full progression
+    status="ASM_MATCHED",  # 682/682 real E2E-replay frames via the full progression
     # state machine (skyroads.handrecovered.progression.step_level_progression),
     # including the real 0->3 transitions. NOTE 2026-07-11: this CORRECTS an
     # earlier inverted reading (>= gate) that had wrongly inferred, from all 3
@@ -201,7 +201,7 @@ class RespawnState(NamedTuple):
     Every field here is a **constant** -- the block does not read any prior
     state to compute them (the one branch it has, `ds:[95F6]==2` for a
     joystick-recenter call, is a side call this doesn't model and is untested:
-    the deaths demo only plays with the keyboard). Call sites: after a death
+    the deaths replay only plays with the keyboard). Call sites: after a death
     (`ds:[456E]` was 1 or 3), to reset the ship to the start of its (fixed)
     spawn position and clear the level's transition timers.
     """
@@ -234,7 +234,7 @@ class RespawnState(NamedTuple):
              "constants -- ship position, vertical/lateral state, game_state, "
              "and the level's post-completion timers -- unconditionally "
              "resetting to the (single, fixed) spawn point.",
-    status="ASM_MATCHED",  # 3/3 real deaths-demo respawns byte-exact (all 19 fields)
+    status="ASM_MATCHED",  # 3/3 real deaths-replay respawns byte-exact (all 19 fields)
     merge_target="skyroads.native.player (future)",
 )
 def respawn() -> RespawnState:
@@ -250,7 +250,7 @@ def respawn() -> RespawnState:
              "16-bit value. Higher jump_level_gate (ds:[4562]) -> stronger "
              "(more negative) gravity.",
     status="ASM_MATCHED",  # matches the ASM's ax at 201C for the jump_gate
-    # values the E2E demo inits with (8 -> 0xFF8D, 9 -> 0xFF7F).
+    # values the E2E replay inits with (8 -> 0xFF8D, 9 -> 0xFF7F).
     merge_target="skyroads.native.player (future)",
 )
 def level_gravity(jump_level_gate: int) -> int:

@@ -54,7 +54,7 @@ recording with the explicit one-shot converter:
 
 ```text
 python scripts/record_atlas_evidence.py \
-  --source-replay artifacts/demos/REPLAY --frames 3 --replace
+  --source-replay artifacts/replays/REPLAY --frames 3 --replace
 python scripts/build_atlas.py --from-ir
 ```
 

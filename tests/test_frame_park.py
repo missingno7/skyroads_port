@@ -6,7 +6,7 @@ optimisation, so the bar is behavioural equivalence: running gameplay with the
 park ON must produce the *same rendered frames* and the *same game state* as the
 full-spin baseline, while executing strictly fewer interpreted steps.
 
-(The full E2E-demo proof -- every one of 126 rendered frames byte-identical,
+(The full E2E-replay proof -- every one of 126 rendered frames byte-identical,
 final memory differing only in 11 bytes of fade-loop scratch at DGROUP+0xB87C --
 is in the commit that introduced skyroads/pacing.py.  Here we lock in the
 gameplay-window guarantee as a fast, self-contained regression.)
@@ -96,7 +96,7 @@ def test_frame_park_parks_every_gameplay_frame() -> None:
 
 # --- menu/animation tick-wait (1010:47CD) --------------------------------------
 # Runtime-loaded code (invisible in the static EXE), found profiling the E2E
-# demo's menu screens (2026-07-11 perf diagnosis): several consecutive frames
+# replay's menu screens (2026-07-11 perf diagnosis): several consecutive frames
 # were burning the entire step budget on this spin. Uses a captured snapshot
 # mid-spin (not the gameplay snapshot above, which never reaches menu code).
 

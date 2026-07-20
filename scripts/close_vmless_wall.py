@@ -1,6 +1,6 @@
 """Converge the strict-VMless wall — the closure loop.
 
-The observation census (``scripts/build_codemap.py``) only knows what the demos
+The observation census (``scripts/build_codemap.py``) only knows what the replays
 actually EXECUTED. Booting the data-only image from the canonical entry runs
 code no recording reaches (the game's own startup, error paths, and routines
 whose callers were hooked). Each such address makes the armed wall fail loud:
@@ -47,7 +47,7 @@ def write_extras(extras: list[str]) -> None:
     EXTRA_FILE.parent.mkdir(parents=True, exist_ok=True)
     EXTRA_FILE.write_text(
         "# Census entries discovered by scripts/close_vmless_wall.py: addresses the\n"
-        "# recovered program REACHES at runtime but no recorded demo ever executed\n"
+        "# recovered program REACHES at runtime but no recorded replay ever executed\n"
         "# (startup paths, and routines whose callers were hooked during observation).\n"
         + "".join(f"{a}\n" for a in sorted(set(extras))))
 
@@ -64,9 +64,9 @@ def read_dispatch() -> list[str]:
 
     Folded into every census because a table hides its targets from the census
     twice over: it cannot SEE an indirect call's destination, and it keeps only
-    what a demo EXECUTED. Both of skyroads' indexed dispatches are bounded by an
+    what a replay EXECUTED. Both of skyroads' indexed dispatches are bounded by an
     `and bx,MASK`, so their entry counts are provable -- but which entries run
-    depends on data (which song, which video mode), so demo evidence alone
+    depends on data (which song, which video mode), so replay evidence alone
     under-covers them and the wall fires on the first unseen one."""
     if not DISPATCH_FILE.exists():
         return []

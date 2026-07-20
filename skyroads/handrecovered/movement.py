@@ -25,7 +25,7 @@ treats a non-zero return as "blocked/visible". A caller wires it to
 ``renderer.road_object_visible`` bound to this frame's projection + clip tables.
 
 Verified byte-exact (output accumulators AND the exact sequence of collision
-probes) against the ASM/lifted 186B over the full level demo — see the
+probes) against the ASM/lifted 186B over the full level replay — see the
 ``@oracle_link`` below.
 """
 from __future__ import annotations
@@ -100,7 +100,7 @@ def _ulong_div(a: int, b: int) -> int:               # 1010:5D8C
              "|dist|>=|step| and visible clears, /5 each round to 0. Returns the "
              "new (lateral, af1c, af2c). All compares/divides match x86 "
              "unsigned/signed + truncate-toward-zero semantics.",
-    status="ASM_MATCHED",  # 1760/1760 full-demo calls: outputs AND probe sequence exact
+    status="ASM_MATCHED",  # 1760/1760 full-replay calls: outputs AND probe sequence exact
     merge_target="skyroads.native.movement (future)",
 )
 def resolve_move(lateral: int, af1c: int, af2c: int,

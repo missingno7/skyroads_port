@@ -26,7 +26,7 @@ whereas ``ds:[0E76]``'s "8 buffer segments" are runtime-allocated (NOT baked
 here).
 
 Verified 80/80 against a real VM capture: one full `34AE` render invocation
-(variant A, `record_base=0x16B8`) from `demo_e2e_20260710_132930` produced
+(variant A, `record_base=0x16B8`) from `replay_e2e_20260710_132930` produced
 exactly 80 dispatch calls (= 10 outer x 4 middle x 2 inner) and this function
 reproduces every field of every call byte-exact. The fields it reads come from
 the `ds:[0x162C]` road-record region already established as the per-level
@@ -77,7 +77,7 @@ class ColumnClass(NamedTuple):
              "e5e=[bx-0xE]>>4, e50=SHAPE[[bx-0xD]&7], e5a=[bx+si]&0xF, "
              "e52=SHAPE[[bx+si+1]&7], e54=SHAPE[[bx+si-0xD]&7].",
     status="ASM_MATCHED",  # 80/80 fields of a real 34AE invocation (variant A,
-    # record_base 0x16B8, demo_e2e_20260710_132930) reproduced byte-exact.
+    # record_base 0x16B8, replay_e2e_20260710_132930) reproduced byte-exact.
     merge_target="skyroads.native.render (future)",
 )
 def render_classify(rb: Callable[[int], int], record_base: int) -> List[ColumnClass]:

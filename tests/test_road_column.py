@@ -1,6 +1,6 @@
 """Verify the recovered road-column strip compositor
 (skyroads.handrecovered.road_column.road_column_strip) against real ASM I/O
-captured over the full E2E demo (1010:38BF).
+captured over the full E2E replay (1010:38BF).
 
 Unlike every other recovery this session, verification here is a FULL memory
 diff, not a sampled set of fields: 196/196 real calls reproduced the ASM's

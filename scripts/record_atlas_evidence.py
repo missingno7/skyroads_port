@@ -6,7 +6,7 @@ runtime path is retained.
 
 Usage:
     python scripts/record_atlas_evidence.py \
-      --source-replay artifacts/demos/REPLAY --frames 12
+      --source-replay artifacts/replays/REPLAY --frames 12
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "dos_re"))
 
 from dos_re import player  # noqa: E402
-from dos_re.input_demo import (  # noqa: E402
+from dos_re.replay_input import (  # noqa: E402
     MOUSE_CHANNEL,
     SCAN_CHANNEL,
     RealModeInputAdapter,

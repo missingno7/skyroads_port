@@ -34,10 +34,10 @@ def test_oracle_plan_selects_only_the_untouched_exe(original_exe) -> None:
     assert plan.configuration.selected_overrides == ()
 
 
-def test_faithful_plan_selects_authored_replacements_explicitly(
+def test_authored_candidate_plan_selects_replacements_explicitly(
     original_exe,
 ) -> None:
-    plan = _plan("verification", "faithful")
+    plan = _plan("verification", "authored-candidates")
     selected = {
         item.implementation_id: item for item in plan.implementations
     }
@@ -78,13 +78,13 @@ def test_release_readiness_rejects_atlas_control_flow_frontiers(
     (boot / "manifest.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(execution_model, "BOOT_DIR", boot)
     with pytest.raises(ExecutionPlanError) as caught:
-        _plan("release", "cpuless")
+        _plan("release", "generated-abi")
     report = caught.value.report
     assert report.unresolved_edges
     assert not report.missing_bootstrap_artifacts
     assert report.is_detached_from("original-exe")
     assert report.is_detached_from("interpreter")
-    assert report.bootstrap_provider_id == "skyroads-cpuless-build-image"
+    assert report.bootstrap_provider_id == "skyroads-generated-abi-build-image"
     assert not report.package_ready
     assert "unresolved control-flow edges" in str(caught.value)
 
@@ -94,7 +94,7 @@ def test_release_plan_fails_before_launch_when_bootstrap_is_missing(
 ) -> None:
     monkeypatch.setattr(execution_model, "BOOT_DIR", tmp_path / "missing")
     with pytest.raises(ExecutionPlanError) as caught:
-        _plan("release", "cpuless")
+        _plan("release", "generated-abi")
     message = str(caught.value)
     assert "missing bootstrap artifacts" in message
     assert "python scripts/build_boot_image.py" in message

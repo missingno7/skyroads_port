@@ -41,7 +41,7 @@ KNOWN_OPTIONAL = ("pynuked_opl3", "numpy", "pygame", "pytest", "cffi")
 # game or the fast OPL path is actually driven — verified: `import dos_re`
 # imports none of numpy/pygame/sounddevice).
 FRONTEND_RING = {"player.py", "display.py", "audio_sink.py",
-                 "pm_player.py", "framebuffer.py", "textmode.py",
+                 "pm_backend.py", "framebuffer.py", "textmode.py",
                  "opl3_fast.py", "dos4gw.py"}
 FRONTEND_ALLOWED = ("numpy", "pygame", "pynuked_opl3", "sounddevice")
 

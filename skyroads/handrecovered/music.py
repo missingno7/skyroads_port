@@ -8,7 +8,7 @@ data tables, and engine state through two DGROUP memory readers and returns the
 exact list of ``(register, value)`` OPL writes the ASM would emit that tick.
 
 Verified byte-exact against the ASM: the emitted OPL register-write stream
-matches over the **whole cold-sound demo — 12,882 ticks across intro + menu,
+matches over the **whole cold-sound replay — 12,882 ticks across intro + menu,
 zero divergences** (lockstep per tick, the same proof style as the SB-PCM work).
 
 ## The tick (``1010:5A55``)
@@ -185,7 +185,7 @@ class Engine:
                  "op=word&7 (al=channel, ah=note/val) through the 8 handlers, "
                  "programming the OPL2, until a delay op arms [0C83]. Returns the "
                  "ordered (reg,val) OPL register writes for the tick.",
-        status="VERIFIED",  # OPL write stream byte-exact vs ASM: 12,882/12,882 cold-sound-demo ticks
+        status="VERIFIED",  # OPL write stream byte-exact vs ASM: 12,882/12,882 cold-sound-replay ticks
         merge_target="skyroads.native.music (future)",
     )
     def run_tick(self) -> list[tuple[int, int]]:
@@ -244,7 +244,7 @@ class Engine:
                  "table at 0x0C84, +0x0B/slot) via the same op1 patch-load path as "
                  "run_tick, then fixes the two percussion channels' pitch (A7/B7, "
                  "A8/B8). Returns the ordered (reg,val) OPL writes.",
-        status="VERIFIED",  # byte-exact vs ASM: every occurrence in the cold-sound demo
+        status="VERIFIED",  # byte-exact vs ASM: every occurrence in the cold-sound replay
         merge_target="skyroads.native.music (future)",
     )
     def reset_opl(self) -> list[tuple[int, int]]:

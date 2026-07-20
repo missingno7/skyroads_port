@@ -60,10 +60,10 @@ RECOVERED_PKG = "skyroads.recovered"
 #:
 #: ``1010:04C0`` perspective_row_offset, admitted on:
 #:   6,000 seeded random states, both paths forced (3,228 in-range / 2,772 out-of-range);
-#:   demo_cold_20260718_003412    -- 14,802 calls  {104: 12822, 19: 1980};
-#:   demo_colde2e_full_20260713   -- 125,728 calls {104: 125604, 19: 124};
+#:   replay_cold_20260718_003412    -- 14,802 calls  {104: 12822, 19: 1980};
+#:   replay_colde2e_full_20260713   -- 125,728 calls {104: 125604, 19: 124};
 #:   E2E cold differential vs the pure ASM oracle with it DRIVING -- 261 and 672 frames.
-#: Two demos deliberately: the spine demo NEVER takes the short path, so evidence
+#: Two replays deliberately: the spine replay NEVER takes the short path, so evidence
 #: gathered there alone yields the constant cost 104 and is silently wrong.
 #:
 #: Each later admission carries its own evidence on its island's ``oracle_link``

@@ -60,14 +60,14 @@ best case; the test suites are fixture-bound and want CPython + `-n auto`
 instead (every PyPy worker re-pays JIT warmup). `check_all.py` therefore picks
 `pypy3` off PATH for the differentials automatically and prints the choice per
 gate (`(48s, pypy)`), CPython for everything else. Nothing else changes: same
-script, same demo, same comparison, same exit status. `--no-pypy` forces
+script, same replay, same comparison, same exit status. `--no-pypy` forces
 CPython everywhere; `SKYROADS_PYPY=` (empty) opts out via the environment.
 
 Run a differential by hand the same way — `pypy3` is a drop-in, and `-u` keeps
 the progress heartbeat live:
 
 ```sh
-pypy3 -u scripts/verify_cpuless.py artifacts/demos/demo_attract_20260718_135434
+pypy3 -u scripts/verify_cpuless.py artifacts/replays/demo_attract_20260718_135434
 ```
 
 **This is an optimisation, never a gate change, and it is only allowed because
@@ -123,7 +123,7 @@ split targets exactly those three and leaves the suites alone.
 image and reports any entry the census never executed — each one a fail-loud
 stop waiting to happen. For the block-type table it goes further and decodes
 `ROADS.LZS` to name the levels carrying an uncovered block type, so a closing
-demo can be aimed rather than guessed. This is the generalisation of how
+replay can be aimed rather than guessed. This is the generalisation of how
 `1010:2F57` was diagnosed, turned from a session of detective work into a report.
 
 ## Reproduction (clean checkout)
@@ -215,10 +215,10 @@ Two pieces make the cold boot work:
 `scripts/verify_cpuless.py` is the CPUless analogue of `verify_vmless_demo.py`:
 it drives the committed `skyroads/recovered/` corpus through
 `CPUlessPlatformRuntime` (NO CPU) and diffs every frame's VGA plane + DAC palette
-against the interpreted ASM oracle over a cold demo.
+against the interpreted ASM oracle over a cold replay.
 
 ```sh
-python scripts/verify_cpuless.py artifacts/demos/demo_cold_20260718_003412
+python scripts/verify_cpuless.py artifacts/replays/demo_cold_20260718_003412
 ```
 
 It **PASSES all 672 frames** of the full cold playthrough (intro → menu → level
@@ -226,7 +226,7 @@ select → play → die → leave → intro), byte-exact, with no CPU / no inter
 no lifted graph. Three mechanisms make an interactive playthrough reproduce
 frame-exact:
 
-- **Input timing**: each frame's demo input is applied to the upcoming frame at
+- **Input timing**: each frame's replay input is applied to the upcoming frame at
   the boundary that captured the previous one, so input *N* affects frame *N*'s
   render (matching the oracle's apply-before-run).
 - **Blocking reads**: a press-any-key `INT 21h AH=07` on an empty buffer must
@@ -234,7 +234,7 @@ frame-exact:
   installs `CPUlessPlatformRuntime.blocking_read_cb`, which advances a frame in
   place (frozen screen + IRQ-driven palette fade) until the awaited key arrives,
   then the read retries — the CPUless equivalent of a flat CPU rewinding its IP.
-- **Boundary-model coverage**: the cold demo is timed to the 2nd-pass boundary
+- **Boundary-model coverage**: the cold replay is timed to the 2nd-pass boundary
   cut, so `build_codemap.py` observes `BOUNDARY_DEMOS` through the same
   `run_to_cut` model the runtime reproduces (not the steps-per-frame front-end,
   which diverges). Without it the census misses the real end-game code and the

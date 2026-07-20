@@ -28,7 +28,7 @@ While game_state != 0 (in gameplay, or already in a post-level state 3/4/5),
 none of the above runs -- instead the frame counter `ds:[4558]` increments
 (`2AE5`).
 
-Verified 682/682 against the real ASM over the full E2E demo (including the
+Verified 682/682 against the real ASM over the full E2E replay (including the
 real 0->3 resume transitions). This is the level-complete / out-of-time death
 logic the vmless_roadmap lists under item 1.
 """
@@ -80,9 +80,9 @@ def _tick_down(timer: int, dec: int) -> int:
              "then :=4 if level_timer_a==0, then :=5 if level_timer_b==0 (later "
              "override earlier). If game_state!=0 instead: frame_ctr += 1. "
              "timer_b_param is ds:[4566], timer_a_param is ds:[54A2].",
-    status="ASM_MATCHED",  # 682/682 real E2E-demo sub-steps byte-exact on
+    status="ASM_MATCHED",  # 682/682 real E2E-replay sub-steps byte-exact on
     # (game_state, level_timer_a, level_timer_b, frame_ctr), including the real
-    # 0->3 resume transitions. States 4/5 decoded from the ASM; whether the demo
+    # 0->3 resume transitions. States 4/5 decoded from the ASM; whether the replay
     # drove a timer to 0 is asserted by tests/test_progression.py.
     merge_target="skyroads.native.progression (future)",
 )

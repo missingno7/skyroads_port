@@ -129,15 +129,15 @@ class SegmentClipResult(NamedTuple):
     # and the ordered byte-write log, with NO exemptions. Two populations, and
     # the claim is exactly their union and no wider:
     #
-    #  * dos_re.lift.shadow over 1,851 REAL calls -- demo_cold_20260718_003412
-    #    (2) + demo_colde2e_full_20260713_144604 (1,849). MEASURED arm coverage,
+    #  * dos_re.lift.shadow over 1,851 REAL calls -- replay_cold_20260718_003412
+    #    (2) + replay_colde2e_full_20260713_144604 (1,849). MEASURED arm coverage,
     #    7 of the 10 (arm, second_test) combinations: CULLED 774, 0x300+second
     #    399, 0x100+second 372, DEFAULT 134, 0x100 short 103, 0x200 68,
-    #    0x400 1. The two demos are BOTH needed: 0x400 occurs only in the cold
-    #    demo, everything else only in the E2E one.
+    #    0x400 1. The two replays are BOTH needed: 0x400 occurs only in the cold
+    #    replay, everything else only in the E2E one.
     #  * tests/test_island_bodies.py forced states for all 10 arms, 50 randomized
     #    register sets each -- which is the only evidence covering the three no
-    #    demo reaches: (0x300, no-second), (0x500, no-second), (0x500, second).
+    #    replay reaches: (0x300, no-second), (0x500, no-second), (0x500, second).
     #
     # So the 0x500 arm has never run in a real playthrough; it is proven against
     # the generated body, not observed in the game.
@@ -224,14 +224,14 @@ def road_segment_clip_detail(dir_sel: int, seg: int, coord: int,
     # ordered byte-write log, with NO exemptions. Two populations, and the claim
     # is exactly their union and no wider:
     #
-    #  * dos_re.lift.shadow over 66,144 REAL calls -- demo_cold_20260718_003412
-    #    (6,878) + demo_colde2e_full_20260713_144604 (59,266). MEASURED block
+    #  * dos_re.lift.shadow over 66,144 REAL calls -- replay_cold_20260718_003412
+    #    (6,878) + replay_colde2e_full_20260713_144604 (59,266). MEASURED block
     #    coverage: 15 distinct basic-block paths reaching 26 of the function's
-    #    27 blocks. The two demos are BOTH needed, and on a knife edge: they
-    #    share six paths, the E2E demo contributes eight of its own, and the
-    #    cold demo contributes exactly ONE -- on exactly ONE call in 672 frames
+    #    27 blocks. The two replays are BOTH needed, and on a knife edge: they
+    #    share six paths, the E2E replay contributes eight of its own, and the
+    #    cold replay contributes exactly ONE -- on exactly ONE call in 672 frames
     #    -- which is the only real-playthrough evidence that the SECOND 1631
-    #    call can succeed (block 22 -> 24). The E2E demo takes 22 -> 23, the
+    #    call can succeed (block 22 -> 24). The E2E replay takes 22 -> 23, the
     #    failing side of that same test, 907 times and never once the other.
     #  * tests/test_island_bodies.py forced states: 42 distinct block paths,
     #    27 of 27 blocks, 20 randomized register sets each.

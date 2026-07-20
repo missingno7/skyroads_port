@@ -56,11 +56,11 @@ class MenuState(NamedTuple):
              "0x7530 (an init call is also made in the ASM -- see caveat below). "
              "any other action: no state change. Always: clamp scroll_pos to "
              "[0, LEVEL_END].",
-    status="ASM_MATCHED",  # 318/318 real E2E-demo calls byte-exact, across
-    # every action code the demo actually exercises: 0, 1, 3 (all no-op/default
+    status="ASM_MATCHED",  # 318/318 real E2E-replay calls byte-exact, across
+    # every action code the replay actually exercises: 0, 1, 3 (all no-op/default
     # -> clamp-only, the common case at 181/104/17/14 calls respectively) and
     # 0xA (scroll-right, 104 calls). Actions 2 (scroll-left) and 9 (confirm)
-    # are transcribed from the same disassembly pattern as 0xA/0xC but the demo
+    # are transcribed from the same disassembly pattern as 0xA/0xC but the replay
     # never exercises them -- ASM-derived, not independently verified. Also
     # not modeled: action 9's conditional call to 1010:03C2(4) and action
     # 0xC's call to 1010:03C2(0) when entered was 0 -- side calls this rule

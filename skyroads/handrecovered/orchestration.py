@@ -34,7 +34,7 @@ FRAME_CTR_GAMEPLAY_MAX = 0x6C
              "back to the front end). Otherwise -> frame_ctr < 0x6C. True means "
              "run the gameplay sub-step (2317); False means exit the handler to "
              "the transition (2B0B).",
-    status="ASM_MATCHED",  # 571/571 real E2E-demo frames, incl. the game_state
+    status="ASM_MATCHED",  # 571/571 real E2E-replay frames, incl. the game_state
     # 3 -> exit (transition) cases that end a level attempt.
     merge_target="skyroads.native.orchestration (future)",
 )

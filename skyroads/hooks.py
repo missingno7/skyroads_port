@@ -27,9 +27,9 @@ Installed hooks:
 
 - palette_upload (1010:6168): verified 2026-07-09 — 6,305 hook calls with
   zero divergence (full-memory diff, strict auto-continuation) replaying the
-  ENTIRE recorded gameplay demo (artifacts/demos/demo_skyroads_20260709_184949,
+  ENTIRE recorded gameplay replay (artifacts/replays/replay_skyroads_20260709_184949,
   988 frames, level-select through driving), not just a slice. The single
-  hottest unreplaced routine in that demo's recorded execution profile:
+  hottest unreplaced routine in that replay's recorded execution profile:
   20.9% of all interpreted instructions. Getting a clean full-memory diff
   required discovering the routine's own register/flags footprint is NOT the
   no-op its pusha/popa wrapper first suggested — its prologue's `mov bx,sp`
@@ -41,8 +41,8 @@ Installed hooks:
 
 - sprite_blit (1010:3A22): verified 2026-07-09 — 1,806 hook calls with zero
   divergence (full-memory diff, strict auto-continuation) replaying the
-  ENTIRE recorded gameplay demo (artifacts/demos/demo_skyroads_20260709_184949,
-  988 frames). The second-hottest un-hooked routine in that demo's profile:
+  ENTIRE recorded gameplay replay (artifacts/replays/replay_skyroads_20260709_184949,
+  988 frames). The second-hottest un-hooked routine in that replay's profile:
   12.8% of all interpreted instructions. First attempt matched the oracle
   immediately (no divergence) — the register/flags derivation (DEC preserves
   CF, matching CPU8086's own INC/DEC opcode handlers; the do-while loop
@@ -66,7 +66,7 @@ Installed hooks:
   renderer island and the first layer wired to a clean recovered-code module
   (skyroads/handrecovered/renderer.py::perspective_row_offset). Every road/object
   render path funnels through it. All 34,786 calls verified across the in-game
-  demo, zero divergence. The recovery caught a real decode error: the third
+  replay, zero divergence. The recovery caught a real decode error: the third
   arithmetic stage calls ulong_MUL (5D4C, ×14), not ulong_div — I initially
   read the call target as 5D8C; the differential verifier flagged the wrong
   table offset on call #1, and capturing the ASM's intermediate divide results
@@ -75,7 +75,7 @@ Installed hooks:
 - road_column_strip (1010:38BF): verified 2026-07-10 — the road-column strip
   compositor, the single most-called rasterizer in gameplay (34 callsites,
   ~13% of real render work). All 14,896 calls verified byte-exact across the
-  in-game demo, zero divergence (full-memory diff, strict auto-continuation).
+  in-game replay, zero divergence (full-memory diff, strict auto-continuation).
   Scans two stride-3 display lists for the column marker, then rep-movsw's
   word-aligned horizontal pixel runs from a source bitmap onto the screen,
   one scanline per record, with cld/std (up/down) direction variants. The
@@ -89,17 +89,17 @@ Installed hooks:
 
 - rle_sprite_forward (1010:3153) + rle_sprite_backward (1010:3190): verified
   2026-07-09 — the mirror pair of run-length sprite rasterizers, the dominant
-  render cost in the in-game demo (~9K calls each, ~13% of all interpreted
+  render cost in the in-game replay (~9K calls each, ~13% of all interpreted
   steps together). Each decodes an RLE control stream into horizontal runs of
   one fill colour, one run per successive scanline (the forward twin painting
   rightward from sub-offset anchors, the backward twin painting leftward with
-  `std`). Both matched the oracle on the first attempt (full-demo, zero
+  `std`). Both matched the oracle on the first attempt (full-replay, zero
   divergence). The one subtlety was the backward twin's reverse `rep stosw`
   fill and its `cld`-restored DF; see the hook comments.
 
 - ulong_mul (1010:5D4C): verified 2026-07-09 — the C-runtime 32-bit unsigned
   long-MULTIPLY helper, companion to ulong_div and equally hot in real
-  gameplay (~37K calls in the in-game driving demo, the fixed-point 3D
+  gameplay (~37K calls in the in-game driving replay, the fixed-point 3D
   transform math). Same hook-the-common-case pattern: the 16x16 simple path
   (both operand high words == 0, 99.7% of calls) reproduced exactly
   (DX:AX=product, BX=B_low, flags from the `or bx,ax`+`mul bx` pair), the
@@ -108,7 +108,7 @@ Installed hooks:
   in tests/test_ulong_div_hook.py.
 
 - ulong_div (1010:5D8C): verified 2026-07-09 — the C-runtime 32-bit unsigned
-  long-division helper (~68K calls in the demo, almost certainly the 3D road
+  long-division helper (~68K calls in the replay, almost certainly the 3D road
   renderer's perspective divide). Hooks the hot common case only (divisor's
   high word == 0, a 32/16 divide: 99.8% of calls) exactly — quotient in DX:AX,
   CX=divisor_lo, flags from the routine's own `xor dx,dx` — and DELEGATES the
@@ -122,7 +122,7 @@ Installed hooks:
 
 - occluded_column_blit (1010:3283): verified 2026-07-09 — 358 hook calls
   with zero divergence (full-memory diff, strict auto-continuation) across
-  the ENTIRE recorded gameplay demo. A column-major stencil-limited
+  the ENTIRE recorded gameplay replay. A column-major stencil-limited
   compositor (29x24), the largest un-hooked interpreted loop remaining after
   the three hooks above. One bug caught by the verifier on the first run: I
   read the stencil test backwards — the ASM `cmp mask,0; jz skip` draws only
@@ -133,7 +133,7 @@ Installed hooks:
 - fade_loop_tick_gate (1010:4344 + 1010:434A): added 2026-07-09 — NOT a thin
   representational hook like the ones above; see its own docstring for why
   this one is a genuine BEHAVIORAL change (skips provably-redundant work)
-  verified by a different methodology (full-demo bit-exact final-state
+  verified by a different methodology (full-replay bit-exact final-state
   comparison, not per-call oracle diff — the whole point is to diverge from
   what the oracle would do). Cuts the fade-transition busy-wait's redundant
   iterations, which palette_upload's own speedup had made worse (see
@@ -570,7 +570,7 @@ def lzs_decode_loop_hook(cpu: CPU8086) -> None:
 # preservation collapse to "just don't touch them".
 #
 # The VGA-direct path (1010:618D-61CD) burns 20.9% of all interpreted
-# instructions in a recorded gameplay demo:
+# instructions in a recorded gameplay replay:
 # ~18 interpreted instructions per DAC-entry write (mov/lodsb/2x delay-jmp/
 # inc/dec/test/jnz), called with count~256-320 roughly once per frame. Every
 # 64th entry (1010:61A5 "test cx,3Fh") it also polls the input-status
@@ -900,12 +900,12 @@ def occluded_column_blit_hook(cpu: CPU8086) -> None:
 # [sp]=return IP, [sp+2..+3]=dividend low, [sp+4..+5]=dividend high,
 # [sp+6..+7]=divisor low, [sp+8..+9]=divisor high (two 32-bit longs pushed
 # high-word-last, the usual C small-model layout). Returns the 32-bit
-# quotient in DX:AX. Called ~68K times in the recorded demo (almost certainly
+# quotient in DX:AX. Called ~68K times in the recorded replay (almost certainly
 # the perspective divide in the 3D road renderer) -- pure arithmetic, no
 # memory writes beyond its own saved-register stack scratch.
 #
 # Two code paths (confirmed by disassembly of 5D8C-5DEA):
-#   - divisor high word == 0 (a 32/16 divide): 99.8% of demo calls. Does two
+#   - divisor high word == 0 (a 32/16 divide): 99.8% of replay calls. Does two
 #     `div cx` steps (dividend_hi/divisor_lo, then the combined low divide),
 #     leaving CX = divisor_lo and (crucially) FLAGS from its `xor dx,dx` at
 #     5D9E -- the LAST flag-setting instruction on this path, since dos_re's
@@ -915,7 +915,7 @@ def occluded_column_blit_hook(cpu: CPU8086) -> None:
 #     entry (nothing on this path ever SETS AF -- `or ax,ax`/`xor dx,dx` both
 #     go through set_logic_flags, which leaves AF alone).
 #   - divisor high word != 0 (a true 32/32 divide, quotient < 2^16): 0.2% of
-#     demo calls. Its shift-normalize-and-correct algorithm leaves CX and the
+#     replay calls. Its shift-normalize-and-correct algorithm leaves CX and the
 #     final AF in path-dependent scratch states that would need the full
 #     estimate reproduced to match a strict diff. Rather than carry that
 #     complexity for 1-in-500 calls, this hook DELEGATES that case (and the
@@ -961,13 +961,13 @@ def ulong_div_hook(cpu: CPU8086) -> None:
 
 # CS:IP 1010:5D4C -- the C-runtime 32-bit unsigned long-MULTIPLY helper
 # (`__aFulmul`-style), the companion to ulong_div sitting right beside it and,
-# like it, dominating the in-game profile (~37K calls in the driving demo,
+# like it, dominating the in-game profile (~37K calls in the driving replay,
 # the fixed-point 3D-transform math at 1010:04xx). Same near proc, callee-
 # cleanup (`ret 8`) ABI and same arg layout: [sp+2..3]=A low, [sp+4..5]=A high,
 # [sp+6..7]=B low, [sp+8..9]=B high; 32-bit product returned in DX:AX.
 #
 # Simple path (5D4F-5D64), taken when BOTH high words are 0 (a 16x16 multiply,
-# 99.7% of demo calls): `or bx,ax` tests (A_high|B_high), then on zero does a
+# 99.7% of replay calls): `or bx,ax` tests (A_high|B_high), then on zero does a
 # single `mul bx` of A_low*B_low into DX:AX and returns. This hook reproduces
 # that exactly:
 #   - DX:AX = A_low * B_low (the full 32-bit product; 16x16 always fits).
@@ -1031,7 +1031,7 @@ def ulong_mul_hook(cpu: CPU8086) -> None:
 # The unsigned core has two paths, mirroring ulong_div: a 32/16 fast path
 # (|divisor| fits in 16 bits -- the common case) and a shift-normalize 32/32
 # path. This hook lifts ONLY the all-non-negative 32/16 case -- by far the most
-# common (every call in the recorded demo) -- and DELEGATES everything else
+# common (every call in the recorded replay) -- and DELEGATES everything else
 # (either operand negative, or a 32/32 divisor) to the original ASM via
 # interpret_current_instruction_without_hook, correct by construction. On the
 # lifted path: CX is left holding |divisor_low| (the `mov cx,[bp+8]` at 5E96,
@@ -1186,7 +1186,7 @@ def tile_clip_mask_hook(cpu: CPU8086) -> None:
 
 
 # CS:IP 1010:33FD -- the road-tile SHADER (linear/mode-13h, the exercised twin;
-# the EGA-planar variant at 336B is used by 31DB, not on this demo's path).
+# the EGA-planar variant at 336B is used by 31DB, not on this replay's path).
 # Bare near proc (`mov ds,ss` up front -> DS=SS on exit; no register saves, so
 # AX/BX/CX/DX/SI/DI + flags clobbered; es/bp/sp preserved). Selects a 9x29 tile
 # pattern at ds:[0x68E + (ds:[0E34]/5)*0x105] (skips, returning early, if that
@@ -1350,7 +1350,7 @@ def tile_rasterizer_hook(cpu: CPU8086) -> None:
 
 # CS:IP 1010:3153 -- the FORWARD run-length sprite rasterizer (one of a mirror
 # pair; the backward twin is at 1010:3190, hooked below). The dominant render
-# cost in the in-game demo: 5,884 calls driving 41,162 inner-loop iterations
+# cost in the in-game replay: 5,884 calls driving 41,162 inner-loop iterations
 # (~13% of all interpreted steps together with its twin). Near proc; saves DI
 # and BP only (push at 3153/3154, pop at 318D/318E) -- everything else is
 # scratch.
@@ -1858,7 +1858,7 @@ def road_column_strip_hook(cpu: CPU8086) -> None:
 # VALIDATION: this pair cannot be checked with the strict per-call oracle
 # diff every other hook in this file uses -- diverging from the oracle on
 # skipped iterations is the entire point. Instead it's validated by running
-# the full recorded demo twice (tick-gate on vs off) and diffing final
+# the full recorded replay twice (tick-gate on vs off) and diffing final
 # memory/VGA-palette/CPU state end to end; see docs/skyroads/symbol_ledger.md
 # for the result.
 def _fade_loop_cache(cpu: CPU8086) -> dict[tuple[int, int], int]:
@@ -2208,10 +2208,10 @@ def intro_anim_unpack_hook(cpu: CPU8086) -> None:
 # not recovered source, until refactored + @oracle_link'd).
 
 # 1010:34AE -- the [0E38]-dispatched tile renderer (reached via the 34A7 wrapper),
-# the dominant un-hooked cost in the full start->finish level demo
-# (demo_skyroads_20260710_145303): ~29% of interpreted work and the source of
+# the dominant un-hooked cost in the full start->finish level replay
+# (replay_skyroads_20260710_145303): ~29% of interpreted work and the source of
 # the in-level performance drops. Lifted + verified ORACLE_PASSING (liftverify:
-# 401 calls, 26/28 blocks; plus 400 full-level-demo calls under the strict
+# 401 calls, 26/28 blocks; plus 400 full-level-replay calls under the strict
 # differential verifier), byte-exact, zero divergence.
 from skyroads.lifted.functions.lifted_1010_34ae import lifted_1010_34ae as _lifted_34ae  # noqa: E402
 
@@ -2224,7 +2224,7 @@ from skyroads.lifted.functions.lifted_1010_34ae import lifted_1010_34ae as _lift
 # so this also exercises dos_re's entry-fallback recursion fix (11917f2). The
 # largest single remaining render/movement-path recovery, and it collapses the
 # road-segment path (subsumes repeated 1732+04C0 calls). Lifted + verified
-# ORACLE_PASSING (liftverify: 40 calls, 58/80 blocks; plus the full-level demo
+# ORACLE_PASSING (liftverify: 40 calls, 58/80 blocks; plus the full-level replay
 # under the strict differential verifier), byte-exact.
 from skyroads.lifted.functions.lifted_1010_186b import lifted_1010_186b as _lifted_186b  # noqa: E402
 

@@ -100,7 +100,7 @@ def main_live(exe: str, cs: int, start: int, end: int, replay_dir: str, max_fram
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import RealModeInputAdapter
+    from dos_re.replay_input import RealModeInputAdapter
     from dos_re.replay import ReplayArtifact
     from dos_re.snapshot import apply_runtime_continuation
     from skyroads.replay import recording_base
@@ -108,9 +108,9 @@ def main_live(exe: str, cs: int, start: int, end: int, replay_dir: str, max_fram
     replay_path = Path(replay_dir)
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(replay_path), "--headless", "--composition", "oracle"])
+        ["--play-replay", str(replay_path), "--headless", "--composition", "oracle"])
     artifact = ReplayArtifact.open(replay_path)
-    frontend.apply_demo_metadata(args, artifact.metadata)
+    frontend.apply_replay_metadata(args, artifact.metadata)
     rt = frontend.create_runtime(args)
     apply_runtime_continuation(rt, recording_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)

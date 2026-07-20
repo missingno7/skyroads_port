@@ -20,7 +20,7 @@ landing SFX (`03C2(1)`, from the bounce-decay branch `2470-249E`) and some
 menu sounds consult it; bump/crash (`03C2(2)`) fire unconditionally.
 
 Gameplay id map — VM-VERIFIED by capturing every `03C2` call over the
-collision demo (demo_skyroads_20260710_213019: 5 calls -- 2x id 1 ret `249E`,
+collision replay (replay_skyroads_20260710_213019: 5 calls -- 2x id 1 ret `249E`,
 2x id 0 ret `27EA`, 1x id 2 ret `2763`):
 
 ====  =========================================================
@@ -30,7 +30,7 @@ collision demo (demo_skyroads_20260710_213019: 5 calls -- 2x id 1 ret `249E`,
       `resolve_lateral_crash` sets `[456A]` 0 -> nonzero (ship past
       `CRASH_MILESTONE_POS`, not already flagged), REGARDLESS of
       `[456E]`/game_state (2026-07-13: re-verified on
-      demo_skyroads_20260710_213019 -- one call fires from game_state 0,
+      replay_skyroads_20260710_213019 -- one call fires from game_state 0,
       one from game_state 3, both on the 0->nonzero grounded edge). A
       pre-milestone or already-flagged lateral block does NOT fire this --
       see `native_gameplay_substep`'s collision-response comment; also the

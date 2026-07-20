@@ -65,9 +65,9 @@ COLUMN_DESCRIPTOR_SCRATCH = 0x0E74
              "length marker. Returns True iff any compositing happened.",
     status="ASM_MATCHED",  # ported from hooks.py's road_column_strip_hook
     # (itself register-exact verified against the ASM oracle over the full
-    # gameplay demo -- see docs/skyroads/symbol_ledger.md), then independently
+    # gameplay replay -- see docs/skyroads/symbol_ledger.md), then independently
     # re-verified as a pure port: 196/196 real 1010:38BF calls over the E2E
-    # demo reproduce the ASM's FULL memory diff exactly (every byte the real
+    # replay reproduce the ASM's FULL memory diff exactly (every byte the real
     # call touched, not just a sampled field) -- see tests/test_road_column.py.
     # This process caught two real bugs the first port had (a missing scratch
     # write, and the inverted SKIP_SYNC_LOOP_BIT semantic above) -- see

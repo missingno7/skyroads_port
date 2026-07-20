@@ -1,10 +1,10 @@
 """Verify the recovered stencil blit (skyroads.handrecovered.blit) against real ASM
-I/O captured over the E2E demo's menu screens (1010:0F62).
+I/O captured over the E2E replay's menu screens (1010:0F62).
 
 The pure per-byte substitution is what ``stencil_blit`` recovers; the full
 register-exact VM hook (``skyroads/hooks.py::stencil_blit_hook``) was proven
 byte-exact against the ASM oracle with the project's strict differential
-verifier over the whole E2E demo -- 213/213 calls, zero divergences (getting
+verifier over the whole E2E replay -- 213/213 calls, zero divergences (getting
 there caught two real bugs: SI/DI are preserved via push/pop, not left at a
 "final cursor" position, and AH/AF both thread through the loop rather than
 being determined by the last byte alone -- see run_status.md).

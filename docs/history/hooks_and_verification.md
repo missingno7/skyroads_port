@@ -82,7 +82,7 @@ The adapter supplies: boundary addresses (present/timer/retrace), a
 must keep so the original ASM doesn't spin forever), optional `pump_inputs`,
 and the shared input-wait detector (see
 [`demos_and_snapshots.md`](demos_and_snapshots.md) — mandatory reading before
-trusting any demo).
+trusting any replay).
 
 Widen the frame sample until it covers **all observable state** — every object
 field, RNG state, score/lives, timers, and the framebuffer. *If it is not in

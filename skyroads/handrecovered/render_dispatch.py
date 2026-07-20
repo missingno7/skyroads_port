@@ -65,7 +65,7 @@ from skyroads.islands import oracle_link
              "and e52<3. (3) if e4e==1 and e50==2: ax in "
              "0x0400..0x0405 (all six). (4) if e4e<3: (else return) ax=0x0500 "
              "if e50==4; ax=0x0501 if additionally e52<4.",
-    status="ASM_MATCHED",  # 474/480 (98.75%) real E2E-demo invocations matched
+    status="ASM_MATCHED",  # 474/480 (98.75%) real E2E-replay invocations matched
     # exactly (the call-code sequence, in order). The 6 misses share one
     # repeated field snapshot (e44=2,e46=4, rest 0/1) producing a long,
     # non-matching call burst -- almost certainly calls from a THIRD dispatch
@@ -120,7 +120,7 @@ def dispatch_variant_a(
              "0x0400..0x0405 (all six); else: ax=0x0200, then ax=0x0201 if "
              "e52<3 and e54<3. else (e4e>2): ax=0x0500, then ax=0x0501 unless "
              "e52==4 or e54==4.",
-    status="ASM_MATCHED",  # 633/640 (98.9%) real E2E-demo invocations matched
+    status="ASM_MATCHED",  # 633/640 (98.9%) real E2E-replay invocations matched
     # exactly. The 7 misses share ONE repeated field snapshot producing a long
     # non-matching call burst -- the same anomaly dispatch_variant_a's status
     # note describes (likely a third, unisolated call source), not a bug here:

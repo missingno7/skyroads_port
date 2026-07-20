@@ -40,8 +40,9 @@ RECOVERY = ROOT / "recovery"
 IR = RECOVERY / "recovery_ir.json"
 ATLAS = RECOVERY / "atlas"
 PRODUCT_PROFILES = (
-    "game/oracle", "game/faithful", "game/play", "game/behavioral",
-    "game/vmless", "game/cpuless",
+    "game/oracle", "game/generated-functions", "game/authored-candidates",
+    "game/play", "game/behavioral",
+    "game/generated-cpu", "game/generated-abi",
 )
 
 

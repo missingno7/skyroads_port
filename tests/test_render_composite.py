@@ -3,7 +3,7 @@
 skyroads.native.render_frame.composite_mode0 runs the full mode-0 pass --
 setup -> render_classify -> dispatch_variant_a -> road_column_strip per column
 -- writing composited road pixels into the destination buffer. Against a real
-VM capture (demo_e2e_20260710_132930), captured at the 39D4-finalize entry
+VM capture (replay_e2e_20260710_132930), captured at the 39D4-finalize entry
 (i.e. AFTER all 24 road columns, BEFORE the finalize sprites), the native
 composite reproduces every written byte: 686/686 exact.
 

@@ -27,7 +27,7 @@ def main(argv=None) -> int:
     args.rebuild = False
     bootstrap_artifacts = packaged_bootstrap_artifacts(
         PRODUCT_ROOT,
-        expected_provider="skyroads-cpuless-build-image",
+        expected_provider="skyroads-generated-abi-build-image",
     )
     return run(args, bootstrap_artifacts=bootstrap_artifacts)
 

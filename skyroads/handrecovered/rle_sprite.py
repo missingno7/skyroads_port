@@ -2,7 +2,7 @@
 (backward) — as pure functions.
 
 The dominant in-game render cost (5,884 calls / ~41K inner iterations in the
-e2e demo): each call paints one vertical strip of horizontal spans from an RLE
+e2e replay): each call paints one vertical strip of horizontal spans from an RLE
 control stream living in the current DISPLAY-LIST segment. Stream layout:
 
     byte  index      -> fill colour = DGROUP[0x352 + index*4]   (fwd)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from dos_re.input_demo import SCAN_CHANNEL, scan_payload
+from dos_re.replay_input import SCAN_CHANNEL, scan_payload
 from dos_re.replay import (
     ContinuationState,
     ExecutionProfile,

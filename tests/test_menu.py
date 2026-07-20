@@ -1,10 +1,10 @@
 """Verify the recovered level-select action dispatcher
-(skyroads.handrecovered.menu) against real ASM I/O captured over the E2E demo.
+(skyroads.handrecovered.menu) against real ASM I/O captured over the E2E replay.
 
 318/318 real 1010:1B49 calls matched byte-exact across every action code the
-demo exercises (0, 1, 3 -- all no-op/default -> clamp-only; 0xA -- scroll
+replay exercises (0, 1, 3 -- all no-op/default -> clamp-only; 0xA -- scroll
 right; 0xC -- enter level-select). Actions 2 (scroll left) and 9 (confirm) are
-transcribed from the same disassembly pattern but not exercised by any demo
+transcribed from the same disassembly pattern but not exercised by any replay
 -- see the ASM_MATCHED caveat in skyroads/handrecovered/menu.py.
 """
 from __future__ import annotations

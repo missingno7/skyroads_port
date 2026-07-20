@@ -41,7 +41,7 @@ is modeled and reference the oracle evidence).
 | Destination | Source | Notes |
 |---|---|---|
 | `dos_re/cpu.py`, `memory.py`, `mz.py`, `dos.py`, `runtime.py`, `hooks.py`, `interrupts.py`, `keyboard.py`, `pic.py`, `sblaster.py`, `snapshot.py`, `verification.py`, `frame_verify.py`, `repro_artifacts.py`, `testing.py`, `dosbox_savestate.py`, `bootstrap_lzexe.py`, `__init__.py` | `pre2_port/dos_re/*` | byte-identical copies |
-| `dos_re/input_demo.py` | **overkill_port** version adopted (see below) — it is a strict superset of pre2's | one docstring word generalized |
+| `dos_re/replay_input.py` | **overkill_port** version adopted (see below) — it is a strict superset of pre2's | one docstring word generalized |
 | `docs/ai_porting_charter.md` | `pre2_port/dos_re/AI_PORTING_CHARTER.md` | Prehistorik-2 framing generalized (3 small edits) |
 | `docs/methodology.md` | `pre2_port/docs/dos_re/source_port_methodology.md` | pre2 references generalized |
 | `docs/state_mirrors.md` | generalized from `pre2_port/docs/pre2/state_view_layer.md` | game specifics removed; pattern kept |
@@ -60,7 +60,7 @@ is modeled and reference the oracle evidence).
 | `tools/clean.py`, `tools/run_tests.py` | `pre2_port/scripts/` | artifact globs generalized; lint path updated |
 | `tools/lint.py` | rewritten from `pre2_port/scripts/lint.py` | rule strengthened: core must be stdlib-only, not just "no pre2 import" |
 | `tests/test_core.py` | `pre2_port/tests/` | one pre2-only test (bootstrap-to-segment-1030) removed |
-| `tests/test_dos_re_smoke.py`, `test_input_demo.py`, `test_repro_artifacts.py`, `test_sblaster_snapshot.py`, `tests/__init__.py` | `pre2_port/tests/` | verbatim (input-demo tests extended, see below) |
+| `tests/test_dos_re_smoke.py`, `test_replay_input.py`, `test_repro_artifacts.py`, `test_sblaster_snapshot.py`, `tests/__init__.py` | `pre2_port/tests/` | verbatim (input-replay tests extended, see below) |
 | `tests/test_no_undefined_names.py` | `pre2_port/tests/` | retargeted from `pre2/` layers to `dos_re/` + `examples/` |
 | `pyproject.toml`, `.gitignore` | adapted from pre2_port's | renamed `dos-re`, pre2 entries dropped |
 
@@ -69,7 +69,7 @@ is modeled and reference the oracle evidence).
 | Destination | Source | Notes |
 |---|---|---|
 | `nuked_opl3/` | `overkill_port/nuked_opl3/` | verbatim; fully generic cffi binding to Nuked-OPL3 (also referenced, but not present, in pre2_port) |
-| `dos_re/input_demo.py` | `overkill_port/dos_re/input_demo.py` | overkill's version = pre2's **plus** cold-start demos (`write_start_snapshot=False`, `is_cold_start`) and `single=True` per-call event delivery for menu poll waits. Backward compatible with pre2-style demos. |
+| `dos_re/replay_input.py` | `overkill_port/dos_re/replay_input.py` | overkill's version = pre2's **plus** cold-start replays (`write_start_snapshot=False`, `is_cold_start`) and `single=True` per-call event delivery for menu poll waits. Backward compatible with pre2-style replays. |
 | `dos_re/asm.py` | `overkill_port/overkill/asm.py` | **promoted into the core**: game-neutral 8086 flag/register/string-op helpers for lifted routines. Docstring rewritten; imports made relative; `_ega_next_scanline_di` kept with an origin caveat (its interleave constants are the classic idiom but were verified on Overkill only). |
 | `dos_re/hook_taxonomy.py` | `overkill_port/overkill/hook_taxonomy.py` | **generalized**: the 4-category classification kept verbatim in spirit; Overkill's hard-coded address tables became adapter-supplied `HookTaxonomy(checkpoints=..., env_waits=...)`. |
 | `tools/lindis.py` | `overkill_port/scripts/lindis.py` | Overkill snapshot loader → generic `dos_re.snapshot.load_snapshot` + `exe` argument. Verified working. |
@@ -88,10 +88,10 @@ is modeled and reference the oracle evidence).
 
 | File | Why |
 |---|---|
-| `examples/minimal_adapter/example.py` | runnable end-to-end demo on a synthetic MZ EXE (oracle run → wrong hook caught → verified hook → snapshot determinism). Built from the proven patterns in `tests/test_dos_re_smoke.py`. Verified: runs green. |
+| `examples/minimal_adapter/example.py` | runnable end-to-end replay on a synthetic MZ EXE (oracle run → wrong hook caught → verified hook → snapshot determinism). Built from the proven patterns in `tests/test_dos_re_smoke.py`. Verified: runs green. |
 | `examples/adapter_skeleton/` | template of the adapter shape both source ports converged on (runtime/hooks/verification/frame_verify/input_waits). |
 | `tests/test_asm_and_taxonomy.py` | smoke coverage for the two modules promoted from overkill. |
-| cold-start + `single=True` tests in `tests/test_input_demo.py` | the two merged overkill features had no dedicated tests in either repo. |
+| cold-start + `single=True` tests in `tests/test_replay_input.py` | the two merged overkill features had no dedicated tests in either repo. |
 | `tests/test_islands.py` | framework-level coverage for the promoted island registry (the source repos' tests were bound to their game packages). |
 | `docs/methodology.md` status-ladder fix | the copied doc's 5-level ladder predated the code; aligned to the proven 6-level ladder in `dos_re.islands.STATUSES` (adds RECOVERED). |
 | `docs/hooks_and_verification.md`, `docs/demos_and_snapshots.md`, `docs/porting_new_game.md`, `docs/hardware_support.md`, `docs/README.md`, `MIGRATION.md` | new documentation consolidating both repos' methodology docs. |
@@ -162,8 +162,8 @@ divergence-repro pair, modeled on `InputDemoPlayback.write_suffix`).
 6. ~~`docs/state_mirrors.md` describes adapter code that does not ship here~~
    **Resolved**: the generic machinery was promoted as `dos_re/state_view.py`
    (second extraction pass); only the game layout tables remain adapter code.
-7. ~~Input-demo cold-start replay never exercised end-to-end in this repo~~
-   **Resolved**: `examples/tiny_frame_game/` records a cold-start demo (no
+7. ~~Input-replay cold-start replay never exercised end-to-end in this repo~~
+   **Resolved**: `examples/tiny_frame_game/` records a cold-start replay (no
    snapshot) and replays it from a fresh boot, byte-identical over 10 frames,
    as part of the test suite (`tests/test_tiny_frame_game.py`).
 8. **`dos_re/bootstrap_lzexe.py` keeps private copies** of `code_matches` and
@@ -175,7 +175,7 @@ divergence-repro pair, modeled on `InputDemoPlayback.write_suffix`).
 9. **Documented-as-pattern, deliberately not promoted** (game-entangled;
    the source repos hold the worked examples): timing fast-forward
    (`pre2/bridge/timing_fastforward.py`, `overkill/timing_fastforward.py` —
-   see pitfalls #12–14), the tick-demo equivalence harness
+   see pitfalls #12–14), the tick-replay equivalence harness
    (`pre2/native/game_tick_demo.py`, `scripts/verify_finish_demo.py`), the
    coverage-telemetry classifier (`overkill/coverage.py`), headless
    verification (`overkill/headless_verification.py`), the probe harness +

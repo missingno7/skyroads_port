@@ -10,17 +10,17 @@ A verified, native source port of the game, recovered one proven routine at a
 time from the original executable running in this repo's VM. The original
 binary is the oracle — the single source of truth. You never guess behaviour;
 you trace what the original did and match it, byte-exact, at every step.
-Definition of done: the native port replays the whole demo corpus with the VM
+Definition of done: the native port replays the whole replay corpus with the VM
 disabled in the hot path, and the VM-as-oracle suite confirms frame-and-state
-equivalence. ([`docs/lifecycle.md`](docs/lifecycle.md) tells the whole arc.)
+equivalence. ([`docs/lifecycle.md`](lifecycle.md) tells the whole arc.)
 
 ## Boot sequence
 
-1. **Read, in order:** [`docs/lifecycle.md`](docs/lifecycle.md) →
-   [`docs/ai_porting_charter.md`](docs/ai_porting_charter.md) (the method —
-   read all of it, twice for §6) → [`docs/pitfalls.md`](docs/pitfalls.md)
+1. **Read, in order:** [`docs/lifecycle.md`](lifecycle.md) →
+   [`docs/ai_porting_charter.md`](ai_porting_charter.md) (the method —
+   read all of it, twice for §6) → [`docs/pitfalls.md`](pitfalls.md)
    (the mistakes already made for you) →
-   [`docs/porting_new_game.md`](docs/porting_new_game.md) (the checklist you
+   [`docs/porting_new_game.md`](porting_new_game.md) (the checklist you
    will now follow). For each recurring task type, use the ritual in
    [`prompts/`](prompts/README.md) — every task ends with its accountability
    REPORT block, and status claims follow the ladder (never present OBSERVED
@@ -29,7 +29,7 @@ equivalence. ([`docs/lifecycle.md`](docs/lifecycle.md) tells the whole arc.)
    (gitignored — original game files are never committed). Create your adapter
    package **in this repository, at the root, next to `dos_re/`** — e.g.
    `mygame/` — by copying the shape of
-   [`examples/adapter_skeleton/`](examples/adapter_skeleton/README.md). (This
+   [`examples/adapter_skeleton/`](../../dos_re/examples/tiny_frame_game/README.md). (This
    repo becoming the game-port repo is the expected workflow; porting in a
    separate repo that vendors `dos_re/` also works, but is the exception.)
    Then wire the conventions in: your tests go in `tests/` and **must skip
@@ -42,9 +42,9 @@ equivalence. ([`docs/lifecycle.md`](docs/lifecycle.md) tells the whole arc.)
    phase, recent findings), `docs/<game>/symbol_ledger.md` (addresses →
    evidence), `docs/<game>/blockers.md` (see the loop protocol), and the
    generated island manifest (`tools/gen_island_manifest.py`).
-4. **Follow [`docs/porting_new_game.md`](docs/porting_new_game.md)** step by
+4. **Follow [`docs/porting_new_game.md`](porting_new_game.md)** step by
    step: load & run → see output → find frame boundaries → stand up the frame
-   verifier → build the input-wait registry → record the first demo → start
+   verifier → build the input-wait registry → record the first replay → start
    the lifting loop.
 5. **Keep the owner in the loop.** `python tools/view.py --exe assets/<GAME>`
    is the generic live window (plus `tools/render_frame.py` for PNG evidence)
@@ -58,7 +58,7 @@ Proven over months of autonomous recovery on the source ports:
 
 1. **One slice per iteration** — one routine, one field naming, one raw-offset
    drain; the smallest coherent unit. Not a subsystem.
-2. **Never commit red.** Every commit passes lint + the test suite + the demo
+2. **Never commit red.** Every commit passes lint + the test suite + the replay
    gates. One slice = one focused commit.
 3. **Blocked ⇒ revert + log.** If a slice can't be finished byte-exact, or the
    fix would require guessing: revert all its changes immediately, write the
@@ -68,13 +68,13 @@ Proven over months of autonomous recovery on the source ports:
 4. **Never weaken an oracle or test to make a change pass.** Fix the code to
    match the original, or revert.
 5. **Fail loud, never fake.** An unrecovered path raises a
-   [`HybridGap`](dos_re/dos_re/gaps.py); it never silently falls back to ASM or to a
+   [`HybridGap`](../../dos_re/dos_re/gaps.py); it never silently falls back to ASM or to a
    plausible guess.
 6. **Check for existing mechanisms before building.** The framework and your
    own adapter likely already have the tool (the module map in
-   [`docs/architecture.md`](docs/architecture.md), the `tools/` directory) —
+   [`docs/architecture.md`](architecture.md), the `tools/` directory) —
    and for problems the framework does NOT solve in code, check
-   [`docs/cookbook.md`](docs/cookbook.md) FIRST: it maps symptoms (busy-wait
+   [`docs/cookbook.md`](cookbook.md) FIRST: it maps symptoms (busy-wait
    crawl, runtime-patched code, resident audio driver, slow probes, cold-start
    endgame…) to proven worked examples in the source repos. Re-deriving one of
    those from scratch wastes days the previous ports already paid for.
@@ -86,7 +86,7 @@ Proven over months of autonomous recovery on the source ports:
 
 Your game WILL exercise CPU instructions, DOS services, and hardware behaviour
 the previous games didn't. Extending `dos_re/` is part of the job — under its
-rules ([`AGENTS.md`](AGENTS.md)): stdlib-only, game-agnostic, add only what
+rules ([`AGENTS.md`](../../AGENTS.md)): stdlib-only, game-agnostic, add only what
 your executable *proves* it needs, document the observed register/flag
 contract, add a focused test, keep it deterministic by default. When the VM
 fails loud on an unimplemented opcode or port, that is the framework asking to
@@ -101,22 +101,22 @@ it knows your game's addresses or formats, it stays in your adapter.
 - Your `recovered/` layer never imports the VM (`tools/audit_layers.py
   mygame/recovered` — run it with your tests from day one; pitfall #17).
 - One shared definition of "a boundary" and "a wait loop" across all drivers
-  ([`docs/demos_and_snapshots.md`](docs/demos_and_snapshots.md) — the trap
-  that silently voids demo proofs).
+  ([`docs/demos_and_snapshots.md`](demos_and_snapshots.md) — the trap
+  that silently voids replay proofs).
 - Full-memory diffs by default; narrowing is a temporary, deliberate lever.
 - **No enhanced-presentation work until the faithful native game is complete
   and stable** (widescreen, interpolation, enhanced renderers = lifecycle
   Stage 6). The only exception class is an audio-style disruption fix —
   small, separable, justified in the ledger
-  ([`docs/enhancements.md`](docs/enhancements.md), pitfall #24).
+  ([`docs/enhancements.md`](enhancements.md), pitfall #24).
 
 ## Progress is measured, not vibed
 
-- Native % over a demo replay (hooked / total `cpu.step()` counts) — the CPU
+- Native % over a replay replay (hooked / total `cpu.step()` counts) — the CPU
   exposes `coverage_telemetry` hook points; **your adapter builds the
   collector** (porting guide step 8; worked example in the cookbook).
 - The generated island manifest (count × confidence ladder).
-- Demo-corpus coverage and pass rate.
+- Replay-corpus coverage and pass rate.
 - The glue-hook count (falling is good) and the frontier manifest
   (`dos_re/frontier.py`) once coverage converges.
 

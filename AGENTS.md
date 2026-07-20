@@ -41,7 +41,7 @@ python tools/lint.py
 python tools/check_undefined_names.py
 python tools/lint_cpuless.py
 python scripts/play.py --plan-only
-python scripts/play.py --profile release --composition cpuless --plan-only
+python scripts/play.py --profile release --composition generated-abi --plan-only
 ```
 
 The release plan-only gate currently fails on the Atlas's named unresolved

@@ -40,7 +40,7 @@ from __future__ import annotations
 TIMER_INPUTS = ("ax", "bp", "bx", "cx", "di", "ds", "dx", "es", "si", "sp", "ss")
 
 #: SkyRoads' pacing: 6 IRQ0 ticks per displayed frame (30 Hz frames = 180 Hz
-#: IRQ0), the same ratio every recorded demo carries as ``timer_irqs_per_frame``.
+#: IRQ0), the same ratio every recorded replay carries as ``timer_irqs_per_frame``.
 TIMER_IRQS_PER_FRAME = 6
 
 

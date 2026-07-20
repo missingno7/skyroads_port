@@ -2,7 +2,7 @@
 
 sprite_blit is the gameplay ship/object compositor: a 29-column-wide masked flip
 that copies a source sprite onto a destination buffer where a packed parallel
-mask byte == 2. Traced from demo_e2e_20260710_132930, the pure function
+mask byte == 2. Traced from replay_e2e_20260710_132930, the pure function
 reproduces every destination byte the reference writes, across both observed
 call shapes (24-row and 9-row) and both destination targets: the off-screen
 buffer (es=0x8116) AND direct-to-VGA (es=0xa000) -- confirming sprite_blit is

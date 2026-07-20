@@ -2,7 +2,7 @@
 
 The stages are strictly ordered and each consumes the previous one's output:
 
-    build_codemap.py     demos            -> observed.json      (what EXECUTED)
+    build_codemap.py     replays            -> observed.json      (what EXECUTED)
     close_vmless_wall.py observed.json    -> entries.txt
                                           -> recovery_ir.json   (the IR)
                                           -> skyroads/lifted/   (VMless corpus)
@@ -21,7 +21,7 @@ the same mistake caught from the other side.
 
 Usage:
     python scripts/rebuild_all.py                # full pipeline
-    python scripts/rebuild_all.py --from-ir      # skip the census (demos unchanged)
+    python scripts/rebuild_all.py --from-ir      # skip the census (replays unchanged)
     python scripts/rebuild_all.py --check        # then run every gate
 """
 from __future__ import annotations
@@ -37,7 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 #: (script, why it must run here) in dependency order.
 STAGES = (
     ("build_codemap.py",
-     "observe the demos -> artifacts/codemap/observed.json"),
+     "observe the replays -> artifacts/codemap/observed.json"),
     ("close_vmless_wall.py",
      "census + recovery_ir.json + the lifted (VMless) corpus"),
     ("build_recovered.py",
@@ -59,7 +59,7 @@ def _run(script: str, why: str) -> None:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--from-ir", action="store_true",
-                    help="skip the census (use when the DEMO SET is unchanged "
+                    help="skip the census (use when the REPLAY SET is unchanged "
                          "and only dos_re/codegen moved)")
     ap.add_argument("--check", action="store_true",
                     help="run scripts/check_all.py afterwards")

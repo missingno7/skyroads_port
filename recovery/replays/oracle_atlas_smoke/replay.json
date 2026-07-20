@@ -32,7 +32,7 @@
   ],
   "execution_evidence": {
     "incomplete_functions": [],
-    "profile_identity_digest": "3b330efbd54b286f06675d03b8e00d680df46c66ae3a6cea677e70644a911d14",
+    "profile_identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
     "runtime_variants": [],
     "transfers": [
       {
@@ -281,16 +281,35 @@
     "game": "skyroads",
     "mouse_present": true,
     "purpose": "execution-atlas-oracle-evidence",
-    "recording_profile_id": "real-mode-development-937029ba9b9a",
+    "recording_profile_id": "real-mode-development-3e4188fc390a",
     "source_event_stream_sha256": "88a8938328964bbbb93bcf745bf135e82c8794fddd2fbe6e5ce2f963720f3795",
     "steps_per_frame": 48000,
     "timer_irqs_per_frame": 6
   },
   "page_size": 4096,
-  "points": {},
+  "points": {
+    "f029e88d5c291312-0000000000000003": {
+      "annotations": [
+        {
+          "kind": "verified-endpoint",
+          "metadata": {
+            "candidate_profile": "skyroads-candidate-7ad31fdefa63",
+            "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
+            "oracle_profile": "real-mode-development-3e4188fc390a",
+            "projection_schema": "dos-re-complete-machine-v1"
+          }
+        }
+      ],
+      "point": {
+        "key": "f029e88d5c291312-0000000000000003",
+        "ordinal": 3,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      }
+    }
+  },
   "profiles": {
-    "real-mode-development-937029ba9b9a": {
-      "base": "profiles/real-mode-development-937029ba9b9a-3b330efbd54b286f/base/state.json",
+    "real-mode-development-3e4188fc390a": {
+      "base": "profiles/real-mode-development-3e4188fc390a-3ab4f31d02a45082/base/state.json",
       "base_point": {
         "key": "f029e88d5c291312-0000000000000000",
         "ordinal": 0,
@@ -299,7 +318,7 @@
       "base_state_sha256": "dac47e2b944e0948e30525041dc2126d8ed9f0089287eb02a5ed89edecb1b6be",
       "boundaries": {
         "f029e88d5c291312-0000000000000003": {
-          "manifest": "profiles/real-mode-development-937029ba9b9a-3b330efbd54b286f/boundaries/f029e88d5c291312-0000000000000003/state.json",
+          "manifest": "profiles/real-mode-development-3e4188fc390a-3ab4f31d02a45082/boundaries/f029e88d5c291312-0000000000000003/state.json",
           "point": {
             "key": "f029e88d5c291312-0000000000000003",
             "ordinal": 3,
@@ -311,20 +330,62 @@
         "continuation_schema": "dos-re-real-mode-continuation-v1",
         "devices": "dos-re-real-mode-devices-v1",
         "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
-        "implementation": "5a8598f40d614d18ea18eb710d25e324f4124a76d9c97d70da600a4b9910dccd",
+        "implementation": "58d76a603bf8a1d1e89bfec93a47de45a6c8cd8d2104142669d767b121fcac94",
         "overrides": [
           "(61440, 59783):bios_int9_keyboard",
           "(61440, 65363):bios_iret_stub"
         ],
-        "profile_id": "real-mode-development-937029ba9b9a",
+        "profile_id": "real-mode-development-3e4188fc390a",
         "projection_schema": "dos-re-complete-machine-v1",
         "role": "oracle",
-        "runtime": "2843fc82612731f9b1b9401eeb57b8821fb8f5fb61e61ddcc2396ffa867b5bae"
+        "runtime": "5527ddc3f845ee1b9db0194284cc0f62cfb82436ea8f777c2d0538425c766f0b"
       },
-      "identity_digest": "3b330efbd54b286f06675d03b8e00d680df46c66ae3a6cea677e70644a911d14",
+      "identity_digest": "3ab4f31d02a45082e43babd7e6c9b8085d051538769df041093df38540a334c8",
+      "pending_boundaries": {}
+    },
+    "skyroads-candidate-7ad31fdefa63": {
+      "base": "profiles/skyroads-candidate-7ad31fdefa63-618524a31ffcafe9/base/state.json",
+      "base_point": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "base_state_sha256": "dac47e2b944e0948e30525041dc2126d8ed9f0089287eb02a5ed89edecb1b6be",
+      "boundaries": {
+        "f029e88d5c291312-0000000000000003": {
+          "manifest": "profiles/skyroads-candidate-7ad31fdefa63-618524a31ffcafe9/boundaries/f029e88d5c291312-0000000000000003/state.json",
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        }
+      },
+      "identity": {
+        "continuation_schema": "dos-re-real-mode-continuation-v1",
+        "devices": "skyroads-dos-devices-v1",
+        "image": "sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+        "implementation": "0ca904d6dac564b7a9acf8b20c45189f937281fbe194b6a8422c1e48edb42fae",
+        "overrides": [
+          "1010:0baf:lifted_bounds_check_0BAF",
+          "1010:0be9:lifted_project_row_0BE9",
+          "1010:186b:lifted_road_stepper_186B",
+          "1010:2d1f:lifted_road_render_driver_2D1F",
+          "1010:34ae:lifted_tile_render_34AE",
+          "1010:39d4:lifted_hud_blit_finalize_39D4",
+          "1010:5d80:lifted_shl32_5D80",
+          "f000:e987:bios_int9_keyboard",
+          "f000:ff53:bios_iret_stub"
+        ],
+        "profile_id": "skyroads-candidate-7ad31fdefa63",
+        "projection_schema": "dos-re-complete-machine-v1",
+        "role": "candidate",
+        "runtime": "sha256:44bc0b88822880c8926cd9fc2b508879166b59bf3b99e2d69335342a15ff3a64"
+      },
+      "identity_digest": "618524a31ffcafe93f15aa5fb2940cb53d8499a3c5703b392595e03cb9b973d0",
       "pending_boundaries": {}
     }
   },
-  "revision": 6,
+  "revision": 10,
   "timeline_id": "skyroads-presented-frame-boundaries-v1"
 }

@@ -74,7 +74,7 @@ class JumpGateGap(SkyroadsGap):
     ``skyroads.handrecovered.dynamics.step_jump_steer_gravity`` (``1010:2570-25A9``,
     part of the ``252B-2635`` block) fires the impulse (``bounce := 0x480``),
     sets ``bp-8 := 1``, and records the jump-start height ``bp-10 := af2c``,
-    matching the real ASM 415/416 over the full E2E demo (jump-fire frames
+    matching the real ASM 415/416 over the full E2E replay (jump-fire frames
     exact). ``bp-8``/``bp-10`` are carried in a ``dynamics.JumpScratch``. Two
     things remain before this replaces the gap in ``native_gameplay_frame``:
     (a) the tail state machine that CLEARS ``bp-8`` -- now LOCATED at
@@ -99,7 +99,7 @@ class VerticalVelocityGap(SkyroadsGap):
 
     This gap existed because composing ``decay_bounce`` +
     ``update_vertical_velocity`` unconditionally was proven wrong on real
-    E2E-demo data (``ds:[9336]`` frozen for 8 straight frames while airborne
+    E2E-replay data (``ds:[9336]`` frozen for 8 straight frames while airborne
     with ``af2c < 0x2800``). The cause is now understood and modelled: the
     per-frame gravity/velocity update (``1010:25DB-2635``) is GATED by
     ``grounded`` (``ds:[456A]``) and ``af2c``, and the jump path is gated by

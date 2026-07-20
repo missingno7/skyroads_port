@@ -80,8 +80,8 @@ def stencil_blit_steps(source, template_color: int, other_color: int, ax: int = 
     # ordered byte-write log, with NO exemptions. Two populations, and the
     # claim is exactly their union and no wider:
     #
-    #  * dos_re.lift.shadow over 347 REAL calls -- demo_cold_20260718_003412
-    #    (70) + demo_colde2e_full_20260713_144604 (277), 89 distinct costs.
+    #  * dos_re.lift.shadow over 347 REAL calls -- replay_cold_20260718_003412
+    #    (70) + replay_colde2e_full_20260713_144604 (277), 89 distinct costs.
     #    MEASURED: all three byte classes occur (311 calls carry 0, 1 and
     #    other; 36 carry no 1 at all), and BOTH tail shapes that decide the
     #    exit AX and AF -- 250 calls end in zeros AFTER a substitution, 97 end
@@ -89,7 +89,7 @@ def stencil_blit_steps(source, template_color: int, other_color: int, ax: int = 
     #  * tests/test_island_bodies.py forced states: 13 sources x 20 randomized
     #    register sets, plus the CX = 0 run on its own.
     #
-    # THREE THINGS NO DEMO ESTABLISHES, and the forced states are their only
+    # THREE THINGS NO REPLAY ESTABLISHES, and the forced states are their only
     # evidence: every one of the 347 real calls entered with DF CLEAR, so the
     # backward direction is unobserved; no real source was all zeros, so the
     # 0x8C5 fmask (the compare never runs) is unobserved; and no real count was

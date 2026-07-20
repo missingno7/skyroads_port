@@ -65,7 +65,7 @@ class UnpackResult(NamedTuple):
              "final (si, di) cursor offsets.",
     status="VERIFIED",  # the mechanical lift of 1010:3A96 (its call site, one
     # full 8-segment invocation) matched the ASM oracle byte-exact -- every
-    # register, flag and the whole memory image -- against real E2E-demo
+    # register, flag and the whole memory image -- against real E2E-replay
     # gameplay (dos_re.tools.liftverify + a hand-driven strict-verifier run;
     # see run_status.md). This refactor was derived from that proven
     # transcription, not from reading the disassembly directly. Row-by-row

@@ -21,18 +21,18 @@ Execution policy and implementation composition are separate:
 # untouched interpreted oracle
 python scripts/play.py --profile development --composition oracle
 
-# interpreted baseline with selected faithful replacements
-python scripts/play.py --profile development --composition faithful
+# interpreted baseline with authored faithful candidates
+python scripts/play.py --profile development --composition authored-candidates
 
 # differential verification over a ReplayArtifact
-python scripts/play.py --profile verification --composition faithful \
-  --play-demo artifacts/demos/replay_name
+python scripts/play.py --profile verification --composition generated-functions \
+  --play-replay artifacts/replays/replay_name
 
 # generated CPUless implementation while recovery frontiers remain visible
-python scripts/play.py --profile development --composition cpuless --headless
+python scripts/play.py --profile development --composition generated-abi --headless
 
 # strict readiness report (currently rejects named Atlas frontiers)
-python scripts/play.py --profile release --composition cpuless --plan-only
+python scripts/play.py --profile release --composition generated-abi --plan-only
 
 # rebuild/query the persistent evidence map
 python scripts/build_atlas.py --from-ir
@@ -57,9 +57,12 @@ interpreter/development imports, and publishes only the audited runtime,
 bootstrap, and data closure. Code poisoning remains optional additional
 evidence, not release authority.
 
-`ReplayArtifact` is the only persistent demo/replay format. Recording is
-restricted to the untouched oracle; selected faithful replacements are checked
-over exact replay intervals with complete continuation-state comparison.
+`ReplayArtifact` is the only persistent record/replay format. Recording is
+restricted to the untouched oracle. Literal generated functions are green over
+the committed exact interval with complete continuation-state comparison.
+Authored faithful candidates retain their call-level oracle evidence, but must
+also become instruction-clock transparent before the same interval proof can
+promote the complete composition.
 
 See [current documentation](docs/README.md). Pre-3.0 recovery notes are kept
 under `docs/history/` as evidence only.

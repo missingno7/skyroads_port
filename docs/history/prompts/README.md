@@ -25,7 +25,7 @@ REPORT
 Never present a lower status as a higher one. A routine that is merely
 described is OBSERVED, not RECOVERED; code that merely runs is RECOVERED, not
 VERIFIED. The ladder is defined in `dos_re/islands.py` and
-[`docs/methodology.md`](../docs/methodology.md).
+[`docs/methodology.md`](../methodology.md).
 
 ## The one warning that matters
 

@@ -22,11 +22,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-DEMO = ROOT / "artifacts" / "demos" / "demo_cold_20260711_201855"
+REPLAY = ROOT / "artifacts" / "replays" / "replay_cold_20260711_201855"
 
 pytestmark = pytest.mark.skipif(
-    not (EXE.exists() and DEMO.exists()),
-    reason="needs SKYROADS.EXE + the multi-level cold demo",
+    not (EXE.exists() and REPLAY.exists()),
+    reason="needs SKYROADS.EXE + the multi-level cold replay",
 )
 
 PIT_INPUT_HZ = 1193182.0
@@ -41,16 +41,16 @@ def test_music_rate_matches_the_vm_timer() -> None:
     from dos_re import player
     from dos_re.cpu import CPU8086, HaltExecution
     from dos_re.dos import ConsoleInputWouldBlock
-    from dos_re.input_demo import RealModeInputAdapter
+    from dos_re.replay_input import RealModeInputAdapter
     from dos_re.replay import ReplayArtifact
     from dos_re.snapshot import apply_runtime_continuation
     from skyroads.replay import recording_base
 
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(
-        ["--play-demo", str(DEMO), "--headless", "--composition", "oracle"])
-    artifact = ReplayArtifact.open(DEMO)
-    frontend.apply_demo_metadata(args, artifact.metadata)
+        ["--play-replay", str(REPLAY), "--headless", "--composition", "oracle"])
+    artifact = ReplayArtifact.open(REPLAY)
+    frontend.apply_replay_metadata(args, artifact.metadata)
     rt = frontend.create_runtime(args)
     apply_runtime_continuation(rt, recording_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)

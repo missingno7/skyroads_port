@@ -1,8 +1,8 @@
-"""Boundary-less input-wait loop registry (see docs/demos_and_snapshots.md).
+"""Boundary-less input-wait loop registry (see docs/replay_verification.md).
 
 Fill with (cs, ip) canonical head addresses of SKYROADS's title/menu keyboard
 polls once located — every driver (interactive, headless, frame verifier)
-must agree on these or recorded demos will hang or lie.
+must agree on these or recorded replays will hang or lie.
 """
 from __future__ import annotations
 

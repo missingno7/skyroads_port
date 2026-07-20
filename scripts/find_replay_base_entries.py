@@ -50,7 +50,7 @@ def replay_base_entries(replays_dir: Path) -> list[tuple[str, int, int]]:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--replays", default=str(ROOT / "artifacts" / "demos"))
+    ap.add_argument("--replays", default=str(ROOT / "artifacts" / "replays"))
     ap.add_argument("--out",
                     default=str(ROOT / "artifacts" / "codemap" /
                                 "replay_base_entries.txt"))
