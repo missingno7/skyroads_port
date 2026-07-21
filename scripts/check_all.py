@@ -29,7 +29,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPLAY = ROOT / "recovery" / "replays" / "oracle_atlas_smoke"
-ORIGINAL_EXE = ROOT / "assets" / "SKYROADS.EXE"
 BOOTSTRAP_ARTIFACTS = (
     ROOT / "artifacts" / "boot_image" / "state.json",
     ROOT / "artifacts" / "boot_image" / "memory_1mb.bin",
@@ -78,13 +77,12 @@ def _release_plan_expectations() -> tuple[str, ...]:
 
 
 def _development_plan_expectations() -> tuple[int, tuple[str, ...]]:
-    """Expected source-tree preflight with or without proprietary game data."""
-    if ORIGINAL_EXE.is_file():
+    """Expected default-product preflight with or without its build image."""
+    if all(path.is_file() for path in BOOTSTRAP_ARTIFACTS):
         return 0, ("execution profile: development", "bound identities:")
     return 2, (
         "missing bootstrap artifacts",
-        "skyroads-exe",
-        "place the original SKYROADS.EXE under assets/",
+        "python scripts/build_boot_image.py",
     )
 
 
