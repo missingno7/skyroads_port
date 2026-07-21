@@ -110,6 +110,18 @@ def _sfx_busy(view: GameView) -> bool:
     return (view.elapsed_ticks & 0xFFFF) < ((view.unknown_af38 + 8) & 0xFFFF)
 
 
+def road_departure_threshold(f41c0: int) -> int:
+    """Return the unsigned 32-bit lateral threshold from ``1010:23CA``.
+
+    The original ``1010:5D80`` helper shifts ``DX:AX`` left sixteen times.
+    With ``DX=0`` and ``AX=[41C0]``, the subsequent ``ADD AX,8000`` /
+    ``ADC DX,FFFF`` therefore computes ``([41C0] << 16) - 0x8000``.
+    Keeping the operation in this explicit form prevents it being mistaken
+    for division by sixteen again.
+    """
+    return (((f41c0 & 0xFFFF) << 16) - 0x8000) & 0xFFFFFFFF
+
+
 def native_gameplay_body(
     view: GameView, scratch: GameplayScratch, *, sfx=None,
 ) -> GameplayScratch:
@@ -171,7 +183,7 @@ def native_gameplay_body(
     # routine's raw result; whether a particular departure denotes completion
     # is owned by the outer product loop, not guessed by this body.
     if moving:
-        thr = (((view.f41c0 // 0x10) + 0xFFFF8000) & 0xFFFFFFFF)
+        thr = road_departure_threshold(view.f41c0)
         if view.lateral >= thr and ship_fell_off(
             rw, view.lateral, view.af1c, view.af2c,
         ):

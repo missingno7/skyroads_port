@@ -189,3 +189,27 @@ def test_profile_base_can_drop_unselected_optional_devices() -> None:
     assert projected.metadata["dos"]["key_queue"] == []
     assert projected.regions == state.regions
     assert projected.event_cursor == 7
+
+
+def test_oracle_projection_restores_only_declared_poisoned_code() -> None:
+    state = ContinuationState(
+        "dos-re-real-mode-continuation-v1",
+        {"cpu": {}, "dos": {"key_queue": []}},
+        {"memory": b"DATA\x00\x00KEEP"},
+        0,
+    )
+    runtime = SimpleNamespace(
+        dos=SimpleNamespace(pic=None, sound_blaster=None),
+        cpu=SimpleNamespace(
+            mem=SimpleNamespace(data=bytearray(b"xxxxCODEyyyy")),
+        ),
+    )
+
+    projected = replay.project_base_to_runtime_devices(
+        runtime,
+        state,
+        executable_ranges=((4, 2),),
+        executable_image=b"xxxxCODEyyyy",
+    )
+
+    assert projected.regions["memory"] == b"DATACOKEEP"

@@ -15,6 +15,7 @@ Recovery levels are implementation properties, not separate players.
 from __future__ import annotations
 
 from copy import copy
+import json
 import sys
 from pathlib import Path
 
@@ -36,6 +37,7 @@ from dos_re.replay import (  # noqa: E402
 )
 from skyroads.identities import PROGRAM_ID  # noqa: E402
 from skyroads.gameplay_region import reset_gameplay_region_for_restore  # noqa: E402
+from skyroads.native.exe_image import build_program_image  # noqa: E402
 from skyroads.launch_inputs import (  # noqa: E402
     install_direct_level_launch,
     validate_level,
@@ -53,6 +55,7 @@ from skyroads.execution import (  # noqa: E402
 )
 from skyroads.product_features import SkyroadsFeatureState  # noqa: E402
 from skyroads.pacing import (  # noqa: E402
+    begin_frame_park,
     FrameIdle,
     install_frame_park,
     suspend_frame_park,
@@ -72,6 +75,12 @@ class SkyroadsFrontend(player.GameFrontend):
     # portable default at 640x480; larger displays can opt into --scale 3.
     default_scale = 2
     semantic_replay_coordinate = "skyroads:main-loop-or-input-boundary:v1"
+    # An interpreted render/transition can require several million guest
+    # instructions even though it represents one game boundary.  This is only
+    # a runaway guard for offline seeking; FrameIdle/input-block normally stop
+    # execution much earlier.
+    offline_semantic_seek_budget = 20_000_000
+    offline_semantic_seek_chunks = 8
 
     def add_arguments(self, parser) -> None:
         execution = parser.add_argument_group("skyroads composition")
@@ -306,6 +315,11 @@ class SkyroadsFrontend(player.GameFrontend):
             "event_cursor": int(event_cursor),
             "kind": kind,
         }
+        boundary_identity = getattr(
+            rt, "_skyroads_replay_boundary_identity", None,
+        )
+        if boundary_identity is not None:
+            value["boundary_identity"] = str(boundary_identity)
         if kind == "guest-fallback":
             value.update({
                 "guest_instruction_count": int(rt.cpu.instruction_count),
@@ -318,7 +332,9 @@ class SkyroadsFrontend(player.GameFrontend):
             })
         return self.semantic_replay_coordinate, value
 
-    def _advance_to_semantic_boundary(self, rt, args) -> str:
+    def _advance_to_semantic_boundary(
+        self, rt, args, *, offline_replay: bool = False,
+    ) -> str:
         generated_driver = getattr(rt, "_skyroads_vmless_driver", None)
         if generated_driver is not None:
             if not generated_driver.frame():
@@ -334,23 +350,37 @@ class SkyroadsFrontend(player.GameFrontend):
             if kind == "input-block":
                 raise ConsoleInputWouldBlock
             return kind
+        begin_frame_park(rt)
         for _ in range(max(0, args.timer_irqs_per_frame)):
             deliver_interrupt(rt, 0x08)
         # Interactive play owns presentation pacing, so semantic-boundary
         # discovery gets exactly one normal guest budget.  A long guest region
         # spans several presented points instead of becoming one long host
-        # dispatch.  Offline analysis can seek farther by replaying additional
-        # points explicitly.
-        try:
-            rt.cpu.run(max(1, int(args.steps_per_frame)))
-        except FrameIdle:
-            rt._skyroads_replay_boundary_kind = "frame-park"
-            self._apply_product_features(rt)
-            return "frame-park"
-        except ConsoleInputWouldBlock:
-            rt._skyroads_replay_boundary_kind = "input-block"
-            self._apply_product_features(rt)
-            raise
+        # dispatch.  Offline analysis keeps seeking the same semantic event
+        # without injecting another timer batch.
+        budget = max(1, int(args.steps_per_frame))
+        if offline_replay:
+            # Verification follows the recorded game event, not the capture
+            # carrier's instruction throughput.  The interactive viewer still
+            # uses one bounded presentation slice; offline replay may seek much
+            # farther to the same frame park or blocking-input seam.
+            budget = max(budget, self.offline_semantic_seek_budget)
+        chunks = self.offline_semantic_seek_chunks if offline_replay else 1
+        for _ in range(chunks):
+            try:
+                rt.cpu.run(budget)
+            except FrameIdle:
+                rt._skyroads_replay_boundary_kind = "frame-park"
+                rt._skyroads_replay_boundary_identity = getattr(
+                    rt.cpu, "_skyroads_frame_park_identity", None,
+                )
+                self._apply_product_features(rt)
+                return "frame-park"
+            except ConsoleInputWouldBlock:
+                rt._skyroads_replay_boundary_kind = "input-block"
+                rt._skyroads_replay_boundary_identity = "dos:console-input"
+                self._apply_product_features(rt)
+                raise
         rt._skyroads_replay_boundary_kind = "guest-fallback"
         return "guest-fallback"
 
@@ -397,7 +427,9 @@ class SkyroadsFrontend(player.GameFrontend):
                     f"{{'cs': {int(rt.cpu.s.cs)}, 'ip': {int(rt.cpu.s.ip)}}}")
             return
         try:
-            actual = self._advance_to_semantic_boundary(rt, args)
+            actual = self._advance_to_semantic_boundary(
+                rt, args, offline_replay=True,
+            )
         except ConsoleInputWouldBlock:
             actual = "input-block"
         if actual != expected.get("kind"):
@@ -425,6 +457,18 @@ class SkyroadsFrontend(player.GameFrontend):
                 f"seen_boundaries={seen_boundaries!r}, "
                 f"stack_words={stack_words!r}"
             )
+        expected_identity = expected.get("boundary_identity")
+        actual_identity = getattr(
+            rt, "_skyroads_replay_boundary_identity", None,
+        )
+        if (
+            expected_identity is not None
+            and actual_identity != expected_identity
+        ):
+            raise ReplayError(
+                f"SkyRoads semantic boundary {frame + 1} identity differs: "
+                f"expected {expected_identity!r}, got {actual_identity!r}"
+            )
 
     def verification_drivers(self, args, plan, artifact):
         provider = selected_whole_program_provider(plan)
@@ -450,6 +494,39 @@ class SkyroadsFrontend(player.GameFrontend):
         self.bind_execution_plan(oracle, oracle_args.execution_plan)
         current_oracle_profile = self.replay_profile(oracle_args, oracle)
         base = capture_base(artifact)
+        if provider == "baseline:generated-vmless":
+            manifest_path = plan.bootstrap_artifact_paths().get(
+                "skyroads-boot-manifest"
+            )
+            if manifest_path is None:
+                raise RuntimeError(
+                    "generated replay verification has no boot-image manifest"
+                )
+            manifest = json.loads(
+                manifest_path.read_text(encoding="utf-8")
+            )
+            poison = manifest.get("poison", {})
+            ranges = tuple(
+                (int(start), int(length))
+                for start, length in poison.get("ranges", ())
+            )
+            captured_memory = base.regions["memory"]
+            capture_is_poisoned = bool(
+                poison.get("enabled")
+                and ranges
+                and all(
+                    not any(captured_memory[start:start + length])
+                    for start, length in ranges
+                )
+            )
+            if capture_is_poisoned:
+                base = project_base_to_runtime_devices(
+                    oracle,
+                    base,
+                    executable_ranges=ranges,
+                    executable_image=build_program_image(args.exe, 0x1010),
+                    executable_base=0x10100,
+                )
         known_profiles = {
             profile.profile_id: profile for profile, _ in artifact.profiles()
         }

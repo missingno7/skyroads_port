@@ -52,8 +52,11 @@ from skyroads.identities import (
     function_identity,
 )
 from skyroads.pacing import (
+    FADE_WAIT_COMPARE_IP,
     MENU_ANIM_WAIT_IP,
+    MENU_SCENE_FRAME_IP,
     PACING_SPIN_IP,
+    ROAD_DEPARTURE_WAIT_IP,
     install_frame_park,
 )
 from skyroads.product_features import (
@@ -452,7 +455,7 @@ def test_authored_catalog_contains_only_complete_semantic_adapter_pairs() -> Non
         assert runtime.cpu.hook_names[(CODE_SEG, ip)] == name
 
 
-def test_frame_park_service_installs_only_the_two_empty_waits() -> None:
+def test_frame_park_service_preserves_selected_boundary_implementations() -> None:
     fade_4344 = object()
     fade_434a = object()
     cpu = SimpleNamespace(
@@ -470,6 +473,9 @@ def test_frame_park_service_installs_only_the_two_empty_waits() -> None:
     assert set(cpu.replacement_hooks) == {
         (CODE_SEG, PACING_SPIN_IP),
         (CODE_SEG, MENU_ANIM_WAIT_IP),
+        (CODE_SEG, ROAD_DEPARTURE_WAIT_IP),
+        (CODE_SEG, FADE_WAIT_COMPARE_IP),
+        (CODE_SEG, MENU_SCENE_FRAME_IP),
         (CODE_SEG, 0x4344),
         (CODE_SEG, 0x434A),
     }

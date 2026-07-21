@@ -42,7 +42,20 @@ from skyroads.identities import (
 )
 from skyroads.handrecovered.dynamics import JumpScratch
 from skyroads.native.gaps import RoadDepartureTransition
-from skyroads.native.loop import GameplayScratch
+from skyroads.native.loop import GameplayScratch, road_departure_threshold
+
+
+@pytest.mark.parametrize(
+    ("base", "expected"),
+    (
+        (0x0000, 0xFFFF8000),
+        (0x0001, 0x00008000),
+        (0x003C, 0x003B8000),
+        (0xFFFF, 0xFFFE8000),
+    ),
+)
+def test_road_departure_threshold_matches_23ca_shift(base, expected) -> None:
+    assert road_departure_threshold(base) == expected
 
 
 def test_generated_sound_seam_preserves_native_cpu_context() -> None:

@@ -47,14 +47,24 @@ def capture_base(artifact: ReplayArtifact) -> ContinuationState:
 def project_base_to_runtime_devices(
     runtime,
     state: ContinuationState,
+    *,
+    executable_ranges: tuple[tuple[int, int], ...] = (),
+    executable_image: bytes | bytearray | None = None,
+    executable_base: int = 0,
 ) -> ContinuationState:
-    """Remove optional captured devices absent from a selected profile.
+    """Project a captured base onto one selected runtime profile.
 
     A replay's input timeline is immutable, but a candidate may deliberately
     select a stricter device topology such as ``--no-sound``.  Its profile
     needs the same CPU, memory, DOS, file, and input state at point zero while
     omitting devices that do not exist in that runtime.  Adding a device whose
     initial state was never recorded remains unsafe and fails explicitly.
+
+    A detached generated capture may deliberately poison implementation-owned
+    instruction bytes.  When constructing its interpreter oracle, the caller
+    supplies those exact physical ranges plus the verified unpacked oracle
+    image.  Writable memory and code-as-data cells remain from
+    the replay base; only ranges declared poisoned by the build manifest move.
     """
     state = state.normalized()
     metadata = deepcopy(dict(state.metadata))
@@ -76,10 +86,31 @@ def project_base_to_runtime_devices(
             )
         if not runtime_has_device:
             dos_state.pop(state_key, None)
+    regions = dict(state.regions)
+    if executable_ranges:
+        if executable_image is None:
+            raise ValueError(
+                "executable replay projection requires an unpacked image"
+            )
+        memory = bytearray(regions["memory"])
+        for start, length in executable_ranges:
+            start = int(start)
+            length = int(length)
+            end = start + length
+            source_start = start - int(executable_base)
+            source_end = source_start + length
+            if start < 0 or length < 0 or end > len(memory) \
+                    or source_start < 0 or source_end > len(executable_image):
+                raise ValueError(
+                    f"invalid executable replay projection range "
+                    f"{start:#x}+{length:#x}"
+                )
+            memory[start:end] = executable_image[source_start:source_end]
+        regions["memory"] = bytes(memory)
     return ContinuationState(
         schema_id=state.schema_id,
         metadata=metadata,
-        regions=state.regions,
+        regions=regions,
         event_cursor=state.event_cursor,
     ).normalized()
 

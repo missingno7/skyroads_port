@@ -16,11 +16,161 @@ from dos_re.replay import (
 )
 from scripts.play import SkyroadsFrontend
 from skyroads.hooks import CODE_SEG
-from skyroads.pacing import PACING_SPIN_IP, TICK_ADDR
+from skyroads.pacing import (
+    begin_frame_park,
+    FADE_BLEND_WAIT_IP,
+    FADE_WAIT_COMPARE_IP,
+    FrameIdle as PacingFrameIdle,
+    MENU_SCENE_FRAME_IP,
+    PACING_SPIN_IP,
+    ROAD_DEPARTURE_WAIT_IP,
+    TICK_ADDR,
+    install_frame_park,
+)
 from skyroads import vmless_backend
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
+
+
+def test_generated_carrier_delegates_to_canonical_replay_lifecycle(
+    monkeypatch,
+) -> None:
+    args = SimpleNamespace()
+    frontend = object()
+    binder = lambda runtime: None
+    seen = {}
+
+    def launch_real_mode(selected_frontend, selected_args, **kwargs):
+        seen.update(kwargs)
+        assert selected_frontend is frontend
+        assert selected_args is args
+        return 23
+
+    monkeypatch.setattr(player, "launch_real_mode", launch_real_mode)
+
+    assert vmless_backend.launch(
+        args,
+        bootstrap_artifacts={},
+        bind_plan=binder,
+        frontend=frontend,
+    ) == 23
+    assert callable(seen["create_runtime"])
+    assert seen["bind_execution_plan"] is binder
+
+
+def test_interpreter_parks_the_road_departure_tick_wait() -> None:
+    words = {TICK_ADDR: 72}
+    cpu = SimpleNamespace(
+        replacement_hooks={},
+        hook_names={},
+        s=SimpleNamespace(ds=0x1686, si=72, ip=ROAD_DEPARTURE_WAIT_IP),
+        mem=SimpleNamespace(rw=lambda segment, offset: words[offset]),
+        instruction_count=100,
+        set_sub_flags=lambda *args: None,
+    )
+    install_frame_park(SimpleNamespace(cpu=cpu))
+    hook = cpu.replacement_hooks[(CODE_SEG, ROAD_DEPARTURE_WAIT_IP)]
+
+    with pytest.raises(PacingFrameIdle):
+        hook(cpu)
+    words[TICK_ADDR] = 73
+    hook(cpu)
+    assert cpu.s.ip == 0x0F01
+    assert cpu.instruction_count == 101
+
+
+def test_interpreter_fade_wait_runs_one_body_then_parks_per_frame() -> None:
+    words = {TICK_ADDR: 3}
+    cpu = SimpleNamespace(
+        replacement_hooks={},
+        hook_names={},
+        s=SimpleNamespace(ds=0x1686, ax=10, ip=FADE_WAIT_COMPARE_IP),
+        mem=SimpleNamespace(rw=lambda segment, offset: words[offset]),
+        instruction_count=100,
+        set_sub_flags=lambda *args: None,
+    )
+    runtime = SimpleNamespace(cpu=cpu)
+    install_frame_park(runtime)
+    hook = cpu.replacement_hooks[(CODE_SEG, FADE_WAIT_COMPARE_IP)]
+
+    begin_frame_park(runtime)
+    hook(cpu)
+    assert cpu.s.ip == 0x4471
+    cpu.s.ip = FADE_WAIT_COMPARE_IP
+    with pytest.raises(PacingFrameIdle):
+        hook(cpu)
+
+    begin_frame_park(runtime)
+    hook(cpu)
+    assert cpu.s.ip == 0x4471
+
+    words[TICK_ADDR] = 10
+    cpu.s.ip = FADE_WAIT_COMPARE_IP
+    hook(cpu)
+    assert cpu.s.ip == 0x4481
+
+
+def test_interpreter_fade_blend_parks_after_one_body_and_restores_phase() -> None:
+    words = {(0xB900 + 8) & 0xFFFF: 50}
+    cpu = SimpleNamespace(
+        replacement_hooks={},
+        hook_names={},
+        s=SimpleNamespace(
+            cs=CODE_SEG, ip=FADE_BLEND_WAIT_IP,
+            ds=0x1686, ss=0x1686, bp=0xB900,
+        ),
+        mem=SimpleNamespace(rw=lambda segment, offset: words[offset]),
+        set_sub_flags=lambda *args: None,
+    )
+    runtime = SimpleNamespace(cpu=cpu)
+    install_frame_park(runtime)
+    hook = cpu.replacement_hooks[(CODE_SEG, FADE_BLEND_WAIT_IP)]
+
+    begin_frame_park(runtime)
+    hook(cpu)
+    assert cpu.s.ip == 0x434E
+    cpu.s.ip = FADE_BLEND_WAIT_IP
+    with pytest.raises(PacingFrameIdle):
+        hook(cpu)
+    assert cpu._skyroads_frame_park_identity == "1010:434A"
+    assert cpu.s.ip == FADE_BLEND_WAIT_IP
+
+    # The restorable point is before the comparison. A new frame re-evaluates
+    # it, runs one body, and parks only when that body returns to the head.
+    begin_frame_park(runtime)
+    assert not cpu._skyroads_fade_blend_seen
+    hook(cpu)
+    assert cpu.s.ip == 0x434E
+    cpu.s.ip = FADE_BLEND_WAIT_IP
+    with pytest.raises(PacingFrameIdle):
+        hook(cpu)
+
+
+def test_interpreter_menu_scene_runs_one_animation_body_per_frame() -> None:
+    cpu = SimpleNamespace(
+        replacement_hooks={},
+        hook_names={},
+        s=SimpleNamespace(
+            cs=CODE_SEG, ip=MENU_SCENE_FRAME_IP,
+            ax=0, ds=0x1686, ss=0x1686, bp=0xB900,
+        ),
+        mem=SimpleNamespace(rw=lambda _segment, _offset: 0),
+        set_sub_flags=lambda *args: None,
+    )
+    runtime = SimpleNamespace(cpu=cpu)
+    install_frame_park(runtime)
+    hook = cpu.replacement_hooks[(CODE_SEG, MENU_SCENE_FRAME_IP)]
+
+    begin_frame_park(runtime)
+    hook(cpu)
+    assert cpu.s.ax == 0x013F
+    assert cpu.s.ip == 0x4869
+    cpu.s.ip = MENU_SCENE_FRAME_IP
+    with pytest.raises(PacingFrameIdle):
+        hook(cpu)
+    assert cpu.s.ip == MENU_SCENE_FRAME_IP
+    assert cpu._skyroads_frame_park_identity == "1010:4866"
 
 
 @pytest.mark.skipif(not EXE.exists(), reason="needs SKYROADS.EXE")
@@ -106,6 +256,7 @@ def test_semantic_frame_park_is_stable_across_oracle_and_generated(tmp_path):
         "timeline_position": 1,
         "event_cursor": 0,
         "kind": "frame-park",
+        "boundary_identity": "1010:22F8",
     }
     recording.mark(1, schema_id=schema, value=value)
     artifact = recording.finish(
@@ -164,6 +315,14 @@ def test_interactive_semantic_seek_uses_one_guest_budget() -> None:
         "machine_position": {"cs": 0x1010, "ip": 0x43B1},
     }
 
+    runtime.cpu.budgets.clear()
+    assert frontend._advance_to_semantic_boundary(
+        runtime, args, offline_replay=True,
+    ) == "guest-fallback"
+    assert runtime.cpu.budgets == [
+        frontend.offline_semantic_seek_budget
+    ] * frontend.offline_semantic_seek_chunks
+
 
 def test_generated_driver_preserves_boundary_phase_across_guest_slice(
     monkeypatch,
@@ -191,6 +350,43 @@ def test_generated_driver_preserves_boundary_phase_across_guest_slice(
     # A completed semantic boundary starts a fresh phase.
     assert driver.frame()
     assert started not in driver._seen
+
+
+def test_generated_driver_ignores_nonsemantic_recovery_heads() -> None:
+    cpu = SimpleNamespace(
+        boundary_hook=None,
+        s=SimpleNamespace(cs=CODE_SEG, ip=0x444C),
+    )
+    runtime = SimpleNamespace(cpu=cpu)
+    driver = vmless_backend.VmlessDriver(runtime, irqs_per_frame=0)
+
+    driver._boundary(cpu, CODE_SEG, 0x444C, 0x4452)
+    driver._boundary(cpu, CODE_SEG, 0x444C, 0x4452)
+
+    assert not driver._seen
+    assert not driver.parks
+
+
+def test_generated_timer_boundary_restores_before_external_comparison() -> None:
+    cpu = SimpleNamespace(
+        boundary_hook=None,
+        s=SimpleNamespace(cs=CODE_SEG, ip=ROAD_DEPARTURE_WAIT_IP),
+    )
+    runtime = SimpleNamespace(cpu=cpu)
+    driver = vmless_backend.VmlessDriver(runtime, irqs_per_frame=0)
+
+    driver._boundary(
+        cpu, CODE_SEG, ROAD_DEPARTURE_WAIT_IP, 0x0EFC,
+    )
+    with pytest.raises(vmless_backend.FrameIdle):
+        driver._boundary(
+            cpu, CODE_SEG, ROAD_DEPARTURE_WAIT_IP, 0x0EFC,
+        )
+
+    # Timer delivery happens after this park. Re-entering at 0EFC would reuse
+    # pre-interrupt flags and delay the road transition by one replay point.
+    assert (cpu.s.cs, cpu.s.ip) == (CODE_SEG, ROAD_DEPARTURE_WAIT_IP)
+    assert driver.last_boundary_identity == "1010:0EF8"
 
 
 def test_generated_driver_routes_actual_miss_to_recovery_frontier(
