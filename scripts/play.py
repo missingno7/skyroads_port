@@ -23,8 +23,13 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "dos_re"))
 
 from dos_re import player  # noqa: E402
+from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
 from dos_re.execution import DependencyCapability  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
+from dos_re.replay import (  # noqa: E402
+    GUEST_INSTRUCTION_COORDINATE,
+    ReplayError,
+)
 from skyroads.identities import PROGRAM_ID  # noqa: E402
 from skyroads.execution import (  # noqa: E402
     FRAME_PARK_SERVICE_ID,
@@ -34,7 +39,11 @@ from skyroads.execution import (  # noqa: E402
     selected_whole_program_provider,
     services,
 )
-from skyroads.pacing import FrameIdle, install_frame_park  # noqa: E402
+from skyroads.pacing import (  # noqa: E402
+    FrameIdle,
+    install_frame_park,
+    suspend_frame_park,
+)
 from skyroads.runtime import create_game_runtime, load_game_snapshot  # noqa: E402
 
 
@@ -49,6 +58,7 @@ class SkyroadsFrontend(player.GameFrontend):
     # scaling, which can place the title bar above a 768-line desktop. Keep the
     # portable default at 640x480; larger displays can opt into --scale 3.
     default_scale = 2
+    semantic_replay_coordinate = "skyroads:main-loop-or-input-boundary:v1"
 
     def add_arguments(self, parser) -> None:
         execution = parser.add_argument_group("skyroads composition")
@@ -179,13 +189,87 @@ class SkyroadsFrontend(player.GameFrontend):
             capture_sb_pcm=self._capture_sb(args),
         )
 
-    def advance_frame(self, rt, args, frame: int) -> None:
+    def replay_point_coordinate(
+        self, rt, args, *, point_ordinal: int | None = None,
+    ):
+        ordinal = 0 if point_ordinal is None else int(point_ordinal)
+        kind = getattr(rt, "_skyroads_replay_boundary_kind", None)
+        if ordinal == 0 and kind is None:
+            kind = "origin"
+        if kind not in {
+            "origin", "frame-park", "input-block", "guest-fallback",
+        }:
+            raise ReplayError(
+                "SkyRoads replay points must be captured at the main-loop park "
+                "or blocking-input boundary")
+        value = {
+            "sequence": ordinal,
+            "kind": kind,
+        }
+        if kind == "guest-fallback":
+            value["guest_instruction_count"] = int(rt.cpu.instruction_count)
+        return self.semantic_replay_coordinate, value
+
+    def _advance_to_semantic_boundary(self, rt, args) -> str:
         for _ in range(max(0, args.timer_irqs_per_frame)):
             deliver_interrupt(rt, 0x08)
+        start = int(rt.cpu.instruction_count)
+        max_guest = max(1_000_000, int(args.steps_per_frame) * 32)
+        while int(rt.cpu.instruction_count) - start <= max_guest:
+            try:
+                rt.cpu.run(max(1, int(args.steps_per_frame)))
+            except FrameIdle:
+                rt._skyroads_replay_boundary_kind = "frame-park"
+                return "frame-park"
+            except ConsoleInputWouldBlock:
+                rt._skyroads_replay_boundary_kind = "input-block"
+                raise
+        # Startup and a genuinely long atomic region may not yet expose a
+        # semantic seam. Preserve a clearly labelled diagnostic fallback for
+        # that point instead of pretending the host dispatch budget is itself
+        # semantic. Later points return to frame-park/input boundaries as soon
+        # as the program exposes one.
+        rt._skyroads_replay_boundary_kind = "guest-fallback"
+        return "guest-fallback"
+
+    def advance_frame(self, rt, args, frame: int) -> None:
+        self._advance_to_semantic_boundary(rt, args)
+
+    def advance_replay_frame(self, rt, args, frame, coordinate) -> None:
+        # Existing v1 artifacts retain their exact low-level diagnostic clock.
+        # New recordings use the semantic boundary and do not require a lifted
+        # or native implementation to reproduce guest instruction counts.
+        if coordinate.schema_id == GUEST_INSTRUCTION_COORDINATE:
+            with suspend_frame_park(rt):
+                return super().advance_replay_frame(rt, args, frame, coordinate)
+        if coordinate.schema_id != self.semantic_replay_coordinate:
+            raise ReplayError(
+                f"unsupported SkyRoads replay coordinate {coordinate.schema_id!r}")
+        expected = coordinate.value
+        if not isinstance(expected, dict) or expected.get("sequence") != frame + 1:
+            raise ReplayError("invalid SkyRoads semantic replay coordinate")
+        if expected.get("kind") == "guest-fallback":
+            for _ in range(max(0, args.timer_irqs_per_frame)):
+                deliver_interrupt(rt, 0x08)
+            target = int(expected["guest_instruction_count"])
+            with suspend_frame_park(rt):
+                while rt.cpu.instruction_count < target:
+                    rt.cpu.step()
+                    if rt.cpu.instruction_count > target:
+                        raise ReplayError(
+                            f"implementation crossed diagnostic fallback point "
+                            f"{frame + 1}: {rt.cpu.instruction_count} > {target}; "
+                            "the long implementation needs an explicit yield")
+            rt._skyroads_replay_boundary_kind = "guest-fallback"
+            return
         try:
-            rt.cpu.run(args.steps_per_frame)
-        except FrameIdle:
-            pass
+            actual = self._advance_to_semantic_boundary(rt, args)
+        except ConsoleInputWouldBlock:
+            actual = "input-block"
+        if actual != expected.get("kind"):
+            raise ReplayError(
+                f"SkyRoads semantic boundary {frame + 1} differs: "
+                f"expected {expected.get('kind')!r}, got {actual!r}")
 
     def verification_drivers(self, args, plan, artifact):
         provider = selected_whole_program_provider(plan)

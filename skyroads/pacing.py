@@ -12,6 +12,8 @@ ReplayArtifact continuations.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 from dos_re.cpu import CPU8086
 from skyroads.hooks import CODE_SEG
 
@@ -59,3 +61,25 @@ def install_frame_park(rt) -> None:
     cpu.hook_names[pacing_key] = "frame_park_pacing_spin"
     cpu.hook_names[menu_key] = "frame_park_menu_anim_wait"
     cpu._skyroads_frame_park_installed = True
+
+
+@contextmanager
+def suspend_frame_park(rt):
+    """Temporarily expose literal execution for a low-level replay point.
+
+    Guest-instruction fallback coordinates predate (or intentionally cross)
+    the semantic park.  Raising ``FrameIdle`` there would make the diagnostic
+    coordinate unreachable.  The suspension is scoped to that one advance and
+    restores the exact hook/name objects afterward.
+    """
+    cpu = rt.cpu
+    keys = ((CODE_SEG, PACING_SPIN_IP), (CODE_SEG, MENU_ANIM_WAIT_IP))
+    hooks = {key: cpu.replacement_hooks.pop(key) for key in keys
+             if key in cpu.replacement_hooks}
+    names = {key: cpu.hook_names.pop(key) for key in keys
+             if key in cpu.hook_names}
+    try:
+        yield
+    finally:
+        cpu.replacement_hooks.update(hooks)
+        cpu.hook_names.update(names)
