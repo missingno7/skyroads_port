@@ -140,5 +140,7 @@ semantic implementations do not need instruction-clock transparency; they need
 an adapter for the same semantic points, explicit yields where interrupts or
 device effects may intervene, and the shared canonical state/effect projection.
 Generated detached region providers remain independently selectable in
-development, while strict detached/release planning rejects the Atlas's
-unresolved control-flow frontiers.
+development. The ordinary detached profile runs them without EXE/interpreter
+fallback and records any actually reached missing target. Strict detached
+closure and release reject the remaining selected-graph blockers before
+startup.

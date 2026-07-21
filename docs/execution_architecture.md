@@ -141,7 +141,8 @@ The runtime report exposes:
 - the selected carrier and owner count;
 - every active implementation boundary and collapsed known-edge count;
 - candidate fallback decisions and rejection reasons;
-- unresolved Atlas transfers and retained dependency capabilities;
+- classified Atlas transfers, strict closure blockers, and retained dependency
+  capabilities;
 - independent EXE, interpreter, CPU-model, DOS-memory, DOS-service, and dos_re
   detachment milestones.
 
@@ -176,15 +177,22 @@ python scripts/build_boot_image.py
 ```
 
 Build-time EXE use does not imply runtime EXE use. Missing images fail planning
-with this instruction. Detached and release policy forbid the EXE and
-interpreter at runtime.
+with this instruction. Detached and release policy forbid the EXE,
+original-code execution, and interpreter fallback at runtime. Ordinary
+detached development permits static closure uncertainty and prints a compact
+classification. A real runtime miss writes the exact continuation, plan,
+replay boundary, and Atlas path to `recovery_frontier.json`. `--verbose-plan`
+lists every static finding; `--closure-policy strict` performs a detached
+closed-world preflight without exporting.
 
 Closed-world export packages only the selected file/capability/bootstrap
 closure and now writes `execution_plan.json`: the final carrier, bindings,
 implementation/adapter digests, features, and services. A standalone launcher
 or code generator consumes that materialized selection; it does not import the
 development planner and choose again. The current release preflight remains
-honestly blocked by named unresolved Atlas transfers.
+honestly blocked by unknown indirect targets and probable generated gaps after
+selected-region and generated-internal ownership is removed from the raw Atlas
+frontier list.
 
 ## Authored inventory
 

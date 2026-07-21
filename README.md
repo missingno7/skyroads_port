@@ -38,6 +38,9 @@ python scripts/play.py --level 14
 # generated CPUless implementation while recovery frontiers remain visible
 python scripts/play.py --profile development --composition generated-detached --headless
 
+# EXE-free generated shell plus native gameplay; static gaps are warnings
+python scripts/play.py --profile detached --composition faithful-product
+
 # strict readiness report (currently rejects named Atlas frontiers)
 python scripts/play.py --profile release --composition generated-detached --plan-only
 
@@ -95,8 +98,13 @@ imports them.
 
 The selected `BuildImageBootstrapProvider` declares `state.json`,
 `memory_1mb.bin`, and `manifest.json`, including their packaged paths and the
-command that generates them. Release planning reports missing bootstrap inputs
-and unresolved Atlas control-flow sites before launch. Once both are closed,
+command that generates them. Detached development loads only that image and
+the selected generated/native graph: the EXE and interpreter are forbidden,
+while unresolved Atlas sites are summarized warnings. Reaching an actual
+missing target saves a resumable `recovery_frontier.json` bundle instead of
+falling back. Release planning remains strict and reports missing bootstrap
+inputs and unresolved selected-graph control-flow sites before launch. Once
+both are closed,
 export materializes the provider, rejects original executables and
 interpreter/development imports, and publishes only the audited runtime,
 bootstrap, and data closure. Code poisoning remains optional additional

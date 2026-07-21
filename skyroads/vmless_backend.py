@@ -29,6 +29,7 @@ Selected with ``scripts/play.py --composition faithful-product``.
 """
 from __future__ import annotations
 
+from collections import deque
 import sys
 from pathlib import Path
 
@@ -47,7 +48,14 @@ from dos_re.interrupts import deliver_interrupt  # noqa: E402
 # those reach create_runtime -> load_mz_program, and importing them here
 # would put the EXE loader on this provider's module graph -- exactly what
 # lint_independence forbids. runtime_core is loader-free by construction.
-from dos_re.crash import crash_dir, save_crash  # noqa: E402
+from dos_re.crash import (  # noqa: E402
+    crash_dir,
+    recovered_call_chain,
+    save_crash,
+    save_recovery_frontier,
+    witness_address,
+)
+from dos_re.runtime_miss import RuntimeExecutionFrontier  # noqa: E402
 from dos_re.runtime_core import enable_sound_blaster  # noqa: E402
 from dos_re.regions import RegionHandoff, ensure_region_dispatcher  # noqa: E402
 
@@ -87,6 +95,7 @@ class VmlessDriver:
         self._in_isr = False
         self._seen: set = set()              # heads passed THIS frame
         self.last_boundary_kind = ""
+        self._recent_path = deque(maxlen=64)
         rt.cpu.boundary_hook = self._boundary
 
     def _boundary(self, cpu, head_cs, head_ip, resume_ip):
@@ -119,6 +128,7 @@ class VmlessDriver:
         if self._in_isr:
             return
         from skyroads.gameplay_region import maybe_enter_gameplay_region
+        self._recent_path.append((head_cs & 0xFFFF, head_ip & 0xFFFF))
         if maybe_enter_gameplay_region(self.rt, cpu, head_cs, head_ip):
             return
         key = (head_cs, head_ip)
@@ -227,16 +237,70 @@ class VmlessDriver:
 
     def crash(self, exc: BaseException) -> Path:
         """Leave the broken machine on disk, resumable, and say where it is."""
-        out = save_crash(
-            self.rt, crash_dir(self.crash_root, "vmless", self.stamp), exc=exc,
-            status="vmless-crash", frame=self.frames,
-            parks={f"{k:04X}": v for k, v in sorted(self.parks.items())})
+        out_dir = crash_dir(self.crash_root, "vmless", self.stamp)
+        from skyroads.identities import (
+            execution_point_identity,
+            function_identity,
+        )
+        addr = witness_address(exc)
+        chain = recovered_call_chain(exc)
+        source_identity = ""
+        candidate = ""
+        if chain:
+            source_cs, source_ip = (
+                int(part, 16) for part in chain[-1].split(":")
+            )
+            if source_cs == 0x1010:
+                source_identity = function_identity(source_ip)
+                candidate = source_identity
+        target_identity = ""
+        if addr:
+            target_cs, target_ip = (
+                int(part, 16) for part in addr.split(":")
+            )
+            if target_cs == 0x1010:
+                target_identity = execution_point_identity(target_ip)
+        plan = getattr(self.rt, "execution_plan", None)
+        selected_provider = ""
+        if plan is not None:
+            selected_provider = next((
+                binding.implementation_id for binding in plan.bindings
+                if binding.target == source_identity
+            ), "")
+        recent_path = [
+            execution_point_identity(ip)
+            if cs == 0x1010 else f"{cs:04X}:{ip:04X}"
+            for cs, ip in self._recent_path
+        ]
+        save = (
+            save_recovery_frontier
+            if isinstance(exc, RuntimeExecutionFrontier)
+            else save_crash
+        )
+        frontier_context = ({
+            "source_identity": source_identity,
+            "target_identity": target_identity,
+            "edge_kind": getattr(exc, "edge_kind", "runtime-transfer"),
+            "selected_provider": selected_provider,
+            "candidate_containing_identity": candidate,
+            "recent_atlas_path": recent_path,
+        } if save is save_recovery_frontier else {})
+        out = save(
+            self.rt, out_dir, exc=exc,
+            status=(
+                "vmless-runtime-frontier"
+                if save is save_recovery_frontier else "vmless-crash"
+            ),
+            frame=self.frames,
+            parks={f"{k:04X}": v for k, v in sorted(self.parks.items())},
+            **frontier_context,
+        )
+        if save is save_recovery_frontier:
+            self.rt._dos_re_last_recovery_frontier = str(out)
         print(f"\n[vmless] CRASHED at frame {self.frames}: "
               f"{type(exc).__name__}: {str(exc)[:200]}")
         # The lifted call chain is the game's own path to the fault; CS:IP in the
         # snapshot names one instruction, this names how it got there.
-        from dos_re.crash import recovered_call_chain, witness_address
-        addr, chain = witness_address(exc), recovered_call_chain(exc)
         if addr:
             print(f"[vmless] refused at {addr}")
         if chain:
@@ -245,6 +309,11 @@ class VmlessDriver:
                 f"... ({len(chain) - len(shown)} more) -> "
             print(f"[vmless] lifted call chain: {lead}{' -> '.join(shown)}")
         print(f"[vmless] machine saved -> {out}")
+        if save is save_recovery_frontier:
+            print(
+                "[vmless] recovery frontier -> "
+                f"{out / 'recovery_frontier.json'}"
+            )
         print(f"[vmless] resume it (you land ON the fault, no replay):\n"
               f"           from dos_re.snapshot_headless import load_snapshot_headless\n"
               f"           rt = load_snapshot_headless(r'{out}', game_root='assets')")

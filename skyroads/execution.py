@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from hashlib import sha256
+import json
 from pathlib import Path
 from typing import Iterable
 
@@ -253,9 +254,50 @@ def _vmless_content_digest() -> str:
     return content_digest((
         SOURCE_ROOT / "skyroads" / "vmless_backend.py",
         SOURCE_ROOT / "skyroads" / "runtime.py",
+        SOURCE_ROOT / "recovery" / "recovery_ir.json",
         *tree_sources(SOURCE_ROOT / "skyroads" / "lifted" / "functions"),
         *_REAL_MODE_ADAPTER_SOURCES,
     ), repository_root=SOURCE_ROOT)
+
+
+def _vmless_owned_targets(atlas, program_coverage) -> frozenset[str]:
+    """Include emitted internal points that are not separate Atlas functions.
+
+    Static recovery deliberately leaves calls such as ``0069 -> 630F`` as
+    frontiers because ``630F`` is not a recovered function entry. The selected
+    generated provider nevertheless emits it as a block inside ``6001`` and
+    installs its resume entry. Claiming that exact point lets resolved-plan
+    closure distinguish an emitted internal transfer from missing code.
+    """
+    ir = json.loads(
+        (SOURCE_ROOT / "recovery" / "recovery_ir.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    emitted = {
+        str(instruction["ip"]).upper()
+        for function in ir["functions"].values()
+        for block in function.get("blocks", ())
+        for instruction in block.get("instructions", ())
+    }
+    nodes = {item.identity: item for item in atlas.nodes()}
+    claimed = set(program_coverage.reachable)
+    for edge in program_coverage.unresolved_edges:
+        _, separator, target = edge.rpartition("-->")
+        if not separator:
+            continue
+        target = target.strip()
+        node = nodes.get(target)
+        address = "" if node is None else str(
+            node.metadata.get("address", "")
+        )
+        try:
+            cs, ip = address.split(":")
+        except ValueError:
+            continue
+        if cs.upper() == f"{CODE_SEG:04X}" and ip.upper() in emitted:
+            claimed.add(target)
+    return frozenset(claimed)
 
 
 def _cpuless_content_digest() -> str:
@@ -383,7 +425,10 @@ def _file_digest(path: Path) -> str:
 
 def catalog() -> ImplementationCatalog:
     faithful, generated = _hook_tables()
-    all_targets = coverage().coverage_for("game").reachable
+    atlas = coverage()
+    program_coverage = atlas.coverage_for("game")
+    all_targets = program_coverage.reachable
+    vmless_targets = _vmless_owned_targets(atlas, program_coverage)
     entries: list[ImplementationEntry] = [
         ImplementationEntry(ImplementationDescriptor(
             implementation_id="baseline:interpreted-exe",
@@ -406,7 +451,7 @@ def catalog() -> ImplementationCatalog:
         )),
         ImplementationEntry(ImplementationDescriptor(
             implementation_id="baseline:generated-vmless",
-            targets=all_targets,
+            targets=vmless_targets,
             origin=ImplementationOrigin.GENERATED,
             recovery_level=RecoveryLevel.GENERATED_VMLESS,
             execution_carrier=GENERATED_VMLESS_CARRIER,

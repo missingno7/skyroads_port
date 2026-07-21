@@ -12,6 +12,7 @@ import pytest
 from dos_re import player
 from dos_re.cpu import CPU8086
 from dos_re.execution import (
+    ClosureFindingKind,
     DependencyCapability,
     ExecutionPlanError,
     GENERATED_VMLESS_CARRIER,
@@ -47,6 +48,7 @@ from skyroads.identities import (
     GAMEPLAY_REGION,
     IMAGE,
     PROGRAM_ROOT,
+    execution_point_identity,
     function_identity,
 )
 from skyroads.pacing import (
@@ -359,6 +361,38 @@ def test_release_readiness_rejects_atlas_control_flow_frontiers(
     )
     assert not report.package_ready
     assert "unresolved control-flow edges" in str(caught.value)
+
+
+def test_detached_plan_classifies_generated_internal_and_real_uncertainty(
+    tmp_path, monkeypatch,
+) -> None:
+    boot = tmp_path / "boot"
+    boot.mkdir()
+    (boot / "state.json").write_text("{}", encoding="utf-8")
+    (boot / "memory_1mb.bin").write_bytes(b"\0")
+    (boot / "manifest.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(execution_model, "BOOT_DIR", boot)
+
+    plan = _plan("detached", "faithful-product")
+    assert plan.report.is_detached_from("original-exe")
+    assert plan.report.is_detached_from("interpreter")
+    assert plan.configuration.execution_policy.fallback.value == "forbidden"
+    assert plan.report.unresolved_edges
+    assert {
+        item.classification
+        for item in plan.report.closure_findings if item.blocking
+    } == {
+        ClosureFindingKind.UNKNOWN_DYNAMIC_TARGET,
+        ClosureFindingKind.PROBABLE_GAP,
+    }
+    generated_internal = next(
+        item for item in plan.report.closure_findings
+        if item.target == execution_point_identity(0x630F)
+    )
+    assert generated_internal.classification is (
+        ClosureFindingKind.SELECTED_IMPLEMENTATION_OWNED
+    )
+    assert not generated_internal.blocking
 
 
 def test_release_plan_fails_before_launch_when_bootstrap_is_missing(

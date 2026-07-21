@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from dos_re import player
+from dos_re.runtime_miss import RuntimeExecutionFrontier
 from dos_re.replay import (
     ReplayRecording,
     ReplayPoint,
@@ -190,3 +191,44 @@ def test_generated_driver_preserves_boundary_phase_across_guest_slice(
     # A completed semantic boundary starts a fresh phase.
     assert driver.frame()
     assert started not in driver._seen
+
+
+def test_generated_driver_routes_actual_miss_to_recovery_frontier(
+    tmp_path, monkeypatch,
+) -> None:
+    captured = {}
+    out = tmp_path / "frontier"
+
+    def save_frontier(_runtime, _out, **context):
+        out.mkdir()
+        captured.update(context)
+        return out
+
+    monkeypatch.setattr(
+        vmless_backend, "save_recovery_frontier", save_frontier,
+    )
+    monkeypatch.setattr(
+        vmless_backend,
+        "save_crash",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an actual runtime miss must use the recovery-frontier artifact"
+        ),
+    )
+    runtime = SimpleNamespace(
+        cpu=SimpleNamespace(boundary_hook=None),
+        execution_plan=SimpleNamespace(bindings=()),
+    )
+    driver = vmless_backend.VmlessDriver(
+        runtime,
+        irqs_per_frame=0,
+        crash_root=tmp_path,
+        stamp="deterministic",
+    )
+    driver._recent_path.append((CODE_SEG, 0x22FB))
+    exc = RuntimeExecutionFrontier(target_address="1010:1234")
+
+    assert driver.crash(exc) == out
+    assert runtime._dos_re_last_recovery_frontier == str(out)
+    assert captured["status"] == "vmless-runtime-frontier"
+    assert "1234" in captured["target_identity"]
+    assert captured["recent_atlas_path"]
