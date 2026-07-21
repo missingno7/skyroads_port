@@ -19131,9 +19131,9 @@
       "kind": "continuation",
       "metadata": {},
       "observation_count": 0,
-      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A20ad",
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A0f05",
       "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1fd9"
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0f05"
     },
     {
       "conflicts": {},
@@ -19146,6 +19146,18 @@
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A2317",
       "status": "resolved",
       "target": "skyroads:1.0:region:gameplay"
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "manual:skyroads-retained-entry-census-v1"
+      ],
+      "kind": "continuation",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A2c61",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2b3d"
     },
     {
       "conflicts": {},
@@ -19469,7 +19481,19 @@
       "observation_count": 0,
       "source": "skyroads:1.0:region:gameplay",
       "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A20ad"
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A0f05"
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "manual:skyroads-retained-entry-census-v1"
+      ],
+      "kind": "region-exit",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:region:gameplay",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A2c61"
     },
     {
       "conflicts": {},
@@ -25940,11 +25964,11 @@
       "evidence": [
         "manual:skyroads-retained-entry-census-v1"
       ],
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A20ad",
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A0f05",
       "kind": "execution-point",
-      "label": "1010:20AD gameplay return continuation",
+      "label": "1010:0F05 generated fall/death transition",
       "metadata": {
-        "entry": "1010:20AD"
+        "entry": "1010:0F05"
       }
     },
     {
@@ -25988,6 +26012,18 @@
         "address_space": "real-mode",
         "frontier_reason": "call",
         "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      }
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "manual:skyroads-retained-entry-census-v1"
+      ],
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A2c61",
+      "kind": "execution-point",
+      "label": "1010:2C61 generated gameplay caller continuation",
+      "metadata": {
+        "entry": "1010:2C61"
       }
     },
     {

@@ -22,13 +22,25 @@
       "kind": "region-exit",
       "source": "skyroads:1.0:region:gameplay",
       "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A20ad"
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A2c61"
     },
     {
       "kind": "continuation",
-      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A20ad",
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A2c61",
       "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A1fd9"
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A2b3d"
+    },
+    {
+      "kind": "region-exit",
+      "source": "skyroads:1.0:region:gameplay",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A0f05"
+    },
+    {
+      "kind": "continuation",
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A0f05",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0f05"
     },
     {
       "kind": "retained-recovery-entry",
@@ -1141,11 +1153,19 @@
       }
     },
     {
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A20ad",
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A2c61",
       "kind": "execution-point",
-      "label": "1010:20AD gameplay return continuation",
+      "label": "1010:2C61 generated gameplay caller continuation",
       "metadata": {
-        "entry": "1010:20AD"
+        "entry": "1010:2C61"
+      }
+    },
+    {
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A0f05",
+      "kind": "execution-point",
+      "label": "1010:0F05 generated fall/death transition",
+      "metadata": {
+        "entry": "1010:0F05"
       }
     }
   ],
@@ -1155,5 +1175,5 @@
     "kind": "project-declared-entry-census",
     "source": "retained Recovery IR and skyroads.execution catalog"
   },
-  "source_digest": "dbcc54414b9a93f8c562b419e15ec798fd478f4028e475cd41e9bb71264aa7fb"
+  "source_digest": "e84643da388567b0ff022e3b8067503809b19e7895fbcff6e54ce37705022421"
 }

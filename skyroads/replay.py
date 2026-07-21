@@ -26,7 +26,6 @@ from dos_re.replay import (
     machine_projection,
 )
 from dos_re.snapshot import (
-    apply_runtime_continuation,
     capture_runtime_continuation,
     runtime_machine_projection_digest,
 )
@@ -139,7 +138,7 @@ class SkyroadsReplayDriver:
             self.runtime, event_cursor=self.input.event_cursor)
 
     def restore(self, state: ContinuationState, point: ReplayPoint) -> None:
-        apply_runtime_continuation(self.runtime, state)
+        self.frontend.apply_replay_state(self.runtime, state)
         self.input.seek(state.event_cursor)
         self._point = point
 

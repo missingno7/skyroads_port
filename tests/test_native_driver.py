@@ -110,7 +110,10 @@ def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-REPLAY = ROOT / "artifacts" / "replays" / "replay_e2e_20260710_132930"
+REPLAY = (
+    ROOT / "artifacts" / "replays"
+    / "replay_candidate_smoke_20260720_214152"
+)
 
 
 @pytest.mark.skipif(not (EXE.exists() and REPLAY.exists()),

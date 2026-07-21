@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from dos_re import player
+from dos_re.cpu import CPU8086
 from dos_re.execution import (
     DependencyCapability,
     ExecutionPlanError,
@@ -37,6 +38,8 @@ from skyroads.execution import (
     configuration,
     coverage,
     features,
+    provider_diagnostics,
+    selected_whole_program_provider,
     services,
 )
 from skyroads.hooks import CODE_SEG
@@ -55,6 +58,12 @@ from skyroads.product_features import (
     PRACTICE_FEATURE_CHANNEL,
     PRACTICE_LEVEL_FEATURE_ID,
     SkyroadsFeatureState,
+)
+from skyroads.launch_inputs import (
+    DIRECT_LEVEL_ADAPTER_ID,
+    LEVEL_SELECTION_IP,
+    SELECTED_LEVEL_OFFSET,
+    install_direct_level_launch,
 )
 
 
@@ -163,10 +172,9 @@ def test_default_play_is_fast_but_has_no_behavioral_modifications(
     assert OverrideCategory.FAITHFUL in categories
     assert OverrideCategory.ENHANCEMENT not in categories
     assert OverrideCategory.BEHAVIORAL not in categories
-    assert {service.service_id for service in plan.services} == {
-        FRAME_PARK_SERVICE_ID
-    }
-    assert all(service.product_safe for service in plan.services)
+    assert selected_whole_program_provider(plan) == "baseline:generated-vmless"
+    assert {item.region_id for item in plan.regions} == {GAMEPLAY_REGION}
+    assert plan.services == ()
 
 
 def test_faithful_product_composes_selected_faithful_adapters(
@@ -205,6 +213,49 @@ def test_faithful_product_composes_selected_faithful_adapters(
         adapter.host_carrier_id for adapter in gameplay.region_adapters
     } == {GENERATED_VMLESS_CARRIER}
     assert plan.regions[0].region_id == GAMEPLAY_REGION
+
+
+def test_provider_diagnostics_expose_product_roles_and_true_seams(
+    original_exe,
+) -> None:
+    plan = _plan("development", "faithful-product")
+    report = provider_diagnostics(plan)
+
+    assert report.frontend_provider == "baseline:generated-vmless"
+    assert report.level_selection_provider == "baseline:generated-vmless"
+    assert report.gameplay_provider == "faithful-region:skyroads.gameplay"
+    assert report.renderer_provider == "faithful-region:skyroads.gameplay"
+    assert report.covered_original_identities
+    assert report.collapsed_internal_boundaries
+    assert "service:sfx->function:1010:03c2" in report.remaining_external_seams
+    assert report.selected_generated_fallbacks
+    assert report.selected_interpreted_fallbacks == 0
+    assert not report.exe_dependency
+    assert report.dos_re_runtime_dependency
+
+
+def test_direct_level_is_a_one_shot_generated_menu_selection() -> None:
+    cpu = CPU8086(Memory())
+    cpu.s.cs = CODE_SEG
+    cpu.s.ds = 0x1686
+    cpu.s.ss = 0x1686
+    cpu.s.sp = 0xB000
+    cpu.push(0x0285)
+    selected = lambda current_cpu: None
+    key = (CODE_SEG, LEVEL_SELECTION_IP)
+    cpu.replacement_hooks[key] = selected
+    cpu.hook_names[key] = "selected-generated-loader"
+    runtime = SimpleNamespace(cpu=cpu)
+
+    install_direct_level_launch(runtime, 14)
+    assert cpu.hook_names[key] == DIRECT_LEVEL_ADAPTER_ID
+    cpu.replacement_hooks[key](cpu)
+
+    assert cpu.mem.rw(cpu.s.ds, SELECTED_LEVEL_OFFSET) == 14
+    assert (cpu.s.ax, cpu.s.ip, cpu.s.sp) == (0, 0x0285, 0xB000)
+    assert cpu.replacement_hooks[key] is selected
+    assert cpu.hook_names[key] == "selected-generated-loader"
+    assert runtime._skyroads_direct_level_applied == 14
 
 
 def test_faithful_product_is_oracle_verifiable(original_exe) -> None:

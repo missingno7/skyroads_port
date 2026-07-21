@@ -4,11 +4,14 @@ from pathlib import Path
 import pytest
 
 from skyroads.native.boot import (
-    DAC_CARS_BASE, DAC_DASHBRD_BASE, DASHBOARD_LEN, DASHBOARD_VGA_OFFSET,
-    SEG_CARS_BANK, SEG_DASHBRD, SEG_DISPLAY_LISTS, SEG_FUL_BANK,
+    DAC_CARS_BASE, DAC_DASHBRD_BASE,
+    SEG_CARS_BANK, SEG_DISPLAY_LISTS, SEG_FUL_BANK,
     SEG_OXY_BANK, SEG_SFX_BANK, SEG_SPEED_BANK, native_boot_dac,
-    native_boot_dgroup, native_boot_image, paint_dashboard,
+    native_boot_dgroup, native_boot_image,
     parse_lzs_container)
+from skyroads.native.dashboard import (
+    DASHBOARD_LEN, DASHBOARD_VGA_OFFSET, SEG_DASHBRD, paint_dashboard,
+)
 from skyroads.native.level_load import read_game_file
 
 ROOT = Path(__file__).resolve().parents[1]

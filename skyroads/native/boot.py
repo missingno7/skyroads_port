@@ -25,6 +25,7 @@ from pathlib import Path
 
 from skyroads.native.exe_image import initial_dgroup
 from skyroads.native.level_load import read_game_file
+from skyroads.native.dashboard import SEG_DASHBRD
 
 CFG_OFF = 0x4516
 CFG_LEN = 66
@@ -45,7 +46,6 @@ SEG_OXY_BANK = 0x221A         # OXY_DISP.DAT stencils; [5476]
 SEG_FUL_BANK = 0x2232         # FUL_DISP.DAT stencils; [9610]
 SEG_SPEED_BANK = 0x224B       # SPEED.DAT stencils; [54A6]
 SEG_CARS_BANK = 0x5E61        # cars.lzs 55,440 B; [AF36]
-SEG_DASHBRD = 0x6BEA          # dashbrd.lzs 22,720 B
 SEG_SCREEN_BANK = 0x7176      # gomenu screen / world background; [4512]
 SEG_AUX_8116 = 0x8116         # gomenu's 30-B record / offscreen compose
 LOAD_SEG = 0x1010
@@ -109,47 +109,6 @@ def native_boot_dgroup(game_root: "str | Path") -> bytearray:
     for off, val in BOOT_POINTERS.items():
         struct.pack_into("<H", dg, off, val)
     return dg
-
-
-#: DASHBRD.LZS's PICT `dest` field: an ABSOLUTE VGA byte offset (0xA140 =
-#: row 129 of the 320x200 plane) -- not a segment-relative offset. The
-#: dashboard is 71 rows x 320 = 22,720 bytes, reaching exactly the end of
-#: the VGA plane (129 + 71 == 200).
-DASHBOARD_VGA_OFFSET = 0xA140
-DASHBOARD_LEN = 22720
-#: Bytes of the dashboard that overlap the road render (rows 129..137, the
-#: bezel top): the road pipeline writes rows 0..137, so ONLY these ~9 rows
-#: need re-overlaying every frame. The rest of the dashboard (rows 138..199,
-#: which holds the HUD gauges) is never touched by the road render, so a
-#: presentation layer can paint the full dashboard ONCE and then only refresh
-#: this strip per frame -- leaving the gauges for the delta HUD updater to
-#: maintain (fill AND unfill) exactly as the VM does.
-DASHBOARD_BEZEL_OVERLAP = (137 - 129 + 1) * 320   # 2880
-
-
-def paint_dashboard(img_data: bytearray, dashboard_seg: int,
-                    byte_count: int = DASHBOARD_LEN) -> None:
-    """Overlay the cockpit dashboard onto a live 1 MB image's VGA plane
-    (`img_data`, e.g. `NativeGameImage.data`), NONZERO PIXELS ONLY -- zero
-    is transparent, same convention as every other biased asset bank in
-    this module. Call this AFTER the per-frame road/background render: the
-    gameplay renderer's 138-row output (rows 0..137) overlaps the
-    dashboard's own top ~9 rows (129..137, its bezel), and only a masked
-    overlay reproduces the real windshield cutout -- painting dashboard
-    first would have it immediately overwritten; painting unmasked would
-    blank the visible road out from under the bezel.
-
-    ``byte_count`` limits the overlay to the first N dashboard bytes; pass
-    :data:`DASHBOARD_BEZEL_OVERLAP` to refresh ONLY the road-overlapping
-    bezel strip (rows 129..137) each frame after a one-time full paint, so
-    the HUD gauges below (rows 138..199) are NOT wiped and the byte-exact
-    delta gauge updater can fill/unfill them the way the VM does."""
-    src_base = dashboard_seg << 4
-    dst_base = 0xA0000 + DASHBOARD_VGA_OFFSET
-    for i in range(min(byte_count, DASHBOARD_LEN)):
-        p = img_data[src_base + i]
-        if p:
-            img_data[dst_base + i] = p
 
 
 #: The gameplay DAC layout — each asset container's CMAP slots in

@@ -6,7 +6,7 @@ they do not select themselves or install implementations by import side effect.
 """
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import Path
 from typing import Iterable
@@ -51,11 +51,13 @@ from skyroads.content_identity import (
     source_path,
     tree_sources,
 )
+from skyroads.authored_inventory import runtime_source_paths
 from skyroads.identities import (
     CODE_SEG,
     GAMEPLAY_ENTRY_POINT,
+    GAMEPLAY_CALLER_CONTINUATION,
+    GAMEPLAY_FALL_CONTINUATION,
     GAMEPLAY_REGION,
-    GAMEPLAY_RETURN_POINT,
     IMAGE,
     PROGRAM_ID,
     PROGRAM_ROOT,
@@ -63,10 +65,14 @@ from skyroads.identities import (
     function_identity,
 )
 from skyroads.gameplay_region import (
+    FELL_OFF_ROAD_EXIT,
+    FUEL_EXPIRED_EXIT,
+    GAMEPLAY_ABORTED_EXIT,
     GAMEPLAY_ENTRY_ID,
     GAMEPLAY_TICK_BOUNDARY,
     LEVEL_COMPLETED_EXIT,
-    PLAYER_DIED_EXIT,
+    OXYGEN_EXPIRED_EXIT,
+    WALL_CRASH_EXIT,
     activate_gameplay_region,
 )
 from skyroads.native.loop import NativeGameplayDriver
@@ -274,8 +280,12 @@ def _gameplay_region_entry() -> ImplementationEntry:
             GAMEPLAY_ENTRY_ID, GAMEPLAY_ENTRY_POINT,
         ),),
         exits=(
-            RegionExitPoint(LEVEL_COMPLETED_EXIT, GAMEPLAY_RETURN_POINT),
-            RegionExitPoint(PLAYER_DIED_EXIT, GAMEPLAY_RETURN_POINT),
+            RegionExitPoint(LEVEL_COMPLETED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
+            RegionExitPoint(WALL_CRASH_EXIT, GAMEPLAY_CALLER_CONTINUATION),
+            RegionExitPoint(FUEL_EXPIRED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
+            RegionExitPoint(OXYGEN_EXPIRED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
+            RegionExitPoint(FELL_OFF_ROAD_EXIT, GAMEPLAY_FALL_CONTINUATION),
+            RegionExitPoint(GAMEPLAY_ABORTED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
         ),
         covered_targets=frozenset(
             function_identity(offset) for offset in _GAMEPLAY_COVERED_OFFSETS
@@ -290,6 +300,7 @@ def _gameplay_region_entry() -> ImplementationEntry:
         state_outputs=(
             "shared DOS gameplay state",
             "VGA presentation memory",
+            "generated sound-device effects through the 1010:03C2 seam",
             "generated continuation register and stack seed",
             "named generated continuation",
         ),
@@ -297,8 +308,7 @@ def _gameplay_region_entry() -> ImplementationEntry:
     implementation_id = "faithful-region:skyroads.gameplay"
     implementation_sources = (
         SOURCE_ROOT / "skyroads" / "gameplay_region.py",
-        *tree_sources(SOURCE_ROOT / "skyroads" / "native"),
-        *tree_sources(SOURCE_ROOT / "skyroads" / "handrecovered"),
+        *runtime_source_paths(SOURCE_ROOT),
         SOURCE_ROOT / "skyroads" / "bridge" / "dgroup_view.py",
     )
     return ImplementationEntry(
@@ -307,7 +317,8 @@ def _gameplay_region_entry() -> ImplementationEntry:
             targets=frozenset({
                 GAMEPLAY_REGION,
                 GAMEPLAY_ENTRY_POINT,
-                GAMEPLAY_RETURN_POINT,
+                GAMEPLAY_CALLER_CONTINUATION,
+                GAMEPLAY_FALL_CONTINUATION,
             }),
             origin=ImplementationOrigin.AUTHORED,
             category=OverrideCategory.FAITHFUL,
@@ -605,7 +616,7 @@ def configuration(
     """Map a product composition onto dos_re's orthogonal policy axes."""
     if composition == "auto":
         composition = "generated-detached" if profile in {"detached", "release"} else (
-            "workbench-auto"
+            "faithful-product"
         )
     enabled_features = tuple(enabled_features)
     if enabled_features and composition == "generated-detached":
@@ -679,3 +690,98 @@ def selected_whole_program_provider(plan) -> str:
         if binding.target == PROGRAM_ROOT:
             return binding.implementation_id
     raise RuntimeError("execution plan has no SkyRoads program-root binding")
+
+
+@dataclass(frozen=True)
+class SkyroadsProviderDiagnostics:
+    """Product-role projection of one already-resolved execution plan."""
+
+    frontend_provider: str
+    level_selection_provider: str
+    gameplay_provider: str
+    renderer_provider: str
+    covered_original_identities: tuple[str, ...]
+    collapsed_internal_boundaries: int
+    remaining_external_seams: tuple[str, ...]
+    selected_generated_fallbacks: int
+    selected_interpreted_fallbacks: int
+    exe_dependency: bool
+    dos_re_runtime_dependency: bool
+    active_region: str = ""
+
+
+def provider_diagnostics(plan, runtime=None) -> SkyroadsProviderDiagnostics:
+    """Expose provider roles without selecting or re-resolving anything."""
+    root = selected_whole_program_provider(plan)
+    regions = tuple(plan.regions)
+    gameplay = next(
+        (item for item in regions if item.region_id == GAMEPLAY_REGION), None,
+    )
+    covered = set(gameplay.covered_targets if gameplay else ())
+    descriptors = {
+        item.implementation_id: item for item in plan.implementations
+    }
+    generated = interpreted = 0
+    for binding in plan.bindings:
+        if binding.target in covered:
+            continue
+        origin = descriptors[binding.implementation_id].origin
+        if origin is ImplementationOrigin.GENERATED:
+            generated += 1
+        elif origin is ImplementationOrigin.INTERPRETED:
+            interpreted += 1
+    seams: tuple[str, ...] = ()
+    if gameplay is not None:
+        seams = tuple(
+            [
+                *(f"entry:{item.entry_id}->{item.target}" for item in gameplay.entries),
+                *(f"exit:{item.exit_id}->{item.continuation}" for item in gameplay.exits),
+                "service:sfx->function:1010:03c2",
+            ]
+        )
+    dispatcher = getattr(runtime, "execution_regions", None)
+    active_region = ""
+    if dispatcher is not None and dispatcher.active:
+        active_region = dispatcher.active_region_id
+    capabilities = set(plan.report.required_capabilities)
+    region_provider = gameplay.implementation_id if gameplay else root
+    return SkyroadsProviderDiagnostics(
+        frontend_provider=root,
+        level_selection_provider=root,
+        gameplay_provider=region_provider,
+        renderer_provider=region_provider,
+        covered_original_identities=tuple(sorted(covered)),
+        collapsed_internal_boundaries=(
+            len(gameplay.suppressed_bindings) if gameplay else 0
+        ),
+        remaining_external_seams=seams,
+        selected_generated_fallbacks=generated,
+        selected_interpreted_fallbacks=interpreted,
+        exe_dependency=DependencyCapability.ORIGINAL_EXE.value in capabilities,
+        dos_re_runtime_dependency=(
+            DependencyCapability.DOS_RE_RUNTIME.value in capabilities
+        ),
+        active_region=active_region,
+    )
+
+
+def format_provider_diagnostics(plan, runtime=None) -> str:
+    report = provider_diagnostics(plan, runtime)
+    covered = report.covered_original_identities
+    seams = report.remaining_external_seams
+    return "\n".join((
+        f"active frontend provider: {report.frontend_provider}",
+        f"active level-selection provider: {report.level_selection_provider}",
+        f"active gameplay provider: {report.gameplay_provider}",
+        f"active renderer provider: {report.renderer_provider}",
+        "covered original identities: "
+        + (f"{len(covered)} ({', '.join(covered)})" if covered else "0"),
+        f"collapsed internal boundaries: {report.collapsed_internal_boundaries}",
+        "remaining external seams: " + (", ".join(seams) or "none"),
+        f"selected generated fallbacks: {report.selected_generated_fallbacks}",
+        f"selected interpreted fallbacks: {report.selected_interpreted_fallbacks}",
+        f"EXE dependency: {str(report.exe_dependency).lower()}",
+        "dos_re runtime dependency: "
+        f"{str(report.dos_re_runtime_dependency).lower()}",
+        "runtime active region: " + (report.active_region or "none"),
+    ))

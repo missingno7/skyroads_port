@@ -1,143 +1,164 @@
-"""Census of retained authored recovery modules.
+"""Architectural census of retained authored recovery modules.
 
-``skyroads.execution`` remains the sole executable implementation catalog.
-This inventory has a narrower purpose: it states whether each authored module
-is selected runtime code, verification evidence, or an experiment. It must
-never be consulted by the player or planner.
+``skyroads.execution`` is the sole executable catalog.  This inventory is an
+audit assertion: every module in the two authored packages has one explicit
+role and disposition, and every runtime module must be reachable from a
+catalogued semantic implementation or its declared carrier adapter.
 
-The two authored packages are different layers:
-
-* ``handrecovered`` contains CPU-independent semantic algorithms.  A module in
-  this layer can become an override only when the execution catalog pairs a
-  complete stable target with a backend adapter.
-* ``native`` composes semantic algorithms over DOS-backed or detached state.
-  The gameplay-region dependencies are runtime code; remaining modules stay
-  verification evidence until a catalog contract selects them.
+``handrecovered`` owns CPU-independent algorithms.  ``native`` owns assemblies
+of those algorithms over DOS-backed or detached state.  Neither package is a
+player, registry, or implicit activation mechanism.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
 
 class AuthoredUse(str, Enum):
-    """Why an authored module is retained."""
+    """Whether normal planned execution may import the module."""
 
-    RUNTIME_OVERRIDE = "runtime-override"
-    VERIFICATION_ONLY = "verification-only"
+    RUNTIME = "runtime"
+    EVIDENCE = "evidence"
     EXPERIMENTAL = "experimental"
+
+
+class AuthoredRole(str, Enum):
+    """The single architectural responsibility of an authored module."""
+
+    FAITHFUL_FUNCTION = "faithful-function-replacement"
+    GAMEPLAY_REGION = "gameplay-region-member"
+    RENDERER = "renderer-or-platform-subsystem"
+    NATIVE_STATE = "native-state-abstraction"
+    CARRIER_ADAPTER = "carrier-adapter"
+    VERIFICATION = "verification-or-test-infrastructure"
+    PARTIAL_PRODUCT = "partial-native-product-component"
+    OBSOLETE_DUPLICATE = "obsolete-duplicate"
 
 
 @dataclass(frozen=True)
 class AuthoredModule:
     module: str
     use: AuthoredUse
+    role: AuthoredRole
     reason: str
 
 
+RUNTIME = AuthoredUse.RUNTIME
+EVIDENCE = AuthoredUse.EVIDENCE
+
 AUTHORED_MODULES = (
-    # Complete semantic implementations with CPU-carrier adapters declared in
-    # skyroads.execution via skyroads.hooks.FAITHFUL_OVERRIDE_ADAPTERS.
-    AuthoredModule("skyroads.handrecovered.blit", AuthoredUse.RUNTIME_OVERRIDE,
-                   "faithful stencil-blit implementation"),
-    AuthoredModule("skyroads.handrecovered.present", AuthoredUse.RUNTIME_OVERRIDE,
-                   "faithful sprite-blit implementation"),
-    AuthoredModule("skyroads.handrecovered.renderer", AuthoredUse.RUNTIME_OVERRIDE,
-                   "faithful perspective and visibility implementations"),
-    AuthoredModule("skyroads.handrecovered.rle_sprite", AuthoredUse.RUNTIME_OVERRIDE,
-                   "faithful forward and backward RLE implementations"),
-    AuthoredModule("skyroads.handrecovered.tile_raster", AuthoredUse.RUNTIME_OVERRIDE,
-                   "faithful clip, shade, and raster implementations"),
+    AuthoredModule("skyroads.handrecovered.blit", RUNTIME,
+                   AuthoredRole.FAITHFUL_FUNCTION,
+                   "catalogued 1010:3153 stencil blit semantics"),
+    AuthoredModule("skyroads.handrecovered.present", RUNTIME,
+                   AuthoredRole.FAITHFUL_FUNCTION,
+                   "catalogued 1010:3190 sprite presentation semantics"),
+    AuthoredModule("skyroads.handrecovered.renderer", RUNTIME,
+                   AuthoredRole.RENDERER,
+                   "catalogued perspective helpers and gameplay renderer dependency"),
+    AuthoredModule("skyroads.handrecovered.rle_sprite", RUNTIME,
+                   AuthoredRole.FAITHFUL_FUNCTION,
+                   "catalogued forward and reverse RLE replacements"),
+    AuthoredModule("skyroads.handrecovered.tile_raster", RUNTIME,
+                   AuthoredRole.RENDERER,
+                   "catalogued clip/shade/raster functions and region dependency"),
 
-    # CPU-independent semantics owned by the selected gameplay region.  Their
-    # runtime boundary is the region contract, not a set of internal hooks.
-    AuthoredModule("skyroads.handrecovered.classify", AuthoredUse.RUNTIME_OVERRIDE,
-                   "classification semantics used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.collision_response",
-                   AuthoredUse.RUNTIME_OVERRIDE,
-                   "collision response used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.controls", AuthoredUse.RUNTIME_OVERRIDE,
-                   "keyboard and attract input used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.dynamics", AuthoredUse.RUNTIME_OVERRIDE,
-                   "jump, steering, and gravity used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.effect_avoidance",
-                   AuthoredUse.RUNTIME_OVERRIDE,
-                   "projected-arc avoidance used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.intro_anim", AuthoredUse.VERIFICATION_ONLY,
-                   "verified decoder used by native boot experiments"),
-    AuthoredModule("skyroads.handrecovered.menu", AuthoredUse.RUNTIME_OVERRIDE,
-                   "level-transition semantics used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.movement", AuthoredUse.RUNTIME_OVERRIDE,
-                   "movement arithmetic used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.music", AuthoredUse.VERIFICATION_ONLY,
-                   "verified OPL event engine without continuation/timing adapter"),
-    AuthoredModule("skyroads.handrecovered.orchestration",
-                   AuthoredUse.RUNTIME_OVERRIDE,
-                   "gameplay dispatch used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.physics", AuthoredUse.RUNTIME_OVERRIDE,
-                   "movement targets used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.player", AuthoredUse.RUNTIME_OVERRIDE,
-                   "player-state semantics used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.progression",
-                   AuthoredUse.RUNTIME_OVERRIDE,
-                   "level progression used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.relocate", AuthoredUse.VERIFICATION_ONLY,
-                   "verified relocation primitive"),
-    AuthoredModule("skyroads.handrecovered.render_classify",
-                   AuthoredUse.RUNTIME_OVERRIDE,
-                   "render classification used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.render_dispatch",
-                   AuthoredUse.RUNTIME_OVERRIDE,
-                   "render dispatch used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.road_column", AuthoredUse.RUNTIME_OVERRIDE,
-                   "road-column rendering used by the gameplay region"),
-    AuthoredModule("skyroads.handrecovered.roads_archive",
-                   AuthoredUse.RUNTIME_OVERRIDE,
-                   "road archive decoder retained by the bootstrap dependency"),
+    AuthoredModule("skyroads.handrecovered.classify", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "ship/road classification"),
+    AuthoredModule("skyroads.handrecovered.collision_response", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "collision response"),
+    AuthoredModule("skyroads.handrecovered.controls", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "keyboard and attract input decode"),
+    AuthoredModule("skyroads.handrecovered.dynamics", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "jump, steering, and gravity"),
+    AuthoredModule("skyroads.handrecovered.effect_avoidance", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "projected-arc avoidance"),
+    AuthoredModule("skyroads.handrecovered.menu", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "in-game action/progression dispatch"),
+    AuthoredModule("skyroads.handrecovered.movement", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "movement arithmetic"),
+    AuthoredModule("skyroads.handrecovered.orchestration", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "gameplay gate and settle window"),
+    AuthoredModule("skyroads.handrecovered.physics", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "movement targets"),
+    AuthoredModule("skyroads.handrecovered.player", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "player-state semantics"),
+    AuthoredModule("skyroads.handrecovered.progression", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "fuel, oxygen, and finish state"),
+    AuthoredModule("skyroads.handrecovered.render_classify", RUNTIME,
+                   AuthoredRole.RENDERER, "road-render classification"),
+    AuthoredModule("skyroads.handrecovered.render_dispatch", RUNTIME,
+                   AuthoredRole.RENDERER, "road-render dispatch"),
+    AuthoredModule("skyroads.handrecovered.road_column", RUNTIME,
+                   AuthoredRole.RENDERER, "road-column raster semantics"),
 
-    # State-backed assemblies reachable from the selected gameplay-region
-    # provider.  They belong to one canonical player, not a hidden native one.
-    AuthoredModule("skyroads.native.boot", AuthoredUse.RUNTIME_OVERRIDE,
-                   "dashboard rendering used by the gameplay region"),
-    AuthoredModule("skyroads.native.frame", AuthoredUse.RUNTIME_OVERRIDE,
-                   "native frame assembly used by the gameplay region"),
-    AuthoredModule("skyroads.native.loop", AuthoredUse.RUNTIME_OVERRIDE,
-                   "semantic root of the selected gameplay region"),
-    AuthoredModule("skyroads.native.anim", AuthoredUse.VERIFICATION_ONLY,
-                   "native animation candidate and focused tests"),
-    AuthoredModule("skyroads.native.classify", AuthoredUse.RUNTIME_OVERRIDE,
-                   "state-backed classification used by the gameplay region"),
-    AuthoredModule("skyroads.native.collision", AuthoredUse.RUNTIME_OVERRIDE,
-                   "state-backed collision used by the gameplay region"),
-    AuthoredModule("skyroads.native.exe_image", AuthoredUse.RUNTIME_OVERRIDE,
-                   "dependency of the selected dashboard/bootstrap module"),
-    AuthoredModule("skyroads.native.gaps", AuthoredUse.RUNTIME_OVERRIDE,
-                   "typed external transitions of the gameplay region"),
-    AuthoredModule("skyroads.native.hud", AuthoredUse.RUNTIME_OVERRIDE,
-                   "HUD rendering used by the gameplay region"),
-    AuthoredModule("skyroads.native.image", AuthoredUse.RUNTIME_OVERRIDE,
-                   "shared DOS-memory image adapter for the gameplay region"),
-    AuthoredModule("skyroads.native.level_load", AuthoredUse.RUNTIME_OVERRIDE,
-                   "dependency of the selected dashboard/bootstrap module"),
-    AuthoredModule("skyroads.native.pcx", AuthoredUse.VERIFICATION_ONLY,
-                   "native PCX decoder candidate and focused tests"),
-    AuthoredModule("skyroads.native.render_frame", AuthoredUse.RUNTIME_OVERRIDE,
-                   "render pipeline used by the gameplay region"),
-    AuthoredModule("skyroads.native.render_params", AuthoredUse.RUNTIME_OVERRIDE,
-                   "render parameters used by the gameplay region"),
-    AuthoredModule("skyroads.native.sfx", AuthoredUse.VERIFICATION_ONLY,
-                   "native sound-bank candidate and focused tests"),
-    AuthoredModule("skyroads.native.state", AuthoredUse.VERIFICATION_ONLY,
-                   "detached gameplay-state test model"),
-    AuthoredModule("skyroads.native.tile_dispatch", AuthoredUse.RUNTIME_OVERRIDE,
-                   "tile dispatch used by the gameplay region"),
-    AuthoredModule("skyroads.native.world_load", AuthoredUse.VERIFICATION_ONLY,
-                   "native world-loading candidate and focused tests"),
+    AuthoredModule("skyroads.handrecovered.intro_anim", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT,
+                   "verified intro decoder without a selected frontend owner"),
+    AuthoredModule("skyroads.handrecovered.music", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT,
+                   "verified OPL engine without a selected continuation adapter"),
+    AuthoredModule("skyroads.handrecovered.relocate", EVIDENCE,
+                   AuthoredRole.VERIFICATION, "verified relocation primitive"),
+    AuthoredModule("skyroads.handrecovered.roads_archive", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT,
+                   "native level-file decoder used only by recovery experiments"),
+
+    AuthoredModule("skyroads.native.classify", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "DOS-state classification assembly"),
+    AuthoredModule("skyroads.native.collision", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "DOS-state collision assembly"),
+    AuthoredModule("skyroads.native.dashboard", RUNTIME,
+                   AuthoredRole.RENDERER, "cockpit overlay used by the selected region"),
+    AuthoredModule("skyroads.native.frame", RUNTIME,
+                   AuthoredRole.RENDERER, "selected gameplay frame assembly"),
+    AuthoredModule("skyroads.native.gaps", RUNTIME,
+                   AuthoredRole.CARRIER_ADAPTER, "typed region exit conditions"),
+    AuthoredModule("skyroads.native.hud", RUNTIME,
+                   AuthoredRole.RENDERER, "selected DOS-backed HUD renderer"),
+    AuthoredModule("skyroads.native.image", RUNTIME,
+                   AuthoredRole.NATIVE_STATE, "shared 1 MiB DOS-memory image view"),
+    AuthoredModule("skyroads.native.loop", RUNTIME,
+                   AuthoredRole.GAMEPLAY_REGION, "semantic root of the gameplay region"),
+    AuthoredModule("skyroads.native.render_frame", RUNTIME,
+                   AuthoredRole.RENDERER, "gameplay render pipeline"),
+    AuthoredModule("skyroads.native.render_params", RUNTIME,
+                   AuthoredRole.RENDERER, "gameplay projection parameters"),
+    AuthoredModule("skyroads.native.tile_dispatch", RUNTIME,
+                   AuthoredRole.RENDERER, "gameplay tile dispatch"),
+
+    AuthoredModule("skyroads.native.anim", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT, "animation candidate with focused tests"),
+    AuthoredModule("skyroads.native.boot", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT,
+                   "unselected native boot reconstruction experiment"),
+    AuthoredModule("skyroads.native.exe_image", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT, "unselected EXE-image reconstruction"),
+    AuthoredModule("skyroads.native.level_load", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT,
+                   "verified level loader not selected as a runtime provider"),
+    AuthoredModule("skyroads.native.pcx", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT, "PCX decoder candidate"),
+    AuthoredModule("skyroads.native.sfx", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT, "detached SFX-bank candidate"),
+    AuthoredModule("skyroads.native.state", EVIDENCE,
+                   AuthoredRole.NATIVE_STATE, "detached test-state abstraction"),
+    AuthoredModule("skyroads.native.world_load", EVIDENCE,
+                   AuthoredRole.PARTIAL_PRODUCT, "unselected world/song loader"),
 )
 
 
 def authored_modules(use: AuthoredUse | None = None) -> tuple[AuthoredModule, ...]:
-    """Return the immutable census, optionally filtered by disposition."""
     return tuple(
         item for item in AUTHORED_MODULES if use is None or item.use is use
+    )
+
+
+def runtime_source_paths(repository_root: Path) -> tuple[Path, ...]:
+    """Content-address only authored code reachable in normal execution."""
+    return tuple(
+        repository_root / Path(*item.module.split(".")).with_suffix(".py")
+        for item in authored_modules(AuthoredUse.RUNTIME)
     )

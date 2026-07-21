@@ -9,10 +9,11 @@ The port has one player:
 python scripts/play.py
 ```
 
-The default development composition uses authored faithful candidates plus
-the product-safe frame-parking runtime service. Use `--composition oracle`
-when the original implementation is required; the same stateless semantic
-scheduling seam remains active for replay boundaries.
+The default development composition is the recovered product: the generated
+VMless frontend and level-selection flow surrounding one authored native
+gameplay region. Use `--composition oracle` for the untouched original, or
+`--composition workbench-auto` for the deliberately fragmented per-function
+recovery workbench.
 The window defaults to a desktop-safe 2× scale; use `--scale 3` or resize it
 after launch on a larger display.
 
@@ -28,8 +29,11 @@ python scripts/play.py --profile development --composition workbench-auto
 # differential verification over a ReplayArtifact
 python scripts/play.py --profile verification --composition workbench-auto --play-replay artifacts/replays/replay_name --verify-start 100 --verify-end 180
 
-# generated VMless graph plus selected, already-verified faithful replacements
-python scripts/play.py --profile development --composition faithful-product --no-sound --headless
+# canonical generated-shell/native-gameplay product (also the default)
+python scripts/play.py --profile development --composition faithful-product
+
+# direct launch through the same generated loader and gameplay region
+python scripts/play.py --level 14
 
 # generated CPUless implementation while recovery frontiers remain visible
 python scripts/play.py --profile development --composition generated-detached --headless
@@ -53,13 +57,21 @@ distinct interpreted-CPU and generated-VMless carrier adapters, and the plan
 reports the exact remaining cross-owner boundaries. Selecting a larger owner
 collapses its internal hook edges. In `faithful-product`, the generated menu
 hands `1010:2317` to the long-lived authored `skyroads.gameplay` region; it
-owns successive semantic ticks over shared DOS memory and returns named
-outcomes to generated continuation `1010:20AD`. The pilot currently requires
-`--no-sound` until native SFX are bridged into the shared Sound Blaster state.
+owns successive semantic ticks over shared DOS memory and returns distinct
+completion, crash, resource-expiry, fall, and abort outcomes to their original
+generated continuations. Native SFX cross one explicit external adapter into
+the selected generated `1010:03C2` implementation, retaining its DOS-memory
+and device effects while preserving the region's CPU-independent context.
 The ABI-recovered provider
 will select an authored body only once that body has a separately verified
 CPUless ABI adapter. Frame parking is a product-safe runtime service rather
 than an implementation override. Importing an adapter never installs it.
+
+Normal play enters through the generated level-selection function. `--level N`
+supplies the first confirmed selection at that same stable seam; all generated
+loading and gameplay setup still run normally. The adapter removes itself
+immediately, so completion returns to the original generated selection flow.
+The native region never owns campaign progression and never starts level N+1.
 
 Product features are separate from implementations. For example,
 `--practice-level-position 0x123 --record-replay practice` records an explicit
@@ -69,10 +81,12 @@ replacement failure.
 
 Authored source has two enforced layers. `skyroads.handrecovered` contains
 CPU-independent semantic algorithms; `skyroads.native` contains state-backed
-subsystem assemblies and detached-state experiments. Only catalogued function
-adapters or execution-region contracts are executable. Every other retained
-module is explicitly classified as verification-only evidence or experimental in
-`skyroads.authored_inventory`; none forms a hidden player.
+subsystem assemblies, renderers, carrier-facing views, and detached-state
+experiments. Every module has an explicit role and use classification in
+`skyroads.authored_inventory`. Tests walk imports from selected implementations
+and reject production runtime modules that are silently disconnected. Evidence,
+experiments, and partial products do not become providers merely because a test
+imports them.
 
 The selected `BuildImageBootstrapProvider` declares `state.json`,
 `memory_1mb.bin`, and `manifest.json`, including their packaged paths and the

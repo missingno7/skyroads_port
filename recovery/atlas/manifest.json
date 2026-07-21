@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "index_digest": "c45d5174a4f89349e30cea36e47a866e3b8b914a600e5a8acd9495dd0cbed70c",
+  "index_digest": "a30b08757c0bf02d63f8e4eb7fee6de03172418a4c736dc4e14f2b0cf302a1d2",
   "product_roots": {
     "game": [
       "skyroads:1.0:region:program"
@@ -12,7 +12,7 @@
       "identity": "manual:skyroads-retained-entry-census-v1",
       "kind": "manual",
       "path": "sources/manual-151c5d83bcd3e821abc5.json",
-      "source_digest": "dbcc54414b9a93f8c562b419e15ec798fd478f4028e475cd41e9bb71264aa7fb"
+      "source_digest": "e84643da388567b0ff022e3b8067503809b19e7895fbcff6e54ce37705022421"
     },
     {
       "identity": "replay:032e597d92345dbcd3e1ae0bd039cabf7c139b8ede20092d67935e370ef381bb",

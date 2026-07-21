@@ -165,6 +165,27 @@ class VmlessDriver:
                     # A named exit has restored a generated continuation. Run
                     # that surrounding graph until its next semantic boundary.
                     continue
+                # A ReplayArtifact continuation captured while the authored
+                # region was active contains the stable entry coordinate and
+                # materialized stack scratch, not a Python session object.
+                # Re-enter directly before dispatching the generated resume
+                # hook: that hook starts by re-executing the already-observed
+                # 2317 comparison and would otherwise add one virtual
+                # instruction (and shift timer/device effects) after restore.
+                from skyroads.gameplay_region import maybe_enter_gameplay_region
+                state = getattr(self.rt.cpu, "s", None)
+                if state is not None:
+                    try:
+                        entered = maybe_enter_gameplay_region(
+                            self.rt,
+                            self.rt.cpu,
+                            state.cs,
+                            state.ip,
+                        )
+                    except RegionHandoff:
+                        continue
+                    if entered:
+                        continue
                 try:
                     self.rt.cpu.run(STEP_BUDGET)
                 except RegionHandoff:
@@ -309,6 +330,7 @@ def create_planned_runtime(
                          Path(args.game_root), sound=not args.no_sound,
                          capture_sb=not args.no_sound and not args.headless)
     rt._skyroads_no_sound = bool(args.no_sound)
+    rt._skyroads_direct_level_request = getattr(args, "level", None)
     drv = VmlessDriver(
         rt, crash_root=ROOT / "artifacts" / "crashes", stamp=_stamp())
     rt._skyroads_vmless_driver = drv

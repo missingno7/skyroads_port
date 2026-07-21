@@ -14,7 +14,7 @@ to each selected implementation. It is not a player or whole-game mode.
 | `workbench-auto` | authored faithful candidates, then literal generated functions, then interpreted frontier |
 | `faithful-product` | generated VMless frontend plus faithful leaves and the long-lived authored gameplay region |
 | `generated-detached` | generated CPUless/ABI-recovered whole-program provider |
-| `auto` | `workbench-auto` for development/verification; `generated-detached` for detached/release |
+| `auto` | `faithful-product` for development/verification; `generated-detached` for detached/release |
 
 These names do not create new runtimes. The selected program-root provider
 determines the execution carrier:
@@ -59,8 +59,12 @@ player:
 generated frontend/menu
     -> 1010:2317 / start-level
 authored skyroads.gameplay over the same DOS memory
-    -> level-completed or player-died
-generated 1010:20AD continuation
+    -> level-completed, wall-crash, fuel-expired, or oxygen-expired
+       -> original 1FD9 epilogue contract, generated caller at 1010:2C61
+    -> fell-off-road
+       -> generated 1010:0F05 death transition, then 1010:241E
+    -> gameplay-aborted
+       -> generated caller at 1010:2C61 with AX=7
 ```
 
 The region owns input decoding, gameplay physics, collision, rendering, HUD,
@@ -70,17 +74,17 @@ retains those identities for evidence and navigation, and the plan report
 lists their ordinary bindings as contextually dormant.
 
 Shared DOS memory is authoritative in this first slice. Entry captures only
-the original stack locals that are genuinely session state. Exit synchronizes
-the live timing local and resumes the generated continuation. The same
+the original stack locals that are genuinely session state. Each named exit
+reconstructs the exact continuation required by the original generated
+caller; the authored region does not invent respawn or campaign policy. The same
 `ReplayArtifact` timeline continues across the carrier change because both
 sides yield `skyroads:main-loop-or-input-boundary:v1` points.
 
 Differential verification constructs the generated VMless candidate through
 the same planned-runtime factory as interactive play; it never substitutes an
 interpreted candidate. A profile may deliberately remove optional captured
-devices (the current pilot uses `--no-sound`), in which case its point-zero
-continuation retains CPU, memory, DOS, files, and input state while dropping
-only the absent device state under a distinct cache identity.
+devices with `--no-sound`; that is a distinct replay profile, not a gameplay
+region requirement.
 
 Guest-instruction coordinates remain diagnostics, not portable semantic
 boundaries. An older replay that stops in the middle of an atomic lifted body
@@ -89,11 +93,28 @@ yield for that body before a generated or native provider can verify it. The
 runtime fails on such an impossible mid-body restore instead of enabling
 interpreter fallback.
 
-Native gameplay SFX have not yet been bridged into the shared emulated Sound
-Blaster continuation state. The mixed pilot therefore requires `--no-sound`
-and fails before entry otherwise; it never silently drops or approximates a
-device effect. This is the next external service adapter, not a reason to keep
-an internal gameplay hook seam.
+Native gameplay calls its CPU-independent `on_sfx` port. The region's carrier
+adapter invokes the already-selected generated `1010:03C2` implementation.
+Memory and emulated device effects are retained, while registers, stack,
+virtual instruction count, call depth, and the semantic-boundary observer are
+restored around the call. Sound is therefore a real external seam; it does not
+reintroduce any of the collapsed gameplay hooks.
+
+## Canonical level launch and lifecycle
+
+Normal play leaves the generated frontend and `1010:5180` level-selection
+function untouched. It writes the selected level, generated code loads the
+level and transition assets, and the generated gameplay caller reaches the
+native region at `1010:2317`.
+
+`--level N` is a one-shot launch-input adapter at the same `1010:5180` seam.
+It supplies the authoritative result of one confirmed selection and restores
+the selected generated function before the level starts. It does not load a
+level, create native state, or call gameplay itself. Consequently it reaches
+the same region as an interactive selection, and completion/death/abort all
+return to the generated shell. After a successful level the original caller
+may advance the menu cursor and unlock state, but it waits in level selection;
+the native provider never automatically starts the next level.
 
 ## Evidence and contracts
 
@@ -158,11 +179,14 @@ honestly blocked by named unresolved Atlas transfers.
 ## Authored inventory
 
 `skyroads.handrecovered` contains CPU-independent semantic algorithms.
-`skyroads.native` contains state-backed subsystem assemblies, including the
-catalogued gameplay region. `skyroads.authored_inventory` classifies every module as an
-active runtime override, verification-only evidence, or experiment. Only
-catalog entries selected by the plan execute. Tests that exercise a native
-module do not make it an implicit provider.
+`skyroads.native` contains state-backed subsystem assemblies, renderers,
+carrier views, and detached-state experiments. `skyroads.authored_inventory`
+classifies every module by both use (`runtime`, `evidence`, `experimental`) and
+architectural role (faithful function, gameplay region, renderer, native state,
+carrier adapter, verification, partial product, or obsolete duplicate). The
+layer audit follows imports from selected catalog implementations and rejects
+disconnected modules marked for runtime use. Tests alone never make an
+implicit provider.
 
 The destination is progressive rather than binary: generated coverage can
 make the game EXE-free first; recovered subsystems then replace generated
@@ -172,8 +196,10 @@ hook boundaries collapse until the exported product contains only the game.
 ## Commands
 
 ```text
+python scripts/play.py
+python scripts/play.py --level 14
 python scripts/play.py --composition workbench-auto
-python scripts/play.py --composition faithful-product --no-sound --headless --frames 12
+python scripts/play.py --composition faithful-product --headless --frames 700
 python scripts/play.py --profile development --composition generated-detached --headless --frames 12
 python scripts/play.py --profile release --composition generated-detached --plan-only
 python scripts/build_atlas.py --from-ir

@@ -58,7 +58,7 @@ def test_progress_bar_draw_is_byte_exact_vs_vm() -> None:
     frontend = sp.SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args(["--play-replay", str(REPLAY), "--headless"])
     pb, rt = open_oracle_replay(frontend, args, REPLAY)
-    rt.dos.mouse_present = pb.mouse_present_hint
+    rt.dos.mouse_present = bool(pb.artifact.metadata.get("mouse_present", False))
 
     def vmw(off):
         return rt.cpu.mem.rw(rt.cpu.s.ds, off)

@@ -38,4 +38,5 @@ def execution_point_identity(offset: int) -> str:
 
 
 GAMEPLAY_ENTRY_POINT = execution_point_identity(0x2317)
-GAMEPLAY_RETURN_POINT = execution_point_identity(0x20AD)
+GAMEPLAY_CALLER_CONTINUATION = execution_point_identity(0x2C61)
+GAMEPLAY_FALL_CONTINUATION = execution_point_identity(0x0F05)

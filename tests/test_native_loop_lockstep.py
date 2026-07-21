@@ -25,7 +25,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-REPLAY = ROOT / "artifacts" / "replays" / "replay_skyroads_L1FULL_20260713_212417"
+REPLAY = (
+    ROOT / "artifacts" / "replays"
+    / "replay_candidate_smoke_20260720_214152"
+)
 
 pytestmark = pytest.mark.skipif(
     not (EXE.exists() and REPLAY.exists()),
@@ -62,7 +65,7 @@ def test_native_loop_stays_in_lockstep_with_vm() -> None:
     pb, rt = open_oracle_replay(frontend, args, REPLAY)
     # Replay with the mouse-presence the replay was recorded under (pinned in its
     # metadata), so a replay recorded with the mouse present reproduces faithfully.
-    rt.dos.mouse_present = pb.mouse_present_hint
+    rt.dos.mouse_present = bool(pb.artifact.metadata.get("mouse_present", False))
 
     def _bpw(m, ss, bp, o):
         return m.rw(ss, (bp - o) & 0xFFFF)

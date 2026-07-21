@@ -3,7 +3,7 @@
 Examples::
 
     python scripts/play.py
-    python scripts/play.py --composition workbench-auto
+    python scripts/play.py --level 14
     python scripts/play.py --profile verification --composition workbench-auto --play-replay artifacts/replays/replay_name --verify-start 0 --verify-end 10
     python scripts/play.py --profile development --composition generated-detached --headless
     python scripts/play.py --profile release --composition generated-detached --plan-only
@@ -35,12 +35,18 @@ from dos_re.replay import (  # noqa: E402
     ReplayError,
 )
 from skyroads.identities import PROGRAM_ID  # noqa: E402
+from skyroads.gameplay_region import reset_gameplay_region_for_restore  # noqa: E402
+from skyroads.launch_inputs import (  # noqa: E402
+    install_direct_level_launch,
+    validate_level,
+)
 from skyroads.execution import (  # noqa: E402
     FRAME_PARK_SERVICE_ID,
     catalog,
     configuration,
     coverage,
     features,
+    format_provider_diagnostics,
     PRACTICE_LEVEL_FEATURE_ID,
     selected_whole_program_provider,
     services,
@@ -76,9 +82,15 @@ class SkyroadsFrontend(player.GameFrontend):
                 "faithful-product", "generated-detached",
             ),
             default="auto",
-            help="product composition (auto selects workbench-auto for "
+            help="product composition (auto selects faithful-product for "
                  "development/verification and generated-detached for "
                  "detached/release)",
+        )
+        execution.add_argument(
+            "--level",
+            type=validate_level,
+            help="launch the requested 0..29 level through the selected "
+                 "loader and the canonical gameplay provider",
         )
         execution.add_argument(
             "--practice-level-position",
@@ -99,6 +111,7 @@ class SkyroadsFrontend(player.GameFrontend):
             "audio": args.audio,
             "sound_enabled": not args.no_sound,
             "practice_level_position": args.practice_level_position,
+            "direct_level": args.level,
         })
         return metadata
 
@@ -115,6 +128,9 @@ class SkyroadsFrontend(player.GameFrontend):
         if "practice_level_position" in metadata:
             value = metadata["practice_level_position"]
             args.practice_level_position = None if value is None else int(value)
+        if "direct_level" in metadata:
+            value = metadata["direct_level"]
+            args.level = None if value is None else validate_level(value)
 
     def program_identity(self, args):
         return PROGRAM_ID
@@ -146,15 +162,29 @@ class SkyroadsFrontend(player.GameFrontend):
     def execution_features(self, args):
         return features()
 
+    def format_execution_plan(self, args, plan):
+        report = super().format_execution_plan(args, plan)
+        report += "\n" + format_provider_diagnostics(plan)
+        if args.level is not None:
+            report += f"\ndirect launch level: {args.level}"
+        return report
+
     def bind_execution_plan(self, runtime, plan, *,
                             carrier_id=INTERPRETED_CPU_CARRIER) -> None:
         super().bind_execution_plan(runtime, plan, carrier_id=carrier_id)
+        install_direct_level_launch(
+            runtime, getattr(runtime, "_skyroads_direct_level_request", None),
+        )
         if plan.features and not hasattr(runtime, "_skyroads_feature_state"):
             runtime._skyroads_feature_state = SkyroadsFeatureState(plan.features)
         if FRAME_PARK_SERVICE_ID in {
             service.service_id for service in plan.services
         }:
             install_frame_park(runtime)
+
+    def apply_replay_state(self, runtime, state) -> None:
+        reset_gameplay_region_for_restore(runtime)
+        super().apply_replay_state(runtime, state)
 
     def recording_started(self, rt, args, *, record_event) -> None:
         if args.practice_level_position is None:
@@ -219,13 +249,15 @@ class SkyroadsFrontend(player.GameFrontend):
             DependencyCapability.INTERPRETER,
             consumer=f"{type(self).__name__}.create_runtime",
         )
-        return create_game_runtime(
+        runtime = create_game_runtime(
             args.exe,
             game_root=args.game_root,
             command_tail=args.dos_args,
             enable_sound=not args.no_sound,
             capture_sb_pcm=self._capture_sb(args),
         )
+        runtime._skyroads_direct_level_request = args.level
+        return runtime
 
     def load_snapshot_runtime(self, args, snapshot_dir):
         args.execution_plan.require_capability(
@@ -240,13 +272,15 @@ class SkyroadsFrontend(player.GameFrontend):
             DependencyCapability.INTERPRETER,
             consumer=f"{type(self).__name__}.load_snapshot_runtime",
         )
-        return load_game_snapshot(
+        runtime = load_game_snapshot(
             args.exe,
             snapshot_dir,
             game_root=args.game_root,
             enable_sound=not args.no_sound,
             capture_sb_pcm=self._capture_sb(args),
         )
+        runtime._skyroads_direct_level_request = args.level
+        return runtime
 
     def replay_point_coordinate(
         self,
