@@ -162,3 +162,30 @@ def test_replay_treats_blocking_dos_input_as_resumable_stable_point(
     driver.replay_to(artifact, ReplayPoint(1, timeline))
 
     assert driver.current_point == ReplayPoint(1, timeline)
+
+
+def test_profile_base_can_drop_unselected_optional_devices() -> None:
+    state = ContinuationState(
+        "dos-re-real-mode-continuation-v1",
+        {
+            "cpu": {},
+            "dos": {
+                "pic": {"imr": 0, "irr": 0, "isr": 0},
+                "sound_blaster": {"command": 0},
+                "key_queue": [],
+            },
+        },
+        {"memory": b"machine"},
+        7,
+    )
+    runtime = SimpleNamespace(dos=SimpleNamespace(
+        pic=None, sound_blaster=None,
+    ))
+
+    projected = replay.project_base_to_runtime_devices(runtime, state)
+
+    assert "pic" not in projected.metadata["dos"]
+    assert "sound_blaster" not in projected.metadata["dos"]
+    assert projected.metadata["dos"]["key_queue"] == []
+    assert projected.regions == state.regions
+    assert projected.event_cursor == 7

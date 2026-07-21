@@ -40,7 +40,12 @@ from skyroads.execution import (
     services,
 )
 from skyroads.hooks import CODE_SEG
-from skyroads.identities import IMAGE, PROGRAM_ROOT, function_identity
+from skyroads.identities import (
+    GAMEPLAY_REGION,
+    IMAGE,
+    PROGRAM_ROOT,
+    function_identity,
+)
 from skyroads.pacing import (
     MENU_ANIM_WAIT_IP,
     PACING_SPIN_IP,
@@ -143,6 +148,7 @@ def test_authored_candidate_plan_selects_replacements_explicitly(
         entry.descriptor.implementation_id
         for entry in catalog().entries
         if entry.descriptor.category is OverrideCategory.FAITHFUL
+        and entry.descriptor.region_contract is None
     }
 
 
@@ -178,17 +184,35 @@ def test_faithful_product_composes_selected_faithful_adapters(
     assert plan.report.active_boundaries
     assert plan.report.collapsed_edge_count > 1_000
 
-    faithful_entries = [
+    faithful_functions = [
         entry for entry in catalog().entries
         if entry.descriptor.category is OverrideCategory.FAITHFUL
+        and entry.descriptor.region_contract is None
     ]
     assert all(
         {adapter.carrier_id for adapter in entry.adapters} == {
             INTERPRETED_CPU_CARRIER,
             GENERATED_VMLESS_CARRIER,
         }
-        for entry in faithful_entries
+        for entry in faithful_functions
     )
+    gameplay = next(
+        entry for entry in catalog().entries
+        if entry.descriptor.region_id == GAMEPLAY_REGION
+    )
+    assert gameplay.adapters == ()
+    assert {
+        adapter.host_carrier_id for adapter in gameplay.region_adapters
+    } == {GENERATED_VMLESS_CARRIER}
+    assert plan.regions[0].region_id == GAMEPLAY_REGION
+
+
+def test_faithful_product_is_oracle_verifiable(original_exe) -> None:
+    plan = _plan("verification", "faithful-product")
+
+    assert plan.report.bootstrap_profile_valid
+    assert plan.configuration.verification_policy.oracle_required
+    assert {item.region_id for item in plan.regions} == {GAMEPLAY_REGION}
 
 
 def test_disabling_authored_candidates_falls_back_and_collapses_boundaries(
@@ -308,6 +332,7 @@ def test_authored_catalog_contains_only_complete_semantic_adapter_pairs() -> Non
         next(iter(entry.descriptor.targets)): entry
         for entry in catalog().entries
         if entry.descriptor.origin is ImplementationOrigin.AUTHORED
+        and entry.descriptor.region_contract is None
     }
     assert set(faithful_entries) == {
         function_identity(ip) for ip in FAITHFUL_IPS
@@ -316,6 +341,15 @@ def test_authored_catalog_contains_only_complete_semantic_adapter_pairs() -> Non
         entry.descriptor.category is OverrideCategory.FAITHFUL
         for entry in faithful_entries.values()
     )
+
+    gameplay = next(
+        entry for entry in catalog().entries
+        if entry.descriptor.region_id == GAMEPLAY_REGION
+    )
+    assert gameplay.descriptor.category is OverrideCategory.FAITHFUL
+    assert gameplay.descriptor.region_contract is not None
+    assert gameplay.adapters == ()
+    assert len(gameplay.region_adapters) == 1
 
     for ip, (name, semantic, adapter) in hooks.FAITHFUL_OVERRIDE_ADAPTERS.items():
         entry = faithful_entries[function_identity(ip)]

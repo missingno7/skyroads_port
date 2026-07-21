@@ -49,6 +49,7 @@ from dos_re.interrupts import deliver_interrupt  # noqa: E402
 # lint_independence forbids. runtime_core is loader-free by construction.
 from dos_re.crash import crash_dir, save_crash  # noqa: E402
 from dos_re.runtime_core import enable_sound_blaster  # noqa: E402
+from dos_re.regions import RegionHandoff, ensure_region_dispatcher  # noqa: E402
 
 #: Measured from the oracle: the PIT reload is 6628, so the
 #: timer runs at 1193182/6628 = 180 Hz and the music ISR fires once per IRQ —
@@ -85,6 +86,7 @@ class VmlessDriver:
         self.parks: dict[int, int] = {}      # head_ip -> times parked
         self._in_isr = False
         self._seen: set = set()              # heads passed THIS frame
+        self.last_boundary_kind = ""
         rt.cpu.boundary_hook = self._boundary
 
     def _boundary(self, cpu, head_cs, head_ip, resume_ip):
@@ -116,6 +118,9 @@ class VmlessDriver:
         """
         if self._in_isr:
             return
+        from skyroads.gameplay_region import maybe_enter_gameplay_region
+        if maybe_enter_gameplay_region(self.rt, cpu, head_cs, head_ip):
+            return
         key = (head_cs, head_ip)
         if key not in self._seen:
             self._seen.add(key)              # pass 1: let the body run
@@ -133,17 +138,52 @@ class VmlessDriver:
         each of those has cost a bespoke probe and a replay from frame 0 to get
         back to a machine that was standing right here when it broke.
         """
-        self._seen.clear()       # "re-arrival" is per frame: new tick, new pass
+        # A guest-fallback point is only a diagnostic slice through one
+        # unfinished semantic frame.  Preserve boundary visits across those
+        # slices: otherwise a long body (notably the 434A palette blend) is
+        # mistaken for a fresh first arrival and runs twice before parking.
+        # Completed semantic boundaries start a genuinely new frame.
+        if getattr(
+            self.rt, "_skyroads_replay_boundary_kind", None,
+        ) != "guest-fallback":
+            self._seen.clear()
+        self.last_boundary_kind = ""
         self._in_isr = True
         try:
             for _ in range(self.irqs_per_frame):
                 deliver_interrupt(self.rt, 0x08)
         finally:
             self._in_isr = False
+        dispatcher = ensure_region_dispatcher(self.rt)
         try:
-            self.rt.cpu.run(STEP_BUDGET)
-        except FrameIdle:
-            pass
+            for _handoff_guard in range(8):
+                if dispatcher.active:
+                    progress = dispatcher.advance()
+                    if progress.boundary_id:
+                        self.last_boundary_kind = "frame-park"
+                        break
+                    # A named exit has restored a generated continuation. Run
+                    # that surrounding graph until its next semantic boundary.
+                    continue
+                try:
+                    self.rt.cpu.run(STEP_BUDGET)
+                except RegionHandoff:
+                    continue
+                except FrameIdle:
+                    self.last_boundary_kind = "frame-park"
+                    break
+                except ConsoleInputWouldBlock:
+                    self.last_boundary_kind = "input-block"
+                    break
+                except HaltExecution:
+                    return False
+                else:
+                    self.last_boundary_kind = "guest-fallback"
+                    break
+            else:
+                raise RuntimeError(
+                    "too many execution-region handoffs in one frame"
+                )
         except ConsoleInputWouldBlock:
             # The menu is waiting for a key (INT 21h AH=07h) and there is none.
             # That ends the frame exactly as a tick-wait park does: the DOS layer
@@ -156,13 +196,12 @@ class VmlessDriver:
             # a driver that clears it must handle the block itself. Without both,
             # you get one of the two failures -- a phantom Esc that quits the
             # game, or an unhandled exception at the menu.
-            pass
-        except HaltExecution:
-            return False
+            self.last_boundary_kind = "input-block"
         except BaseException as exc:            # noqa: BLE001 -- then re-raised
             self.crash(exc)
             raise
         self.frames += 1
+        self.rt._skyroads_replay_boundary_kind = self.last_boundary_kind
         return True
 
     def crash(self, exc: BaseException) -> Path:
@@ -240,8 +279,18 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
     return rt, manifest
 
 
-def launch(args, *, bootstrap_artifacts: dict[str, Path], bind_plan=None) -> int:
-    """Launch the selected generated VMless region provider."""
+def create_planned_runtime(
+    args,
+    *,
+    bootstrap_artifacts: dict[str, Path],
+    bind_plan=None,
+):
+    """Build and bind the generated carrier without starting a player loop.
+
+    Interactive launch and differential replay must construct the identical
+    candidate runtime.  Keeping that lifecycle here prevents verification
+    from quietly falling back to the interpreted runtime.
+    """
     # Capture the DMA PCM only for the interactive viewer: it is a
     # determinism-safe observer, but headless must keep the detection-only
     # path so replay replay and the differential stay byte-identical.
@@ -259,15 +308,32 @@ def launch(args, *, bootstrap_artifacts: dict[str, Path], bind_plan=None) -> int
                          ROOT / "skyroads" / "lifted" / "functions",
                          Path(args.game_root), sound=not args.no_sound,
                          capture_sb=not args.no_sound and not args.headless)
+    rt._skyroads_no_sound = bool(args.no_sound)
+    drv = VmlessDriver(
+        rt, crash_root=ROOT / "artifacts" / "crashes", stamp=_stamp())
+    rt._skyroads_vmless_driver = drv
     if bind_plan is not None:
         # The generated graph uses the same CPU-shaped carrier as the
         # interpreter, so plan-selected faithful implementations cross through
         # their declared CPU adapter here.  The graph remains the baseline for
         # every unselected identity; this is composition, not a second runner.
         bind_plan(rt)
+    return rt, manifest
+
+
+def launch(args, *, bootstrap_artifacts: dict[str, Path], bind_plan=None,
+           frontend=None) -> int:
+    """Launch the selected generated VMless region provider."""
+    rt, manifest = create_planned_runtime(
+        args,
+        bootstrap_artifacts=bootstrap_artifacts,
+        bind_plan=bind_plan,
+    )
+    drv = rt._skyroads_vmless_driver
     print(generated_graph_boot_report(manifest))
-    drv = VmlessDriver(
-        rt, crash_root=ROOT / "artifacts" / "crashes", stamp=_stamp())
+    if frontend is not None:
+        from dos_re.player import run_view
+        return run_view(frontend, rt, args)
 
     if args.headless:
         n = args.frames or 400

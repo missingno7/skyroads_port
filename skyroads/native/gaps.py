@@ -28,12 +28,3 @@ class FallDeathTransition(SkyroadsGap):
     lateral threshold while ``game_state == 0``), which in the VM calls the death
     handler `0F05` and exits the frame. The gameplay stepper stops here; the
     death consequence (respawn) is a separate subsystem."""
-
-
-class MovementPhysicsGap(SkyroadsGap):
-    """The rare ``1010:25AC-25D6`` effect path was reached.
-
-    That path calls ``1010:1DFA`` and rewrites ``lateral_accel``. The authored
-    gameplay substep raises here unless its caller explicitly opts into the
-    documented approximation used by the experimental subsystem driver.
-    """

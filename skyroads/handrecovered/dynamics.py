@@ -19,7 +19,8 @@ small `JumpScratch` carried
 across frames, this block matches the real ASM 415/416 over the full E2E replay
 (the one miss is a frame where the rare `25AC-25D6` effect path — a `1DFA`
 call gated by `ds:[4570]`/`bp-6`/`af2c>=0x3700` — separately rewrote
-`lateral_accel`; that path is flagged, not modelled, see `hit_effect_path`).
+`lateral_accel`). The block flags that call so the enclosing substep can apply
+the recovered projected-arc search from `effect_avoidance.py`.
 
 ## Inputs this block still needs from elsewhere (documented gaps)
 
@@ -92,12 +93,10 @@ class JumpScratch(NamedTuple):
 
 class DynamicsResult(NamedTuple):
     bounce: int             # new ds:[9336]
-    lateral_accel: int      # new ds:[4568] (UNRELIABLE if hit_effect_path -- see below)
+    lateral_accel: int      # pre-1DFA ds:[4568] when hit_effect_path is true
     scratch: JumpScratch    # new jump state to carry to next frame
     hit_effect_path: bool   # True iff the 25AC-25D6 (1DFA) effect path fired --
-    #                         that call separately rewrites lateral_accel in ways
-    #                         this block does not model, so treat lateral_accel as
-    #                         unmodelled for this frame.
+    #                         the enclosing substep applies effect_avoidance.
 
 
 def step_jump_steer_gravity(
@@ -132,7 +131,7 @@ def step_jump_steer_gravity(
             jumping = 1
             jump_start_y = af2c & 0xFFFF
 
-    # --- the 25AC-25D6 one-shot effect (a 1DFA call; unmodelled) ---
+    # --- flag the 25AC-25D6 1DFA call for the enclosing semantic substep ---
     hit_effect_path = False
     if effect_gate != 0 and jumping != 0 and effect_latch == 0 and af2c >= 0x3700:
         effect_latch = 1

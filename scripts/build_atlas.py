@@ -26,6 +26,9 @@ from dos_re.atlas import ExecutionAtlas  # noqa: E402
 from dos_re.lift.ir import load_recovery_ir  # noqa: E402
 from skyroads.identities import (  # noqa: E402
     IMAGE,
+    GAMEPLAY_ENTRY_POINT,
+    GAMEPLAY_REGION,
+    GAMEPLAY_RETURN_POINT,
     PROGRAM,
     PROGRAM_ROOT,
     RECOVERY_ENTRY_FUNCTION,
@@ -140,6 +143,27 @@ def _build_atlas() -> ExecutionAtlas:
                 "label": "SkyRoads program",
                 "metadata": {"role": "product-root"},
             },
+            {
+                "id": GAMEPLAY_REGION,
+                "kind": "region",
+                "label": "SkyRoads gameplay execution region",
+                "metadata": {
+                    "role": "replaceable-execution-region",
+                    "state_authority": "shared-dos-memory",
+                },
+            },
+            {
+                "id": GAMEPLAY_ENTRY_POINT,
+                "kind": "execution-point",
+                "label": "1010:2317 gameplay loop entry",
+                "metadata": {"entry": "1010:2317"},
+            },
+            {
+                "id": GAMEPLAY_RETURN_POINT,
+                "kind": "execution-point",
+                "label": "1010:20AD gameplay return continuation",
+                "metadata": {"entry": "1010:20AD"},
+            },
             *manual_hook_nodes,
         ],
         edges=[
@@ -147,6 +171,30 @@ def _build_atlas() -> ExecutionAtlas:
                 "source": PROGRAM_ROOT,
                 "target": RECOVERY_ENTRY_FUNCTION,
                 "kind": "entry",
+                "status": "resolved",
+            },
+            {
+                "source": function_identity(0x1FD9),
+                "target": GAMEPLAY_ENTRY_POINT,
+                "kind": "region-entry",
+                "status": "resolved",
+            },
+            {
+                "source": GAMEPLAY_ENTRY_POINT,
+                "target": GAMEPLAY_REGION,
+                "kind": "handoff",
+                "status": "resolved",
+            },
+            {
+                "source": GAMEPLAY_REGION,
+                "target": GAMEPLAY_RETURN_POINT,
+                "kind": "region-exit",
+                "status": "resolved",
+            },
+            {
+                "source": GAMEPLAY_RETURN_POINT,
+                "target": function_identity(0x1FD9),
+                "kind": "continuation",
                 "status": "resolved",
             },
             *(

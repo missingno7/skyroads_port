@@ -9,12 +9,12 @@ and do not interpret CPU instructions:
 * :class:`NativeGameplayDriver` composes that gameplay subsystem across its
   transition boundaries.
 
-Typed exceptions in :mod:`skyroads.native.gaps` mark unsupported transitions.
-These candidates are not currently registered in ``skyroads.execution`` and
-therefore are not an alternate player or selectable composition. They remain
-focused evidence until a catalog entry assigns stable identities and a
-verification policy. Whole-program coverage and release readiness remain
-properties of the Execution Atlas, catalog, and immutable execution plan.
+Typed exceptions in :mod:`skyroads.native.gaps` mark external gameplay
+transitions. The assembled driver is registered only through the
+``skyroads.gameplay`` execution-region descriptor; importing this module does
+not activate it or form an alternate player. Whole-program coverage and
+release readiness remain properties of the Execution Atlas, catalog, and
+immutable execution plan.
 """
 from __future__ import annotations
 
@@ -26,7 +26,6 @@ from skyroads.native.collision import make_visible, ship_fell_off
 from skyroads.native.gaps import (
     FallDeathTransition,
     LevelEndTransition,
-    MovementPhysicsGap,
 )
 from skyroads.handrecovered.collision_response import (
     af1c_contact_fixup,
@@ -40,6 +39,7 @@ from skyroads.handrecovered.dynamics import (
     gate_bounce_decay,
     step_jump_steer_gravity,
 )
+from skyroads.handrecovered.effect_avoidance import select_avoidance_adjustment
 from skyroads.handrecovered.menu import MenuState, dispatch_menu_action
 from skyroads.handrecovered.movement import resolve_move
 from skyroads.handrecovered.orchestration import should_run_gameplay
@@ -109,8 +109,7 @@ def _sfx_busy(view: GameView) -> bool:
 
 
 def native_gameplay_substep(
-    view: GameView, scratch: GameplayScratch, *, allow_unmodelled_effect: bool = False,
-    sfx=None,
+    view: GameView, scratch: GameplayScratch, *, sfx=None,
 ) -> GameplayScratch:
     """Run ONE gameplay sub-step (`1010:2324-2AE2`) on ``view`` in place, the
     composition of the recovered semantic functions in ASM spine order, and return the
@@ -130,16 +129,9 @@ def native_gameplay_substep(
     ``24BA -> 25AC``) are handled. The out-of-bounds death check (`23CA-2421`)
     is a boundary (raises :class:`~skyroads.native.gaps.FallDeathTransition`).
 
-    The ``1DFA`` effect (`25AC-25D6`, ~0.7% of real sub-steps, only ever seen
-    airborne past ``af2c=0x3700``) rewrites ``lateral_accel`` in a way this
-    module doesn't model -- by default this raises
-    :class:`~skyroads.native.gaps.MovementPhysicsGap` (the fail-loud, verified
-    contract every test in this session relies on). Pass
-    ``allow_unmodelled_effect=True`` to instead CONTINUE using
-    ``step_jump_steer_gravity``'s own (verified, non-effect) ``lateral_accel`` --
-    an explicit, documented approximation for exactly this one rare sub-step,
-    for callers (like :class:`NativeGameplayDriver`) that need to keep running
-    rather than stop on it. Never the default.
+    The ``1DFA`` airborne obstacle-avoidance search (`25AC-25D6`) is recovered
+    as a semantic projected-arc search and candidate selection. It retains no
+    generated or interpreter seam inside this authored sub-step.
     """
     # The frame runs the gameplay sub-step iff the recovered orchestration gate
     # `should_run_gameplay` (1010:229D-22E9) says so -- this is the VM's OWN
@@ -215,10 +207,28 @@ def native_gameplay_substep(
         view.lateral_accel, view.af2c, view.steer, view.jump,
         view.jump_level_gate, view.grounded, view.gravity, view.effect_gate,
         moving=moving)
-    if dyn.hit_effect_path and not allow_unmodelled_effect:
-        raise MovementPhysicsGap(
-            "the 25AC-25D6 effect path fired (a 1DFA call) -- lateral_accel is "
-            "not modelled for this sub-step")
+    if dyn.hit_effect_path:
+        adjustment = select_avoidance_adjustment(
+            rw,
+            lateral=view.lateral,
+            af1c=view.af1c,
+            af2c=view.af2c,
+            ship_pos=view.ship_pos,
+            lateral_accel=dyn.lateral_accel,
+            bounce=view.bounce,
+            gravity=view.gravity,
+            speed=view.speed,
+            center_nudge=view.unknown_5496,
+        )
+        if adjustment is None:
+            pass
+        else:
+            dyn = dyn._replace(lateral_accel=adjustment.lateral_accel)
+            view.ship_pos = adjustment.ship_pos
+            view.unknown_af2e = adjustment.position_delta & 0xFFFF
+            view.unknown_af30 = adjustment.position_delta >> 16
+            if adjustment.mark_effect:
+                view.unknown_455a = 1
     view.bounce = dyn.bounce
     view.lateral_accel = dyn.lateral_accel
     jump = dyn.scratch
@@ -414,8 +424,8 @@ class NativeGameplayDriver:
     (level-complete, wall-crash, timer-expired, fall) instead of surfacing the
     boundary as an exception to the caller.
 
-    Two things are deliberately NOT modelled byte-exact against the VM here
-    (both out-of-scope for gameplay decision-making, not silent gaps):
+    One transition detail is deliberately not modelled byte-exact against the
+    VM here (it is out of scope for gameplay decisions, not a silent gap):
 
     * the post-explosion HOLD's exact multi-frame duration. The settle
       window's EXPLOSION animation (grounded ramps, ``si`` cycles the
@@ -426,10 +436,7 @@ class NativeGameplayDriver:
       after that before the reset -- by default (``auto_respawn=True``) it
       respawns IMMEDIATELY on the boundary; pass ``auto_respawn=False`` for a
       presentation layer that wants to hold the frozen frame first (see
-      ``respawn()``);
-    * the rare ``1DFA`` effect sub-step (~0.7% of real sub-steps) -- handled
-      via :func:`native_gameplay_substep`'s documented
-      ``allow_unmodelled_effect`` fallback rather than stopping the loop.
+      ``respawn()``).
 
     ``jump_level_gate`` (``ds:[4562]``) is a per-level constant. A caller
     supplies it directly or reads it from the selected bootstrap state.
@@ -468,7 +475,7 @@ class NativeGameplayDriver:
             return self.pending
         try:
             self.scratch = native_gameplay_substep(
-                self.view, self.scratch, allow_unmodelled_effect=True,
+                self.view, self.scratch,
                 sfx=self.on_sfx)
             return TickOutcome(False, "", "", self.view.game_state)
         except (LevelEndTransition, FallDeathTransition) as exc:

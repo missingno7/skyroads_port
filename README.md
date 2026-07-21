@@ -29,7 +29,7 @@ python scripts/play.py --profile development --composition workbench-auto
 python scripts/play.py --profile verification --composition workbench-auto --play-replay artifacts/replays/replay_name --verify-start 100 --verify-end 180
 
 # generated VMless graph plus selected, already-verified faithful replacements
-python scripts/play.py --profile development --composition faithful-product --headless
+python scripts/play.py --profile development --composition faithful-product --no-sound --headless
 
 # generated CPUless implementation while recovery frontiers remain visible
 python scripts/play.py --profile development --composition generated-detached --headless
@@ -51,7 +51,12 @@ Generated VMless and CPUless code are baseline providers; authored faithful
 replacements are explicit semantic-plus-adapter pairs. Each authored body has
 distinct interpreted-CPU and generated-VMless carrier adapters, and the plan
 reports the exact remaining cross-owner boundaries. Selecting a larger owner
-collapses its internal hook edges. The ABI-recovered provider
+collapses its internal hook edges. In `faithful-product`, the generated menu
+hands `1010:2317` to the long-lived authored `skyroads.gameplay` region; it
+owns successive semantic ticks over shared DOS memory and returns named
+outcomes to generated continuation `1010:20AD`. The pilot currently requires
+`--no-sound` until native SFX are bridged into the shared Sound Blaster state.
+The ABI-recovered provider
 will select an authored body only once that body has a separately verified
 CPUless ABI adapter. Frame parking is a product-safe runtime service rather
 than an implementation override. Importing an adapter never installs it.
@@ -64,9 +69,9 @@ replacement failure.
 
 Authored source has two enforced layers. `skyroads.handrecovered` contains
 CPU-independent semantic algorithms; `skyroads.native` contains state-backed
-subsystem assemblies and detached-state experiments. Only catalogued
-semantic-plus-adapter pairs are executable. Every other retained module is
-explicitly classified as verification-only evidence or experimental in
+subsystem assemblies and detached-state experiments. Only catalogued function
+adapters or execution-region contracts are executable. Every other retained
+module is explicitly classified as verification-only evidence or experimental in
 `skyroads.authored_inventory`; none forms a hidden player.
 
 The selected `BuildImageBootstrapProvider` declares `state.json`,

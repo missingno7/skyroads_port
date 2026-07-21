@@ -16,6 +16,7 @@ from dos_re.replay import (
 from scripts.play import SkyroadsFrontend
 from skyroads.hooks import CODE_SEG
 from skyroads.pacing import PACING_SPIN_IP, TICK_ADDR
+from skyroads import vmless_backend
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
@@ -161,3 +162,31 @@ def test_interactive_semantic_seek_uses_one_guest_budget() -> None:
         "fallback_reason": "semantic-boundary-not-reached-within-budget",
         "machine_position": {"cs": 0x1010, "ip": 0x43B1},
     }
+
+
+def test_generated_driver_preserves_boundary_phase_across_guest_slice(
+    monkeypatch,
+) -> None:
+    class ParkingCpu:
+        boundary_hook = None
+
+        @staticmethod
+        def run(_budget: int) -> None:
+            raise vmless_backend.FrameIdle
+
+    runtime = SimpleNamespace(
+        cpu=ParkingCpu(),
+        _skyroads_replay_boundary_kind="guest-fallback",
+    )
+    monkeypatch.setattr(vmless_backend, "deliver_interrupt", lambda *_: None)
+    driver = vmless_backend.VmlessDriver(runtime, irqs_per_frame=0)
+    started = (CODE_SEG, 0x434A)
+    driver._seen.add(started)
+
+    assert driver.frame()
+    assert started in driver._seen
+    assert runtime._skyroads_replay_boundary_kind == "frame-park"
+
+    # A completed semantic boundary starts a fresh phase.
+    assert driver.frame()
+    assert started not in driver._seen

@@ -9,9 +9,9 @@ Driving the E2E replay, we seed a NativeGameState + scratch from the VM at each
 game_state==0 sub-step (loop top 2324), run one native sub-step, and compare
 the full gameplay DGROUP back to the VM at the next loop top.
 
-native_gameplay_substep raises a gap on the paths not yet recovered (the 1DFA
-effect frame, game_state != 0); those sub-steps are counted as gaps, not
-failures -- the honest current ceiling. A tiny number of edge cases (a rare
+native_gameplay_substep raises a gap only at external gameplay transitions;
+those sub-steps are counted as boundaries, not failures. A tiny number of
+edge cases (a rare
 [AF2E] landing adjustment) still miss, so the assertion is a high match rate,
 not 100%.
 """

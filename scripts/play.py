@@ -107,7 +107,11 @@ class SkyroadsFrontend(player.GameFrontend):
         if "audio" in metadata:
             args.audio = str(metadata["audio"])
         if "sound_enabled" in metadata:
-            args.no_sound = not bool(metadata["sound_enabled"])
+            # Explicit --no-sound is a stricter execution capability choice
+            # and remains authoritative when replaying a corpus captured with
+            # sound hardware present. The resulting candidate profile is kept
+            # distinct; this never promotes cross-profile evidence as trusted.
+            args.no_sound = args.no_sound or not bool(metadata["sound_enabled"])
         if "practice_level_position" in metadata:
             value = metadata["practice_level_position"]
             args.practice_level_position = None if value is None else int(value)
@@ -183,6 +187,7 @@ class SkyroadsFrontend(player.GameFrontend):
                 bootstrap_artifacts=bootstrap_artifacts,
                 bind_plan=lambda runtime: self.bind_execution_plan(
                     runtime, plan, carrier_id=GENERATED_VMLESS_CARRIER),
+                frontend=self,
             )
         if provider == "baseline:generated-cpuless":
             from skyroads.development_guard import (
@@ -280,6 +285,21 @@ class SkyroadsFrontend(player.GameFrontend):
         return self.semantic_replay_coordinate, value
 
     def _advance_to_semantic_boundary(self, rt, args) -> str:
+        generated_driver = getattr(rt, "_skyroads_vmless_driver", None)
+        if generated_driver is not None:
+            if not generated_driver.frame():
+                from dos_re.cpu import HaltExecution
+                raise HaltExecution
+            kind = generated_driver.last_boundary_kind
+            if kind not in {"frame-park", "input-block", "guest-fallback"}:
+                raise ReplayError(
+                    f"generated provider produced no semantic boundary: {kind!r}"
+                )
+            rt._skyroads_replay_boundary_kind = kind
+            self._apply_product_features(rt)
+            if kind == "input-block":
+                raise ConsoleInputWouldBlock
+            return kind
         for _ in range(max(0, args.timer_irqs_per_frame)):
             deliver_interrupt(rt, 0x08)
         # Interactive play owns presentation pacing, so semantic-boundary
@@ -347,21 +367,44 @@ class SkyroadsFrontend(player.GameFrontend):
         except ConsoleInputWouldBlock:
             actual = "input-block"
         if actual != expected.get("kind"):
+            dispatcher = getattr(rt, "execution_regions", None)
+            active_region = (
+                dispatcher.active_region_id
+                if dispatcher is not None and dispatcher.active else None
+            )
+            bp = int(rt.cpu.s.bp) & 0xFFFF
+            ss = int(rt.cpu.s.ss) & 0xFFFF
+            stack_words = {
+                offset: int(rt.cpu.mem.rw(ss, (bp + offset) & 0xFFFF))
+                for offset in (-12, -10, -8, -6, -4, -2, 4, 6, 8)
+            }
+            generated_driver = getattr(rt, "_skyroads_vmless_driver", None)
+            seen_boundaries = tuple(sorted(
+                getattr(generated_driver, "_seen", ()),
+            ))
             raise ReplayError(
                 f"SkyRoads semantic boundary {frame + 1} differs: "
-                f"expected {expected.get('kind')!r}, got {actual!r}")
+                f"expected {expected.get('kind')!r}, got {actual!r}; "
+                f"machine={int(rt.cpu.s.cs):04X}:{int(rt.cpu.s.ip):04X}, "
+                f"instructions={int(rt.cpu.instruction_count)}, "
+                f"active_region={active_region!r}, "
+                f"seen_boundaries={seen_boundaries!r}, "
+                f"stack_words={stack_words!r}"
+            )
 
     def verification_drivers(self, args, plan, artifact):
         provider = selected_whole_program_provider(plan)
-        if provider not in {"baseline:interpreted-exe"}:
+        if provider not in {
+            "baseline:interpreted-exe", "baseline:generated-vmless",
+        }:
             raise RuntimeError(
                 "ReplayArtifact differential verification currently requires a "
-                "DOS-memory-backed interpreted composition; select "
-                "--composition workbench-auto"
+                "DOS-memory-backed interpreted or generated VMless carrier"
             )
         from skyroads.replay import (
             capture_base,
             capture_profile,
+            project_base_to_runtime_devices,
             SkyroadsReplayDriver,
         )
 
@@ -380,12 +423,22 @@ class SkyroadsFrontend(player.GameFrontend):
             artifact.register_profile(
                 current_oracle_profile,
                 base_point=artifact.cached_points(capture_profile(artifact))[0],
-                base_state=base,
+                base_state=project_base_to_runtime_devices(oracle, base),
             )
         else:
             artifact.require_profile(current_oracle_profile)
-        candidate = self.create_runtime(args)
-        self.bind_execution_plan(candidate, plan)
+        if provider == "baseline:generated-vmless":
+            from skyroads.vmless_backend import create_planned_runtime
+            candidate, _ = create_planned_runtime(
+                args,
+                bootstrap_artifacts=plan.bootstrap_artifact_paths(),
+                bind_plan=lambda runtime: self.bind_execution_plan(
+                    runtime, plan, carrier_id=GENERATED_VMLESS_CARRIER,
+                ),
+            )
+        else:
+            candidate = self.create_runtime(args)
+            self.bind_execution_plan(candidate, plan)
         candidate_profile = self.replay_profile(args, candidate)
         known_profile_ids = {
             profile.profile_id for profile, _ in artifact.profiles()
@@ -394,7 +447,7 @@ class SkyroadsFrontend(player.GameFrontend):
             artifact.register_profile(
                 candidate_profile,
                 base_point=artifact.cached_points(capture_profile(artifact))[0],
-                base_state=base,
+                base_state=project_base_to_runtime_devices(candidate, base),
             )
         else:
             artifact.require_profile(candidate_profile)

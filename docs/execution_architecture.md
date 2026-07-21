@@ -12,7 +12,7 @@ to each selected implementation. It is not a player or whole-game mode.
 |---|---|
 | `oracle` | untouched EXE provider only |
 | `workbench-auto` | authored faithful candidates, then literal generated functions, then interpreted frontier |
-| `faithful-product` | authored faithful candidates over the generated VMless whole-program provider |
+| `faithful-product` | generated VMless frontend plus faithful leaves and the long-lived authored gameplay region |
 | `generated-detached` | generated CPUless/ABI-recovered whole-program provider |
 | `auto` | `workbench-auto` for development/verification; `generated-detached` for detached/release |
 
@@ -38,17 +38,62 @@ collapsed.
 
 The current `workbench-auto` plan is deliberately fragmented because literal
 functions and authored bodies sit inside the interpreted provider. The
-`faithful-product` plan removes the literal-function islands and retains only
-the edges around authored bodies. Turning those bodies off makes the VMless
-provider own the complete known graph and collapses all known implementation
-boundaries. Future authored subsystem providers use the same mechanism: they
-claim evidenced contained targets and only their real entry/exit edges remain.
+`faithful-product` plan removes the literal-function islands, selects the
+long-lived `skyroads.gameplay` provider, and makes its ordinary inner bindings
+dormant while gameplay owns control. Turning authored candidates off makes the
+VMless provider own the complete known graph again.
 
-A provider must honor selected inner bindings. The generated VMless backend
-does so by binding the plan before execution. The current generated CPUless
+A provider must honor selected inner bindings and region handoffs. The
+generated VMless backend does so by binding the plan before execution and
+exposing a generated-carrier region adapter. The current generated CPUless
 provider is selected as one opaque region because its emitted direct-call graph
 does not yet have a verified authored ABI binding surface; authored candidates
 are therefore not falsely advertised for that carrier.
+
+## Native gameplay execution region
+
+The first long-lived region proves the complete control path through the one
+player:
+
+```text
+generated frontend/menu
+    -> 1010:2317 / start-level
+authored skyroads.gameplay over the same DOS memory
+    -> level-completed or player-died
+generated 1010:20AD continuation
+```
+
+The region owns input decoding, gameplay physics, collision, rendering, HUD,
+and transition detection across successive semantic frame boundaries. It does
+not bounce through the historical per-function hooks it covers. The Atlas
+retains those identities for evidence and navigation, and the plan report
+lists their ordinary bindings as contextually dormant.
+
+Shared DOS memory is authoritative in this first slice. Entry captures only
+the original stack locals that are genuinely session state. Exit synchronizes
+the live timing local and resumes the generated continuation. The same
+`ReplayArtifact` timeline continues across the carrier change because both
+sides yield `skyroads:main-loop-or-input-boundary:v1` points.
+
+Differential verification constructs the generated VMless candidate through
+the same planned-runtime factory as interactive play; it never substitutes an
+interpreted candidate. A profile may deliberately remove optional captured
+devices (the current pilot uses `--no-sound`), in which case its point-zero
+continuation retains CPU, memory, DOS, files, and input state while dropping
+only the absent device state under a distinct cache identity.
+
+Guest-instruction coordinates remain diagnostics, not portable semantic
+boundaries. An older replay that stops in the middle of an atomic lifted body
+must be re-recorded with semantic coordinates or gain an explicit resumable
+yield for that body before a generated or native provider can verify it. The
+runtime fails on such an impossible mid-body restore instead of enabling
+interpreter fallback.
+
+Native gameplay SFX have not yet been bridged into the shared emulated Sound
+Blaster continuation state. The mixed pilot therefore requires `--no-sound`
+and fails before entry otherwise; it never silently drops or approximates a
+device effect. This is the next external service adapter, not a reason to keep
+an internal gameplay hook seam.
 
 ## Evidence and contracts
 
@@ -113,8 +158,8 @@ honestly blocked by named unresolved Atlas transfers.
 ## Authored inventory
 
 `skyroads.handrecovered` contains CPU-independent semantic algorithms.
-`skyroads.native` contains state-backed subsystem assemblies and experimental
-larger islands. `skyroads.authored_inventory` classifies every module as an
+`skyroads.native` contains state-backed subsystem assemblies, including the
+catalogued gameplay region. `skyroads.authored_inventory` classifies every module as an
 active runtime override, verification-only evidence, or experiment. Only
 catalog entries selected by the plan execute. Tests that exercise a native
 module do not make it an implicit provider.
@@ -128,7 +173,7 @@ hook boundaries collapse until the exported product contains only the game.
 
 ```text
 python scripts/play.py --composition workbench-auto
-python scripts/play.py --composition faithful-product --headless --frames 12
+python scripts/play.py --composition faithful-product --no-sound --headless --frames 12
 python scripts/play.py --profile development --composition generated-detached --headless --frames 12
 python scripts/play.py --profile release --composition generated-detached --plan-only
 python scripts/build_atlas.py --from-ir

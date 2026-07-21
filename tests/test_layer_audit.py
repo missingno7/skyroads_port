@@ -57,8 +57,10 @@ def test_runtime_authored_modules_are_exactly_the_declared_overrides() -> None:
         item.module
         for item in authored_modules(AuthoredUse.RUNTIME_OVERRIDE)
     }
-    assert runtime_modules == declared
-    assert not any(module.startswith("skyroads.native.") for module in runtime_modules)
+    # Catalog implementations are the semantic roots.  Their explicitly
+    # inventoried runtime dependencies are allowed to be a strict superset.
+    assert runtime_modules <= declared
+    assert "skyroads.native.loop" in runtime_modules
 
 
 def test_semantic_layer_never_depends_on_native_compositions() -> None:

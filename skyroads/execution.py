@@ -20,6 +20,7 @@ from dos_re.execution import (
     DependencyCapability,
     EvidenceGrade,
     ExecutionConfiguration,
+    ExecutionRegionContract,
     ExeBootstrapProvider,
     FeatureCatalog,
     FeatureCategory,
@@ -27,6 +28,7 @@ from dos_re.execution import (
     GENERATED_CPULESS_CARRIER,
     GENERATED_VMLESS_CARRIER,
     INTERPRETED_CPU_CARRIER,
+    DOS_MEMORY_CARRIER,
     ImplementationContract,
     ImplementationCatalog,
     ImplementationDescriptor,
@@ -34,6 +36,10 @@ from dos_re.execution import (
     ImplementationOrigin,
     OverrideCategory,
     RecoveryLevel,
+    RegionAdapter,
+    RegionEntryPoint,
+    RegionExitPoint,
+    RegionStateOwnership,
     RuntimeServiceCatalog,
     RuntimeServiceDescriptor,
     profile_configuration,
@@ -47,12 +53,23 @@ from skyroads.content_identity import (
 )
 from skyroads.identities import (
     CODE_SEG,
+    GAMEPLAY_ENTRY_POINT,
+    GAMEPLAY_REGION,
+    GAMEPLAY_RETURN_POINT,
     IMAGE,
     PROGRAM_ID,
     PROGRAM_ROOT,
     execution_point_identity,
     function_identity,
 )
+from skyroads.gameplay_region import (
+    GAMEPLAY_ENTRY_ID,
+    GAMEPLAY_TICK_BOUNDARY,
+    LEVEL_COMPLETED_EXIT,
+    PLAYER_DIED_EXIT,
+    activate_gameplay_region,
+)
+from skyroads.native.loop import NativeGameplayDriver
 from skyroads.product_features import (
     FEATURE_SAFE_BOUNDARY,
     PRACTICE_FEATURE_CHANNEL,
@@ -69,6 +86,12 @@ _REAL_MODE_ADAPTER_SOURCES = (
     SOURCE_ROOT / "dos_re" / "dos_re" / "hooks.py",
     SOURCE_ROOT / "dos_re" / "dos_re" / "lift" / "runtime.py",
 )
+
+_GAMEPLAY_COVERED_OFFSETS = frozenset({
+    0x04C0, 0x074C, 0x0C98, 0x12F8, 0x1732, 0x186B, 0x1B49,
+    0x1C62, 0x1CCD, 0x1DFA, 0x1FD9, 0x2D1F, 0x3153, 0x3190,
+    0x325B, 0x33FD, 0x34AE, 0x39D4, 0x3A22, 0x5D4C, 0x5D8C, 0x5E5A,
+})
 
 def _hook_tables():
     from skyroads.hooks import (
@@ -242,6 +265,100 @@ def _cpuless_content_digest() -> str:
     ), repository_root=SOURCE_ROOT)
 
 
+def _gameplay_region_entry() -> ImplementationEntry:
+    contract = ExecutionRegionContract(
+        region_id=GAMEPLAY_REGION,
+        carrier_id=DOS_MEMORY_CARRIER,
+        state_ownership=RegionStateOwnership.SHARED_DOS_MEMORY,
+        entries=(RegionEntryPoint(
+            GAMEPLAY_ENTRY_ID, GAMEPLAY_ENTRY_POINT,
+        ),),
+        exits=(
+            RegionExitPoint(LEVEL_COMPLETED_EXIT, GAMEPLAY_RETURN_POINT),
+            RegionExitPoint(PLAYER_DIED_EXIT, GAMEPLAY_RETURN_POINT),
+        ),
+        covered_targets=frozenset(
+            function_identity(offset) for offset in _GAMEPLAY_COVERED_OFFSETS
+        ),
+        replay_boundaries=frozenset({GAMEPLAY_TICK_BOUNDARY}),
+        state_inputs=(
+            "shared DOS memory image",
+            "keyboard state row",
+            "virtual timer ticks",
+            "gameplay stack locals at 1010:2317",
+        ),
+        state_outputs=(
+            "shared DOS gameplay state",
+            "VGA presentation memory",
+            "generated continuation register and stack seed",
+            "named generated continuation",
+        ),
+    )
+    implementation_id = "faithful-region:skyroads.gameplay"
+    implementation_sources = (
+        SOURCE_ROOT / "skyroads" / "gameplay_region.py",
+        *tree_sources(SOURCE_ROOT / "skyroads" / "native"),
+        *tree_sources(SOURCE_ROOT / "skyroads" / "handrecovered"),
+        SOURCE_ROOT / "skyroads" / "bridge" / "dgroup_view.py",
+    )
+    return ImplementationEntry(
+        ImplementationDescriptor(
+            implementation_id=implementation_id,
+            targets=frozenset({
+                GAMEPLAY_REGION,
+                GAMEPLAY_ENTRY_POINT,
+                GAMEPLAY_RETURN_POINT,
+            }),
+            origin=ImplementationOrigin.AUTHORED,
+            category=OverrideCategory.FAITHFUL,
+            recovery_level=RecoveryLevel.AUTHORED_NATIVE,
+            evidence_grade=EvidenceGrade.FOCUSED,
+            verification_evidence=frozenset({
+                "skyroads:focused-oracle:native-gameplay-substep",
+                "skyroads:focused-oracle:native-render-pipeline",
+                "skyroads:replay-lockstep:native-gameplay-loop",
+            }),
+            properties=frozenset({
+                "long-lived-region",
+                "cpuless",
+                "shared-dos-memory",
+                "generated-continuation",
+            }),
+            required_capabilities=frozenset({
+                DependencyCapability.DOS_MEMORY.value,
+                DependencyCapability.DOS_SERVICES.value,
+                DependencyCapability.DOS_RE_RUNTIME.value,
+            }),
+            execution_carrier=DOS_MEMORY_CARRIER,
+            implementation_digest=content_digest(
+                implementation_sources,
+                repository_root=SOURCE_ROOT,
+                records=(("region", GAMEPLAY_REGION),),
+            ),
+            region_id=GAMEPLAY_REGION,
+            region_contract=contract,
+        ),
+        # The catalog points at the backend-independent semantic owner.  The
+        # generated-carrier RegionAdapter constructs the DOS-memory session.
+        implementation=NativeGameplayDriver,
+        region_adapters=(RegionAdapter(
+            f"{implementation_id}/generated-vmless",
+            GENERATED_VMLESS_CARRIER,
+            DOS_MEMORY_CARRIER,
+            activate_gameplay_region,
+            content_digest(
+                (
+                    SOURCE_ROOT / "skyroads" / "gameplay_region.py",
+                    SOURCE_ROOT / "skyroads" / "vmless_backend.py",
+                    SOURCE_ROOT / "dos_re" / "dos_re" / "regions.py",
+                ),
+                repository_root=SOURCE_ROOT,
+                records=(("entry", GAMEPLAY_ENTRY_POINT),),
+            ),
+        ),),
+    )
+
+
 def _file_digest(path: Path) -> str:
     return sha256(path.read_bytes()).hexdigest() if path.is_file() else ""
 
@@ -311,6 +428,7 @@ def catalog() -> ImplementationCatalog:
         category=OverrideCategory.FAITHFUL,
         prefix="faithful",
     ))
+    entries.append(_gameplay_region_entry())
     return ImplementationCatalog(tuple(entries))
 
 
@@ -466,7 +584,11 @@ def bootstrap_provider(composition: str):
             DependencyCapability.DOS_MEMORY.value,
             DependencyCapability.DOS_SERVICES.value,
         }),
-        valid_profiles=frozenset({"development", "detached", "release"}),
+        # Differential verification boots the candidate from this immutable
+        # image while its separately constructed oracle side boots from EXE.
+        valid_profiles=frozenset({
+            "development", "verification", "detached", "release",
+        }),
         provider_digest=provider_digest,
     )
 

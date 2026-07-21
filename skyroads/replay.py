@@ -6,6 +6,7 @@ to the SkyRoads frame boundary.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 
 from dos_re.dos import ConsoleInputWouldBlock
@@ -42,6 +43,46 @@ def capture_base(artifact: ReplayArtifact) -> ContinuationState:
     profile = capture_profile(artifact)
     base = artifact.cached_points(profile)[0]
     return artifact.restore(profile, base)
+
+
+def project_base_to_runtime_devices(
+    runtime,
+    state: ContinuationState,
+) -> ContinuationState:
+    """Remove optional captured devices absent from a selected profile.
+
+    A replay's input timeline is immutable, but a candidate may deliberately
+    select a stricter device topology such as ``--no-sound``.  Its profile
+    needs the same CPU, memory, DOS, file, and input state at point zero while
+    omitting devices that do not exist in that runtime.  Adding a device whose
+    initial state was never recorded remains unsafe and fails explicitly.
+    """
+    state = state.normalized()
+    metadata = deepcopy(dict(state.metadata))
+    dos_state = metadata.get("dos")
+    if not isinstance(dos_state, dict):
+        raise ValueError("SkyRoads replay base has no DOS continuation state")
+    for state_key, runtime_attribute in (
+        ("pic", "pic"),
+        ("sound_blaster", "sound_blaster"),
+    ):
+        runtime_has_device = getattr(
+            runtime.dos, runtime_attribute, None,
+        ) is not None
+        state_has_device = dos_state.get(state_key) is not None
+        if runtime_has_device and not state_has_device:
+            raise ValueError(
+                f"cannot add {state_key} to a replay base that did not "
+                "capture its deterministic state"
+            )
+        if not runtime_has_device:
+            dos_state.pop(state_key, None)
+    return ContinuationState(
+        schema_id=state.schema_id,
+        metadata=metadata,
+        regions=state.regions,
+        event_cursor=state.event_cursor,
+    ).normalized()
 
 
 def replay_artifacts(directory: str | Path) -> tuple[ReplayArtifact, ...]:

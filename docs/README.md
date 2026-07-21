@@ -3,8 +3,8 @@
 Current architecture:
 
 - [Execution architecture](execution_architecture.md) — the one source-tree
-  player, thin closed-world release launcher, composition catalog, profiles,
-  override policy, coverage and release rules.
+  player, execution-region handoff, composition catalog, profiles, override
+  policy, coverage and release rules.
 - [Replay verification](replay_verification.md) — authoritative
   `ReplayArtifact` recording and interval verification.
 - [Execution Atlas](execution_atlas.md) — retained static and oracle replay

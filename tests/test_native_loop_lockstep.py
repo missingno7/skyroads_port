@@ -12,7 +12,7 @@ The strong claim is that the native loop stays byte-identical to the VM for long
 accumulated stretches (whole levels -- 50-120+ steps) and ends runs cleanly:
 almost every run ends because the stepper detected a boundary it doesn't own and
 RAISED a typed gap (LevelEndTransition when game_state leaves the in-level set
-{0,3}; FallDeathTransition on a fall; or the 1DFA-effect gap), not a silent
+{0,3}; or FallDeathTransition on a fall), not a silent
 field divergence. A small residual of runs end on an un-modelled respawn/level-
 load transition (game_state 3 -> respawn, the transition subsystem is not
 recovered) -- those are bounded and documented, not general drift.
