@@ -35,7 +35,7 @@ Rebuild normalized sources and indexes from committed evidence:
 ```text
 python scripts/build_atlas.py --from-ir
 python dos_re/tools/atlas.py validate recovery/atlas --json
-python dos_re/tools/atlas.py coverage recovery/atlas game/play --json
+python dos_re/tools/atlas.py coverage recovery/atlas game --json
 python dos_re/tools/atlas.py unresolved recovery/atlas --json
 ```
 

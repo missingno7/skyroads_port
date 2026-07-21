@@ -43,7 +43,7 @@ def _destination(relative: str) -> str:
 def export_factory():
     """Return the package-ready plan and exact import/data closure."""
     plan = plan_execution(
-        configuration("release", "generated-abi"), coverage(), catalog())
+        configuration("release", "generated-detached"), coverage(), catalog())
     files = [
         ExportFile(ROOT / relative, _destination(relative))
         for relative in _payload_paths()

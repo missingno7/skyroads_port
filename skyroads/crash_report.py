@@ -28,7 +28,7 @@ def write_crash_bundle(out_root, exc: BaseException, *, mem, dos, frame: int,
         boundary_head=(f"{head[0]:04X}:{head[1]:04X}" if head else None),
         video_mode=getattr(dos, "video_mode", None),
         reproduce=[
-            "python scripts/play.py --profile detached --composition generated-abi "
+            "python scripts/play.py --profile detached --composition generated-detached "
             "--headless",
         ],
         **(extra or {}))

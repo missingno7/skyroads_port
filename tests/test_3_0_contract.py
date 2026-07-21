@@ -73,11 +73,9 @@ def test_single_player_exposes_region_compositions_not_recovery_modes() -> None:
     assert set(action.choices) == {
         "auto",
         "oracle",
-        "generated-functions",
-        "authored-candidates",
-        "play",
-        "generated-cpu",
-        "generated-abi",
+        "workbench-auto",
+        "faithful-product",
+        "generated-detached",
     }
     assert "vmless" not in action.choices
     assert "cpuless" not in action.choices

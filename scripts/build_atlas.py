@@ -39,11 +39,7 @@ from skyroads.pacing import (  # noqa: E402
 RECOVERY = ROOT / "recovery"
 IR = RECOVERY / "recovery_ir.json"
 ATLAS = RECOVERY / "atlas"
-PRODUCT_PROFILES = (
-    "game/oracle", "game/generated-functions", "game/authored-candidates",
-    "game/play",
-    "game/generated-cpu", "game/generated-abi",
-)
+PRODUCT_PROFILES = ("game",)
 
 
 def _entry_census() -> tuple[str, ...]:
@@ -207,7 +203,7 @@ def main(argv=None) -> int:
     elif not IR.exists():
         parser.error(f"retained Recovery IR is missing: {IR}")
     atlas = _build_atlas()
-    coverage = atlas.coverage_for("game/play")
+    coverage = atlas.coverage_for("game")
     print(
         f"SkyRoads Atlas {atlas.identity_digest}: "
         f"{len(atlas.nodes(kind='function'))} functions, "

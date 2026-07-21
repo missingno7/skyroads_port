@@ -136,7 +136,7 @@ def test_generated_abi_corpus_regenerates_lints_and_boots():
         #    frames (timer IRQs delivered through the recovered INT 08h ISR).
         play = _run(
             "scripts/play.py", "--profile", "development", "--composition",
-            "generated-abi", "--headless", "--frames", "12",
+            "generated-detached", "--headless", "--frames", "12",
                     timeout=600)
         assert play.returncode == 0, (play.stdout + play.stderr)[-2000:]
         assert "REACHED FIRST FRAME BOUNDARY" in play.stdout

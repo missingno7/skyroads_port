@@ -8,7 +8,7 @@ Artifact persistence, timing and reproduction boundaries belong exclusively to
 Record with whichever development composition is responsive enough to play:
 
 ```text
-python scripts/play.py --composition generated-functions --record-replay smoke
+python scripts/play.py --composition workbench-auto --record-replay smoke
 ```
 
 New recordings primarily stop at SkyRoads' own blocked main-loop wait or
@@ -33,7 +33,7 @@ provisional evidence, not an oracle claim. Validate its complete deterministic
 input stream against the untouched oracle before treating it as trusted:
 
 ```text
-python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_smoke_TIMESTAMP --verify-start 0 --verify-end END
+python scripts/play.py --profile verification --composition workbench-auto --play-replay artifacts/replays/replay_smoke_TIMESTAMP --verify-start 0 --verify-end END
 ```
 
 The default checkpointed verifier rolls the exact complete canonical state of
@@ -42,7 +42,7 @@ replays only the failed chunk point by point. To include ordered interrupt,
 input, presentation, OPL/audio, console, and other canonical external effects:
 
 ```text
-python scripts/play.py --profile verification --composition generated-functions --play-replay REPLAY --verify-start 0 --verify-end END --verify-observables
+python scripts/play.py --profile verification --composition workbench-auto --play-replay REPLAY --verify-start 0 --verify-end END --verify-observables
 ```
 
 SkyRoads keeps that stronger observer explicit because its instrumentation is
@@ -107,7 +107,7 @@ and every later divergence becomes a permanent focused regression.
 Verify the current literal generated candidates over an exact interval:
 
 ```text
-python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_smoke_TIMESTAMP --verify-start 100 --verify-end 180
+python scripts/play.py --profile verification --composition workbench-auto --play-replay artifacts/replays/replay_smoke_TIMESTAMP --verify-start 100 --verify-end 180
 ```
 
 The dos_re player restores the nearest valid boundary, lazily caches the exact

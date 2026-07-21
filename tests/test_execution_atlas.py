@@ -58,7 +58,7 @@ def test_committed_atlas_combines_retained_ir_and_real_oracle_replay():
 
 def test_atlas_is_the_planner_coverage_authority():
     atlas = coverage()
-    product = atlas.coverage_for("game/play")
+    product = atlas.coverage_for("game")
 
     assert product.roots == (PROGRAM_ROOT,)
     assert function_identity(0x61F3) in product.reachable
@@ -66,6 +66,7 @@ def test_atlas_is_the_planner_coverage_authority():
     assert execution_point_identity(0x434A) in product.reachable
     assert execution_point_identity(0x47CD) in product.reachable
     assert product.unresolved_edges
+    assert len(product.edges) > 1_000
     assert product.evidence_identity == atlas.identity_digest
 
     implementation_view = atlas.implementation_view(catalog())

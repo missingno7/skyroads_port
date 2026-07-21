@@ -298,7 +298,7 @@ def build() -> int:
         f"(closed for these inputs: {manifest['observed_generation_closed']})")
     print(f"[generated-abi] wrote {MANIFEST.relative_to(ROOT)}")
     print("[generated-abi]   play:   python scripts/play.py --profile development "
-          "--composition generated-abi --headless")
+          "--composition generated-detached --headless")
     print("[generated-abi]   purity: python tools/lint_cpuless.py")
     return 0
 

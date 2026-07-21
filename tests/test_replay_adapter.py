@@ -38,7 +38,7 @@ def test_capture_base_discovery_uses_replayartifact(tmp_path):
         events=(),
         metadata={
             "recording_profile_id": profile.profile_id,
-            "capture_composition": "authored-candidates",
+            "capture_composition": "workbench-auto",
         },
     )
     base = ContinuationState(
