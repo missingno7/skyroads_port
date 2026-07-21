@@ -224,7 +224,13 @@ class SkyroadsFrontend(player.GameFrontend):
         executable_ranges = ()
         executable_image = None
         manifest_path = BOOT_DIR / "manifest.json"
-        if requested_profile.role == "oracle" and manifest_path.is_file():
+        requested_carrier = selected_whole_program_provider(
+            args.execution_plan
+        )
+        if (
+            requested_carrier == "baseline:interpreted-exe"
+            and manifest_path.is_file()
+        ):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             poison = manifest.get("poison", {})
             ranges = tuple(
@@ -561,9 +567,33 @@ class SkyroadsFrontend(player.GameFrontend):
         from skyroads.replay import (
             capture_base,
             capture_profile,
-            project_base_to_runtime_devices,
             SkyroadsReplayDriver,
         )
+
+        source_profile = capture_profile(artifact)
+        source_base = capture_base(artifact)
+        base_point = artifact.cached_points(source_profile)[0]
+
+        def ensure_profile_base(runtime, profile_args, profile):
+            known = {
+                item.profile_id: item for item, _ in artifact.profiles()
+            }
+            if profile.profile_id in known:
+                artifact.require_profile(profile)
+                return
+            materialized = self.materialize_replay_profile_base(
+                profile_args,
+                runtime,
+                artifact,
+                source_profile=source_profile,
+                requested_profile=profile,
+                source_state=source_base,
+            )
+            artifact.register_profile(
+                profile,
+                base_point=base_point,
+                base_state=materialized,
+            )
 
         oracle_args = copy(args)
         oracle_args.profile = "development"
@@ -572,51 +602,7 @@ class SkyroadsFrontend(player.GameFrontend):
         oracle = self.create_runtime(oracle_args)
         self.bind_execution_plan(oracle, oracle_args.execution_plan)
         current_oracle_profile = self.replay_profile(oracle_args, oracle)
-        base = capture_base(artifact)
-        if provider == "baseline:generated-vmless":
-            manifest_path = plan.bootstrap_artifact_paths().get(
-                "skyroads-boot-manifest"
-            )
-            if manifest_path is None:
-                raise RuntimeError(
-                    "generated replay verification has no boot-image manifest"
-                )
-            manifest = json.loads(
-                manifest_path.read_text(encoding="utf-8")
-            )
-            poison = manifest.get("poison", {})
-            ranges = tuple(
-                (int(start), int(length))
-                for start, length in poison.get("ranges", ())
-            )
-            captured_memory = base.regions["memory"]
-            capture_is_poisoned = bool(
-                poison.get("enabled")
-                and ranges
-                and all(
-                    not any(captured_memory[start:start + length])
-                    for start, length in ranges
-                )
-            )
-            if capture_is_poisoned:
-                base = project_base_to_runtime_devices(
-                    oracle,
-                    base,
-                    executable_ranges=ranges,
-                    executable_image=build_program_image(args.exe, 0x1010),
-                    executable_base=0x10100,
-                )
-        known_profiles = {
-            profile.profile_id: profile for profile, _ in artifact.profiles()
-        }
-        if current_oracle_profile.profile_id not in known_profiles:
-            artifact.register_profile(
-                current_oracle_profile,
-                base_point=artifact.cached_points(capture_profile(artifact))[0],
-                base_state=project_base_to_runtime_devices(oracle, base),
-            )
-        else:
-            artifact.require_profile(current_oracle_profile)
+        ensure_profile_base(oracle, oracle_args, current_oracle_profile)
         if provider == "baseline:generated-vmless":
             from skyroads.vmless_backend import create_planned_runtime
             candidate, _ = create_planned_runtime(
@@ -630,17 +616,7 @@ class SkyroadsFrontend(player.GameFrontend):
             candidate = self.create_runtime(args)
             self.bind_execution_plan(candidate, plan)
         candidate_profile = self.replay_profile(args, candidate)
-        known_profile_ids = {
-            profile.profile_id for profile, _ in artifact.profiles()
-        }
-        if candidate_profile.profile_id not in known_profile_ids:
-            artifact.register_profile(
-                candidate_profile,
-                base_point=artifact.cached_points(capture_profile(artifact))[0],
-                base_state=project_base_to_runtime_devices(candidate, base),
-            )
-        else:
-            artifact.require_profile(candidate_profile)
+        ensure_profile_base(candidate, args, candidate_profile)
         return (
             SkyroadsReplayDriver(
                 self, args, oracle, artifact,
