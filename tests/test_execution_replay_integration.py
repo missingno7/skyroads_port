@@ -282,6 +282,38 @@ def test_semantic_frame_park_is_stable_across_oracle_and_generated(tmp_path):
     )
     assert checked.equivalent, checked.comparison.differences
 
+    # Negative proof: the same end-to-end verifier must reject an intentional
+    # authoritative game-state error at the exact first semantic transition.
+    oracle, candidate = frontend.verification_drivers(
+        verify_args, plan, artifact)
+    replay_correctly = candidate.replay_to
+
+    def replay_with_wrong_ship_position(current_artifact, target):
+        replay_correctly(current_artifact, target)
+        if target.ordinal:
+            state = candidate.runtime.cpu.s
+            memory = candidate.runtime.cpu.mem
+            low = memory.rw(state.ds, 0x54AC)
+            memory.ww(state.ds, 0x54AC, (low + 1) & 0xFFFF)
+
+    candidate.replay_to = replay_with_wrong_ship_position
+    rejected = verify_checkpointed(
+        artifact, oracle, candidate,
+        ReplayPoint(0, artifact.timeline_id),
+        ReplayPoint(1, artifact.timeline_id),
+        checkpoint_span=64,
+        observable_effects=True,
+    )
+    assert not rejected.equivalent
+    assert rejected.failed_interval == (
+        ReplayPoint(0, artifact.timeline_id),
+        ReplayPoint(1, artifact.timeline_id),
+    )
+    assert any(
+        "gameplay.ship_pos" in difference
+        for difference in rejected.comparison.differences
+    ), rejected.comparison.differences
+
 
 def test_interactive_semantic_seek_uses_one_guest_budget() -> None:
     class CountingCpu:

@@ -30,7 +30,114 @@ from dos_re.snapshot import (
     runtime_machine_projection_digest,
 )
 
-PROJECTION_SCHEMA = "dos-re-complete-machine-v1"
+PROJECTION_SCHEMA = "skyroads-authoritative-semantic-v1"
+
+_GAMEPLAY_FIELDS = (
+    "speed", "bounce", "game_state", "entered", "gravity", "jump",
+    "jump_level_gate", "steer", "lateral_accel", "af1c", "af2c",
+    "timer_a", "timer_b", "timer_a_param", "timer_b_param",
+    "effect_gate", "f41c0", "unknown_5496", "frame_ctr",
+    "unknown_455a", "unknown_af2e", "unknown_af30", "unknown_af38",
+    "elapsed_ticks", "ship_pos", "lateral",
+)
+
+
+_SEMANTIC_FRAME_HEADS = frozenset({
+    (0x1010, 0x0EF8), (0x1010, 0x22F8), (0x1010, 0x434A),
+    (0x1010, 0x4468), (0x1010, 0x47CD), (0x1010, 0x4866),
+})
+
+
+def _semantic_boundary_identity(runtime) -> str:
+    declared = getattr(runtime, "_skyroads_replay_boundary_identity", None)
+    if declared:
+        return str(declared)
+    state = runtime.cpu.s
+    point = (int(state.cs), int(state.ip))
+    if point in _SEMANTIC_FRAME_HEADS:
+        return f"{point[0]:04X}:{point[1]:04X}"
+    return f"machine:{point[0]:04X}:{point[1]:04X}"
+
+
+def _semantic_projection(
+    runtime, *, event_cursor: int,
+) -> CanonicalState:
+    """Project a SkyRoads event seam without exposing carrier scratch state.
+
+    CPU registers, instruction counters, VGA programming strategy and the
+    generated/native carrier's private use of original stack scratch are
+    implementation details at semantic frame and input boundaries. The
+    recovered named game state, consumed input, deterministic interrupt/audio
+    state and presented VGA result are authoritative at this seam.
+    """
+    from skyroads.bridge.dgroup_view import GameView
+
+    cpu = runtime.cpu
+    view = GameView(cpu.mem.data, base=(cpu.s.ds & 0xFFFF) << 4)
+    dos = runtime.dos
+    pic = getattr(dos, "pic", None)
+    sound_blaster = getattr(dos, "sound_blaster", None)
+    fields = {
+        "boundary": _semantic_boundary_identity(runtime),
+        "gameplay": {
+            name: int(getattr(view, name)) for name in _GAMEPLAY_FIELDS
+        },
+        "input": {
+            "keys": [
+                int(cpu.mem.rb(cpu.s.ds, offset))
+                for offset in range(0x0BD2, 0x0BE0)
+            ],
+            "current_scancode": int(dos.current_scancode),
+            "mouse": [
+                bool(dos.mouse_present), int(dos.mouse_x), int(dos.mouse_y),
+                int(dos.mouse_buttons),
+            ],
+        },
+        "devices": {
+            "pic": None if pic is None else {
+                "imr": int(pic.imr), "irr": int(pic.irr), "isr": int(pic.isr),
+            },
+            "sound_blaster": (
+                None if sound_blaster is None
+                else sound_blaster.snapshot_state()
+            ),
+            "opl_registers": {
+                str(key): int(value)
+                for key, value in sorted(dos.opl_registers.items())
+            },
+        },
+        "presentation": {
+            "video_mode": int(dos.video_mode),
+            "palette": [
+                [int(component) for component in color]
+                for color in dos.vga_palette
+            ],
+        },
+    }
+    return CanonicalState(
+        PROJECTION_SCHEMA,
+        int(event_cursor),
+        fields,
+        # SkyRoads gameplay uses linear VGA mode 13h. The aperture plus DAC
+        # palette is the presentation result; comparing it avoids requiring
+        # numpy or making native rendering imitate VGA register write order.
+        {"vga-aperture": bytes(cpu.mem.data[0xA0000:0xB0000])},
+    ).normalized()
+
+
+def _at_semantic_boundary(runtime) -> bool:
+    dispatcher = getattr(runtime, "execution_regions", None)
+    if dispatcher is not None and dispatcher.active_region_id == \
+            "skyroads:1.0:region:gameplay":
+        return True
+    kind = getattr(runtime, "_skyroads_replay_boundary_kind", None)
+    if kind in {"frame-park", "input-block"}:
+        return True
+    cpu = getattr(runtime, "cpu", None)
+    if cpu is None:
+        return False
+    state = cpu.s
+    return (int(state.cs), int(state.ip)) in _SEMANTIC_FRAME_HEADS
 
 
 def capture_profile(artifact: ReplayArtifact) -> ReplayExecutionIdentity:
@@ -86,6 +193,22 @@ def project_base_to_runtime_devices(
             )
         if not runtime_has_device:
             dos_state.pop(state_key, None)
+    sound_blaster = getattr(runtime.dos, "sound_blaster", None)
+    sb_state = dos_state.get("sound_blaster")
+    if sound_blaster is not None and isinstance(sb_state, dict):
+        for field in ("base", "irq", "dma"):
+            if field in sb_state and int(sb_state[field]) != int(
+                getattr(sound_blaster, field)
+            ):
+                raise ValueError(
+                    f"cannot project replay Sound Blaster {field}: "
+                    f"state={int(sb_state[field])}, "
+                    f"runtime={int(getattr(sound_blaster, field))}"
+                )
+        # Capture versus detection-only is part of the requested profile's
+        # device identity.  A profile-local base records that selection
+        # explicitly; it is never restored as the capture profile's cache.
+        sb_state["detection_only"] = bool(sound_blaster.detection_only)
     regions = dict(state.regions)
     if executable_ranges:
         if executable_image is None:
@@ -245,11 +368,16 @@ class SkyroadsReplayDriver:
             self._point = ReplayPoint(ordinal + 1, artifact.timeline_id)
 
     def project(self) -> CanonicalState:
+        if _at_semantic_boundary(self.runtime):
+            return _semantic_projection(
+                self.runtime,
+                event_cursor=self.input.event_cursor,
+            )
         return machine_projection(self.capture(), schema_id=PROJECTION_SCHEMA)
 
     def point_digest(self) -> str:
+        if _at_semantic_boundary(self.runtime):
+            return self.project().digest
         return runtime_machine_projection_digest(
-            self.runtime,
-            event_cursor=self.input.event_cursor,
-            projection_schema=PROJECTION_SCHEMA,
-        )
+            self.runtime, event_cursor=self.input.event_cursor,
+            projection_schema=PROJECTION_SCHEMA)

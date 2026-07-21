@@ -163,7 +163,7 @@ def test_region_batches_body_until_the_original_local_tick_catches_up(
     assert _stack_tick(cpu) == 2
     assert cpu.mem.rw(cpu.s.ss, cpu.s.bp - 4) == 2
 
-    # The original 22FB wait does not run another body until virtual time
+    # The original 22F8 pre-comparison wait does not run another body until virtual time
     # changes, then catches up all missed ticks in one displayed frame.
     assert session.advance().boundary_id == GAMEPLAY_TICK_BOUNDARY
     assert calls == [0, 1]

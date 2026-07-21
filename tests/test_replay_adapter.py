@@ -191,6 +191,34 @@ def test_profile_base_can_drop_unselected_optional_devices() -> None:
     assert projected.event_cursor == 7
 
 
+def test_profile_base_declares_the_requested_sound_blaster_mode() -> None:
+    state = ContinuationState(
+        "dos-re-real-mode-continuation-v1",
+        {
+            "cpu": {},
+            "dos": {
+                "pic": {"imr": 0, "irr": 0, "isr": 0},
+                "sound_blaster": {
+                    "base": 0x220, "irq": 7, "dma": 1,
+                    "detection_only": False,
+                },
+            },
+        },
+        {"memory": b"machine"},
+        0,
+    )
+    runtime = SimpleNamespace(dos=SimpleNamespace(
+        pic=object(),
+        sound_blaster=SimpleNamespace(
+            base=0x220, irq=7, dma=1, detection_only=True,
+        ),
+    ))
+
+    projected = replay.project_base_to_runtime_devices(runtime, state)
+
+    assert projected.metadata["dos"]["sound_blaster"]["detection_only"] is True
+
+
 def test_oracle_projection_restores_only_declared_poisoned_code() -> None:
     state = ContinuationState(
         "dos-re-real-mode-continuation-v1",

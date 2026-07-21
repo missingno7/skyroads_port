@@ -163,9 +163,9 @@ def _build_atlas() -> ExecutionAtlas:
             {
                 "id": GAMEPLAY_RESUME_POINT,
                 "kind": "execution-point",
-                "label": "1010:22FB gameplay frame-resume boundary",
+                "label": "1010:22F8 gameplay frame-resume boundary",
                 "metadata": {
-                    "entry": "1010:22FB",
+                    "entry": "1010:22F8",
                     "phase": "awaiting-virtual-time",
                 },
             },

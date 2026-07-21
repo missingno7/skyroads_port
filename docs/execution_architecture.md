@@ -59,7 +59,7 @@ player:
 generated frontend/menu
     -> 1010:2317 / body-ready
 authored skyroads.gameplay over the same DOS memory
-    -> 1010:22FB / resume-frame after each rendered frame
+    -> 1010:22F8 / resume-frame after each rendered frame
     -> gameplay-result
        -> original 1FD9 epilogue, raw DS:[456E], generated 1010:2C61
     -> road-departure-transition
@@ -74,7 +74,7 @@ boundaries. Oracle replay evidence shows 878 points with one gameplay body and
 219 with two: one host frame is not one body. The region increments the
 original `SS:[BP-2]` local and batches `2324-2AF8` until it catches
 `DS:[1600]`, then applies the original escape and continuation gate, renders,
-and parks at `1010:22FB`. It does
+and parks at `1010:22F8`. It does
 not bounce through the historical per-function hooks it covers. The Atlas
 retains those identities for evidence and navigation, and the plan report
 lists their ordinary bindings as contextually dormant.
@@ -86,13 +86,29 @@ caller. In particular, the region does not rewrite `game_state == 2` to zero
 or classify raw inner results as completion/death policy; generated `2B3D` and
 `01B8` retain that ownership. The same `ReplayArtifact` timeline continues
 across the carrier change because gameplay yields
-`skyroads:gameplay-frame-park:v1` points.
+stable `1010:22F8` execution-point identities.
 
 Differential verification constructs the generated VMless candidate through
 the same planned-runtime factory as interactive play; it never substitutes an
 interpreted candidate. A profile may deliberately remove optional captured
 devices with `--no-sound`; that is a distinct replay profile, not a gameplay
 region requirement.
+
+The replay's normalized input stream and semantic coordinates are portable.
+The capture composition's continuation is not. Playback constructs the
+requested composition first, restores an exact profile-local base when one
+exists, or explicitly projects a new one from point zero. Generated poison
+ranges are restored only for an oracle base, and optional-device mode is
+declared in the new base before strict snapshot restore. The player reports
+both profile and device identities and why a capture cache was rejected.
+
+At SkyRoads semantic frame/input seams, canonical verification compares named
+authoritative game state, consumed input, interrupt/audio state, VGA aperture
+and palette. It deliberately excludes guest instruction count, volatile CPU
+scratch, and VGA programming order while a generated or native region owns
+the interval. Strict machine continuation remains profile-local and is still
+required for restoration. This lets a higher-level implementation prove the
+same behavior without imitating irrelevant assembler side effects.
 
 Guest-instruction coordinates remain diagnostics, not portable semantic
 boundaries. An older replay that stops in the middle of an atomic lifted body

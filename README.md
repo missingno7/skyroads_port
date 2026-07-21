@@ -62,8 +62,9 @@ collapses its internal hook edges. In `faithful-product`, the generated menu
 hands `1010:2317` to the long-lived authored `skyroads.gameplay` region; it
 owns the recovered `2324-2AF8` body plus the oracle-derived `1FD9` pacing and
 presentation loop over shared DOS memory. It batches bodies until the original
-stack-local tick catches `DS:[1600]`, parks at `1010:22FB`, and returns the
-original raw handler result without assigning product-lifecycle meaning at the
+stack-local tick catches `DS:[1600]`, parks at the pre-comparison boundary
+`1010:22F8`, and returns the original raw handler result without assigning
+product-lifecycle meaning at the
 region seam. The separate `23CA-241E` road-departure path resumes generated
 `1010:0F05`; abort returns raw result seven. Native SFX cross one explicit
 external adapter into

@@ -4,7 +4,8 @@ The generated provider reaches the first gameplay body at ``1010:2317``.
 At that stable point this adapter transfers ownership to the recovered native
 body and reconstructs the surrounding ``1FD9`` pacing loop from generated and
 oracle evidence.  State remains authoritative in the same DOS memory image.
-Each yielded frame is parked at the original ``1010:22FB`` timer boundary, so
+Each yielded frame is parked at the original ``1010:22F8`` pre-comparison
+timer boundary, so
 a ReplayArtifact continuation can recreate the region without serializing a
 Python session. Terminal results are returned unchanged to the generated
 caller at ``1010:2C61``.
@@ -37,9 +38,9 @@ from skyroads.handrecovered.dynamics import JumpScratch
 
 
 GAMEPLAY_ENTRY_IP = 0x2317
-GAMEPLAY_RESUME_IP = 0x22FB
+GAMEPLAY_RESUME_IP = 0x22F8
 GAMEPLAY_CALLER_IP = 0x2C61
-GAMEPLAY_TICK_BOUNDARY = "skyroads:gameplay-frame-park:v1"
+GAMEPLAY_TICK_BOUNDARY = "1010:22F8"
 GAMEPLAY_ENTRY_ID = "body-ready"
 GAMEPLAY_RESUME_ENTRY_ID = "resume-frame"
 GAMEPLAY_RESULT_EXIT = "gameplay-result"
@@ -192,13 +193,13 @@ class SkyroadsGameplaySession:
         draw_grav_meter(self.image, self.data_segment)
 
     def advance(self) -> RegionProgress:
-        """Advance from one original 22FB park to the next.
+        """Advance from one original 22F8 park to the next.
 
         Oracle traces show that a displayed frame may execute more than one
         2317 body: ``SS:[BP-2]`` is incremented until it catches the virtual
         timer ``DS:[1600]``.  Input is consumed only after the timer changes;
         the escape/gate/render prelude belongs after that batch, immediately
-        before the next 22FB wait.  This ordering is the original control-flow
+        before the next 22F8 wait.  This ordering is the original control-flow
         contract, not behavior inherited from the former native player.
         """
         elapsed = self.view.elapsed_ticks & 0xFFFF
@@ -226,7 +227,7 @@ class SkyroadsGameplaySession:
             if local_tick >= elapsed:
                 break
 
-        # 20AA handles timer wrap before capturing BP-4 for the next 22FB
+        # 20AA handles timer wrap before capturing BP-4 for the next 22F8
         # wait.  Keep those locals in the machine continuation so restoration
         # needs no backend-private phase marker.
         if elapsed < local_tick:

@@ -60,6 +60,7 @@ from skyroads.pacing import (  # noqa: E402
     install_frame_park,
     suspend_frame_park,
 )
+from skyroads.device_config import capture_sound_blaster_pcm  # noqa: E402
 from skyroads.runtime import create_game_runtime, load_game_snapshot  # noqa: E402
 
 
@@ -123,6 +124,10 @@ class SkyroadsFrontend(player.GameFrontend):
             "direct_level": args.level,
         })
         return metadata
+
+    def replay_projection_schema(self, args, runtime) -> str:
+        from skyroads.replay import PROJECTION_SCHEMA
+        return PROJECTION_SCHEMA
 
     def apply_replay_metadata(self, args, metadata) -> None:
         super().apply_replay_metadata(args, metadata)
@@ -195,6 +200,84 @@ class SkyroadsFrontend(player.GameFrontend):
         reset_gameplay_region_for_restore(runtime)
         super().apply_replay_state(runtime, state)
 
+    def materialize_replay_profile_base(
+        self, args, runtime, artifact, *, source_profile,
+        requested_profile, source_state,
+    ):
+        """Build a strict SkyRoads point-zero base for one selected carrier.
+
+        DOS-memory-backed carriers share authoritative CPU/DOS memory, but a
+        generated capture can poison recovered instruction bytes and each
+        carrier can select a different optional Sound Blaster topology.  Those
+        differences are projected once into a new profile-local base.  The
+        capture cache itself is never restored under another identity.
+        """
+        if source_profile.image != requested_profile.image:
+            raise ValueError("SkyRoads replay executable identity differs")
+        if source_profile.continuation_schema != requested_profile.continuation_schema:
+            raise ValueError("SkyRoads replay continuation schema differs")
+
+        from skyroads.execution import BOOT_DIR
+        from skyroads.native.exe_image import build_program_image
+        from skyroads.replay import project_base_to_runtime_devices
+
+        executable_ranges = ()
+        executable_image = None
+        manifest_path = BOOT_DIR / "manifest.json"
+        if requested_profile.role == "oracle" and manifest_path.is_file():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            poison = manifest.get("poison", {})
+            ranges = tuple(
+                (int(start), int(length))
+                for start, length in poison.get("ranges", ())
+            )
+            captured_memory = source_state.regions["memory"]
+            capture_is_poisoned = bool(
+                poison.get("enabled")
+                and ranges
+                and all(
+                    not any(captured_memory[start:start + length])
+                    for start, length in ranges
+                )
+            )
+            if capture_is_poisoned:
+                executable_ranges = ranges
+                executable_image = build_program_image(args.exe, 0x1010)
+
+        projected = project_base_to_runtime_devices(
+            runtime,
+            source_state,
+            executable_ranges=executable_ranges,
+            executable_image=executable_image,
+            executable_base=0x10100,
+        )
+        point_zero = artifact.timeline_coordinate(
+            player.ReplayPoint(0, artifact.timeline_id)
+        )
+        value = point_zero.value
+        cpu_state = projected.metadata.get("cpu")
+        if (
+            isinstance(value, dict)
+            and value.get("kind") == "frame-park"
+            and isinstance(cpu_state, dict)
+            and int(cpu_state.get("cs", 0)) == 0x1010
+            and int(cpu_state.get("ip", 0)) == 0x22FB
+        ):
+            # 22FB is after the MOV that loads the wait operand.  It cannot be
+            # a portable pre-operation boundary: an interrupt may change the
+            # operand before resume while the saved flags still describe the
+            # old comparison. Canonicalize the profile-local base to 22F8 so
+            # every carrier re-evaluates MOV+CMP after external effects.
+            metadata = dict(projected.metadata)
+            metadata["cpu"] = dict(cpu_state, ip=0x22F8)
+            projected = type(projected)(
+                projected.schema_id,
+                metadata,
+                projected.regions,
+                projected.event_cursor,
+            ).normalized()
+        return projected
+
     def recording_started(self, rt, args, *, record_event) -> None:
         if args.practice_level_position is None:
             return
@@ -243,11 +326,7 @@ class SkyroadsFrontend(player.GameFrontend):
         return super().launch(args, plan)
 
     def _capture_sb(self, args) -> bool:
-        return (
-            not args.no_sound
-            and getattr(args, "audio", "off") == "adlib"
-            and not args.headless
-        )
+        return capture_sound_blaster_pcm(args)
 
     def create_runtime(self, args):
         args.execution_plan.require_capability(

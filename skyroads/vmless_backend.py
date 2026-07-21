@@ -58,6 +58,7 @@ from dos_re.crash import (  # noqa: E402
 from dos_re.runtime_miss import RuntimeExecutionFrontier  # noqa: E402
 from dos_re.runtime_core import enable_sound_blaster  # noqa: E402
 from dos_re.regions import RegionHandoff, ensure_region_dispatcher  # noqa: E402
+from skyroads.device_config import capture_sound_blaster_pcm  # noqa: E402
 
 #: Measured from the oracle: the PIT reload is 6628, so the
 #: timer runs at 1193182/6628 = 180 Hz and the music ISR fires once per IRQ —
@@ -425,7 +426,7 @@ def create_planned_runtime(
     rt, manifest = build(boot_dirs.pop(),
                          ROOT / "skyroads" / "lifted" / "functions",
                          Path(args.game_root), sound=not args.no_sound,
-                         capture_sb=not args.no_sound and not args.headless)
+                         capture_sb=capture_sound_blaster_pcm(args))
     rt._skyroads_no_sound = bool(args.no_sound)
     rt._skyroads_direct_level_request = getattr(args, "level", None)
     drv = VmlessDriver(
