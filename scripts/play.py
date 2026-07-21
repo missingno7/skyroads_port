@@ -196,7 +196,12 @@ class SkyroadsFrontend(player.GameFrontend):
         )
 
     def replay_point_coordinate(
-        self, rt, args, *, point_ordinal: int | None = None,
+        self,
+        rt,
+        args,
+        *,
+        point_ordinal: int | None = None,
+        event_cursor: int,
     ):
         ordinal = 0 if point_ordinal is None else int(point_ordinal)
         kind = getattr(rt, "_skyroads_replay_boundary_kind", None)
@@ -210,31 +215,38 @@ class SkyroadsFrontend(player.GameFrontend):
                 "or blocking-input boundary")
         value = {
             "sequence": ordinal,
+            "timeline_position": ordinal,
+            "event_cursor": int(event_cursor),
             "kind": kind,
         }
         if kind == "guest-fallback":
-            value["guest_instruction_count"] = int(rt.cpu.instruction_count)
+            value.update({
+                "guest_instruction_count": int(rt.cpu.instruction_count),
+                "guest_budget": max(1, int(args.steps_per_frame)),
+                "fallback_reason": "semantic-boundary-not-reached-within-budget",
+                "machine_position": {
+                    "cs": int(rt.cpu.s.cs),
+                    "ip": int(rt.cpu.s.ip),
+                },
+            })
         return self.semantic_replay_coordinate, value
 
     def _advance_to_semantic_boundary(self, rt, args) -> str:
         for _ in range(max(0, args.timer_irqs_per_frame)):
             deliver_interrupt(rt, 0x08)
-        start = int(rt.cpu.instruction_count)
-        max_guest = max(1_000_000, int(args.steps_per_frame) * 32)
-        while int(rt.cpu.instruction_count) - start <= max_guest:
-            try:
-                rt.cpu.run(max(1, int(args.steps_per_frame)))
-            except FrameIdle:
-                rt._skyroads_replay_boundary_kind = "frame-park"
-                return "frame-park"
-            except ConsoleInputWouldBlock:
-                rt._skyroads_replay_boundary_kind = "input-block"
-                raise
-        # Startup and a genuinely long atomic region may not yet expose a
-        # semantic seam. Preserve a clearly labelled diagnostic fallback for
-        # that point instead of pretending the host dispatch budget is itself
-        # semantic. Later points return to frame-park/input boundaries as soon
-        # as the program exposes one.
+        # Interactive play owns presentation pacing, so semantic-boundary
+        # discovery gets exactly one normal guest budget.  A long guest region
+        # spans several presented points instead of becoming one long host
+        # dispatch.  Offline analysis can seek farther by replaying additional
+        # points explicitly.
+        try:
+            rt.cpu.run(max(1, int(args.steps_per_frame)))
+        except FrameIdle:
+            rt._skyroads_replay_boundary_kind = "frame-park"
+            return "frame-park"
+        except ConsoleInputWouldBlock:
+            rt._skyroads_replay_boundary_kind = "input-block"
+            raise
         rt._skyroads_replay_boundary_kind = "guest-fallback"
         return "guest-fallback"
 
@@ -254,6 +266,8 @@ class SkyroadsFrontend(player.GameFrontend):
         expected = coordinate.value
         if not isinstance(expected, dict) or expected.get("sequence") != frame + 1:
             raise ReplayError("invalid SkyRoads semantic replay coordinate")
+        if expected.get("timeline_position", frame + 1) != frame + 1:
+            raise ReplayError("invalid SkyRoads semantic timeline position")
         if expected.get("kind") == "guest-fallback":
             for _ in range(max(0, args.timer_irqs_per_frame)):
                 deliver_interrupt(rt, 0x08)
@@ -267,6 +281,16 @@ class SkyroadsFrontend(player.GameFrontend):
                             f"{frame + 1}: {rt.cpu.instruction_count} > {target}; "
                             "the long implementation needs an explicit yield")
             rt._skyroads_replay_boundary_kind = "guest-fallback"
+            machine_position = expected.get("machine_position")
+            if machine_position is not None and machine_position != {
+                "cs": int(rt.cpu.s.cs),
+                "ip": int(rt.cpu.s.ip),
+            }:
+                raise ReplayError(
+                    f"implementation reached the wrong machine position at "
+                    f"diagnostic fallback point {frame + 1}: expected "
+                    f"{machine_position!r}, got "
+                    f"{{'cs': {int(rt.cpu.s.cs)}, 'ip': {int(rt.cpu.s.ip)}}}")
             return
         try:
             actual = self._advance_to_semantic_boundary(rt, args)

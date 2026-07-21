@@ -14,10 +14,15 @@ python scripts/play.py --composition generated-functions --record-replay smoke
 New recordings primarily stop at SkyRoads' own blocked main-loop wait or
 blocking-input seam. Interpreter, generated functions, and a future semantic
 driver therefore share a game boundary without sharing assembler instruction
-counts. Bootstrap or a long region that has not exposed a yield is labelled as
-an exact guest-instruction fallback; host `CPU.step()` dispatch counts are never
-replay timing. An older coordinate-less recording may be upgraded once before
-normal playback:
+counts. Interactive play and normal recording execute at most one configured
+guest budget per presented point. If that budget reaches no semantic seam, the
+player immediately presents the current state and records an exact
+`guest-fallback`; a long guest region therefore spans several bounded points.
+The fallback records timeline position, immutable-input cursor, guest
+instruction coordinate, CS:IP, budget, and reason. Host `CPU.step()` dispatch
+counts are never replay timing. Longer semantic seeking belongs to explicit
+offline analysis, not interactive pacing. An older coordinate-less recording
+may be upgraded once before normal playback:
 
 ```text
 python scripts/materialize_replay_timeline.py artifacts/replays/REPLAY

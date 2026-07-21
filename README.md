@@ -54,6 +54,13 @@ will select an authored body only once that body has a separately verified
 CPUless ABI adapter. Frame parking is a product-safe runtime service rather
 than an implementation override. Importing an adapter never installs it.
 
+Authored source has two enforced layers. `skyroads.handrecovered` contains
+CPU-independent semantic algorithms; `skyroads.native` contains state-backed
+subsystem assemblies and detached-state experiments. Only catalogued
+semantic-plus-adapter pairs are executable. Every other retained module is
+explicitly classified as verification-only evidence or experimental in
+`skyroads.authored_inventory`; none forms a hidden player.
+
 The selected `BuildImageBootstrapProvider` declares `state.json`,
 `memory_1mb.bin`, and `manifest.json`, including their packaged paths and the
 command that generates them. Release planning reports missing bootstrap inputs
@@ -65,7 +72,8 @@ evidence, not release authority.
 
 `ReplayArtifact` is the only persistent record/replay format. Interactive
 capture may use any responsive development composition, including already
-replay-backed faithful overrides. Such a capture is provisional until the immutable
+replay-backed faithful overrides. Such a capture is provisional until the
+immutable
 input stream replays completely against the untouched oracle without
 divergence. Post-hoc oracle replay also attaches function visits and observed
 control-flow evidence, independently of capture. Literal generated functions

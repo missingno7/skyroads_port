@@ -111,7 +111,8 @@ def test_player_records_candidate_capture_as_provisional_artifact(tmp_path):
         capture_replay_state=lambda runtime, event_cursor: ContinuationState(
             "continuation", {}, {"memory": b"state"}, event_cursor,
         ),
-        replay_point_coordinate=lambda runtime, args, *, point_ordinal=None: (
+        replay_point_coordinate=lambda runtime, args, *, point_ordinal=None,
+        event_cursor: (
             "test-coordinate", 0),
     )
     recorder = _RealReplayRecorder(

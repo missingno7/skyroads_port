@@ -89,6 +89,77 @@ Frame parking is a declared product-safe runtime service, not an implementation
 override. It intercepts only the two empty timer-wait loops used by main-frame
 and menu pacing; fade execution remains entirely in the emulated program.
 
+## Actual launch path
+
+There is no second native runner hidden behind the player. The executable path
+is:
+
+1. `scripts/play.py` maps `--profile` and `--composition` to one
+   `ExecutionConfiguration`.
+2. `dos_re.player` asks the planner to bind every reachable stable identity
+   from the Atlas to one entry in `skyroads.execution.catalog()`.
+3. The selected program-root provider chooses the carrier: the ordinary
+   dos_re player for `baseline:interpreted-exe`, `skyroads.vmless_backend` for
+   `baseline:generated-vmless`, or `skyroads.cpuless_backend` for
+   `baseline:generated-cpuless`.
+4. `GameFrontend.bind_execution_plan()` activates only the selected adapter for
+   that carrier. On a CPU-model carrier, this populates the hook table; the
+   semantic implementation itself never performs instruction interpretation.
+5. Calls then enter the selected implementation through the stable function or
+   execution-point binding. No import installs code and no backend has a second
+   selection path.
+
+`auto` in development resolves to `play`: the interpreted root provider, all
+nine authored faithful overrides, seven literal generated-function bindings,
+and interpreter execution for the remaining identities. `generated-cpu`
+selects the generated VMless root and composes the same nine faithful
+implementations through their CPU-model adapters. `generated-abi` selects the
+generated CPUless root; it intentionally has no authored bindings until those
+implementations have independently proven ABI, return-state, and virtual-time
+adapters.
+
+## Authored source layers
+
+`handrecovered` and `native` are both authored code, but they do not own the
+same responsibility:
+
+- `skyroads.handrecovered` contains natural Python semantic algorithms over
+  values, buffers, or narrow callbacks. It does not own a runtime, state model,
+  or registration. Five modules (`blit`, `present`, `renderer`, `rle_sprite`,
+  and `tile_raster`) currently provide the nine complete runtime overrides.
+- `skyroads.native` contains state-backed adapters, detached-state test models,
+  and subsystem assemblies built from the semantic layer. `boot`, `frame`, and
+  `loop` are explicitly experimental because their boundaries still contain
+  known gaps. No `native` module is currently a selectable provider or
+  override.
+
+`skyroads.authored_inventory` assigns every retained module exactly one status:
+runtime override, verification-only evidence, or experiment. Repository tests
+require that its census exactly matches both directories, that runtime-override
+modules exactly match authored catalog callables, and that the semantic layer
+never imports the native composition layer. This inventory documents dormant
+recovery evidence; it is deliberately not another execution registry.
+
+The partial native gameplay and renderer assemblies are therefore not exposed
+as a misleading composition. They become selectable only when a coherent
+subsystem identity has complete entry/exit state, side-effect, timing, and
+verification contracts. At that point the implementation is added to the same
+catalog and planner used by every other provider or override.
+
+Terminology is strict:
+
+- **generated** means reproducible lifting output with no authored game logic;
+- **hand-recovered semantic code** means authored CPU-independent algorithms;
+- **native code** means authored composition over an explicit non-CPU state
+  boundary, not merely any Python function;
+- an **override** is a catalogued alternative for a stable identity;
+- a **hook** is only a CPU-carrier adapter that transfers control to a selected
+  implementation;
+- a **provider** implements a declared function or region;
+- a **composition** is planner input selecting provider preferences and optional
+  overrides;
+- a **backend** is the execution carrier that runs the resulting plan.
+
 ## Invariants
 
 - Oracle construction never installs authored or generated replacements.

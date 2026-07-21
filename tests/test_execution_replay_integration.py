@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -39,11 +40,11 @@ def test_generated_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
         metadata=frontend.replay_metadata(oracle_args),
     )
     schema, value = frontend.replay_point_coordinate(
-        oracle_runtime, oracle_args, point_ordinal=0)
+        oracle_runtime, oracle_args, point_ordinal=0, event_cursor=0)
     recording.mark(0, schema_id=schema, value=value)
     frontend.advance_frame(oracle_runtime, oracle_args, 0)
     schema, value = frontend.replay_point_coordinate(
-        oracle_runtime, oracle_args, point_ordinal=1)
+        oracle_runtime, oracle_args, point_ordinal=1, event_cursor=0)
     recording.mark(1, schema_id=schema, value=value)
     artifact = recording.finish(
         1,
@@ -93,12 +94,17 @@ def test_semantic_frame_park_is_stable_across_oracle_and_generated(tmp_path):
         metadata=frontend.replay_metadata(oracle_args),
     )
     schema, value = frontend.replay_point_coordinate(
-        runtime, oracle_args, point_ordinal=0)
+        runtime, oracle_args, point_ordinal=0, event_cursor=0)
     recording.mark(0, schema_id=schema, value=value)
     frontend.advance_frame(runtime, oracle_args, 0)
     schema, value = frontend.replay_point_coordinate(
-        runtime, oracle_args, point_ordinal=1)
-    assert value == {"sequence": 1, "kind": "frame-park"}
+        runtime, oracle_args, point_ordinal=1, event_cursor=0)
+    assert value == {
+        "sequence": 1,
+        "timeline_position": 1,
+        "event_cursor": 0,
+        "kind": "frame-park",
+    }
     recording.mark(1, schema_id=schema, value=value)
     artifact = recording.finish(
         1,
@@ -122,3 +128,36 @@ def test_semantic_frame_park_is_stable_across_oracle_and_generated(tmp_path):
         observable_effects=True,
     )
     assert checked.equivalent, checked.comparison.differences
+
+
+def test_interactive_semantic_seek_uses_one_guest_budget() -> None:
+    class CountingCpu:
+        def __init__(self) -> None:
+            self.instruction_count = 100
+            self.s = SimpleNamespace(cs=0x1010, ip=0x43A9)
+            self.budgets = []
+
+        def run(self, budget: int) -> None:
+            self.budgets.append(budget)
+            self.instruction_count += budget
+            self.s.ip = 0x43B1
+
+    frontend = SkyroadsFrontend(ROOT)
+    runtime = SimpleNamespace(cpu=CountingCpu())
+    args = SimpleNamespace(timer_irqs_per_frame=0, steps_per_frame=48_000)
+
+    assert frontend._advance_to_semantic_boundary(runtime, args) == "guest-fallback"
+    assert runtime.cpu.budgets == [48_000]
+    schema, value = frontend.replay_point_coordinate(
+        runtime, args, point_ordinal=7, event_cursor=13)
+    assert schema == frontend.semantic_replay_coordinate
+    assert value == {
+        "sequence": 7,
+        "timeline_position": 7,
+        "event_cursor": 13,
+        "kind": "guest-fallback",
+        "guest_instruction_count": 48_100,
+        "guest_budget": 48_000,
+        "fallback_reason": "semantic-boundary-not-reached-within-budget",
+        "machine_position": {"cs": 0x1010, "ip": 0x43B1},
+    }
