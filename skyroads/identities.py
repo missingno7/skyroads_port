@@ -20,6 +20,7 @@ IMAGE = ImageIdentity(
 )
 CODE_SEG = 0x1010
 PROGRAM_ROOT = str(RegionIdentity(PROGRAM, "program"))
+GAMEPLAY_REGION = str(RegionIdentity(PROGRAM, "gameplay"))
 # 1010:0000 is the packed MZ entry. The generated program begins at the
 # observed LZEXE hand-off after unpacking, so product reachability roots there.
 RECOVERY_ENTRY_FUNCTION = str(FunctionIdentity(
@@ -34,3 +35,9 @@ def function_identity(offset: int) -> str:
 def execution_point_identity(offset: int) -> str:
     return str(ExecutionPointIdentity(
         IMAGE, "real-mode", real_mode_address(CODE_SEG, int(offset))))
+
+
+GAMEPLAY_ENTRY_POINT = execution_point_identity(0x2317)
+GAMEPLAY_RESUME_POINT = execution_point_identity(0x22F8)
+GAMEPLAY_CALLER_CONTINUATION = execution_point_identity(0x2C61)
+GAMEPLAY_ROAD_DEPARTURE_CONTINUATION = execution_point_identity(0x0F05)

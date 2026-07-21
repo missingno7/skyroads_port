@@ -2,9 +2,8 @@
 
 The gameplay input handler (`1010:074C`) dispatches on the selected control
 device `ds:[95F6]` (0 = keyboard, 1/2 = other devices, 3 = attract-mode
-autopilot that reads a packed control track at `ds:0x961E`). This module
-recovers the **keyboard** case (`95F6 == 0`, block `1010:0758`), the one live
-play uses.
+autopilot that reads a packed control track). This module recovers both the
+keyboard case used by live play and the packed attract sequence.
 
 It reads a per-key pressed-state row the timer ISR maintains at `ds:0x0BD0`
 (the ISR polls the keyboard each tick and sets **bit 7** of a key's byte while
@@ -43,6 +42,12 @@ K_JUMP = 0x0BDB
 #: A key's byte has bit 7 set while the key is held (set by the ISR poll).
 KEY_DOWN_BIT = 0x80
 
+#: Each attract-mode control byte covers this much forward progress.
+ATTRACT_TRACK_DIVISOR = 0x0666
+#: The original uses a wrapped DGROUP offset ``index - 0x69E2``.  At the
+#: level's initial progress this lands in the packed track near 0x9696.
+ATTRACT_TRACK_BIAS = 0x69E2
+
 
 class Controls(NamedTuple):
     speed: int   # ds:[9330]  forward(+)/back(-) axis, in {-1,0,1}
@@ -68,3 +73,21 @@ def decode_keyboard(key_row: Sequence[int]) -> Controls:
     speed = (up | ul | ur) - (dn | dl | dr)
     steer = (right | ur | dr) - (left | ul | dl)
     return Controls(speed=speed, steer=steer, jump=down(K_JUMP))
+
+
+def decode_attract(control_track: Sequence[int], lateral: int) -> Controls:
+    """Decode the original attract-mode control byte for ``lateral``.
+
+    The assembler divides the unsigned 32-bit progress value by ``0x666``,
+    wraps the quotient into a DGROUP offset, and reads one packed byte.  Bits
+    0..1 and 2..3 encode biased speed and steering axes; bit 4 is jump.  This
+    is the natural semantic form of the original ``1010:0A49`` implementation,
+    not a call back into generated instruction-level code.
+    """
+    index = ((lateral & 0xFFFFFFFF) // ATTRACT_TRACK_DIVISOR) & 0xFFFF
+    packed = control_track[(index - ATTRACT_TRACK_BIAS) & 0xFFFF]
+    return Controls(
+        speed=(packed & 0x03) - 1,
+        steer=((packed >> 2) & 0x03) - 1,
+        jump=(packed >> 4) & 0x01,
+    )

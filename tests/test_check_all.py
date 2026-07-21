@@ -52,13 +52,16 @@ def test_materialized_bootstrap_still_requires_unresolved_frontier_diagnostic(
     )
 
 
-def test_development_preflight_accepts_a_present_original_exe(
+def test_development_preflight_accepts_a_materialized_build_image(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    exe = tmp_path / "SKYROADS.EXE"
-    exe.write_bytes(b"present")
-    monkeypatch.setattr(check_all, "ORIGINAL_EXE", exe)
+    present = tuple(tmp_path / name for name in (
+        "state.json", "memory_1mb.bin", "manifest.json",
+    ))
+    for path in present:
+        path.write_bytes(b"present")
+    monkeypatch.setattr(check_all, "BOOTSTRAP_ARTIFACTS", present)
 
     assert check_all._development_plan_expectations() == (
         0,
@@ -66,17 +69,19 @@ def test_development_preflight_accepts_a_present_original_exe(
     )
 
 
-def test_development_preflight_requires_actionable_original_exe_diagnostic(
+def test_development_preflight_requires_actionable_build_image_diagnostic(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(check_all, "ORIGINAL_EXE", tmp_path / "SKYROADS.EXE")
+    missing = tuple(tmp_path / name for name in (
+        "state.json", "memory_1mb.bin", "manifest.json",
+    ))
+    monkeypatch.setattr(check_all, "BOOTSTRAP_ARTIFACTS", missing)
 
     assert check_all._development_plan_expectations() == (
         2,
         (
             "missing bootstrap artifacts",
-            "skyroads-exe",
-            "place the original SKYROADS.EXE under assets/",
+            "python scripts/build_boot_image.py",
         ),
     )

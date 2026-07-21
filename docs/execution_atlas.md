@@ -78,9 +78,11 @@ covers five functions over stable points 0→3, records aggregate invocation
 counts and intervals, and explicitly marks functions whose outer invocation is
 still active at the final boundary as incomplete.
 
-Those frontiers intentionally make detached/release planning fail. Several
-correspond to the fail-loud unrecovered-call witnesses already emitted in the
-generated ABI implementation; hiding them through selective registration would
-restate incomplete coverage as release readiness. Each future static, observed,
-or manually recovered fact should enrich this same Atlas until the closed-world
-release proof becomes true.
+The resolved plan classifies these frontiers rather than treating their raw
+count as a runtime verdict. Emitted internal targets and selected-region edges
+are not missing code. Unknown indirect targets and probable gaps remain honest
+warnings in ordinary detached development; if reached, they become resumable
+runtime-frontier artifacts. Strict closure and release still reject those
+blockers before startup. Each future static, observed, or manually recovered
+fact should enrich this same Atlas until the closed-world release proof becomes
+true.

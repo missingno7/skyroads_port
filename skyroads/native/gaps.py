@@ -13,27 +13,20 @@ class SkyroadsGap(RuntimeError):
 
 
 class LevelEndTransition(SkyroadsGap):
-    """The level ended: ``game_state`` left the in-level set ``{0, 3}`` (active /
-    resume-frozen) for a transition/post-level state -- ``2`` (level-select, the
-    ship reached the end and `dispatch_menu_action` action 0xC set it), ``4``
-    (distance/"fuel" timer expired), ``5`` (time/"oxygen" timer expired), or
-    ``1`` (the wall-crash flag). The gameplay stepper stops here; the transition
-    itself (level load / menu return / respawn) is a separate subsystem. A
-    fail-loud boundary, not a silent continuation into a non-gameplay state."""
+    """The original ``1FD9`` continuation gate returned ``game_state``.
+
+    The value is an inner handler result, not a reconstructed product-lifecycle
+    label.  Outer ``2B3D``/``01B8`` control flow decides whether it retries,
+    returns to selection, or takes another route.
+    """
 
 
-class FallDeathTransition(SkyroadsGap):
-    """The ship fell off the road: the `1010:23CA-2421` out-of-bounds check fired
+class RoadDepartureTransition(SkyroadsGap):
+    """The ``1010:23CA-241E`` road-departure check fired.
+
     (``skyroads.native.collision.ship_fell_off`` is true past the `[41C0]`
-    lateral threshold while ``game_state == 0``), which in the VM calls the death
-    handler `0F05` and exits the frame. The gameplay stepper stops here; the
-    death consequence (respawn) is a separate subsystem."""
-
-
-class MovementPhysicsGap(SkyroadsGap):
-    """The rare ``1010:25AC-25D6`` effect path was reached.
-
-    That path calls ``1010:1DFA`` and rewrites ``lateral_accel``. The authored
-    gameplay substep raises here unless its caller explicitly opts into the
-    documented approximation used by the experimental subsystem driver.
+    lateral threshold while ``game_state == 0``). The oracle calls ``0F05`` and
+    returns its raw result.  The preserved candidate replay observes result
+    zero followed by outer-loop level advancement; no death/respawn meaning is
+    assigned at this inner seam.
     """

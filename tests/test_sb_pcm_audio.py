@@ -26,6 +26,7 @@ np = pytest.importorskip("numpy")
 ROOT = Path(__file__).resolve().parents[1]
 
 from skyroads.audio.sink import SkyroadsAudioSink  # noqa: E402  (pure logic, no VM)
+from skyroads.runtime import create_game_runtime  # noqa: E402
 
 
 class _FakeSink(SkyroadsAudioSink):
@@ -85,8 +86,6 @@ _needs_game = pytest.mark.skipif(
 
 @_needs_game
 def test_capture_mode_reads_dma_without_changing_cpu_or_memory() -> None:
-    from skyroads.runtime import create_game_runtime
-
     payload = bytes(range(32))
 
     def prepare(capture: bool):

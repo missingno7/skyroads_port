@@ -17,8 +17,10 @@ completely unaffected. Use ``dos_re.state_view.SegmentBackend`` (already
 promoted to ``skyroads.state_view``) to build typed views over any segment of
 this image, DGROUP included, at its REAL physical base.
 
-This class is a test and implementation-candidate boundary, not a selected
-runtime or bootstrap provider.
+When a live runtime bytearray is supplied, the image aliases it rather than
+copying it. The runtime may append device shadow storage beyond the 20-bit
+address space; that backing is retained even though native real-mode accesses
+remain confined to the first MiB.
 """
 from __future__ import annotations
 
@@ -40,8 +42,6 @@ class NativeGameImage:
             data = bytearray(data)
         if len(data) < ADDR_SPACE:
             data = data + bytearray(ADDR_SPACE - len(data))
-        elif len(data) > ADDR_SPACE:
-            data = data[:ADDR_SPACE]
         self.data = data
 
     @classmethod

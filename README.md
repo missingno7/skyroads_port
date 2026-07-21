@@ -9,10 +9,11 @@ The port has one player:
 python scripts/play.py
 ```
 
-The default development composition uses authored faithful candidates plus
-the product-safe frame-parking runtime service. Use `--composition oracle`
-when the original implementation is required; the same stateless semantic
-scheduling seam remains active for replay boundaries.
+The default development composition is the recovered product: the generated
+VMless frontend and level-selection flow surrounding one authored native
+gameplay region. Use `--composition oracle` for the untouched original, or
+`--composition workbench-auto` for the deliberately fragmented per-function
+recovery workbench.
 The window defaults to a desktop-safe 2× scale; use `--scale 3` or resize it
 after launch on a larger display.
 
@@ -28,11 +29,17 @@ python scripts/play.py --profile development --composition workbench-auto
 # differential verification over a ReplayArtifact
 python scripts/play.py --profile verification --composition workbench-auto --play-replay artifacts/replays/replay_name --verify-start 100 --verify-end 180
 
-# generated VMless graph plus selected, already-verified faithful replacements
-python scripts/play.py --profile development --composition faithful-product --headless
+# canonical generated-shell/native-gameplay product (also the default)
+python scripts/play.py --profile development --composition faithful-product
+
+# direct launch through the same generated loader and gameplay region
+python scripts/play.py --level 14
 
 # generated CPUless implementation while recovery frontiers remain visible
 python scripts/play.py --profile development --composition generated-detached --headless
+
+# EXE-free generated shell plus native gameplay; static gaps are warnings
+python scripts/play.py --profile detached --composition faithful-product
 
 # strict readiness report (currently rejects named Atlas frontiers)
 python scripts/play.py --profile release --composition generated-detached --plan-only
@@ -51,10 +58,29 @@ Generated VMless and CPUless code are baseline providers; authored faithful
 replacements are explicit semantic-plus-adapter pairs. Each authored body has
 distinct interpreted-CPU and generated-VMless carrier adapters, and the plan
 reports the exact remaining cross-owner boundaries. Selecting a larger owner
-collapses its internal hook edges. The ABI-recovered provider
+collapses its internal hook edges. In `faithful-product`, the generated menu
+hands `1010:2317` to the long-lived authored `skyroads.gameplay` region; it
+owns the recovered `2324-2AF8` body plus the oracle-derived `1FD9` pacing and
+presentation loop over shared DOS memory. It batches bodies until the original
+stack-local tick catches `DS:[1600]`, parks at the pre-comparison boundary
+`1010:22F8`, and returns the original raw handler result without assigning
+product-lifecycle meaning at the
+region seam. The separate `23CA-241E` road-departure path resumes generated
+`1010:0F05`; abort returns raw result seven. Native SFX cross one explicit
+external adapter into
+the selected generated `1010:03C2` implementation, retaining its DOS-memory
+and device effects while preserving the region's CPU-independent context.
+The ABI-recovered provider
 will select an authored body only once that body has a separately verified
 CPUless ABI adapter. Frame parking is a product-safe runtime service rather
 than an implementation override. Importing an adapter never installs it.
+
+Normal play enters through the generated level-selection function. `--level N`
+supplies the first confirmed selection at that same stable seam; all generated
+loading and gameplay setup still run normally. The adapter removes itself
+immediately. The generated `2B3D/01B8` callers alone decide whether a raw
+gameplay result retries the level or returns to selection, and alone advance
+campaign state. The native region never starts level N+1.
 
 Product features are separate from implementations. For example,
 `--practice-level-position 0x123 --record-replay practice` records an explicit
@@ -64,15 +90,22 @@ replacement failure.
 
 Authored source has two enforced layers. `skyroads.handrecovered` contains
 CPU-independent semantic algorithms; `skyroads.native` contains state-backed
-subsystem assemblies and detached-state experiments. Only catalogued
-semantic-plus-adapter pairs are executable. Every other retained module is
-explicitly classified as verification-only evidence or experimental in
-`skyroads.authored_inventory`; none forms a hidden player.
+subsystem assemblies, renderers, carrier-facing views, and detached-state
+experiments. Every module has an explicit role and use classification in
+`skyroads.authored_inventory`. Tests walk imports from selected implementations
+and reject production runtime modules that are silently disconnected. Evidence,
+experiments, and partial products do not become providers merely because a test
+imports them.
 
 The selected `BuildImageBootstrapProvider` declares `state.json`,
 `memory_1mb.bin`, and `manifest.json`, including their packaged paths and the
-command that generates them. Release planning reports missing bootstrap inputs
-and unresolved Atlas control-flow sites before launch. Once both are closed,
+command that generates them. Detached development loads only that image and
+the selected generated/native graph: the EXE and interpreter are forbidden,
+while unresolved Atlas sites are summarized warnings. Reaching an actual
+missing target saves a resumable `recovery_frontier.json` bundle instead of
+falling back. Release planning remains strict and reports missing bootstrap
+inputs and unresolved selected-graph control-flow sites before launch. Once
+both are closed,
 export materializes the provider, rejects original executables and
 interpreter/development imports, and publishes only the audited runtime,
 bootstrap, and data closure. Code poisoning remains optional additional

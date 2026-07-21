@@ -42,7 +42,7 @@ def test_jump_landing_emits_sfx_1_with_debounce():
         pytest.skip("baseline snapshot or game assets not present")
     from skyroads.bridge.dgroup_view import GameView
     from skyroads.native.level_load import native_level_load
-    from skyroads.native.loop import NativeGameplayDriver, apply_level_init
+    from skyroads.native.loop import NativeGameplayHarness, apply_level_init
     from skyroads.native.state import DATA_SEG, NativeGameState
 
     data = bytearray(snap.read_bytes())
@@ -52,7 +52,7 @@ def test_jump_landing_emits_sfx_1_with_debounce():
     view = GameView(st)
     gate = view.jump_level_gate
     events = []
-    driver = NativeGameplayDriver(
+    driver = NativeGameplayHarness(
         view, gate, apply_level_init(view, gate),
         on_sfx=lambda i: events.append((driver.ticks, i)))
     for t in range(200):
@@ -182,7 +182,7 @@ def test_sfx_callback_absence_is_pure():
         pytest.skip("baseline snapshot or game assets not present")
     from skyroads.bridge.dgroup_view import GameView
     from skyroads.native.level_load import native_level_load
-    from skyroads.native.loop import NativeGameplayDriver, apply_level_init
+    from skyroads.native.loop import NativeGameplayHarness, apply_level_init
     from skyroads.native.state import DATA_SEG, NativeGameState
 
     def run(on_sfx):
@@ -192,7 +192,7 @@ def test_sfx_callback_absence_is_pure():
         native_level_load(st, 14, game_root=str(ROOT / "assets"))
         view = GameView(st)
         gate = view.jump_level_gate
-        driver = NativeGameplayDriver(view, gate, apply_level_init(view, gate),
+        driver = NativeGameplayHarness(view, gate, apply_level_init(view, gate),
                                       on_sfx=on_sfx)
         for t in range(400):
             view.speed = 1

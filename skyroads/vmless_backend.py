@@ -19,16 +19,17 @@ So a frame is: deliver the timer IRQs (through the game's OWN recovered INT 08h
 ISR), run until the corpus reports a boundary head, END THE FRAME there. The
 park unwinds Python, but the machine state does not live in Python — it is in
 the emulated stack and CS:IP — so the next frame's ``run()`` re-dispatches at
-the resume entry that ``activate_generated_graph`` registered, and the lifted
-body continues from the right basic block. Re-arrival parking over this complete
-generated boundary set is its own replay-verified provider contract. It is
+the stable pre-operation head and re-evaluates its externally dependent guard.
+Re-arrival parking over this explicit semantic boundary set is its own
+replay-verified provider contract. It is
 separate from the interpreted frame-parking runtime service, which intercepts
-only two proven side-effect-free waits.
+the same six proven timer-driven boundaries.
 
 Selected with ``scripts/play.py --composition faithful-product``.
 """
 from __future__ import annotations
 
+from collections import deque
 import sys
 from pathlib import Path
 
@@ -47,8 +48,17 @@ from dos_re.interrupts import deliver_interrupt  # noqa: E402
 # those reach create_runtime -> load_mz_program, and importing them here
 # would put the EXE loader on this provider's module graph -- exactly what
 # lint_independence forbids. runtime_core is loader-free by construction.
-from dos_re.crash import crash_dir, save_crash  # noqa: E402
+from dos_re.crash import (  # noqa: E402
+    crash_dir,
+    recovered_call_chain,
+    save_crash,
+    save_recovery_frontier,
+    witness_address,
+)
+from dos_re.runtime_miss import RuntimeExecutionFrontier  # noqa: E402
 from dos_re.runtime_core import enable_sound_blaster  # noqa: E402
+from dos_re.regions import RegionHandoff, ensure_region_dispatcher  # noqa: E402
+from skyroads.device_config import capture_sound_blaster_pcm  # noqa: E402
 
 #: Measured from the oracle: the PIT reload is 6628, so the
 #: timer runs at 1193182/6628 = 180 Hz and the music ISR fires once per IRQ —
@@ -59,6 +69,19 @@ TIMER_IRQS_PER_FRAME = 6
 #: many lifted dispatches is a bug (a spin with no boundary head), not a slow
 #: frame — fail loud rather than hang.
 STEP_BUDGET = 2_000_000
+
+# Recovery IR exposes many resumable block and call-continuation heads.  Only
+# these proven timer-driven heads are semantic frame boundaries; repeated
+# visits to any other head are ordinary guest control flow and must never turn
+# into replay points.
+SEMANTIC_FRAME_HEADS = frozenset({
+    (0x1010, 0x0EF8),
+    (0x1010, 0x22F8),
+    (0x1010, 0x434A),
+    (0x1010, 0x4468),
+    (0x1010, 0x47CD),
+    (0x1010, 0x4866),
+})
 
 
 def _stamp() -> str:
@@ -85,6 +108,9 @@ class VmlessDriver:
         self.parks: dict[int, int] = {}      # head_ip -> times parked
         self._in_isr = False
         self._seen: set = set()              # heads passed THIS frame
+        self.last_boundary_kind = ""
+        self.last_boundary_identity = ""
+        self._recent_path = deque(maxlen=64)
         rt.cpu.boundary_hook = self._boundary
 
     def _boundary(self, cpu, head_cs, head_ip, resume_ip):
@@ -104,8 +130,8 @@ class VmlessDriver:
         iteration per generated boundary head per frame preserves the body
         effects before the continuation is parked.
 
-        Re-point CS:IP at the resume entry (the contract in dos_re/lift/emit.py)
-        so the next frame re-dispatches inside the lifted body, then unwind.
+        Re-point CS:IP at the boundary head before unwinding.  Resuming at the
+        successor would retain comparison flags from before the next timer IRQ.
 
         EXCEPT inside an ISR: an interrupt handler must run to its IRET or the
         machine is left mid-frame with a half-delivered interrupt (and the
@@ -116,12 +142,23 @@ class VmlessDriver:
         """
         if self._in_isr:
             return
+        from skyroads.gameplay_region import maybe_enter_gameplay_region
+        self._recent_path.append((head_cs & 0xFFFF, head_ip & 0xFFFF))
+        if maybe_enter_gameplay_region(self.rt, cpu, head_cs, head_ip):
+            return
         key = (head_cs, head_ip)
+        if key not in SEMANTIC_FRAME_HEADS:
+            return
         if key not in self._seen:
             self._seen.add(key)              # pass 1: let the body run
             return
         self.parks[head_ip] = self.parks.get(head_ip, 0) + 1
-        cpu.s.cs, cpu.s.ip = head_cs & 0xFFFF, resume_ip & 0xFFFF
+        self.last_boundary_identity = f"{head_cs:04X}:{head_ip:04X}"
+        # This is a PRE-operation semantic boundary.  Timer IRQs and other
+        # external effects may change the comparison's operands between host
+        # frames, so resuming at the successor would reuse stale flags.  Point
+        # back at the head and re-evaluate the guarded operation next frame.
+        cpu.s.cs, cpu.s.ip = head_cs & 0xFFFF, head_ip & 0xFFFF
         raise FrameIdle
 
     def frame(self) -> bool:
@@ -133,17 +170,76 @@ class VmlessDriver:
         each of those has cost a bespoke probe and a replay from frame 0 to get
         back to a machine that was standing right here when it broke.
         """
-        self._seen.clear()       # "re-arrival" is per frame: new tick, new pass
+        # A guest-fallback point is only a diagnostic slice through one
+        # unfinished semantic frame.  Preserve boundary visits across those
+        # slices: otherwise a long body (notably the 434A palette blend) is
+        # mistaken for a fresh first arrival and runs twice before parking.
+        # Completed semantic boundaries start a genuinely new frame.
+        if getattr(
+            self.rt, "_skyroads_replay_boundary_kind", None,
+        ) != "guest-fallback":
+            self._seen.clear()
+        self.last_boundary_kind = ""
+        self.last_boundary_identity = ""
         self._in_isr = True
         try:
             for _ in range(self.irqs_per_frame):
                 deliver_interrupt(self.rt, 0x08)
         finally:
             self._in_isr = False
+        dispatcher = ensure_region_dispatcher(self.rt)
         try:
-            self.rt.cpu.run(STEP_BUDGET)
-        except FrameIdle:
-            pass
+            for _handoff_guard in range(8):
+                if dispatcher.active:
+                    progress = dispatcher.advance()
+                    if progress.boundary_id:
+                        self.last_boundary_kind = "frame-park"
+                        self.last_boundary_identity = progress.boundary_id
+                        break
+                    # A named exit has restored a generated continuation. Run
+                    # that surrounding graph until its next semantic boundary.
+                    continue
+                # A ReplayArtifact continuation captured while the authored
+                # region was active contains the stable entry coordinate and
+                # materialized stack scratch, not a Python session object.
+                # Re-enter directly before dispatching the generated resume
+                # hook: that hook starts by re-executing the already-observed
+                # 2317 comparison and would otherwise add one virtual
+                # instruction (and shift timer/device effects) after restore.
+                from skyroads.gameplay_region import maybe_enter_gameplay_region
+                state = getattr(self.rt.cpu, "s", None)
+                if state is not None:
+                    try:
+                        entered = maybe_enter_gameplay_region(
+                            self.rt,
+                            self.rt.cpu,
+                            state.cs,
+                            state.ip,
+                        )
+                    except RegionHandoff:
+                        continue
+                    if entered:
+                        continue
+                try:
+                    self.rt.cpu.run(STEP_BUDGET)
+                except RegionHandoff:
+                    continue
+                except FrameIdle:
+                    self.last_boundary_kind = "frame-park"
+                    break
+                except ConsoleInputWouldBlock:
+                    self.last_boundary_kind = "input-block"
+                    self.last_boundary_identity = "dos:console-input"
+                    break
+                except HaltExecution:
+                    return False
+                else:
+                    self.last_boundary_kind = "guest-fallback"
+                    break
+            else:
+                raise RuntimeError(
+                    "too many execution-region handoffs in one frame"
+                )
         except ConsoleInputWouldBlock:
             # The menu is waiting for a key (INT 21h AH=07h) and there is none.
             # That ends the frame exactly as a tick-wait park does: the DOS layer
@@ -156,27 +252,84 @@ class VmlessDriver:
             # a driver that clears it must handle the block itself. Without both,
             # you get one of the two failures -- a phantom Esc that quits the
             # game, or an unhandled exception at the menu.
-            pass
-        except HaltExecution:
-            return False
+            self.last_boundary_kind = "input-block"
+            self.last_boundary_identity = "dos:console-input"
         except BaseException as exc:            # noqa: BLE001 -- then re-raised
             self.crash(exc)
             raise
         self.frames += 1
+        self.rt._skyroads_replay_boundary_kind = self.last_boundary_kind
+        self.rt._skyroads_replay_boundary_identity = (
+            self.last_boundary_identity or None
+        )
         return True
 
     def crash(self, exc: BaseException) -> Path:
         """Leave the broken machine on disk, resumable, and say where it is."""
-        out = save_crash(
-            self.rt, crash_dir(self.crash_root, "vmless", self.stamp), exc=exc,
-            status="vmless-crash", frame=self.frames,
-            parks={f"{k:04X}": v for k, v in sorted(self.parks.items())})
+        out_dir = crash_dir(self.crash_root, "vmless", self.stamp)
+        from skyroads.identities import (
+            execution_point_identity,
+            function_identity,
+        )
+        addr = witness_address(exc)
+        chain = recovered_call_chain(exc)
+        source_identity = ""
+        candidate = ""
+        if chain:
+            source_cs, source_ip = (
+                int(part, 16) for part in chain[-1].split(":")
+            )
+            if source_cs == 0x1010:
+                source_identity = function_identity(source_ip)
+                candidate = source_identity
+        target_identity = ""
+        if addr:
+            target_cs, target_ip = (
+                int(part, 16) for part in addr.split(":")
+            )
+            if target_cs == 0x1010:
+                target_identity = execution_point_identity(target_ip)
+        plan = getattr(self.rt, "execution_plan", None)
+        selected_provider = ""
+        if plan is not None:
+            selected_provider = next((
+                binding.implementation_id for binding in plan.bindings
+                if binding.target == source_identity
+            ), "")
+        recent_path = [
+            execution_point_identity(ip)
+            if cs == 0x1010 else f"{cs:04X}:{ip:04X}"
+            for cs, ip in self._recent_path
+        ]
+        save = (
+            save_recovery_frontier
+            if isinstance(exc, RuntimeExecutionFrontier)
+            else save_crash
+        )
+        frontier_context = ({
+            "source_identity": source_identity,
+            "target_identity": target_identity,
+            "edge_kind": getattr(exc, "edge_kind", "runtime-transfer"),
+            "selected_provider": selected_provider,
+            "candidate_containing_identity": candidate,
+            "recent_atlas_path": recent_path,
+        } if save is save_recovery_frontier else {})
+        out = save(
+            self.rt, out_dir, exc=exc,
+            status=(
+                "vmless-runtime-frontier"
+                if save is save_recovery_frontier else "vmless-crash"
+            ),
+            frame=self.frames,
+            parks={f"{k:04X}": v for k, v in sorted(self.parks.items())},
+            **frontier_context,
+        )
+        if save is save_recovery_frontier:
+            self.rt._dos_re_last_recovery_frontier = str(out)
         print(f"\n[vmless] CRASHED at frame {self.frames}: "
               f"{type(exc).__name__}: {str(exc)[:200]}")
         # The lifted call chain is the game's own path to the fault; CS:IP in the
         # snapshot names one instruction, this names how it got there.
-        from dos_re.crash import recovered_call_chain, witness_address
-        addr, chain = witness_address(exc), recovered_call_chain(exc)
         if addr:
             print(f"[vmless] refused at {addr}")
         if chain:
@@ -185,6 +338,11 @@ class VmlessDriver:
                 f"... ({len(chain) - len(shown)} more) -> "
             print(f"[vmless] lifted call chain: {lead}{' -> '.join(shown)}")
         print(f"[vmless] machine saved -> {out}")
+        if save is save_recovery_frontier:
+            print(
+                "[vmless] recovery frontier -> "
+                f"{out / 'recovery_frontier.json'}"
+            )
         print(f"[vmless] resume it (you land ON the fault, no replay):\n"
               f"           from dos_re.snapshot_headless import load_snapshot_headless\n"
               f"           rt = load_snapshot_headless(r'{out}', game_root='assets')")
@@ -240,8 +398,18 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
     return rt, manifest
 
 
-def launch(args, *, bootstrap_artifacts: dict[str, Path], bind_plan=None) -> int:
-    """Launch the selected generated VMless region provider."""
+def create_planned_runtime(
+    args,
+    *,
+    bootstrap_artifacts: dict[str, Path],
+    bind_plan=None,
+):
+    """Build and bind the generated carrier without starting a player loop.
+
+    Interactive launch and differential replay must construct the identical
+    candidate runtime.  Keeping that lifecycle here prevents verification
+    from quietly falling back to the interpreted runtime.
+    """
     # Capture the DMA PCM only for the interactive viewer: it is a
     # determinism-safe observer, but headless must keep the detection-only
     # path so replay replay and the differential stay byte-identical.
@@ -258,17 +426,53 @@ def launch(args, *, bootstrap_artifacts: dict[str, Path], bind_plan=None) -> int
     rt, manifest = build(boot_dirs.pop(),
                          ROOT / "skyroads" / "lifted" / "functions",
                          Path(args.game_root), sound=not args.no_sound,
-                         capture_sb=not args.no_sound and not args.headless)
+                         capture_sb=capture_sound_blaster_pcm(args))
+    rt._skyroads_no_sound = bool(args.no_sound)
+    rt._skyroads_direct_level_request = getattr(args, "level", None)
+    drv = VmlessDriver(
+        rt, crash_root=ROOT / "artifacts" / "crashes", stamp=_stamp())
+    rt._skyroads_vmless_driver = drv
     if bind_plan is not None:
         # The generated graph uses the same CPU-shaped carrier as the
         # interpreter, so plan-selected faithful implementations cross through
         # their declared CPU adapter here.  The graph remains the baseline for
         # every unselected identity; this is composition, not a second runner.
         bind_plan(rt)
-    print(generated_graph_boot_report(manifest))
-    drv = VmlessDriver(
-        rt, crash_root=ROOT / "artifacts" / "crashes", stamp=_stamp())
+    return rt, manifest
 
+
+def launch(args, *, bootstrap_artifacts: dict[str, Path], bind_plan=None,
+           frontend=None) -> int:
+    """Launch the selected generated VMless region provider."""
+    if frontend is not None:
+        # Carrier construction is backend-specific; replay restoration,
+        # snapshots, headless dispatch and presentation are not.  Delegating
+        # them to the canonical player is essential: calling run_view()
+        # directly used to boot the generated image and silently ignore a
+        # ReplayArtifact's embedded recording base.
+        from dos_re.player import launch_real_mode
+
+        def create_runtime(_args):
+            runtime, runtime_manifest = create_planned_runtime(
+                _args,
+                bootstrap_artifacts=bootstrap_artifacts,
+                bind_plan=None,
+            )
+            print(generated_graph_boot_report(runtime_manifest))
+            return runtime
+
+        launch_kwargs = {"create_runtime": create_runtime}
+        if bind_plan is not None:
+            launch_kwargs["bind_execution_plan"] = bind_plan
+        return launch_real_mode(frontend, args, **launch_kwargs)
+
+    rt, manifest = create_planned_runtime(
+        args,
+        bootstrap_artifacts=bootstrap_artifacts,
+        bind_plan=bind_plan,
+    )
+    drv = rt._skyroads_vmless_driver
+    print(generated_graph_boot_report(manifest))
     if args.headless:
         n = args.frames or 400
         for _ in range(n):

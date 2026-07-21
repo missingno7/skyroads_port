@@ -25,6 +25,11 @@ class OracleReplaySession:
 def open_oracle_replay(frontend, args, path):
     artifact = ReplayArtifact.open(path)
     frontend.apply_replay_metadata(args, artifact.metadata)
+    # This helper is explicitly the untouched behavioral oracle.  The normal
+    # product default is now the generated-shell/native-gameplay composition,
+    # so tests must select the oracle rather than inheriting product policy.
+    args.profile = "development"
+    args.composition = "oracle"
     args.execution_plan = frontend.resolve_execution_plan(args)
     runtime = frontend.create_runtime(args)
     apply_runtime_continuation(runtime, capture_base(artifact))

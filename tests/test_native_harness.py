@@ -1,4 +1,4 @@
-"""Focused tests for the authored ``NativeGameplayDriver`` subsystem.
+"""Focused tests for the authored ``NativeGameplayHarness`` subsystem.
 
 Two tests:
 * a pure smoke test (no game files needed) that the driver never crashes over
@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from skyroads.bridge.dgroup_view import GameView
-from skyroads.native.loop import NativeGameplayDriver
+from skyroads.native.loop import NativeGameplayHarness
 from skyroads.native.state import NativeGameState
 
 
@@ -41,7 +41,7 @@ def test_apply_level_init_zeroes_the_hud_gauge_caches() -> None:
 
 def test_driver_never_crashes_from_an_empty_level() -> None:
     view = GameView(NativeGameState())
-    driver = NativeGameplayDriver(view, jump_level_gate=8)
+    driver = NativeGameplayHarness(view, jump_level_gate=8)
     for _ in range(5000):
         driver.tick()  # must not raise
     assert driver.ticks == 5000
@@ -52,7 +52,7 @@ def test_driver_never_crashes_from_an_empty_level() -> None:
 
 def test_driver_transitions_are_well_formed() -> None:
     view = GameView(NativeGameState())
-    driver = NativeGameplayDriver(view, jump_level_gate=9)
+    driver = NativeGameplayHarness(view, jump_level_gate=9)
     seen_transition = False
     for _ in range(2000):
         outcome = driver.tick()
@@ -66,12 +66,9 @@ def test_driver_transitions_are_well_formed() -> None:
 
 
 def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
-    """A presentation layer needs to hold
-    the frozen frame on screen for a beat before respawning -- see
-    NativeGameplayDriver's docstring and docs/history/skyroads/run_status.md's
-    2026-07-13 crash/finish settle-window entry."""
+    """The stress harness can expose a boundary before its synthetic reset."""
     view = GameView(NativeGameState())
-    driver = NativeGameplayDriver(view, jump_level_gate=9, auto_respawn=False)
+    driver = NativeGameplayHarness(view, jump_level_gate=9, auto_respawn=False)
     outcome = None
     ticks_to_transition = 0
     for _ in range(2000):
@@ -83,7 +80,10 @@ def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
     # "" is a legitimate kind too -- e.g. the generic frame_ctr-budget exit
     # (`should_run_gameplay`'s `frame_ctr < FRAME_CTR_GAMEPLAY_MAX` fallback,
     # game_state==3 with grounded==0) isn't a crash/finish/timeout at all.
-    assert outcome.kind in ("crash", "finish", "timeout_fuel", "timeout_oxygen", "fall", "")
+    assert outcome.kind in (
+        "crash", "finish", "timeout_fuel", "timeout_oxygen",
+        "road_departure", "",
+    )
     # game_state is NOT reset -- the transition is held, not auto-applied.
     held_game_state = view.game_state
     for _ in range(10):
@@ -110,7 +110,10 @@ def test_auto_respawn_false_holds_the_transition_until_respawn() -> None:
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
-REPLAY = ROOT / "artifacts" / "replays" / "replay_e2e_20260710_132930"
+REPLAY = (
+    ROOT / "artifacts" / "replays"
+    / "replay_candidate_smoke_20260720_214152"
+)
 
 
 @pytest.mark.skipif(not (EXE.exists() and REPLAY.exists()),
@@ -183,7 +186,7 @@ def test_driver_plays_the_whole_replay_standalone() -> None:
 
     # Now drive PURELY natively -- the VM/runtime is not touched again.
     view = GameView(NativeGameState(seed["dgroup"]))
-    driver = NativeGameplayDriver(view, seed["jump_level_gate"])
+    driver = NativeGameplayHarness(view, seed["jump_level_gate"])
     for steer, jump, speed, keys, tick in inputs:
         view.steer = steer
         view.jump = jump
@@ -196,4 +199,4 @@ def test_driver_plays_the_whole_replay_standalone() -> None:
     assert driver.ticks == len(inputs)
     # The real replay (attract mode, replaying one level repeatedly) completes
     # and restarts multiple times -- the authored subsystem should too.
-    assert driver.transitions >= 1, "the driver never crossed a single transition"
+    assert driver.transitions >= 1, "the harness never crossed a single transition"

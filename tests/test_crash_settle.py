@@ -79,8 +79,7 @@ def test_native_runs_the_crash_settle_window_like_the_vm() -> None:
         for off in INPUT_OFFS:
             nst.ww(off, m.rw(ds, off))
         try:
-            ctx["sc"] = native_gameplay_substep(GameView(nst), ctx["sc"],
-                                                allow_unmodelled_effect=True)
+            ctx["sc"] = native_gameplay_substep(GameView(nst), ctx["sc"])
         except SkyroadsGap:
             ended["gap_at_grounded"] = nst.rw(0x456A)
 

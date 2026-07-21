@@ -11,8 +11,9 @@ contract. (There is NO separate "loading screen": the replays start ON the
 level-select screen and run the level; the load is interleaved with the menu +
 transition render, which is why it can't be cleanly isolated by write-tracing.)
 
-This candidate is not currently registered as a runtime implementation or
-bootstrap provider.
+This candidate is not independently registered as a runtime implementation or
+bootstrap provider. Its module is currently retained in the selected native
+dashboard/bootstrap dependency closure; no level-load identity is claimed.
 
 What the authored simulation reads per level
 (see docs/history/skyroads/run_status.md):

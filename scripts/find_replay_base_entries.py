@@ -1,7 +1,8 @@
 """Every replay base address is a re-entry point into its containing function.
 
-A ReplayArtifact resumes from its recording profile's base continuation, which
-may be captured wherever the machine happened to be -- usually a tick-wait,
+A ReplayArtifact retains the capture base as provenance and materializes a
+strict point-zero continuation for each requested execution profile. The
+capture base may be captured wherever the machine happened to be -- usually a tick-wait,
 render loop, or mid-blit rather than a function entry.
 
 When interpreter fallback is forbidden, resuming there reports an unresolved

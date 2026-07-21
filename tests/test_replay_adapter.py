@@ -162,3 +162,82 @@ def test_replay_treats_blocking_dos_input_as_resumable_stable_point(
     driver.replay_to(artifact, ReplayPoint(1, timeline))
 
     assert driver.current_point == ReplayPoint(1, timeline)
+
+
+def test_profile_base_can_drop_unselected_optional_devices() -> None:
+    state = ContinuationState(
+        "dos-re-real-mode-continuation-v1",
+        {
+            "cpu": {},
+            "dos": {
+                "pic": {"imr": 0, "irr": 0, "isr": 0},
+                "sound_blaster": {"command": 0},
+                "key_queue": [],
+            },
+        },
+        {"memory": b"machine"},
+        7,
+    )
+    runtime = SimpleNamespace(dos=SimpleNamespace(
+        pic=None, sound_blaster=None,
+    ))
+
+    projected = replay.project_base_to_runtime_devices(runtime, state)
+
+    assert "pic" not in projected.metadata["dos"]
+    assert "sound_blaster" not in projected.metadata["dos"]
+    assert projected.metadata["dos"]["key_queue"] == []
+    assert projected.regions == state.regions
+    assert projected.event_cursor == 7
+
+
+def test_profile_base_declares_the_requested_sound_blaster_mode() -> None:
+    state = ContinuationState(
+        "dos-re-real-mode-continuation-v1",
+        {
+            "cpu": {},
+            "dos": {
+                "pic": {"imr": 0, "irr": 0, "isr": 0},
+                "sound_blaster": {
+                    "base": 0x220, "irq": 7, "dma": 1,
+                    "detection_only": False,
+                },
+            },
+        },
+        {"memory": b"machine"},
+        0,
+    )
+    runtime = SimpleNamespace(dos=SimpleNamespace(
+        pic=object(),
+        sound_blaster=SimpleNamespace(
+            base=0x220, irq=7, dma=1, detection_only=True,
+        ),
+    ))
+
+    projected = replay.project_base_to_runtime_devices(runtime, state)
+
+    assert projected.metadata["dos"]["sound_blaster"]["detection_only"] is True
+
+
+def test_oracle_projection_restores_only_declared_poisoned_code() -> None:
+    state = ContinuationState(
+        "dos-re-real-mode-continuation-v1",
+        {"cpu": {}, "dos": {"key_queue": []}},
+        {"memory": b"DATA\x00\x00KEEP"},
+        0,
+    )
+    runtime = SimpleNamespace(
+        dos=SimpleNamespace(pic=None, sound_blaster=None),
+        cpu=SimpleNamespace(
+            mem=SimpleNamespace(data=bytearray(b"xxxxCODEyyyy")),
+        ),
+    )
+
+    projected = replay.project_base_to_runtime_devices(
+        runtime,
+        state,
+        executable_ranges=((4, 2),),
+        executable_image=b"xxxxCODEyyyy",
+    )
+
+    assert projected.regions["memory"] == b"DATACOKEEP"

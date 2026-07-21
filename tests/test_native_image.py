@@ -38,3 +38,14 @@ def test_offset_wraps_at_64k() -> None:
 def test_undersized_seed_data_is_padded() -> None:
     img = NativeGameImage(bytearray(10))
     assert len(img.data) == ADDR_SPACE
+
+
+def test_live_runtime_backing_retains_device_storage_and_aliases_writes() -> None:
+    backing = bytearray(ADDR_SPACE + 0x40000)
+
+    img = NativeGameImage(backing)
+    img.wb(0x1686, 0x456E, 2)
+
+    assert img.data is backing
+    assert len(img.data) == ADDR_SPACE + 0x40000
+    assert backing[(0x1686 << 4) + 0x456E] == 2
