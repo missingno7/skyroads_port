@@ -16,8 +16,19 @@
     }
   ],
   "artifact": {
+    "capture_profile": {
+      "continuation_schema": "dos-re-real-mode-continuation-v1",
+      "devices": "dos-re-real-mode-devices-v2:d0537e58ddde4a9ba2fd2625bacfc25dc93013a66f4c940b2219ff9c82c513c1",
+      "image": "ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+      "implementation": "e6d419cd8ea8abac9d63837b2e91d0493464cd01924cf658ec48b0a829e29cdb",
+      "profile_id": "real-mode-development-b1d8a0e6dcca",
+      "projection_schema": "dos-re-complete-machine-v1",
+      "role": "oracle",
+      "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
+    },
+    "capture_profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
     "event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
-    "identity_digest": "828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+    "identity_digest": "c83acfffde75d9d185aa24599caaa9ac1b384f2f692f6c017717bed8bca09272",
     "label": "oracle_atlas_smoke",
     "oracle_profile": {
       "continuation_schema": "dos-re-real-mode-continuation-v1",
@@ -30,10 +41,13 @@
       "runtime": "2cb9cec8e10dc3e0995655997d55345457a152b3677fc73360d8e9b9f2e12337"
     },
     "oracle_profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
-    "timeline_id": "skyroads-presented-frame-boundaries-v1"
+    "timeline_id": "skyroads-presented-frame-boundaries-v1",
+    "validation_count": 0
   },
+  "evidence_identity_digest": "b2519a1d0f007f14ea8871cae0c80f3f03e39d04b37b4e81a4e14e5683b28417",
+  "evidence_provenance": {},
   "format_version": 1,
-  "identity": "replay:828d3f777a345e68a107669ecbecce4329414c6100fadc89db2a8d3b489c2032",
+  "identity": "replay:c83acfffde75d9d185aa24599caaa9ac1b384f2f692f6c017717bed8bca09272",
   "incomplete_functions": [
     "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4153",
     "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4459",
@@ -42,7 +56,7 @@
   "kind": "replay",
   "program_id": "skyroads:1.0",
   "runtime_variants": [],
-  "source_digest": "80f8fe574ca385260b0c8288527a3b4a586e418f04967099f5dd377f14e14106",
+  "source_digest": "4129b3fe64e277f10157c4b054ef24e4d39c6cab8a19391c44507a05f38ed700",
   "transfers": [
     {
       "count": 7,

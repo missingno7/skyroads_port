@@ -448,6 +448,7 @@ def lifted_1010_2d1f(cpu, bb=0):
             # 1010:2E6B  c3           ret
             cpu.instruction_count += 19
             s.ip = cpu.pop()
+            cpu.call_depth = max(0, cpu.call_depth - 1)
             return
     raise stuck_error(__name__, cpu, bb, BLOCK_ADDRS,
                       iterations=MAX_ITERATIONS, no_progress=0)

@@ -4,7 +4,7 @@ from __future__ import annotations
 from dos_re.replay_input import RealModeInputAdapter
 from dos_re.replay import ReplayArtifact
 from dos_re.snapshot import apply_runtime_continuation
-from skyroads.replay import recording_base
+from skyroads.replay import capture_base
 
 
 class OracleReplaySession:
@@ -27,6 +27,6 @@ def open_oracle_replay(frontend, args, path):
     frontend.apply_replay_metadata(args, artifact.metadata)
     args.execution_plan = frontend.resolve_execution_plan(args)
     runtime = frontend.create_runtime(args)
-    apply_runtime_continuation(runtime, recording_base(artifact))
+    apply_runtime_continuation(runtime, capture_base(artifact))
     runtime.dos.console_input_fallback = None
     return OracleReplaySession(artifact), runtime

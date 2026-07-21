@@ -380,6 +380,52 @@
       "pending_boundaries": {}
     }
   },
-  "revision": 10,
+  "revision": 11,
+  "timeline_coordinate_provenance": {
+    "composition": "oracle",
+    "end_ordinal": 3,
+    "event_stream_sha256": "530d8110fdd192f23ea21c5c70a54be6b4a14de85b5aaf8ba49255e27425faa9",
+    "kind": "one-shot-capture-clock-materialization",
+    "profile_identity_digest": "2b8497de435fe12afdacdc025c9f317b8c577275aeba7e029b30f1fcd8c6e54b"
+  },
+  "timeline_coordinates": [
+    {
+      "point": {
+        "key": "f029e88d5c291312-0000000000000000",
+        "ordinal": 0,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "schema_id": "dos-re:guest-instruction-count:v1",
+      "value": 626950
+    },
+    {
+      "point": {
+        "key": "f029e88d5c291312-0000000000000001",
+        "ordinal": 1,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "schema_id": "dos-re:guest-instruction-count:v1",
+      "value": 675088
+    },
+    {
+      "point": {
+        "key": "f029e88d5c291312-0000000000000002",
+        "ordinal": 2,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "schema_id": "dos-re:guest-instruction-count:v1",
+      "value": 723224
+    },
+    {
+      "point": {
+        "key": "f029e88d5c291312-0000000000000003",
+        "ordinal": 3,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      },
+      "schema_id": "dos-re:guest-instruction-count:v1",
+      "value": 771362
+    }
+  ],
+  "timeline_coordinates_sha256": "6d4e9f05dd1dcd8bbe32d13ceee5e418052460adb56fcc84cc5ac4ebf0673d97",
   "timeline_id": "skyroads-presented-frame-boundaries-v1"
 }

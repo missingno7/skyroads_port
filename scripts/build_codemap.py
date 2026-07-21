@@ -38,7 +38,7 @@ from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
 from dos_re.replay_input import RealModeInputAdapter  # noqa: E402
 from dos_re.replay import ReplayArtifact  # noqa: E402
 from dos_re.snapshot import apply_runtime_continuation  # noqa: E402
-from skyroads.replay import recording_base  # noqa: E402
+from skyroads.replay import capture_base  # noqa: E402
 
 #: The game's code segment. Entries outside it are DOS/BIOS/framework, not game
 #: code to recover.
@@ -55,7 +55,7 @@ def observe_replay(replay_dir: Path, *, max_frames: int = 0,
     frontend.apply_replay_metadata(args, artifact.metadata)
     args.execution_plan = frontend.resolve_execution_plan(args)
     rt = frontend.create_runtime(args)
-    apply_runtime_continuation(rt, recording_base(artifact))
+    apply_runtime_continuation(rt, capture_base(artifact))
     inputs = RealModeInputAdapter(artifact.events)
     rt.dos.console_input_fallback = None
 

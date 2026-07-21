@@ -49,15 +49,24 @@ The retained Recovery IR seeds the static census. Generated ABI module names
 are only a first-bootstrap fallback for a workspace that does not yet have
 retained IR; generated module contents are never the Atlas's source authority.
 
-The checked-in oracle pilot can be recreated from a deterministic source
-recording with the explicit one-shot converter:
+The checked-in oracle pilot can be recreated or any other deterministic replay
+can be enriched in place through post-hoc oracle observation:
 
 ```text
-python scripts/record_atlas_evidence.py --source-replay artifacts/replays/REPLAY --frames 3 --replace
+python scripts/enrich_replay.py artifacts/replays/REPLAY --frames 3
 python scripts/build_atlas.py --from-ir
 ```
 
-This conversion command is not a runtime compatibility path.
+Enrichment never creates a suffix replay or parallel artifact. It leaves the
+immutable event stream and capture base untouched, and idempotently attaches
+evidence with its exact plan and observer provenance. `build_atlas.py` reports
+the intrinsic contribution of each replay and its exact new node/edge delta
+against the current corpus. For the complete machine-readable identity lists,
+use:
+
+```text
+python dos_re/tools/atlas.py ingest-replay recovery/atlas artifacts/replays/REPLAY --json
+```
 
 ## Current honest frontier
 

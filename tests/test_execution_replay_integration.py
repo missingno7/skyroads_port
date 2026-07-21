@@ -6,8 +6,15 @@ from pathlib import Path
 import pytest
 
 from dos_re import player
-from dos_re.replay import ReplayRecording, ReplayPoint, verify_interval
+from dos_re.replay import (
+    ReplayRecording,
+    ReplayPoint,
+    verify_checkpointed,
+    verify_interval,
+)
 from scripts.play import SkyroadsFrontend
+from skyroads.hooks import CODE_SEG
+from skyroads.pacing import PACING_SPIN_IP, TICK_ADDR
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "assets" / "SKYROADS.EXE"
@@ -21,6 +28,7 @@ def test_generated_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
     ])
     oracle_args.execution_plan = frontend.resolve_execution_plan(oracle_args)
     oracle_runtime = frontend.create_runtime(oracle_args)
+    frontend.bind_execution_plan(oracle_runtime, oracle_args.execution_plan)
     profile = frontend.replay_profile(oracle_args, oracle_runtime)
     base = frontend.capture_replay_state(oracle_runtime, event_cursor=0)
     recording = ReplayRecording(
@@ -30,7 +38,13 @@ def test_generated_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
         base_state=base,
         metadata=frontend.replay_metadata(oracle_args),
     )
+    schema, value = frontend.replay_point_coordinate(
+        oracle_runtime, oracle_args, point_ordinal=0)
+    recording.mark(0, schema_id=schema, value=value)
     frontend.advance_frame(oracle_runtime, oracle_args, 0)
+    schema, value = frontend.replay_point_coordinate(
+        oracle_runtime, oracle_args, point_ordinal=1)
+    recording.mark(1, schema_id=schema, value=value)
     artifact = recording.finish(
         1,
         end_state=frontend.capture_replay_state(
@@ -51,3 +65,60 @@ def test_generated_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
         ReplayPoint(1, artifact.timeline_id),
     )
     assert result.equivalent, result.comparison.differences
+
+
+@pytest.mark.skipif(not EXE.exists(), reason="needs SKYROADS.EXE")
+def test_semantic_frame_park_is_stable_across_oracle_and_generated(tmp_path):
+    frontend = SkyroadsFrontend(ROOT)
+    oracle_args = player.build_arg_parser(frontend).parse_args([
+        "--headless", "--composition", "oracle",
+        "--timer-irqs-per-frame", "0",
+    ])
+    oracle_args.execution_plan = frontend.resolve_execution_plan(oracle_args)
+    runtime = frontend.create_runtime(oracle_args)
+    frontend.bind_execution_plan(runtime, oracle_args.execution_plan)
+    runtime.cpu.s.cs = CODE_SEG
+    runtime.cpu.s.ip = PACING_SPIN_IP
+    runtime.cpu.s.bp = 0x0200
+    runtime.cpu.s.sp = 0x0300
+    runtime.cpu.s.ss = runtime.cpu.s.ds
+    tick = runtime.cpu.mem.rw(runtime.cpu.s.ds, TICK_ADDR)
+    runtime.cpu.mem.ww(runtime.cpu.s.ss, runtime.cpu.s.bp - 4, tick)
+    profile = frontend.replay_profile(oracle_args, runtime)
+    recording = ReplayRecording(
+        tmp_path / "semantic-replay",
+        timeline_id="skyroads-semantic-frame-park-test-v1",
+        profile=profile,
+        base_state=frontend.capture_replay_state(runtime, event_cursor=0),
+        metadata=frontend.replay_metadata(oracle_args),
+    )
+    schema, value = frontend.replay_point_coordinate(
+        runtime, oracle_args, point_ordinal=0)
+    recording.mark(0, schema_id=schema, value=value)
+    frontend.advance_frame(runtime, oracle_args, 0)
+    schema, value = frontend.replay_point_coordinate(
+        runtime, oracle_args, point_ordinal=1)
+    assert value == {"sequence": 1, "kind": "frame-park"}
+    recording.mark(1, schema_id=schema, value=value)
+    artifact = recording.finish(
+        1,
+        end_state=frontend.capture_replay_state(runtime, event_cursor=0),
+    )
+
+    verify_args = player.build_arg_parser(frontend).parse_args([
+        "--headless", "--profile", "verification",
+        "--composition", "generated-functions",
+        "--timer-irqs-per-frame", "0",
+    ])
+    plan = frontend.resolve_execution_plan(verify_args)
+    verify_args.execution_plan = plan
+    oracle, candidate = frontend.verification_drivers(
+        verify_args, plan, artifact)
+    checked = verify_checkpointed(
+        artifact, oracle, candidate,
+        ReplayPoint(0, artifact.timeline_id),
+        ReplayPoint(1, artifact.timeline_id),
+        checkpoint_span=64,
+        observable_effects=True,
+    )
+    assert checked.equivalent, checked.comparison.differences

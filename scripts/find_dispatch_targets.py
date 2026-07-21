@@ -65,7 +65,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "dos_re"))
 sys.path.insert(0, str(ROOT))
 
-from skyroads.replay import recording_base_memories  # noqa: E402
+from skyroads.replay import capture_base_memories  # noqa: E402
 
 CODE_SEG = 0x1010
 DGROUP_SEG = 0x1686
@@ -234,8 +234,8 @@ def main(argv=None) -> int:
     boot_image = ROOT / "artifacts" / "boot_image" / "memory_1mb.bin"
     if boot_image.is_file():
         image_records.append(("boot_image", boot_image.read_bytes()))
-    image_records.extend(recording_base_memories(ROOT / "recovery" / "replays"))
-    image_records.extend(recording_base_memories(ROOT / "artifacts" / "replays"))
+    image_records.extend(capture_base_memories(ROOT / "recovery" / "replays"))
+    image_records.extend(capture_base_memories(ROOT / "artifacts" / "replays"))
     for raw in args.images or ():
         path = Path(raw)
         if path.is_file():

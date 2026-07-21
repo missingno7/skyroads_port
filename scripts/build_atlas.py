@@ -176,7 +176,16 @@ def _build_atlas() -> ExecutionAtlas:
     for profile in PRODUCT_PROFILES:
         atlas.set_product_roots(profile, [PROGRAM_ROOT])
     for manifest in sorted((RECOVERY / "replays").glob("*/replay.json")):
-        atlas.ingest_replay(manifest.parent)
+        report = atlas.ingest_replay_with_report(manifest.parent)
+        print(
+            f"Replay {report.artifact_label}: "
+            f"{len(report.visited_function_ids)} functions / "
+            f"{report.invocation_count} invocations, "
+            f"{len(report.observed_edges)} edges / "
+            f"{report.observation_count} observations; "
+            f"corpus delta +{len(report.new_node_ids)} nodes, "
+            f"+{len(report.new_edges)} edges"
+        )
     atlas.validate()
     if ATLAS.exists():
         shutil.rmtree(ATLAS)

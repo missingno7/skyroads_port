@@ -11,7 +11,8 @@ python scripts/play.py
 
 The default development composition uses authored faithful candidates plus
 the product-safe frame-parking runtime service. Use `--composition oracle`
-when an untouched, intentionally slow interpreter run is required.
+when the original implementation is required; the same stateless semantic
+scheduling seam remains active for replay boundaries.
 The window defaults to a desktop-safe 2× scale; use `--scale 3` or resize it
 after launch on a larger display.
 
@@ -57,12 +58,20 @@ interpreter/development imports, and publishes only the audited runtime,
 bootstrap, and data closure. Code poisoning remains optional additional
 evidence, not release authority.
 
-`ReplayArtifact` is the only persistent record/replay format. Recording is
-restricted to the untouched oracle. Literal generated functions are green over
-the committed exact interval with complete continuation-state comparison.
-Authored faithful candidates retain focused semantic tests and explicit
-provenance, but the complete authored composition must become instruction-clock
-transparent before the same interval proof can promote it.
+`ReplayArtifact` is the only persistent record/replay format. Interactive
+capture may use any responsive development composition, including already
+replay-backed faithful overrides. Such a capture is provisional until the immutable
+input stream replays completely against the untouched oracle without
+divergence. Post-hoc oracle replay also attaches function visits and observed
+control-flow evidence, independently of capture. Literal generated functions
+are green over the committed exact interval with complete continuation-state
+comparison. Authored faithful candidates retain focused semantic tests and
+explicit provenance; they become replay-verifiable by exposing the same game
+boundaries and canonical state/effects, not by imitating assembler instruction
+counts.
+Every green result is scoped to its exact replay and interval. It is useful
+evidence for continued development, not a claim that the function is correct
+for inputs the corpus has never exercised.
 
 See [current documentation](docs/README.md). Pre-3.0 recovery notes are kept
 under `docs/history/` as evidence only.

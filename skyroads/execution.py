@@ -399,7 +399,17 @@ def configuration(
         )
     preferences: tuple[str, ...]
     selected: tuple[str, ...] = ()
-    product_services: tuple[str, ...] = ()
+    # Interpreter-backed compositions all use the same stateless semantic
+    # frame seam.  It is scheduling infrastructure, not a recovery-level hook:
+    # oracle, generated and authored bodies must stop at the identical blocked
+    # main-loop wait for replay points to be backend-independent.
+    product_services: tuple[str, ...] = (
+        (FRAME_PARK_SERVICE_ID,)
+        if composition in {
+            "oracle", "generated-functions", "authored-candidates", "play",
+        }
+        else ()
+    )
     if composition == "oracle":
         preferences = ("baseline:interpreted-exe",)
     elif composition == "generated-functions":
@@ -411,7 +421,6 @@ def configuration(
         )
     elif composition == "play":
         selected = implementation_ids(OverrideCategory.FAITHFUL)
-        product_services = (FRAME_PARK_SERVICE_ID,)
         preferences = (
             *selected, *generated_function_ids(), "baseline:interpreted-exe",
         )

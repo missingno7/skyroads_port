@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "dos_re"))
 sys.path.insert(0, str(ROOT))
 
-from skyroads.replay import recording_artifacts, recording_base  # noqa: E402
+from skyroads.replay import capture_base, replay_artifacts  # noqa: E402
 
 CODE_SEG = 0x1010
 
@@ -42,8 +42,8 @@ CODE_SEG = 0x1010
 def replay_base_entries(replays_dir: Path) -> list[tuple[str, int, int]]:
     """Return ``(artifact_name, cs, ip)`` for every replay recording base."""
     out: list[tuple[str, int, int]] = []
-    for artifact in recording_artifacts(replays_dir):
-        cpu = recording_base(artifact).metadata["cpu"]
+    for artifact in replay_artifacts(replays_dir):
+        cpu = capture_base(artifact).metadata["cpu"]
         out.append((artifact.directory.name, int(cpu["cs"]) & 0xFFFF,
                     int(cpu["ip"]) & 0xFFFF))
     return sorted(out, key=lambda t: (t[1], t[2]))
