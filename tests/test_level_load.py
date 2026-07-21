@@ -104,7 +104,7 @@ def test_native_loaded_level_plays_the_vm_golden_trajectory() -> None:
     the original game for level 14 (0x4B,0x96,0xE1,…) and crashes into the same
     obstacle at frame_ctr 108 (game_state=3) — verified byte-for-byte against a
     VM-captured level-14 seed (see run_status.md 2026-07-12)."""
-    from skyroads.native.loop import NativeGameplayDriver, apply_level_init
+    from skyroads.native.loop import NativeGameplayHarness, apply_level_init
     from skyroads.bridge.dgroup_view import GameView
 
     dg = BASELINE.read_bytes()[(DATA_SEG << 4):(DATA_SEG << 4) + 0x10000]
@@ -113,7 +113,7 @@ def test_native_loaded_level_plays_the_vm_golden_trajectory() -> None:
     gate = state.rw(0x4562)
     view = GameView(state)
     scratch = apply_level_init(view, gate)
-    driver = NativeGameplayDriver(view, gate, scratch)
+    driver = NativeGameplayHarness(view, gate, scratch)
 
     trajectory = []
     outcome = None

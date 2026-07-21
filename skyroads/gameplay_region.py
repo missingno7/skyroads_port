@@ -1,10 +1,13 @@
 """Canonical-player adapter for the authored SkyRoads gameplay island.
 
-The generated provider reaches the original gameplay loop at ``1010:2317``.
+The generated provider reaches the first gameplay body at ``1010:2317``.
 At that stable point this adapter transfers ownership to the recovered native
-gameplay driver for successive semantic ticks.  State remains authoritative in
-the same DOS memory image. Terminal outcomes reproduce the original ``1FD9``
-epilogue and return to its generated caller at ``1010:2C61``.
+body and reconstructs the surrounding ``1FD9`` pacing loop from generated and
+oracle evidence.  State remains authoritative in the same DOS memory image.
+Each yielded frame is parked at the original ``1010:22FB`` timer boundary, so
+a ReplayArtifact continuation can recreate the region without serializing a
+Python session. Terminal results are returned unchanged to the generated
+caller at ``1010:2C61``.
 
 Generated device services remain outside the gameplay island.  A narrow
 carrier adapter invokes the already-selected generated ``03C2`` sound effect
@@ -18,6 +21,7 @@ from dos_re.regions import RegionProgress, ensure_region_dispatcher
 
 from skyroads.bridge.dgroup_view import GameView
 from skyroads.handrecovered.controls import decode_attract, decode_keyboard
+from skyroads.handrecovered.orchestration import should_run_gameplay
 from skyroads.identities import CODE_SEG
 from skyroads.native.dashboard import (
     DASHBOARD_BEZEL_OVERLAP,
@@ -27,24 +31,24 @@ from skyroads.native.dashboard import (
 from skyroads.native.frame import render_native_frame
 from skyroads.native.hud import draw_grav_meter, update_hud, update_progress_bar
 from skyroads.native.image import NativeGameImage
-from skyroads.native.loop import GameplayScratch, NativeGameplayDriver
+from skyroads.native.gaps import RoadDepartureTransition
+from skyroads.native.loop import GameplayScratch, native_gameplay_body
 from skyroads.handrecovered.dynamics import JumpScratch
 
 
 GAMEPLAY_ENTRY_IP = 0x2317
+GAMEPLAY_RESUME_IP = 0x22FB
 GAMEPLAY_CALLER_IP = 0x2C61
-GAMEPLAY_TICK_BOUNDARY = "skyroads:main-loop-or-input-boundary:v1"
-GAMEPLAY_ENTRY_ID = "start-level"
-LEVEL_COMPLETED_EXIT = "level-completed"
-WALL_CRASH_EXIT = "wall-crash"
-FUEL_EXPIRED_EXIT = "fuel-expired"
-OXYGEN_EXPIRED_EXIT = "oxygen-expired"
-FELL_OFF_ROAD_EXIT = "fell-off-road"
+GAMEPLAY_TICK_BOUNDARY = "skyroads:gameplay-frame-park:v1"
+GAMEPLAY_ENTRY_ID = "body-ready"
+GAMEPLAY_RESUME_ENTRY_ID = "resume-frame"
+GAMEPLAY_RESULT_EXIT = "gameplay-result"
+ROAD_DEPARTURE_EXIT = "road-departure-transition"
 GAMEPLAY_ABORTED_EXIT = "gameplay-aborted"
 
 _SFX_FUNCTION_IP = 0x03C2
-_FALL_HANDLER_IP = 0x0F05
-_FALL_HANDLER_RETURN_IP = 0x241E
+_ROAD_DEPARTURE_HANDLER_IP = 0x0F05
+_ROAD_DEPARTURE_RETURN_IP = 0x241E
 _ESCAPE_KEY_OFFSET = 0x0BDA
 _KEY_DOWN_BIT = 0x80
 _REGISTER_FIELDS = (
@@ -52,17 +56,14 @@ _REGISTER_FIELDS = (
     "cs", "ds", "es", "ss", "ip", "flags", "fsw", "fcw",
 )
 
-_TRANSITION_EXITS = {
-    "finish": LEVEL_COMPLETED_EXIT,
-    "crash": WALL_CRASH_EXIT,
-    "timeout_fuel": FUEL_EXPIRED_EXIT,
-    "timeout_oxygen": OXYGEN_EXPIRED_EXIT,
-    "fall": FELL_OFF_ROAD_EXIT,
-}
-
-
 def _stack_word(cpu, distance: int) -> int:
     return cpu.mem.rw(cpu.s.ss, (cpu.s.bp - distance) & 0xFFFF)
+
+
+def _set_stack_word(cpu, distance: int, value: int) -> None:
+    cpu.mem.ww(
+        cpu.s.ss, (cpu.s.bp - distance) & 0xFFFF, int(value) & 0xFFFF,
+    )
 
 
 def _capture_scratch(cpu) -> GameplayScratch:
@@ -153,19 +154,14 @@ class _GeneratedGameplayServices:
 class SkyroadsGameplaySession:
     """Long-lived native gameplay owner over the generated runtime's memory."""
 
-    def __init__(self, runtime):
+    def __init__(self, runtime, *, awaiting_elapsed: bool = False):
         self.runtime = runtime
         self.cpu = runtime.cpu
         self.image = NativeGameImage(self.cpu.mem.data)
         self.data_segment = self.cpu.s.ds
         self.view = GameView(self.image, base=self.data_segment << 4)
-        self.driver = NativeGameplayDriver(
-            self.view,
-            self.view.jump_level_gate,
-            _capture_scratch(self.cpu),
-            on_sfx=runtime._skyroads_gameplay_services.emit_sfx,
-            auto_respawn=False,
-        )
+        self.scratch = _capture_scratch(self.cpu)
+        self.awaiting_elapsed = bool(awaiting_elapsed)
 
     def _decode_input(self) -> None:
         control_device = self.view._backend.rw(0x95F6)
@@ -196,21 +192,63 @@ class SkyroadsGameplaySession:
         draw_grav_meter(self.image, self.data_segment)
 
     def advance(self) -> RegionProgress:
+        """Advance from one original 22FB park to the next.
+
+        Oracle traces show that a displayed frame may execute more than one
+        2317 body: ``SS:[BP-2]`` is incremented until it catches the virtual
+        timer ``DS:[1600]``.  Input is consumed only after the timer changes;
+        the escape/gate/render prelude belongs after that batch, immediately
+        before the next 22FB wait.  This ordering is the original control-flow
+        contract, not behavior inherited from the former native player.
+        """
+        elapsed = self.view.elapsed_ticks & 0xFFFF
+        frame_start = _stack_word(self.cpu, 4)
+        if self.awaiting_elapsed and elapsed == frame_start:
+            self.cpu.s.cs, self.cpu.s.ip = CODE_SEG, GAMEPLAY_RESUME_IP
+            return RegionProgress.yielded(GAMEPLAY_TICK_BOUNDARY)
+
+        local_tick = _stack_word(self.cpu, 2)
+        while True:
+            self._decode_input()
+            try:
+                self.scratch = native_gameplay_body(
+                    self.view,
+                    self.scratch,
+                    sfx=self.runtime._skyroads_gameplay_services.emit_sfx,
+                )
+            except RoadDepartureTransition:
+                _materialize_scratch(self.cpu, self.scratch)
+                return RegionProgress.exited(ROAD_DEPARTURE_EXIT)
+            _materialize_scratch(self.cpu, self.scratch)
+            local_tick = (local_tick + 1) & 0xFFFF
+            _set_stack_word(self.cpu, 2, local_tick)
+            elapsed = self.view.elapsed_ticks & 0xFFFF
+            if local_tick >= elapsed:
+                break
+
+        # 20AA handles timer wrap before capturing BP-4 for the next 22FB
+        # wait.  Keep those locals in the machine continuation so restoration
+        # needs no backend-private phase marker.
+        if elapsed < local_tick:
+            self.view.elapsed_ticks = 0
+            elapsed = 0
+            local_tick = 0
+            _set_stack_word(self.cpu, 2, local_tick)
+        _set_stack_word(self.cpu, 4, elapsed)
+
         if self.view.key_row[_ESCAPE_KEY_OFFSET] & _KEY_DOWN_BIT:
             return RegionProgress.exited(GAMEPLAY_ABORTED_EXIT)
-        self._decode_input()
-        outcome = self.driver.tick()
-        _materialize_scratch(self.cpu, self.driver.scratch)
+        if not should_run_gameplay(
+            self.view.game_state,
+            self.view.grounded,
+            self.view.frame_ctr,
+        ):
+            return RegionProgress.exited(GAMEPLAY_RESULT_EXIT)
+
         self._render()
-        if not outcome.transitioned:
-            return RegionProgress.yielded(GAMEPLAY_TICK_BOUNDARY)
-        try:
-            exit_id = _TRANSITION_EXITS[outcome.kind]
-        except KeyError as exc:
-            raise RuntimeError(
-                f"native gameplay produced an unclassified transition: {outcome!r}"
-            ) from exc
-        return RegionProgress.exited(exit_id)
+        self.awaiting_elapsed = True
+        self.cpu.s.cs, self.cpu.s.ip = CODE_SEG, GAMEPLAY_RESUME_IP
+        return RegionProgress.yielded(GAMEPLAY_TICK_BOUNDARY)
 
 
 class _GameplayRegistration:
@@ -281,14 +319,21 @@ class _GameplayRegistration:
             )
 
     def maybe_handoff(self, cpu, head_cs: int, head_ip: int) -> bool:
-        if (head_cs & 0xFFFF, head_ip & 0xFFFF) != (
-            CODE_SEG, GAMEPLAY_ENTRY_IP,
-        ):
+        point = (head_cs & 0xFFFF, head_ip & 0xFFFF)
+        entries = {
+            (CODE_SEG, GAMEPLAY_ENTRY_IP): (GAMEPLAY_ENTRY_ID, False),
+            (CODE_SEG, GAMEPLAY_RESUME_IP): (
+                GAMEPLAY_RESUME_ENTRY_ID, True,
+            ),
+        }
+        selected = entries.get(point)
+        if selected is None:
             return False
         dispatcher = ensure_region_dispatcher(self.runtime)
         if dispatcher.active:
             return False
-        cpu.s.cs, cpu.s.ip = CODE_SEG, GAMEPLAY_ENTRY_IP
+        entry_id, awaiting_elapsed = selected
+        cpu.s.cs, cpu.s.ip = point
         self._collapse_internal_boundaries()
         self.runtime._skyroads_gameplay_entries = (
             getattr(self.runtime, "_skyroads_gameplay_entries", 0) + 1
@@ -303,35 +348,31 @@ class _GameplayRegistration:
             self.restore_internal_boundaries()
             if exit_point.exit_id == GAMEPLAY_ABORTED_EXIT:
                 self._return_to_generated_caller(cpu, 7)
-            elif exit_point.exit_id == LEVEL_COMPLETED_EXIT:
-                # ``game_state == 2`` is the gameplay handler's internal
-                # completion marker.  The enclosing 01B8 product loop uses
-                # the 2B3D result as a different, caller-facing protocol:
-                # result zero advances the completed-level bookkeeping and
-                # returns to 5180, while result two starts 2B3D again.  The
-                # old standalone native runner encoded the same distinction
-                # in its menu routing.  This execution-region seam must
-                # expose the product-loop result, not leak the inner flag.
-                self._return_to_generated_caller(cpu, 0)
-            elif exit_point.exit_id == FELL_OFF_ROAD_EXIT:
-                # Original 1FD9 calls the long-running 0F05 death transition,
-                # which owns its own generated parks, then resumes at 241E and
-                # returns from gameplay.  Seed that exact call continuation.
-                cpu.push(_FALL_HANDLER_RETURN_IP)
+            elif exit_point.exit_id == ROAD_DEPARTURE_EXIT:
+                # 23CA-241E calls 0F05 and returns its result unchanged.  The
+                # preserved replay observes result zero here; only outer 01B8
+                # interprets that as advance-and-reenter the 5180 selector.
+                cpu.push(_ROAD_DEPARTURE_RETURN_IP)
                 cpu.call_depth += 1
-                cpu.s.cs, cpu.s.ip = CODE_SEG, _FALL_HANDLER_IP
-            else:
-                # Death and timeout results keep their original non-zero
-                # caller protocol, which tells 01B8 to retry the same level.
+                cpu.s.cs, cpu.s.ip = CODE_SEG, _ROAD_DEPARTURE_HANDLER_IP
+            elif exit_point.exit_id == GAMEPLAY_RESULT_EXIT:
+                # 22E3 returns DS:[456E] verbatim.  Do not reinterpret or
+                # rewrite that inner handler result at the region seam.
                 self._return_to_generated_caller(
                     cpu, cpu.mem.rw(cpu.s.ds, 0x456E),
+                )
+            else:  # defensive: the binding check above should make this unreachable
+                raise RuntimeError(
+                    f"unknown SkyRoads gameplay exit {exit_point.exit_id!r}"
                 )
             self.runtime._skyroads_last_region_exit = exit_point.exit_id
 
         dispatcher.handoff(
             self.binding,
-            GAMEPLAY_ENTRY_ID,
-            SkyroadsGameplaySession(self.runtime),
+            entry_id,
+            SkyroadsGameplaySession(
+                self.runtime, awaiting_elapsed=awaiting_elapsed,
+            ),
             complete=complete,
         )
         return True

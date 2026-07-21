@@ -57,18 +57,24 @@ player:
 
 ```text
 generated frontend/menu
-    -> 1010:2317 / start-level
+    -> 1010:2317 / body-ready
 authored skyroads.gameplay over the same DOS memory
-    -> level-completed, wall-crash, fuel-expired, or oxygen-expired
-       -> original 1FD9 epilogue contract, generated caller at 1010:2C61
-    -> fell-off-road
-       -> generated 1010:0F05 death transition, then 1010:241E
+    -> 1010:22FB / resume-frame after each rendered frame
+    -> gameplay-result
+       -> original 1FD9 epilogue, raw DS:[456E], generated 1010:2C61
+    -> road-departure-transition
+       -> generated 1010:0F05, then 1010:241E
     -> gameplay-aborted
        -> generated caller at 1010:2C61 with AX=7
 ```
 
 The region owns input decoding, gameplay physics, collision, rendering, HUD,
-and transition detection across successive semantic frame boundaries. It does
+and the recovered `1FD9` timer loop across successive semantic frame
+boundaries. Oracle replay evidence shows 878 points with one gameplay body and
+219 with two: one host frame is not one body. The region increments the
+original `SS:[BP-2]` local and batches `2324-2AF8` until it catches
+`DS:[1600]`, then applies the original escape and continuation gate, renders,
+and parks at `1010:22FB`. It does
 not bounce through the historical per-function hooks it covers. The Atlas
 retains those identities for evidence and navigation, and the plan report
 lists their ordinary bindings as contextually dormant.
@@ -76,9 +82,11 @@ lists their ordinary bindings as contextually dormant.
 Shared DOS memory is authoritative in this first slice. Entry captures only
 the original stack locals that are genuinely session state. Each named exit
 reconstructs the exact continuation required by the original generated
-caller; the authored region does not invent respawn or campaign policy. The same
-`ReplayArtifact` timeline continues across the carrier change because both
-sides yield `skyroads:main-loop-or-input-boundary:v1` points.
+caller. In particular, the region does not rewrite `game_state == 2` to zero
+or classify raw inner results as completion/death policy; generated `2B3D` and
+`01B8` retain that ownership. The same `ReplayArtifact` timeline continues
+across the carrier change because gameplay yields
+`skyroads:gameplay-frame-park:v1` points.
 
 Differential verification constructs the generated VMless candidate through
 the same planned-runtime factory as interactive play; it never substitutes an
@@ -111,10 +119,12 @@ native region at `1010:2317`.
 It supplies the authoritative result of one confirmed selection and restores
 the selected generated function before the level starts. It does not load a
 level, create native state, or call gameplay itself. Consequently it reaches
-the same region as an interactive selection, and completion/death/abort all
-return to the generated shell. After a successful level the original caller
-may advance the menu cursor and unlock state, but it waits in level selection;
-the native provider never automatically starts the next level.
+the same region as an interactive selection, and every raw result returns to
+the generated shell. The preserved oracle replay observes the `0F05`
+road-departure result zero, after which `01B8` advances the selected level and
+re-enters `5180`; it observes result three taking the generated same-level
+retry path without re-entering selection. The native provider implements
+neither decision.
 
 ## Evidence and contracts
 

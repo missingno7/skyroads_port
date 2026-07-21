@@ -19140,6 +19140,18 @@
       "evidence": [
         "manual:skyroads-retained-entry-census-v1"
       ],
+      "kind": "resume-handoff",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22fb",
+      "status": "resolved",
+      "target": "skyroads:1.0:region:gameplay"
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "manual:skyroads-retained-entry-census-v1"
+      ],
       "kind": "handoff",
       "metadata": {},
       "observation_count": 0,
@@ -19482,6 +19494,18 @@
       "source": "skyroads:1.0:region:gameplay",
       "status": "resolved",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A0f05"
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "manual:skyroads-retained-entry-census-v1"
+      ],
+      "kind": "replay-boundary",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:region:gameplay",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22fb"
     },
     {
       "conflicts": {},
@@ -25966,7 +25990,7 @@
       ],
       "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A0f05",
       "kind": "execution-point",
-      "label": "1010:0F05 generated fall/death transition",
+      "label": "1010:0F05 generated road-departure transition",
       "metadata": {
         "entry": "1010:0F05"
       }
@@ -25992,11 +26016,25 @@
       "evidence": [
         "manual:skyroads-retained-entry-census-v1"
       ],
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22fb",
+      "kind": "execution-point",
+      "label": "1010:22FB gameplay frame-resume boundary",
+      "metadata": {
+        "entry": "1010:22FB",
+        "phase": "awaiting-virtual-time"
+      }
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "manual:skyroads-retained-entry-census-v1"
+      ],
       "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A2317",
       "kind": "execution-point",
-      "label": "1010:2317 gameplay loop entry",
+      "label": "1010:2317 gameplay body-ready entry",
       "metadata": {
-        "entry": "1010:2317"
+        "entry": "1010:2317",
+        "phase": "body-ready"
       }
     },
     {

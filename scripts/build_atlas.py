@@ -27,7 +27,8 @@ from dos_re.lift.ir import load_recovery_ir  # noqa: E402
 from skyroads.identities import (  # noqa: E402
     IMAGE,
     GAMEPLAY_ENTRY_POINT,
-    GAMEPLAY_FALL_CONTINUATION,
+    GAMEPLAY_RESUME_POINT,
+    GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
     GAMEPLAY_CALLER_CONTINUATION,
     GAMEPLAY_REGION,
     PROGRAM,
@@ -156,8 +157,17 @@ def _build_atlas() -> ExecutionAtlas:
             {
                 "id": GAMEPLAY_ENTRY_POINT,
                 "kind": "execution-point",
-                "label": "1010:2317 gameplay loop entry",
-                "metadata": {"entry": "1010:2317"},
+                "label": "1010:2317 gameplay body-ready entry",
+                "metadata": {"entry": "1010:2317", "phase": "body-ready"},
+            },
+            {
+                "id": GAMEPLAY_RESUME_POINT,
+                "kind": "execution-point",
+                "label": "1010:22FB gameplay frame-resume boundary",
+                "metadata": {
+                    "entry": "1010:22FB",
+                    "phase": "awaiting-virtual-time",
+                },
             },
             {
                 "id": GAMEPLAY_CALLER_CONTINUATION,
@@ -166,9 +176,9 @@ def _build_atlas() -> ExecutionAtlas:
                 "metadata": {"entry": "1010:2C61"},
             },
             {
-                "id": GAMEPLAY_FALL_CONTINUATION,
+                "id": GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
                 "kind": "execution-point",
-                "label": "1010:0F05 generated fall/death transition",
+                "label": "1010:0F05 generated road-departure transition",
                 "metadata": {"entry": "1010:0F05"},
             },
             *manual_hook_nodes,
@@ -193,6 +203,18 @@ def _build_atlas() -> ExecutionAtlas:
                 "status": "resolved",
             },
             {
+                "source": GAMEPLAY_RESUME_POINT,
+                "target": GAMEPLAY_REGION,
+                "kind": "resume-handoff",
+                "status": "resolved",
+            },
+            {
+                "source": GAMEPLAY_REGION,
+                "target": GAMEPLAY_RESUME_POINT,
+                "kind": "replay-boundary",
+                "status": "resolved",
+            },
+            {
                 "source": GAMEPLAY_REGION,
                 "target": GAMEPLAY_CALLER_CONTINUATION,
                 "kind": "region-exit",
@@ -206,12 +228,12 @@ def _build_atlas() -> ExecutionAtlas:
             },
             {
                 "source": GAMEPLAY_REGION,
-                "target": GAMEPLAY_FALL_CONTINUATION,
+                "target": GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
                 "kind": "region-exit",
                 "status": "resolved",
             },
             {
-                "source": GAMEPLAY_FALL_CONTINUATION,
+                "source": GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
                 "target": function_identity(0x0F05),
                 "kind": "continuation",
                 "status": "resolved",

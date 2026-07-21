@@ -55,8 +55,9 @@ from skyroads.authored_inventory import runtime_source_paths
 from skyroads.identities import (
     CODE_SEG,
     GAMEPLAY_ENTRY_POINT,
+    GAMEPLAY_RESUME_POINT,
     GAMEPLAY_CALLER_CONTINUATION,
-    GAMEPLAY_FALL_CONTINUATION,
+    GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
     GAMEPLAY_REGION,
     IMAGE,
     PROGRAM_ID,
@@ -65,17 +66,15 @@ from skyroads.identities import (
     function_identity,
 )
 from skyroads.gameplay_region import (
-    FELL_OFF_ROAD_EXIT,
-    FUEL_EXPIRED_EXIT,
     GAMEPLAY_ABORTED_EXIT,
     GAMEPLAY_ENTRY_ID,
+    GAMEPLAY_RESUME_ENTRY_ID,
+    GAMEPLAY_RESULT_EXIT,
     GAMEPLAY_TICK_BOUNDARY,
-    LEVEL_COMPLETED_EXIT,
-    OXYGEN_EXPIRED_EXIT,
-    WALL_CRASH_EXIT,
+    ROAD_DEPARTURE_EXIT,
     activate_gameplay_region,
 )
-from skyroads.native.loop import NativeGameplayDriver
+from skyroads.native.loop import native_gameplay_body
 from skyroads.product_features import (
     FEATURE_SAFE_BOUNDARY,
     PRACTICE_FEATURE_CHANNEL,
@@ -276,15 +275,18 @@ def _gameplay_region_entry() -> ImplementationEntry:
         region_id=GAMEPLAY_REGION,
         carrier_id=DOS_MEMORY_CARRIER,
         state_ownership=RegionStateOwnership.SHARED_DOS_MEMORY,
-        entries=(RegionEntryPoint(
-            GAMEPLAY_ENTRY_ID, GAMEPLAY_ENTRY_POINT,
-        ),),
+        entries=(
+            RegionEntryPoint(GAMEPLAY_ENTRY_ID, GAMEPLAY_ENTRY_POINT),
+            RegionEntryPoint(
+                GAMEPLAY_RESUME_ENTRY_ID, GAMEPLAY_RESUME_POINT,
+            ),
+        ),
         exits=(
-            RegionExitPoint(LEVEL_COMPLETED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
-            RegionExitPoint(WALL_CRASH_EXIT, GAMEPLAY_CALLER_CONTINUATION),
-            RegionExitPoint(FUEL_EXPIRED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
-            RegionExitPoint(OXYGEN_EXPIRED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
-            RegionExitPoint(FELL_OFF_ROAD_EXIT, GAMEPLAY_FALL_CONTINUATION),
+            RegionExitPoint(GAMEPLAY_RESULT_EXIT, GAMEPLAY_CALLER_CONTINUATION),
+            RegionExitPoint(
+                ROAD_DEPARTURE_EXIT,
+                GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
+            ),
             RegionExitPoint(GAMEPLAY_ABORTED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
         ),
         covered_targets=frozenset(
@@ -317,8 +319,9 @@ def _gameplay_region_entry() -> ImplementationEntry:
             targets=frozenset({
                 GAMEPLAY_REGION,
                 GAMEPLAY_ENTRY_POINT,
+                GAMEPLAY_RESUME_POINT,
                 GAMEPLAY_CALLER_CONTINUATION,
-                GAMEPLAY_FALL_CONTINUATION,
+                GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
             }),
             origin=ImplementationOrigin.AUTHORED,
             category=OverrideCategory.FAITHFUL,
@@ -349,9 +352,10 @@ def _gameplay_region_entry() -> ImplementationEntry:
             region_id=GAMEPLAY_REGION,
             region_contract=contract,
         ),
-        # The catalog points at the backend-independent semantic owner.  The
-        # generated-carrier RegionAdapter constructs the DOS-memory session.
-        implementation=NativeGameplayDriver,
+        # The catalog points at the backend-independent recovered body.  The
+        # generated-carrier adapter reconstructs pacing and lifecycle from the
+        # original 1FD9/2B3D/01B8 control flow around it.
+        implementation=native_gameplay_body,
         region_adapters=(RegionAdapter(
             f"{implementation_id}/generated-vmless",
             GENERATED_VMLESS_CARRIER,
@@ -364,7 +368,10 @@ def _gameplay_region_entry() -> ImplementationEntry:
                     SOURCE_ROOT / "dos_re" / "dos_re" / "regions.py",
                 ),
                 repository_root=SOURCE_ROOT,
-                records=(("entry", GAMEPLAY_ENTRY_POINT),),
+                records=(
+                    ("entry", GAMEPLAY_ENTRY_POINT),
+                    ("resume", GAMEPLAY_RESUME_POINT),
+                ),
             ),
         ),),
     )

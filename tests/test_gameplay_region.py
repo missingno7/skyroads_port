@@ -17,17 +17,16 @@ from dos_re.memory import Memory
 from dos_re.regions import RegionHandoff, RegionProgress
 
 from skyroads.gameplay_region import (
-    FELL_OFF_ROAD_EXIT,
-    FUEL_EXPIRED_EXIT,
     GAMEPLAY_ABORTED_EXIT,
     GAMEPLAY_ENTRY_ID,
     GAMEPLAY_ENTRY_IP,
+    GAMEPLAY_RESUME_ENTRY_ID,
+    GAMEPLAY_RESUME_IP,
+    GAMEPLAY_RESULT_EXIT,
     GAMEPLAY_CALLER_IP,
     GAMEPLAY_TICK_BOUNDARY,
-    LEVEL_COMPLETED_EXIT,
-    OXYGEN_EXPIRED_EXIT,
+    ROAD_DEPARTURE_EXIT,
     SkyroadsGameplaySession,
-    WALL_CRASH_EXIT,
     _GeneratedGameplayServices,
     activate_gameplay_region,
     maybe_enter_gameplay_region,
@@ -36,12 +35,14 @@ from skyroads.gameplay_region import (
 from skyroads.identities import (
     CODE_SEG,
     GAMEPLAY_ENTRY_POINT,
+    GAMEPLAY_RESUME_POINT,
     GAMEPLAY_CALLER_CONTINUATION,
-    GAMEPLAY_FALL_CONTINUATION,
+    GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
     GAMEPLAY_REGION,
 )
 from skyroads.handrecovered.dynamics import JumpScratch
-from skyroads.native.loop import GameplayScratch, TickOutcome
+from skyroads.native.gaps import RoadDepartureTransition
+from skyroads.native.loop import GameplayScratch
 
 
 def test_generated_sound_seam_preserves_native_cpu_context() -> None:
@@ -86,7 +87,9 @@ def test_generated_sound_seam_preserves_native_cpu_context() -> None:
     assert cpu.boundary_hook is boundary
 
 
-def test_native_tick_boundary_materializes_restorable_stack_scratch() -> None:
+def test_native_tick_boundary_materializes_restorable_stack_scratch(
+    monkeypatch,
+) -> None:
     cpu = CPU8086(Memory())
     cpu.s.ds = cpu.s.ss = 0x1686
     cpu.s.bp = 0xB910
@@ -102,17 +105,66 @@ def test_native_tick_boundary_materializes_restorable_stack_scratch() -> None:
         4,
         0x5678,
     )
-    session.driver.scratch = expected
-    session.driver.tick = lambda: TickOutcome(False, "", "", 0)
+    session.scratch = expected
+    monkeypatch.setattr(
+        "skyroads.gameplay_region.native_gameplay_body",
+        lambda _view, scratch, **_kwargs: scratch,
+    )
+    cpu.mem.ww(cpu.s.ss, cpu.s.bp - 2, 0)
+    cpu.mem.ww(cpu.s.ds, 0x1600, 1)
     session._render = lambda: None
 
     assert session.advance() == RegionProgress.yielded(GAMEPLAY_TICK_BOUNDARY)
 
     reconstructed = SkyroadsGameplaySession(runtime)
-    assert reconstructed.driver.scratch == expected
+    assert reconstructed.scratch == expected
+    assert (cpu.s.cs, cpu.s.ip) == (CODE_SEG, GAMEPLAY_RESUME_IP)
 
 
-def test_region_collapses_and_restores_internal_generated_hooks() -> None:
+def test_region_batches_body_until_the_original_local_tick_catches_up(
+    monkeypatch,
+) -> None:
+    cpu = CPU8086(Memory())
+    cpu.s.ds = cpu.s.ss = 0x1686
+    cpu.s.bp = 0xB910
+    runtime = SimpleNamespace(
+        cpu=cpu,
+        _skyroads_gameplay_services=SimpleNamespace(
+            emit_sfx=lambda _effect: None,
+        ),
+    )
+    calls = []
+
+    def body(_view, scratch, **_kwargs):
+        calls.append(_stack_tick(cpu))
+        return scratch
+
+    monkeypatch.setattr("skyroads.gameplay_region.native_gameplay_body", body)
+    session = SkyroadsGameplaySession(runtime)
+    session._render = lambda: None
+    cpu.mem.ww(cpu.s.ss, cpu.s.bp - 2, 0)
+    cpu.mem.ww(cpu.s.ds, 0x1600, 2)
+
+    assert session.advance().boundary_id == GAMEPLAY_TICK_BOUNDARY
+    assert calls == [0, 1]
+    assert _stack_tick(cpu) == 2
+    assert cpu.mem.rw(cpu.s.ss, cpu.s.bp - 4) == 2
+
+    # The original 22FB wait does not run another body until virtual time
+    # changes, then catches up all missed ticks in one displayed frame.
+    assert session.advance().boundary_id == GAMEPLAY_TICK_BOUNDARY
+    assert calls == [0, 1]
+    cpu.mem.ww(cpu.s.ds, 0x1600, 5)
+    assert session.advance().boundary_id == GAMEPLAY_TICK_BOUNDARY
+    assert calls == [0, 1, 2, 3, 4]
+    assert _stack_tick(cpu) == 5
+
+
+def _stack_tick(cpu) -> int:
+    return cpu.mem.rw(cpu.s.ss, cpu.s.bp - 2)
+
+
+def test_region_collapses_and_restores_internal_generated_hooks(monkeypatch) -> None:
     cpu = CPU8086(Memory())
     cpu.s.cs = CODE_SEG
     cpu.s.ip = GAMEPLAY_ENTRY_IP
@@ -137,7 +189,11 @@ def test_region_collapses_and_restores_internal_generated_hooks() -> None:
     assert (CODE_SEG, 0x04C0) not in cpu.replacement_hooks
     assert (CODE_SEG, 0x03C2) in cpu.replacement_hooks
     session = runtime.execution_regions._active.session
-    session.driver.pending = TickOutcome(True, "complete", "finish", 2)
+    monkeypatch.setattr(
+        "skyroads.gameplay_region.native_gameplay_body",
+        lambda _view, scratch, **_kwargs: scratch,
+    )
+    session.view.game_state = 2
     session._render = lambda: None
     runtime.execution_regions.advance()
 
@@ -152,7 +208,7 @@ def test_region_collapses_and_restores_internal_generated_hooks() -> None:
     assert cpu.replacement_hooks[(CODE_SEG, 0x04C0)] is internal
 
 
-def test_generated_boundary_enters_native_region_and_returns() -> None:
+def test_generated_boundary_returns_the_original_raw_game_state(monkeypatch) -> None:
     cpu = CPU8086(Memory())
     cpu.s.cs = CODE_SEG
     cpu.s.ip = GAMEPLAY_ENTRY_IP
@@ -179,34 +235,30 @@ def test_generated_boundary_enters_native_region_and_returns() -> None:
     assert dispatcher.active_region_id == GAMEPLAY_REGION
     assert dispatcher.last_entry_id == GAMEPLAY_ENTRY_ID
 
-    # Force the region's already-declared level-complete outcome. The native
-    # gameplay algorithms have their own exact focused tests; this test owns
-    # the external lifecycle seam and continuation mapping only.
+    # Force the original 22E3 gate. The region must not reinterpret state two
+    # as completion: 1FD9 returns DS:[456E] verbatim and outer 01B8 owns it.
     session = dispatcher._active.session
     session.view.game_state = 2
-    session.driver.pending = TickOutcome(True, "complete", "finish", 2)
+    monkeypatch.setattr(
+        "skyroads.gameplay_region.native_gameplay_body",
+        lambda _view, scratch, **_kwargs: scratch,
+    )
     session._render = lambda: None
     mem.ww(state.ds, 0x1600, 0x1234)
 
     progress = dispatcher.advance()
 
-    assert progress.exit_id == LEVEL_COMPLETED_EXIT
+    assert progress.exit_id == GAMEPLAY_RESULT_EXIT
     assert not dispatcher.active
-    assert dispatcher.last_exit_id == LEVEL_COMPLETED_EXIT
+    assert dispatcher.last_exit_id == GAMEPLAY_RESULT_EXIT
     assert (state.cs, state.ip) == (CODE_SEG, GAMEPLAY_CALLER_IP)
-    # The outer 01B8 product loop consumes zero as "completed: advance and
-    # return to level selection".  The inner game_state value remains 2.
-    assert state.ax == 0
+    assert state.ax == 2
     assert mem.rw(state.ds, 0x456E) == 2
-    assert runtime._skyroads_last_region_exit == LEVEL_COMPLETED_EXIT
+    assert runtime._skyroads_last_region_exit == GAMEPLAY_RESULT_EXIT
 
 
-@pytest.mark.parametrize(("kind", "exit_id"), (
-    ("crash", WALL_CRASH_EXIT),
-    ("timeout_fuel", FUEL_EXPIRED_EXIT),
-    ("timeout_oxygen", OXYGEN_EXPIRED_EXIT),
-))
-def test_terminal_outcomes_keep_distinct_named_exit_seams(kind, exit_id) -> None:
+@pytest.mark.parametrize("game_state", (1, 2, 4, 5))
+def test_handler_gate_returns_each_raw_game_state(monkeypatch, game_state) -> None:
     cpu = CPU8086(Memory())
     cpu.s.cs = CODE_SEG
     cpu.s.ip = GAMEPLAY_ENTRY_IP
@@ -223,19 +275,21 @@ def test_terminal_outcomes_keep_distinct_named_exit_seams(kind, exit_id) -> None
     with pytest.raises(RegionHandoff):
         maybe_enter_gameplay_region(runtime, cpu, CODE_SEG, GAMEPLAY_ENTRY_IP)
     session = runtime.execution_regions._active.session
-    session.view.game_state = {
-        "crash": 1,
-        "timeout_fuel": 4,
-        "timeout_oxygen": 5,
-    }[kind]
-    session.driver.pending = TickOutcome(True, "terminal", kind, 1)
+    session.view.game_state = game_state
+    if game_state in (4, 5):
+        session.view.frame_ctr = 0x6C
+    monkeypatch.setattr(
+        "skyroads.gameplay_region.native_gameplay_body",
+        lambda _view, scratch, **_kwargs: scratch,
+    )
     session._render = lambda: None
 
-    assert runtime.execution_regions.advance().exit_id == exit_id
-    assert runtime._skyroads_last_region_exit == exit_id
+    assert runtime.execution_regions.advance().exit_id == GAMEPLAY_RESULT_EXIT
+    assert runtime._skyroads_last_region_exit == GAMEPLAY_RESULT_EXIT
+    assert cpu.s.ax == game_state
 
 
-def test_escape_returns_through_original_gameplay_caller() -> None:
+def test_escape_returns_through_original_gameplay_caller(monkeypatch) -> None:
     cpu = CPU8086(Memory())
     cpu.s.cs = CODE_SEG
     cpu.s.ip = GAMEPLAY_ENTRY_IP
@@ -255,6 +309,10 @@ def test_escape_returns_through_original_gameplay_caller() -> None:
     activate_gameplay_region(runtime, _binding())
     with pytest.raises(RegionHandoff):
         maybe_enter_gameplay_region(runtime, cpu, CODE_SEG, GAMEPLAY_ENTRY_IP)
+    monkeypatch.setattr(
+        "skyroads.gameplay_region.native_gameplay_body",
+        lambda _view, scratch, **_kwargs: scratch,
+    )
 
     progress = runtime.execution_regions.advance()
 
@@ -266,7 +324,7 @@ def test_escape_returns_through_original_gameplay_caller() -> None:
     assert cpu.call_depth == 1
 
 
-def test_fall_hands_the_long_death_transition_back_to_generated_code() -> None:
+def test_road_departure_hands_0f05_back_to_generated_code(monkeypatch) -> None:
     cpu = CPU8086(Memory())
     cpu.s.cs = CODE_SEG
     cpu.s.ip = GAMEPLAY_ENTRY_IP
@@ -278,11 +336,14 @@ def test_fall_hands_the_long_death_transition_back_to_generated_code() -> None:
     activate_gameplay_region(runtime, _binding())
     with pytest.raises(RegionHandoff):
         maybe_enter_gameplay_region(runtime, cpu, CODE_SEG, GAMEPLAY_ENTRY_IP)
-    session = runtime.execution_regions._active.session
-    session.driver.pending = TickOutcome(True, "fell", "fall", 0)
-    session._render = lambda: None
+    def depart(_view, _scratch, **_kwargs):
+        raise RoadDepartureTransition("observed 23CA-241E road departure")
 
-    assert runtime.execution_regions.advance().exit_id == FELL_OFF_ROAD_EXIT
+    monkeypatch.setattr(
+        "skyroads.gameplay_region.native_gameplay_body", depart,
+    )
+
+    assert runtime.execution_regions.advance().exit_id == ROAD_DEPARTURE_EXIT
     assert (cpu.s.cs, cpu.s.ip) == (CODE_SEG, 0x0F05)
     assert cpu.pop() == 0x241E
 
@@ -296,13 +357,18 @@ def _binding() -> ResolvedExecutionRegion:
         adapter_id="region-adapter:skyroads.gameplay:generated-vmless",
         adapter_digest="test-adapter",
         state_ownership=RegionStateOwnership.SHARED_DOS_MEMORY,
-        entries=(RegionEntryPoint(GAMEPLAY_ENTRY_ID, GAMEPLAY_ENTRY_POINT),),
+        entries=(
+            RegionEntryPoint(GAMEPLAY_ENTRY_ID, GAMEPLAY_ENTRY_POINT),
+            RegionEntryPoint(
+                GAMEPLAY_RESUME_ENTRY_ID, GAMEPLAY_RESUME_POINT,
+            ),
+        ),
         exits=(
-            RegionExitPoint(LEVEL_COMPLETED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
-            RegionExitPoint(WALL_CRASH_EXIT, GAMEPLAY_CALLER_CONTINUATION),
-            RegionExitPoint(FUEL_EXPIRED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
-            RegionExitPoint(OXYGEN_EXPIRED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
-            RegionExitPoint(FELL_OFF_ROAD_EXIT, GAMEPLAY_FALL_CONTINUATION),
+            RegionExitPoint(GAMEPLAY_RESULT_EXIT, GAMEPLAY_CALLER_CONTINUATION),
+            RegionExitPoint(
+                ROAD_DEPARTURE_EXIT,
+                GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
+            ),
             RegionExitPoint(GAMEPLAY_ABORTED_EXIT, GAMEPLAY_CALLER_CONTINUATION),
         ),
         covered_targets=(GAMEPLAY_REGION, "function:1010:04c0"),

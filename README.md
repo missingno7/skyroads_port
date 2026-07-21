@@ -57,9 +57,13 @@ distinct interpreted-CPU and generated-VMless carrier adapters, and the plan
 reports the exact remaining cross-owner boundaries. Selecting a larger owner
 collapses its internal hook edges. In `faithful-product`, the generated menu
 hands `1010:2317` to the long-lived authored `skyroads.gameplay` region; it
-owns successive semantic ticks over shared DOS memory and returns distinct
-completion, crash, resource-expiry, fall, and abort outcomes to their original
-generated continuations. Native SFX cross one explicit external adapter into
+owns the recovered `2324-2AF8` body plus the oracle-derived `1FD9` pacing and
+presentation loop over shared DOS memory. It batches bodies until the original
+stack-local tick catches `DS:[1600]`, parks at `1010:22FB`, and returns the
+original raw handler result without assigning product-lifecycle meaning at the
+region seam. The separate `23CA-241E` road-departure path resumes generated
+`1010:0F05`; abort returns raw result seven. Native SFX cross one explicit
+external adapter into
 the selected generated `1010:03C2` implementation, retaining its DOS-memory
 and device effects while preserving the region's CPU-independent context.
 The ABI-recovered provider
@@ -70,8 +74,9 @@ than an implementation override. Importing an adapter never installs it.
 Normal play enters through the generated level-selection function. `--level N`
 supplies the first confirmed selection at that same stable seam; all generated
 loading and gameplay setup still run normally. The adapter removes itself
-immediately, so completion returns to the original generated selection flow.
-The native region never owns campaign progression and never starts level N+1.
+immediately. The generated `2B3D/01B8` callers alone decide whether a raw
+gameplay result retries the level or returns to selection, and alone advance
+campaign state. The native region never starts level N+1.
 
 Product features are separate from implementations. For example,
 `--practice-level-position 0x123 --record-replay practice` records an explicit

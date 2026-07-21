@@ -19,6 +19,18 @@
       "target": "skyroads:1.0:region:gameplay"
     },
     {
+      "kind": "resume-handoff",
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22fb",
+      "status": "resolved",
+      "target": "skyroads:1.0:region:gameplay"
+    },
+    {
+      "kind": "replay-boundary",
+      "source": "skyroads:1.0:region:gameplay",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22fb"
+    },
+    {
       "kind": "region-exit",
       "source": "skyroads:1.0:region:gameplay",
       "status": "resolved",
@@ -1147,9 +1159,19 @@
     {
       "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A2317",
       "kind": "execution-point",
-      "label": "1010:2317 gameplay loop entry",
+      "label": "1010:2317 gameplay body-ready entry",
       "metadata": {
-        "entry": "1010:2317"
+        "entry": "1010:2317",
+        "phase": "body-ready"
+      }
+    },
+    {
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22fb",
+      "kind": "execution-point",
+      "label": "1010:22FB gameplay frame-resume boundary",
+      "metadata": {
+        "entry": "1010:22FB",
+        "phase": "awaiting-virtual-time"
       }
     },
     {
@@ -1163,7 +1185,7 @@
     {
       "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A0f05",
       "kind": "execution-point",
-      "label": "1010:0F05 generated fall/death transition",
+      "label": "1010:0F05 generated road-departure transition",
       "metadata": {
         "entry": "1010:0F05"
       }
@@ -1175,5 +1197,5 @@
     "kind": "project-declared-entry-census",
     "source": "retained Recovery IR and skyroads.execution catalog"
   },
-  "source_digest": "e84643da388567b0ff022e3b8067503809b19e7895fbcff6e54ce37705022421"
+  "source_digest": "ff0bb95cab7d61e73d22ef931f071be5aa7d86ad68180d2049dcb17a1493809c"
 }

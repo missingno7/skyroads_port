@@ -16,10 +16,9 @@ from dos_re.snapshot import (
 
 from scripts.play import SkyroadsFrontend
 from skyroads.execution import GENERATED_VMLESS_CARRIER
-from skyroads.gameplay_region import LEVEL_COMPLETED_EXIT
+from skyroads.gameplay_region import GAMEPLAY_RESULT_EXIT, GAMEPLAY_RESUME_IP
 from skyroads.identities import CODE_SEG
 from skyroads.launch_inputs import DIRECT_LEVEL_ADAPTER_ID
-from skyroads.native.loop import TickOutcome
 from skyroads.vmless_backend import create_planned_runtime
 
 
@@ -37,7 +36,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_generated_menu_native_gameplay_generated_menu_lifecycle() -> None:
+def test_generated_selector_native_gameplay_generated_retry_lifecycle() -> None:
     artifact = ReplayArtifact.open(REPLAY)
     frontend = SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args([
@@ -97,9 +96,9 @@ def test_generated_menu_native_gameplay_generated_menu_lifecycle() -> None:
     assert runtime._skyroads_gameplay_entries == 1
     control_device = runtime.cpu.mem.rw(runtime.cpu.s.ds, 0x95F6)
 
-    # Complete the selected gameplay island at its declared semantic exit.
-    # Stop injecting input so the generated selector must wait instead of
-    # accidentally launching another level.
+    # Force the original state-two gate.  1FD9 returns two verbatim and 01B8
+    # retries the same selected level through 2B3D without re-entering 5180.
+    # This is the control-flow contract the former manual integration rewrote.
     runtime.dos.mouse_buttons = 0
     runtime.dos.key_queue.clear()
     runtime.dos.pending_console_scancode = None
@@ -107,30 +106,27 @@ def test_generated_menu_native_gameplay_generated_menu_lifecycle() -> None:
         runtime.cpu.mem.wb(runtime.cpu.s.ds, offset, 0)
     session = runtime.execution_regions._active.session
     session.view.game_state = 2
-    session.driver.pending = TickOutcome(
-        True, "level complete", "finish", 2,
-    )
 
     for frame in range(120):
         try:
             frontend.advance_frame(runtime, args, 900 + frame)
         except ConsoleInputWouldBlock:
             pass
-        if len(selections) >= 2:
+        if runtime._skyroads_gameplay_entries >= 2:
             break
 
-    assert runtime._skyroads_last_region_exit == LEVEL_COMPLETED_EXIT
-    assert len(selections) >= 2, (
-        "generated level selection was not re-entered; machine="
+    assert runtime._skyroads_last_region_exit == GAMEPLAY_RESULT_EXIT
+    assert runtime._skyroads_gameplay_entries >= 2, (
+        "generated same-level retry was not reached; machine="
         f"{runtime.cpu.s.cs:04X}:{runtime.cpu.s.ip:04X}, "
         f"game_state={runtime.cpu.mem.rw(runtime.cpu.s.ds, 0x456E)}, "
         f"control_device={control_device}, "
         f"entries={runtime._skyroads_gameplay_entries}, "
         f"boundary={runtime._skyroads_vmless_driver.last_boundary_kind!r}"
     )
-    assert selections[1] == 1
-    assert not runtime.execution_regions.active
-    assert runtime._skyroads_gameplay_entries == 1
+    assert selections == [0]
+    assert runtime.execution_regions.active
+    assert runtime._skyroads_gameplay_entries == 2
 
 
 def test_direct_level_uses_the_same_planned_gameplay_region() -> None:
@@ -220,6 +216,7 @@ def test_replay_continuation_reconstructs_the_active_native_region() -> None:
         if getattr(original, "_skyroads_gameplay_entries", 0):
             break
     assert original.execution_regions.active
+    assert original.cpu.s.ip == GAMEPLAY_RESUME_IP
 
     continuation = capture_runtime_continuation(
         original, event_cursor=inputs.event_cursor,
@@ -269,3 +266,4 @@ def test_replay_continuation_reconstructs_the_active_native_region() -> None:
             )
     assert original.execution_regions.active
     assert restored.execution_regions.active
+    assert restored.cpu.s.ip == GAMEPLAY_RESUME_IP

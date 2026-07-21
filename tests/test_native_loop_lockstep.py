@@ -12,7 +12,7 @@ The strong claim is that the native loop stays byte-identical to the VM for long
 accumulated stretches (whole levels -- 50-120+ steps) and ends runs cleanly:
 almost every run ends because the stepper detected a boundary it doesn't own and
 RAISED a typed gap (LevelEndTransition when game_state leaves the in-level set
-{0,3}; or FallDeathTransition on a fall), not a silent
+{0,3}; or RoadDepartureTransition at 23CA-241E), not a silent
 field divergence. A small residual of runs end on an un-modelled respawn/level-
 load transition (game_state 3 -> respawn, the transition subsystem is not
 recovered) -- those are bounded and documented, not general drift.
@@ -115,7 +115,7 @@ def test_native_loop_stays_in_lockstep_with_vm() -> None:
             # Record the whole-level streak here so it's still measured; this
             # harness only feeds native game_state==0 frames, so it never runs
             # the settle window itself (that's exercised by tests/test_native_
-            # driver.py's auto_respawn=False + the crash settle-window trace).
+            # harness.py with auto_respawn=False and the crash settle trace).
             if ctx["streak"] > 0:
                 runs.append((ctx["streak"], "BOUNDARY"))
             ctx["nst"] = None
