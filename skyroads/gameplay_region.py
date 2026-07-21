@@ -367,6 +367,9 @@ class _GameplayRegistration:
                     f"unknown SkyRoads gameplay exit {exit_point.exit_id!r}"
                 )
             self.runtime._skyroads_last_region_exit = exit_point.exit_id
+            self.runtime._skyroads_last_region_continuation = (
+                exit_point.continuation
+            )
 
         dispatcher.handoff(
             self.binding,

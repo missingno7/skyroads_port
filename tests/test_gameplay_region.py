@@ -1,6 +1,8 @@
 """SkyRoads' canonical generated-carrier/native-gameplay handoff slice."""
 from __future__ import annotations
 
+from copy import deepcopy
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -13,7 +15,9 @@ from dos_re.execution import (
     ResolvedExecutionRegion,
 )
 from dos_re.cpu import CPU8086
+from dos_re.dos import DOSMachine
 from dos_re.memory import Memory
+from dos_re.replay import CanonicalState, compare_projection_contract
 from dos_re.regions import RegionHandoff, RegionProgress
 
 from skyroads.gameplay_region import (
@@ -43,6 +47,8 @@ from skyroads.identities import (
 from skyroads.handrecovered.dynamics import JumpScratch
 from skyroads.native.gaps import RoadDepartureTransition
 from skyroads.native.loop import GameplayScratch, road_departure_threshold
+from skyroads.replay import project_gameplay_exit
+from skyroads.verification_contracts import exit_projection
 
 
 @pytest.mark.parametrize(
@@ -193,7 +199,7 @@ def test_region_collapses_and_restores_internal_generated_hooks(monkeypatch) -> 
     cpu.hook_names[(CODE_SEG, 0x04C0)] = "lifted_1010_04c0"
     cpu.replacement_hooks[(CODE_SEG, 0x03C2)] = lambda _cpu: None
     cpu.hook_names[(CODE_SEG, 0x03C2)] = "lifted_1010_03c2"
-    runtime = SimpleNamespace(cpu=cpu)
+    runtime = SimpleNamespace(cpu=cpu, dos=DOSMachine(Path(".")))
     activate_gameplay_region(runtime, _binding())
 
     with pytest.raises(RegionHandoff):
@@ -233,7 +239,7 @@ def test_generated_boundary_returns_the_original_raw_game_state(monkeypatch) -> 
     cpu.mem.ww(cpu.s.ss, cpu.s.bp, 0xB920)
     cpu.mem.ww(cpu.s.ss, cpu.s.bp + 2, GAMEPLAY_CALLER_IP)
     cpu.replacement_hooks[(CODE_SEG, 0x03C2)] = lambda current_cpu: None
-    runtime = SimpleNamespace(cpu=cpu)
+    runtime = SimpleNamespace(cpu=cpu, dos=DOSMachine(Path(".")))
     mem = cpu.mem
     state = cpu.s
     binding = _binding()
@@ -268,6 +274,20 @@ def test_generated_boundary_returns_the_original_raw_game_state(monkeypatch) -> 
     assert state.ax == 2
     assert mem.rw(state.ds, 0x456E) == 2
     assert runtime._skyroads_last_region_exit == GAMEPLAY_RESULT_EXIT
+
+    seam = project_gameplay_exit(runtime, event_cursor=11)
+    contract = exit_projection(GAMEPLAY_RESULT_EXIT)
+    assert compare_projection_contract(seam, seam, contract).equivalent
+    assert seam.fields["continuation"]["identity"] == "1010:2C61"
+
+    wrong_fields = deepcopy(dict(seam.fields))
+    wrong_fields["continuation"]["registers"]["ax"] = 3
+    wrong = CanonicalState(
+        seam.schema_id, seam.event_cursor, wrong_fields, seam.regions,
+    )
+    rejected = compare_projection_contract(seam, wrong, contract)
+    assert not rejected.equivalent
+    assert "fields.continuation.registers.ax" in rejected.differences[0]
 
 
 @pytest.mark.parametrize("game_state", (1, 2, 4, 5))

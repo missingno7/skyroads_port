@@ -31,8 +31,10 @@ corpora remain in this repository.
 - Correctness and oracle evidence beat speed.
 - Fail loudly instead of silently falling back.
 - Keep `dos_re/` game-agnostic.
-- Preserve deterministic replay behavior and complete continuation-state
-  comparisons.
+- Preserve deterministic replay behavior and the declared strongest common
+  verification authority: complete continuations in a shared carrier,
+  semantic state inside a native region, and continuation contracts at an
+  external generated/guest seam.
 - Add focused tests for planner selection, runtime activation and replay
   adapters whenever these boundaries change.
 

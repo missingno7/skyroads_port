@@ -81,6 +81,7 @@ from skyroads.product_features import (
     PRACTICE_FEATURE_CHANNEL,
     PRACTICE_LEVEL_FEATURE_ID,
 )
+from skyroads.verification_contracts import GAMEPLAY_REGION_VERIFICATION
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 ROOT = SOURCE_ROOT
@@ -348,6 +349,7 @@ def _gameplay_region_entry() -> ImplementationEntry:
             "generated continuation register and stack seed",
             "named generated continuation",
         ),
+        verification=GAMEPLAY_REGION_VERIFICATION,
     )
     implementation_id = "faithful-region:skyroads.gameplay"
     implementation_sources = (

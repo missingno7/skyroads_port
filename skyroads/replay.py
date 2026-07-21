@@ -29,8 +29,12 @@ from dos_re.snapshot import (
     capture_runtime_continuation,
     runtime_machine_projection_digest,
 )
-
-PROJECTION_SCHEMA = "skyroads-authoritative-semantic-v1"
+from skyroads.verification_contracts import (
+    GAMEPLAY_INTERIOR_PROJECTION,
+    MACHINE_FALLBACK_PROJECTION,
+    PROJECTION_SCHEMA,
+    exit_projection,
+)
 
 _GAMEPLAY_FIELDS = (
     "speed", "bounce", "game_state", "entered", "gravity", "jump",
@@ -64,20 +68,22 @@ def _semantic_projection(
 ) -> CanonicalState:
     """Project a SkyRoads event seam without exposing carrier scratch state.
 
-    CPU registers, instruction counters, VGA programming strategy and the
-    generated/native carrier's private use of original stack scratch are
-    implementation details at semantic frame and input boundaries. The
-    recovered named game state, consumed input, deterministic interrupt/audio
-    state and presented VGA result are authoritative at this seam.
+    CPU registers, instruction counters, VGA programming strategy, Sound
+    Blaster bookkeeping, and the generated/native carrier's private use of
+    original stack scratch are implementation details at semantic frame and
+    input boundaries. The recovered named game state, consumed input, timing,
+    semantic audio commands, and presented VGA result are authoritative here.
     """
     from skyroads.bridge.dgroup_view import GameView
 
     cpu = runtime.cpu
     view = GameView(cpu.mem.data, base=(cpu.s.ds & 0xFFFF) << 4)
     dos = runtime.dos
-    pic = getattr(dos, "pic", None)
-    sound_blaster = getattr(dos, "sound_blaster", None)
     fields = {
+        "verification": {
+            "contract": "skyroads:gameplay-region-faithful/v1",
+            "surface": GAMEPLAY_INTERIOR_PROJECTION.projection_id,
+        },
         "boundary": _semantic_boundary_identity(runtime),
         "gameplay": {
             name: int(getattr(view, name)) for name in _GAMEPLAY_FIELDS
@@ -93,14 +99,12 @@ def _semantic_projection(
                 int(dos.mouse_buttons),
             ],
         },
-        "devices": {
-            "pic": None if pic is None else {
-                "imr": int(pic.imr), "irr": int(pic.irr), "isr": int(pic.isr),
-            },
-            "sound_blaster": (
-                None if sound_blaster is None
-                else sound_blaster.snapshot_state()
-            ),
+        "timing": {
+            "elapsed_ticks": int(view.elapsed_ticks),
+            "frame_ctr": int(view.frame_ctr),
+        },
+        "audio": {
+            "claim": "opl-command-stream",
             "opl_registers": {
                 str(key): int(value)
                 for key, value in sorted(dos.opl_registers.items())
@@ -122,6 +126,80 @@ def _semantic_projection(
         # palette is the presentation result; comparing it avoids requiring
         # numpy or making native rendering imitate VGA register write order.
         {"vga-aperture": bytes(cpu.mem.data[0xA0000:0xB0000])},
+    ).normalized()
+
+
+_SEAM_REGISTER_FIELDS = (
+    "ax", "bx", "cx", "dx", "sp", "bp", "si", "di",
+    "cs", "ds", "es", "ss", "ip", "flags", "fsw", "fcw",
+)
+
+
+def project_gameplay_exit(
+    runtime, *, event_cursor: int,
+) -> CanonicalState:
+    """Project the state handed from native gameplay to generated code.
+
+    This is deliberately stronger than an interior gameplay projection.  The
+    generated shell may observe live registers, the stack, shared DOS memory,
+    interrupt/timing state, and device state after the native island returns.
+    A later fully native shell can move this seam outward and declare a smaller
+    common authority; until then, this is the faithful continuation contract.
+    """
+    from skyroads.bridge.dgroup_view import GameView
+
+    exit_id = str(getattr(runtime, "_skyroads_last_region_exit", ""))
+    continuation = str(
+        getattr(runtime, "_skyroads_last_region_continuation", "")
+    )
+    if not exit_id or not continuation:
+        raise ValueError("SkyRoads runtime is not parked at a gameplay exit seam")
+    projection = exit_projection(exit_id)
+    cpu = runtime.cpu
+    dos = runtime.dos
+    state = cpu.s
+    view = GameView(cpu.mem.data, base=(state.ds & 0xFFFF) << 4)
+    pic = getattr(dos, "pic", None)
+    sound_blaster = getattr(dos, "sound_blaster", None)
+    fields = {
+        "verification": {
+            "contract": "skyroads:gameplay-region-faithful/v1",
+            "surface": projection.projection_id,
+        },
+        "exit": {"id": exit_id, "continuation": continuation},
+        "continuation": {
+            "identity": f"{state.cs:04X}:{state.ip:04X}",
+            "registers": {
+                name: int(getattr(state, name))
+                for name in _SEAM_REGISTER_FIELDS
+            },
+            # The entire shared memory image below carries live stack words.
+            # These named coordinates make the seam diagnostic actionable.
+            "stack": {
+                "ss": int(state.ss), "sp": int(state.sp),
+                "bp": int(state.bp), "call_depth": int(cpu.call_depth),
+            },
+            "timing": {
+                "instruction_count": int(cpu.instruction_count),
+                "pic": None if pic is None else {
+                    "imr": int(pic.imr), "irr": int(pic.irr),
+                    "isr": int(pic.isr),
+                },
+                "sound_blaster": (
+                    None if sound_blaster is None
+                    else sound_blaster.snapshot_state()
+                ),
+            },
+        },
+        "gameplay": {
+            name: int(getattr(view, name)) for name in _GAMEPLAY_FIELDS
+        },
+    }
+    return CanonicalState(
+        PROJECTION_SCHEMA,
+        int(event_cursor),
+        fields,
+        {"shared-dos-memory": bytes(cpu.mem.data)},
     ).normalized()
 
 
@@ -374,6 +452,19 @@ class SkyroadsReplayDriver:
                 event_cursor=self.input.event_cursor,
             )
         return machine_projection(self.capture(), schema_id=PROJECTION_SCHEMA)
+
+    def verification_projection_contract(self):
+        """Declare exactly what the current replay point compares.
+
+        Gameplay ticks use the region's semantic authority.  Other points are
+        still inside a shared real-mode carrier and therefore retain complete
+        continuation comparison.  Exit seams are exercised through
+        :func:`project_gameplay_exit` by the region adapter tests because the
+        generated driver is allowed to continue past the handoff in one frame.
+        """
+        if _at_semantic_boundary(self.runtime):
+            return GAMEPLAY_INTERIOR_PROJECTION
+        return MACHINE_FALLBACK_PROJECTION
 
     def point_digest(self) -> str:
         if _at_semantic_boundary(self.runtime):

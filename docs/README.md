@@ -11,5 +11,8 @@ Current architecture:
   evidence, stable identities, navigation, coverage, and honest release
   frontiers.
 
+[Verification contracts](verification_contracts.md) defines the native
+gameplay semantic authority and strict generated-shell return seams.
+
 Everything under `history/` predates the dos_re 3.0 migration. It is retained
 only as design evidence; its commands, imports and APIs are not supported.

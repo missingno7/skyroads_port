@@ -436,6 +436,11 @@ def test_authored_catalog_contains_only_complete_semantic_adapter_pairs() -> Non
     )
     assert gameplay.descriptor.category is OverrideCategory.FAITHFUL
     assert gameplay.descriptor.region_contract is not None
+    assert gameplay.descriptor.region_contract.verification is not None
+    assert (
+        gameplay.descriptor.region_contract.verification.contract_id
+        == "skyroads:gameplay-region-faithful/v1"
+    )
     assert gameplay.adapters == ()
     assert len(gameplay.region_adapters) == 1
 
