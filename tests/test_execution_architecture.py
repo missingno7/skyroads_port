@@ -82,6 +82,12 @@ def original_exe(tmp_path, monkeypatch):
         ),
     )
     monkeypatch.setattr(execution_model, "ROOT", tmp_path)
+    boot = tmp_path / "boot"
+    boot.mkdir()
+    (boot / "state.json").write_text("{}", encoding="utf-8")
+    (boot / "memory_1mb.bin").write_bytes(b"\0")
+    (boot / "manifest.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(execution_model, "BOOT_DIR", boot)
 
 
 def test_default_window_scale_fits_a_768_line_desktop() -> None:
