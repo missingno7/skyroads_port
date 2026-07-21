@@ -28,6 +28,9 @@ python scripts/play.py --profile development --composition authored-candidates
 # differential verification over a ReplayArtifact
 python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_name --verify-start 100 --verify-end 180
 
+# generated VMless graph plus selected, already-verified faithful replacements
+python scripts/play.py --profile development --composition generated-cpu --headless
+
 # generated CPUless implementation while recovery frontiers remain visible
 python scripts/play.py --profile development --composition generated-abi --headless
 
@@ -45,9 +48,11 @@ python scripts/build_boot_image.py
 `skyroads.execution` is the single implementation catalog and composition
 authority; `recovery/atlas` is the persistent coverage model.
 Generated VMless and CPUless code are baseline providers; authored faithful
-replacements are explicit semantic-plus-adapter pairs. Frame parking is a
-product-safe runtime service rather than an implementation override. Importing
-an adapter never installs it.
+replacements are explicit semantic-plus-adapter pairs. The VMless provider
+uses the selected CPU-carrier adapters as well; the ABI-recovered provider
+will select an authored body only once that body has a separately verified
+CPUless ABI adapter. Frame parking is a product-safe runtime service rather
+than an implementation override. Importing an adapter never installs it.
 
 The selected `BuildImageBootstrapProvider` declares `state.json`,
 `memory_1mb.bin`, and `manifest.json`, including their packaged paths and the
