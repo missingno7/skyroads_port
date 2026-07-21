@@ -13,10 +13,12 @@ from typing import Iterable
 
 from dos_re.atlas import ExecutionAtlas
 from dos_re.execution import (
+    BackendAdapter,
     BootstrapArtifact,
     BuildImageBootstrapProvider,
     BuildTarget,
     DependencyCapability,
+    CPU_MODEL_BACKEND,
     ExecutionConfiguration,
     ExeBootstrapProvider,
     ImplementationCatalog,
@@ -116,9 +118,10 @@ def _generated_function_entries(
                 ), repository_root=SOURCE_ROOT),
             ),
             implementation=implementation,
-            activate=_activate_cpu_hook(
-                ip, name, implementation, function_identity,
-            ),
+            adapters=(BackendAdapter(
+                CPU_MODEL_BACKEND,
+                _activate_cpu_hook(ip, name, implementation, function_identity),
+            ),),
         )
 
 
@@ -156,7 +159,10 @@ def _authored_entries(
                 ),
             ),
             implementation=semantic,
-            activate=_activate_cpu_hook(ip, name, adapter, identity),
+            adapters=(BackendAdapter(
+                CPU_MODEL_BACKEND,
+                _activate_cpu_hook(ip, name, adapter, identity),
+            ),),
         )
 
 
@@ -425,7 +431,8 @@ def configuration(
             *selected, *generated_function_ids(), "baseline:interpreted-exe",
         )
     elif composition == "generated-cpu":
-        preferences = ("baseline:generated-vmless",)
+        selected = implementation_ids(OverrideCategory.FAITHFUL)
+        preferences = (*selected, "baseline:generated-vmless")
     elif composition == "generated-abi":
         preferences = ("baseline:generated-cpuless",)
     else:

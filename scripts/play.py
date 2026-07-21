@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT / "dos_re"))
 
 from dos_re import player  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
-from dos_re.execution import DependencyCapability  # noqa: E402
+from dos_re.execution import CPU_MODEL_BACKEND, DependencyCapability  # noqa: E402
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
 from dos_re.replay import (  # noqa: E402
     GUEST_INSTRUCTION_COORDINATE,
@@ -117,8 +117,9 @@ class SkyroadsFrontend(player.GameFrontend):
     def execution_services(self, args):
         return services()
 
-    def bind_execution_plan(self, runtime, plan) -> None:
-        super().bind_execution_plan(runtime, plan)
+    def bind_execution_plan(self, runtime, plan, *,
+                            backend_id=CPU_MODEL_BACKEND) -> None:
+        super().bind_execution_plan(runtime, plan, backend_id=backend_id)
         if FRAME_PARK_SERVICE_ID in {
             service.service_id for service in plan.services
         }:
@@ -129,7 +130,12 @@ class SkyroadsFrontend(player.GameFrontend):
         bootstrap_artifacts = plan.bootstrap_artifact_paths()
         if provider == "baseline:generated-vmless":
             from skyroads.vmless_backend import launch
-            return launch(args, bootstrap_artifacts=bootstrap_artifacts)
+            return launch(
+                args,
+                bootstrap_artifacts=bootstrap_artifacts,
+                bind_plan=lambda runtime: self.bind_execution_plan(
+                    runtime, plan, backend_id=CPU_MODEL_BACKEND),
+            )
         if provider == "baseline:generated-cpuless":
             from skyroads.development_guard import (
                 arm_cpuless_import_guard,

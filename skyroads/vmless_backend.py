@@ -240,7 +240,7 @@ def build(boot_dir: Path, lift_dir: Path, game_root: Path, *,
     return rt, manifest
 
 
-def launch(args, *, bootstrap_artifacts: dict[str, Path]) -> int:
+def launch(args, *, bootstrap_artifacts: dict[str, Path], bind_plan=None) -> int:
     """Launch the selected generated VMless region provider."""
     # Capture the DMA PCM only for the interactive viewer: it is a
     # determinism-safe observer, but headless must keep the detection-only
@@ -259,6 +259,12 @@ def launch(args, *, bootstrap_artifacts: dict[str, Path]) -> int:
                          ROOT / "skyroads" / "lifted" / "functions",
                          Path(args.game_root), sound=not args.no_sound,
                          capture_sb=not args.no_sound and not args.headless)
+    if bind_plan is not None:
+        # The generated graph uses the same CPU-shaped carrier as the
+        # interpreter, so plan-selected faithful implementations cross through
+        # their declared CPU adapter here.  The graph remains the baseline for
+        # every unselected identity; this is composition, not a second runner.
+        bind_plan(rt)
     print(generated_graph_boot_report(manifest))
     drv = VmlessDriver(
         rt, crash_root=ROOT / "artifacts" / "crashes", stamp=_stamp())

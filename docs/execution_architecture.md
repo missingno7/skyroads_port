@@ -22,8 +22,13 @@ CPUless and native are properties of implementations, not player modes.
   functions on the interpreted baseline.
 - `play` selects the authored candidates plus the product-safe frame-parking
   runtime service; this is the default development composition.
-- `generated-cpu` selects the generated VMless provider over the Atlas-known region.
+- `generated-cpu` selects the generated VMless provider and composes every
+  selected faithful replacement through its declared CPU-carrier adapter.
 - `generated-abi` selects the generated ABI-recovered provider over that region.
+  It currently selects no authored replacement: an ABI-recovered caller needs
+  a separately evidenced CPUless adapter (outputs, flags, return ABI and
+  virtual-time effects), and the planner must reject one rather than silently
+  use the generated body.
 - `auto` chooses the conservative profile default.
 
 These axes are intentionally independent. Build platform and replay
@@ -73,11 +78,12 @@ The catalog declares:
 - generated per-function implementations;
 - authored faithful replacements.
 
-`skyroads.hooks` contains CPU adapter functions only. Importing it installs
-nothing. The resolved plan activates the selected adapters after runtime
-construction or snapshot restoration. The semantic implementation therefore
-has one identity and one category even when different backend adapters are
-needed.
+`skyroads.hooks` contains CPU-carrier adapter functions only. Importing it
+installs nothing. The resolved plan activates the selected adapter after
+runtime construction, snapshot restoration, or generated-graph boot. The
+semantic implementation therefore has one identity and one category even when
+different backend adapters are needed. A missing adapter is an explicit
+frontier, not permission to use a different implementation.
 
 Frame parking is a declared product-safe runtime service, not an implementation
 override. It intercepts only the two empty timer-wait loops used by main-frame

@@ -11,6 +11,7 @@ import pytest
 
 from dos_re import player
 from dos_re.execution import (
+    CPU_MODEL_BACKEND,
     DependencyCapability,
     ExecutionPlanError,
     ImplementationOrigin,
@@ -81,6 +82,12 @@ def original_exe(tmp_path, monkeypatch):
         ),
     )
     monkeypatch.setattr(execution_model, "ROOT", tmp_path)
+    boot = tmp_path / "boot"
+    boot.mkdir()
+    (boot / "state.json").write_text("{}", encoding="utf-8")
+    (boot / "memory_1mb.bin").write_bytes(b"\0")
+    (boot / "manifest.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(execution_model, "BOOT_DIR", boot)
 
 
 def test_default_window_scale_fits_a_768_line_desktop() -> None:
@@ -139,6 +146,19 @@ def test_default_play_is_fast_but_has_no_behavioral_modifications(
         FRAME_PARK_SERVICE_ID
     }
     assert all(service.product_safe for service in plan.services)
+
+
+def test_generated_cpu_composes_selected_faithful_adapters(
+    original_exe,
+) -> None:
+    plan = _plan("development", "generated-cpu")
+    selected = {
+        item.implementation_id for item in plan.implementations
+    }
+    assert "baseline:generated-vmless" in selected
+    faithful_ids = execution_model.implementation_ids(OverrideCategory.FAITHFUL)
+    assert set(faithful_ids) <= selected
+    assert plan.configuration.selected_overrides == faithful_ids
 
 
 def test_release_readiness_rejects_atlas_control_flow_frontiers(
@@ -200,7 +220,11 @@ def test_authored_catalog_contains_only_complete_semantic_adapter_pairs() -> Non
             replacement_hooks={},
             hook_names={},
         ))
-        entry.activate(runtime, tuple(entry.descriptor.targets))
+        cpu_adapter = next(
+            adapter for adapter in entry.adapters
+            if adapter.backend_id == CPU_MODEL_BACKEND
+        )
+        cpu_adapter.activate(runtime, tuple(entry.descriptor.targets))
         assert runtime.cpu.replacement_hooks[(CODE_SEG, ip)] is adapter
         assert runtime.cpu.hook_names[(CODE_SEG, ip)] == name
 
