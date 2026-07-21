@@ -22,20 +22,20 @@ Execution policy and implementation composition are separate:
 # untouched interpreted oracle
 python scripts/play.py --profile development --composition oracle
 
-# interpreted baseline with authored faithful candidates
-python scripts/play.py --profile development --composition authored-candidates
+# automatic workbench mix: authored, generated functions, interpreted frontier
+python scripts/play.py --profile development --composition workbench-auto
 
 # differential verification over a ReplayArtifact
-python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_name --verify-start 100 --verify-end 180
+python scripts/play.py --profile verification --composition workbench-auto --play-replay artifacts/replays/replay_name --verify-start 100 --verify-end 180
 
 # generated VMless graph plus selected, already-verified faithful replacements
-python scripts/play.py --profile development --composition generated-cpu --headless
+python scripts/play.py --profile development --composition faithful-product --headless
 
 # generated CPUless implementation while recovery frontiers remain visible
-python scripts/play.py --profile development --composition generated-abi --headless
+python scripts/play.py --profile development --composition generated-detached --headless
 
 # strict readiness report (currently rejects named Atlas frontiers)
-python scripts/play.py --profile release --composition generated-abi --plan-only
+python scripts/play.py --profile release --composition generated-detached --plan-only
 
 # rebuild/query the persistent evidence map
 python scripts/build_atlas.py --from-ir
@@ -48,11 +48,19 @@ python scripts/build_boot_image.py
 `skyroads.execution` is the single implementation catalog and composition
 authority; `recovery/atlas` is the persistent coverage model.
 Generated VMless and CPUless code are baseline providers; authored faithful
-replacements are explicit semantic-plus-adapter pairs. The VMless provider
-uses the selected CPU-carrier adapters as well; the ABI-recovered provider
+replacements are explicit semantic-plus-adapter pairs. Each authored body has
+distinct interpreted-CPU and generated-VMless carrier adapters, and the plan
+reports the exact remaining cross-owner boundaries. Selecting a larger owner
+collapses its internal hook edges. The ABI-recovered provider
 will select an authored body only once that body has a separately verified
 CPUless ABI adapter. Frame parking is a product-safe runtime service rather
 than an implementation override. Importing an adapter never installs it.
+
+Product features are separate from implementations. For example,
+`--practice-level-position 0x123 --record-replay practice` records an explicit
+behavioral event and applies it only at SkyRoads' main-loop boundary. Faithful
+oracle verification does not silently treat that intentional divergence as a
+replacement failure.
 
 Authored source has two enforced layers. `skyroads.handrecovered` contains
 CPU-independent semantic algorithms; `skyroads.native` contains state-backed

@@ -54,7 +54,7 @@ def test_generated_plan_verifies_one_real_frame_from_oracle_artifact(tmp_path):
 
     verify_args = player.build_arg_parser(frontend).parse_args([
         "--headless", "--profile", "verification",
-        "--composition", "generated-functions",
+        "--composition", "workbench-auto",
     ])
     plan = frontend.resolve_execution_plan(verify_args)
     verify_args.execution_plan = plan
@@ -113,7 +113,7 @@ def test_semantic_frame_park_is_stable_across_oracle_and_generated(tmp_path):
 
     verify_args = player.build_arg_parser(frontend).parse_args([
         "--headless", "--profile", "verification",
-        "--composition", "generated-functions",
+        "--composition", "workbench-auto",
         "--timer-irqs-per-frame", "0",
     ])
     plan = frontend.resolve_execution_plan(verify_args)

@@ -11,16 +11,24 @@ import pytest
 
 from dos_re import player
 from dos_re.execution import (
-    CPU_MODEL_BACKEND,
     DependencyCapability,
     ExecutionPlanError,
+    GENERATED_VMLESS_CARRIER,
+    INTERPRETED_CPU_CARRIER,
     ImplementationOrigin,
     OverrideCategory,
     plan_execution,
 )
+from dos_re.materialized_plan import (
+    load_materialized_plan,
+    write_materialized_plan,
+)
+from dos_re.memory import Memory
+from dos_re.replay import ReplayEvent, ReplayPoint
 from scripts.play import SkyroadsFrontend
 from skyroads import execution as execution_model
 from skyroads import hooks
+from skyroads.bridge.dgroup_view import GameView
 from skyroads.content_identity import content_digest
 from skyroads.execution import (
     FRAME_PARK_SERVICE_ID,
@@ -28,14 +36,20 @@ from skyroads.execution import (
     catalog,
     configuration,
     coverage,
+    features,
     services,
 )
 from skyroads.hooks import CODE_SEG
-from skyroads.identities import IMAGE, function_identity
+from skyroads.identities import IMAGE, PROGRAM_ROOT, function_identity
 from skyroads.pacing import (
     MENU_ANIM_WAIT_IP,
     PACING_SPIN_IP,
     install_frame_park,
+)
+from skyroads.product_features import (
+    PRACTICE_FEATURE_CHANNEL,
+    PRACTICE_LEVEL_FEATURE_ID,
+    SkyroadsFeatureState,
 )
 
 
@@ -59,6 +73,7 @@ def _plan(profile: str, composition: str):
         coverage(),
         catalog(),
         services(),
+        features(),
     )
 
 
@@ -106,7 +121,7 @@ def test_oracle_plan_selects_only_the_untouched_exe(original_exe) -> None:
 def test_authored_candidate_plan_selects_replacements_explicitly(
     original_exe,
 ) -> None:
-    plan = _plan("verification", "authored-candidates")
+    plan = _plan("verification", "workbench-auto")
     selected = {
         item.implementation_id: item for item in plan.implementations
     }
@@ -148,10 +163,10 @@ def test_default_play_is_fast_but_has_no_behavioral_modifications(
     assert all(service.product_safe for service in plan.services)
 
 
-def test_generated_cpu_composes_selected_faithful_adapters(
+def test_faithful_product_composes_selected_faithful_adapters(
     original_exe,
 ) -> None:
-    plan = _plan("development", "generated-cpu")
+    plan = _plan("development", "faithful-product")
     selected = {
         item.implementation_id for item in plan.implementations
     }
@@ -159,6 +174,93 @@ def test_generated_cpu_composes_selected_faithful_adapters(
     faithful_ids = execution_model.implementation_ids(OverrideCategory.FAITHFUL)
     assert set(faithful_ids) <= selected
     assert plan.configuration.selected_overrides == faithful_ids
+    assert plan.report.execution_carrier == GENERATED_VMLESS_CARRIER
+    assert plan.report.active_boundaries
+    assert plan.report.collapsed_edge_count > 1_000
+
+    faithful_entries = [
+        entry for entry in catalog().entries
+        if entry.descriptor.category is OverrideCategory.FAITHFUL
+    ]
+    assert all(
+        {adapter.carrier_id for adapter in entry.adapters} == {
+            INTERPRETED_CPU_CARRIER,
+            GENERATED_VMLESS_CARRIER,
+        }
+        for entry in faithful_entries
+    )
+
+
+def test_disabling_authored_candidates_falls_back_and_collapses_boundaries(
+    original_exe,
+) -> None:
+    mixed = _plan("development", "faithful-product")
+    fallback = plan_execution(
+        configuration(
+            "development", "faithful-product", include_authored=False,
+        ),
+        coverage(),
+        catalog(),
+        services(),
+        features(),
+    )
+
+    assert fallback.configuration.selected_overrides == ()
+    assert {item.implementation_id for item in fallback.implementations} == {
+        "baseline:generated-vmless",
+    }
+    assert fallback.report.active_boundaries == ()
+    assert fallback.report.collapsed_edge_count > (
+        mixed.report.collapsed_edge_count
+    )
+
+
+def test_mixed_plan_materializes_without_runtime_selection(
+    original_exe, tmp_path,
+) -> None:
+    plan = _plan("development", "faithful-product")
+    payload = load_materialized_plan(write_materialized_plan(
+        plan, tmp_path / "execution_plan.json",
+    ))
+
+    assert payload["execution_carrier"] == GENERATED_VMLESS_CARRIER
+    assert payload["bindings"][PROGRAM_ROOT] == "baseline:generated-vmless"
+    faithful_binding = next(
+        implementation_id
+        for implementation_id in payload["bindings"].values()
+        if implementation_id.startswith("faithful:")
+    )
+    assert payload["implementations"][faithful_binding]["adapter"][
+        "id"
+    ].endswith("/generated-vmless")
+
+
+def test_practice_feature_uses_replay_event_and_safe_game_state_boundary() -> None:
+    state = SkyroadsFeatureState(features().features)
+    recorded = []
+    state.request_level_position(
+        0x123,
+        ordinal=7,
+        record_event=lambda *event: recorded.append(event),
+    )
+    assert recorded[0][0:2] == (7, PRACTICE_FEATURE_CHANNEL)
+
+    replayed = SkyroadsFeatureState(features().features)
+    replayed.accept_replay_event(ReplayEvent(
+        ReplayPoint(7, "skyroads-test"),
+        0,
+        recorded[0][1],
+        recorded[0][2],
+    ))
+    runtime = SimpleNamespace(cpu=SimpleNamespace(
+        mem=Memory(),
+        s=SimpleNamespace(ds=0x1686),
+    ))
+    replayed.apply_main_loop_boundary(runtime)
+    view = GameView(runtime.cpu.mem, base=0x1686 << 4)
+    assert view.game_state == 2
+    assert view.entered == 1
+    assert view.ship_pos == 0x123
 
 
 def test_release_readiness_rejects_atlas_control_flow_frontiers(
@@ -171,13 +273,15 @@ def test_release_readiness_rejects_atlas_control_flow_frontiers(
     (boot / "manifest.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(execution_model, "BOOT_DIR", boot)
     with pytest.raises(ExecutionPlanError) as caught:
-        _plan("release", "generated-abi")
+        _plan("release", "generated-detached")
     report = caught.value.report
     assert report.unresolved_edges
     assert not report.missing_bootstrap_artifacts
     assert report.is_detached_from("original-exe")
     assert report.is_detached_from("interpreter")
-    assert report.bootstrap_provider_id == "skyroads-generated-abi-build-image"
+    assert report.bootstrap_provider_id == (
+        "skyroads-generated-detached-build-image"
+    )
     assert not report.package_ready
     assert "unresolved control-flow edges" in str(caught.value)
 
@@ -187,7 +291,7 @@ def test_release_plan_fails_before_launch_when_bootstrap_is_missing(
 ) -> None:
     monkeypatch.setattr(execution_model, "BOOT_DIR", tmp_path / "missing")
     with pytest.raises(ExecutionPlanError) as caught:
-        _plan("release", "generated-abi")
+        _plan("release", "generated-detached")
     message = str(caught.value)
     assert "missing bootstrap artifacts" in message
     assert "python scripts/build_boot_image.py" in message
@@ -222,7 +326,7 @@ def test_authored_catalog_contains_only_complete_semantic_adapter_pairs() -> Non
         ))
         cpu_adapter = next(
             adapter for adapter in entry.adapters
-            if adapter.backend_id == CPU_MODEL_BACKEND
+            if adapter.carrier_id == INTERPRETED_CPU_CARRIER
         )
         cpu_adapter.activate(runtime, tuple(entry.descriptor.targets))
         assert runtime.cpu.replacement_hooks[(CODE_SEG, ip)] is adapter
@@ -273,10 +377,21 @@ def test_execution_descriptors_are_content_addressed() -> None:
         for entry in catalog().entries
     )
     assert all(
+        HEX_DIGEST.fullmatch(adapter.adapter_digest)
+        for entry in catalog().entries
+        for adapter in entry.adapters
+    )
+    assert all(
         HEX_DIGEST.fullmatch(service.implementation_digest)
         for service in services().services
     )
-    for composition in ("oracle", "generated-cpu", "generated-abi"):
+    assert all(
+        HEX_DIGEST.fullmatch(feature.feature_digest)
+        for feature in features().features
+    )
+    for composition in (
+        "oracle", "faithful-product", "generated-detached",
+    ):
         provider = bootstrap_provider(composition)
         assert HEX_DIGEST.fullmatch(provider.provider_digest)
         for artifact in provider.artifacts:

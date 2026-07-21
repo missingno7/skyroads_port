@@ -167,7 +167,7 @@ def main(argv=None) -> int:
     results.append(_run(
         "release/generated ABI rejects unresolved coverage before launch",
         ["scripts/play.py", "--profile", "release",
-                         "--composition", "generated-abi",
+                         "--composition", "generated-detached",
                          "--plan-only"],
         expect=_release_plan_expectations(),
         expected_returncode=2,
@@ -187,7 +187,7 @@ def main(argv=None) -> int:
             results.append(_run(
                 "generated functions vs untouched oracle",
                 ["scripts/play.py", "--profile", "verification",
-                 "--composition", "generated-functions",
+                 "--composition", "workbench-auto",
                  "--play-replay", str(replay),
                  "--verify-start", str(args.verify_start),
                  "--verify-end", str(end)],

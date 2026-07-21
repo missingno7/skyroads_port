@@ -11,7 +11,7 @@ probe. It is one selectable implementation representation, not a separate
 player.
 
 The frame model lives in :mod:`skyroads.cpuless_driver`. Select this provider
-with ``scripts/play.py --profile development --composition generated-abi``.
+with ``scripts/play.py --profile development --composition generated-detached``.
 """
 from __future__ import annotations
 

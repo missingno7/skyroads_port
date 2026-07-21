@@ -2,22 +2,7 @@
   "format_version": 1,
   "index_digest": "90f243be5f5281be238375c42de16d73e6c87b481cf1c19af01734c0f018062a",
   "product_roots": {
-    "game/authored-candidates": [
-      "skyroads:1.0:region:program"
-    ],
-    "game/generated-abi": [
-      "skyroads:1.0:region:program"
-    ],
-    "game/generated-cpu": [
-      "skyroads:1.0:region:program"
-    ],
-    "game/generated-functions": [
-      "skyroads:1.0:region:program"
-    ],
-    "game/oracle": [
-      "skyroads:1.0:region:program"
-    ],
-    "game/play": [
+    "game": [
       "skyroads:1.0:region:program"
     ]
   },

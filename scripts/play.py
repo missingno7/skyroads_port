@@ -3,10 +3,10 @@
 Examples::
 
     python scripts/play.py
-    python scripts/play.py --composition authored-candidates
-    python scripts/play.py --profile verification --composition generated-functions --play-replay artifacts/replays/replay_name --verify-start 0 --verify-end 10
-    python scripts/play.py --profile development --composition generated-abi --headless
-    python scripts/play.py --profile release --composition generated-abi --plan-only
+    python scripts/play.py --composition workbench-auto
+    python scripts/play.py --profile verification --composition workbench-auto --play-replay artifacts/replays/replay_name --verify-start 0 --verify-end 10
+    python scripts/play.py --profile development --composition generated-detached --headless
+    python scripts/play.py --profile release --composition generated-detached --plan-only
 
 Execution profile controls what dependencies and services are legal.
 Composition controls which implementations satisfy the program identities.
@@ -24,7 +24,11 @@ sys.path.insert(0, str(ROOT / "dos_re"))
 
 from dos_re import player  # noqa: E402
 from dos_re.dos import ConsoleInputWouldBlock  # noqa: E402
-from dos_re.execution import CPU_MODEL_BACKEND, DependencyCapability  # noqa: E402
+from dos_re.execution import (  # noqa: E402
+    DependencyCapability,
+    GENERATED_VMLESS_CARRIER,
+    INTERPRETED_CPU_CARRIER,
+)
 from dos_re.interrupts import deliver_interrupt  # noqa: E402
 from dos_re.replay import (  # noqa: E402
     GUEST_INSTRUCTION_COORDINATE,
@@ -36,9 +40,12 @@ from skyroads.execution import (  # noqa: E402
     catalog,
     configuration,
     coverage,
+    features,
+    PRACTICE_LEVEL_FEATURE_ID,
     selected_whole_program_provider,
     services,
 )
+from skyroads.product_features import SkyroadsFeatureState  # noqa: E402
 from skyroads.pacing import (  # noqa: E402
     FrameIdle,
     install_frame_park,
@@ -65,16 +72,19 @@ class SkyroadsFrontend(player.GameFrontend):
         execution.add_argument(
             "--composition",
             choices=(
-                "auto", "oracle", "generated-functions",
-                "authored-candidates", "play",
-                "generated-cpu", "generated-abi",
+                "auto", "oracle", "workbench-auto",
+                "faithful-product", "generated-detached",
             ),
             default="auto",
-            help="implementation composition (generated-functions mixes literal "
-                 "generated functions with interpreter fallback; auto selects "
-                 "practical play for development, literal generated functions "
-                 "for verification, and the generated ABI-recovered region for "
+            help="product composition (auto selects workbench-auto for "
+                 "development/verification and generated-detached for "
                  "detached/release)",
+        )
+        execution.add_argument(
+            "--practice-level-position",
+            type=lambda value: int(value, 0),
+            help="record a behavioral feature event that enters level select "
+                 "at the raw 0..0x2AAA road position",
         )
         execution.add_argument(
             "--no-sound", action="store_true",
@@ -88,6 +98,7 @@ class SkyroadsFrontend(player.GameFrontend):
             "capture_composition": args.composition,
             "audio": args.audio,
             "sound_enabled": not args.no_sound,
+            "practice_level_position": args.practice_level_position,
         })
         return metadata
 
@@ -97,15 +108,26 @@ class SkyroadsFrontend(player.GameFrontend):
             args.audio = str(metadata["audio"])
         if "sound_enabled" in metadata:
             args.no_sound = not bool(metadata["sound_enabled"])
+        if "practice_level_position" in metadata:
+            value = metadata["practice_level_position"]
+            args.practice_level_position = None if value is None else int(value)
 
     def program_identity(self, args):
         return PROGRAM_ID
 
     def execution_configuration(self, args):
+        if args.practice_level_position is not None \
+                and not (args.record_replay or args.play_replay):
+            raise ValueError(
+                "--practice-level-position changes authoritative state and "
+                "must be used with --record-replay (or restored from one)"
+            )
         return configuration(
             args.profile,
             args.composition,
             requested_capabilities=self.requested_capabilities(args),
+            enabled_features=(PRACTICE_LEVEL_FEATURE_ID,)
+            if args.practice_level_position is not None else (),
         )
 
     def execution_coverage(self, args):
@@ -117,13 +139,39 @@ class SkyroadsFrontend(player.GameFrontend):
     def execution_services(self, args):
         return services()
 
+    def execution_features(self, args):
+        return features()
+
     def bind_execution_plan(self, runtime, plan, *,
-                            backend_id=CPU_MODEL_BACKEND) -> None:
-        super().bind_execution_plan(runtime, plan, backend_id=backend_id)
+                            carrier_id=INTERPRETED_CPU_CARRIER) -> None:
+        super().bind_execution_plan(runtime, plan, carrier_id=carrier_id)
+        if plan.features and not hasattr(runtime, "_skyroads_feature_state"):
+            runtime._skyroads_feature_state = SkyroadsFeatureState(plan.features)
         if FRAME_PARK_SERVICE_ID in {
             service.service_id for service in plan.services
         }:
             install_frame_park(runtime)
+
+    def recording_started(self, rt, args, *, record_event) -> None:
+        if args.practice_level_position is None:
+            return
+        rt._skyroads_feature_state.request_level_position(
+            args.practice_level_position,
+            ordinal=0,
+            record_event=record_event,
+        )
+
+    def apply_replay_event(self, rt, args, event) -> None:
+        state = getattr(rt, "_skyroads_feature_state", None)
+        if state is None:
+            return super().apply_replay_event(rt, args, event)
+        state.accept_replay_event(event)
+
+    @staticmethod
+    def _apply_product_features(rt) -> None:
+        state = getattr(rt, "_skyroads_feature_state", None)
+        if state is not None:
+            state.apply_main_loop_boundary(rt)
 
     def launch(self, args, plan):
         provider = selected_whole_program_provider(plan)
@@ -134,7 +182,7 @@ class SkyroadsFrontend(player.GameFrontend):
                 args,
                 bootstrap_artifacts=bootstrap_artifacts,
                 bind_plan=lambda runtime: self.bind_execution_plan(
-                    runtime, plan, backend_id=CPU_MODEL_BACKEND),
+                    runtime, plan, carrier_id=GENERATED_VMLESS_CARRIER),
             )
         if provider == "baseline:generated-cpuless":
             from skyroads.development_guard import (
@@ -243,9 +291,11 @@ class SkyroadsFrontend(player.GameFrontend):
             rt.cpu.run(max(1, int(args.steps_per_frame)))
         except FrameIdle:
             rt._skyroads_replay_boundary_kind = "frame-park"
+            self._apply_product_features(rt)
             return "frame-park"
         except ConsoleInputWouldBlock:
             rt._skyroads_replay_boundary_kind = "input-block"
+            self._apply_product_features(rt)
             raise
         rt._skyroads_replay_boundary_kind = "guest-fallback"
         return "guest-fallback"
@@ -307,7 +357,7 @@ class SkyroadsFrontend(player.GameFrontend):
             raise RuntimeError(
                 "ReplayArtifact differential verification currently requires a "
                 "DOS-memory-backed interpreted composition; select "
-                "--composition generated-functions or authored-candidates"
+                "--composition workbench-auto"
             )
         from skyroads.replay import (
             capture_base,

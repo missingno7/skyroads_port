@@ -18,14 +18,22 @@ from dos_re.execution import (
     BuildImageBootstrapProvider,
     BuildTarget,
     DependencyCapability,
-    CPU_MODEL_BACKEND,
+    EvidenceGrade,
     ExecutionConfiguration,
     ExeBootstrapProvider,
+    FeatureCatalog,
+    FeatureCategory,
+    FeatureDescriptor,
+    GENERATED_CPULESS_CARRIER,
+    GENERATED_VMLESS_CARRIER,
+    INTERPRETED_CPU_CARRIER,
+    ImplementationContract,
     ImplementationCatalog,
     ImplementationDescriptor,
     ImplementationEntry,
     ImplementationOrigin,
     OverrideCategory,
+    RecoveryLevel,
     RuntimeServiceCatalog,
     RuntimeServiceDescriptor,
     profile_configuration,
@@ -44,6 +52,11 @@ from skyroads.identities import (
     PROGRAM_ROOT,
     execution_point_identity,
     function_identity,
+)
+from skyroads.product_features import (
+    FEATURE_SAFE_BOUNDARY,
+    PRACTICE_FEATURE_CHANNEL,
+    PRACTICE_LEVEL_FEATURE_ID,
 )
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
@@ -92,19 +105,41 @@ def _activate_cpu_hook(ip: int, name: str, adapter, identity):
     return activate
 
 
+def _real_mode_contract(target: str) -> ImplementationContract:
+    return ImplementationContract(
+        contract_id=f"{target}:real-mode-call/v1",
+        inputs=("adapter-declared registers/stack/DOS memory",),
+        outputs=("adapter-declared registers/DOS memory", "continuation"),
+        observable_effects=("DOS memory", "CPU flags", "device I/O when declared"),
+        state_authority="DOS continuation state",
+        preservation=("unmentioned continuation state",),
+    )
+
+
+def _adapter_digest(target: str, carrier: str, adapter) -> str:
+    return content_digest(
+        (source_path(adapter), *_REAL_MODE_ADAPTER_SOURCES),
+        repository_root=SOURCE_ROOT,
+        records=(("target", target), ("carrier", carrier)),
+    )
+
+
 def _generated_function_entries(
     table: dict[int, tuple[str, object]],
 ) -> Iterable[ImplementationEntry]:
     for ip, (name, implementation) in sorted(table.items()):
+        target = function_identity(ip)
         implementation_id = (
             f"generated-function:{CODE_SEG:04x}:{ip:04x}:{name}"
         )
         yield ImplementationEntry(
             ImplementationDescriptor(
                 implementation_id=implementation_id,
-                targets=frozenset({function_identity(ip)}),
+                targets=frozenset({target}),
                 origin=ImplementationOrigin.GENERATED,
                 category=OverrideCategory.BASELINE,
+                recovery_level=RecoveryLevel.GENERATED_VMLESS,
+                contract=_real_mode_contract(target),
                 properties=frozenset({"cpu-adapted", "dos-memory-backed"}),
                 required_capabilities=frozenset({
                     DependencyCapability.CPU_MODEL.value,
@@ -119,8 +154,10 @@ def _generated_function_entries(
             ),
             implementation=implementation,
             adapters=(BackendAdapter(
-                CPU_MODEL_BACKEND,
+                f"{implementation_id}/interpreted-cpu",
+                INTERPRETED_CPU_CARRIER,
                 _activate_cpu_hook(ip, name, implementation, function_identity),
+                _adapter_digest(target, INTERPRETED_CPU_CARRIER, implementation),
             ),),
         )
 
@@ -137,12 +174,20 @@ def _authored_entries(
             function_identity
         )
         implementation_id = f"{prefix}:{CODE_SEG:04x}:{ip:04x}:{name}"
+        target = identity(ip)
+        activate = _activate_cpu_hook(ip, name, adapter, identity)
         yield ImplementationEntry(
             ImplementationDescriptor(
                 implementation_id=implementation_id,
-                targets=frozenset({identity(ip)}),
+                targets=frozenset({target}),
                 origin=ImplementationOrigin.AUTHORED,
                 category=category,
+                recovery_level=RecoveryLevel.AUTHORED_NATIVE,
+                evidence_grade=EvidenceGrade.FOCUSED,
+                verification_evidence=frozenset({
+                    f"skyroads:focused-oracle:{CODE_SEG:04x}:{ip:04x}",
+                }),
+                contract=_real_mode_contract(target),
                 properties=frozenset({
                     "semantic-cpuless",
                     "cpu-adapted",
@@ -159,10 +204,20 @@ def _authored_entries(
                 ),
             ),
             implementation=semantic,
-            adapters=(BackendAdapter(
-                CPU_MODEL_BACKEND,
-                _activate_cpu_hook(ip, name, adapter, identity),
-            ),),
+            adapters=(
+                BackendAdapter(
+                    f"{implementation_id}/interpreted-cpu",
+                    INTERPRETED_CPU_CARRIER,
+                    activate,
+                    _adapter_digest(target, INTERPRETED_CPU_CARRIER, adapter),
+                ),
+                BackendAdapter(
+                    f"{implementation_id}/generated-vmless",
+                    GENERATED_VMLESS_CARRIER,
+                    activate,
+                    _adapter_digest(target, GENERATED_VMLESS_CARRIER, adapter),
+                ),
+            ),
         )
 
 
@@ -193,12 +248,15 @@ def _file_digest(path: Path) -> str:
 
 def catalog() -> ImplementationCatalog:
     faithful, generated = _hook_tables()
-    all_targets = coverage().coverage_for("game/play").reachable
+    all_targets = coverage().coverage_for("game").reachable
     entries: list[ImplementationEntry] = [
         ImplementationEntry(ImplementationDescriptor(
             implementation_id="baseline:interpreted-exe",
             targets=all_targets,
             origin=ImplementationOrigin.INTERPRETED,
+            recovery_level=RecoveryLevel.INTERPRETED,
+            execution_carrier=INTERPRETED_CPU_CARRIER,
+            region_id=PROGRAM_ROOT,
             properties=frozenset({"cpu-backed", "dos-memory-backed"}),
             required_capabilities=frozenset({
                 DependencyCapability.ORIGINAL_EXE.value,
@@ -215,6 +273,8 @@ def catalog() -> ImplementationCatalog:
             implementation_id="baseline:generated-vmless",
             targets=all_targets,
             origin=ImplementationOrigin.GENERATED,
+            recovery_level=RecoveryLevel.GENERATED_VMLESS,
+            execution_carrier=GENERATED_VMLESS_CARRIER,
             properties=frozenset({
                 "cpu-backed", "vmless", "dos-memory-backed", "exe-detached",
             }),
@@ -231,6 +291,8 @@ def catalog() -> ImplementationCatalog:
             implementation_id="baseline:generated-cpuless",
             targets=all_targets,
             origin=ImplementationOrigin.GENERATED,
+            recovery_level=RecoveryLevel.GENERATED_ABI,
+            execution_carrier=GENERATED_CPULESS_CARRIER,
             properties=frozenset({
                 "cpuless", "abi-recovered", "dos-memory-backed", "exe-detached",
             }),
@@ -270,6 +332,24 @@ def services() -> RuntimeServiceCatalog:
     ),))
 
 
+def features() -> FeatureCatalog:
+    return FeatureCatalog((FeatureDescriptor(
+        feature_id=PRACTICE_LEVEL_FEATURE_ID,
+        category=FeatureCategory.BEHAVIORAL,
+        changes_authoritative_state=True,
+        replay_channel=PRACTICE_FEATURE_CHANNEL,
+        safe_boundaries=frozenset({FEATURE_SAFE_BOUNDARY}),
+        default_value=None,
+        required_capabilities=frozenset({
+            DependencyCapability.DOS_MEMORY.value,
+        }),
+        feature_digest=content_digest((
+            SOURCE_ROOT / "skyroads" / "product_features.py",
+            SOURCE_ROOT / "skyroads" / "bridge" / "dgroup_view.py",
+        ), repository_root=SOURCE_ROOT),
+    ),))
+
+
 def implementation_ids(category: OverrideCategory) -> tuple[str, ...]:
     return tuple(
         entry.descriptor.implementation_id
@@ -289,7 +369,7 @@ def generated_function_ids() -> tuple[str, ...]:
 
 def bootstrap_provider(composition: str):
     if composition in {
-        "oracle", "generated-functions", "authored-candidates", "play",
+        "oracle", "workbench-auto",
     }:
         exe = ROOT / "assets" / "SKYROADS.EXE"
         return ExeBootstrapProvider(
@@ -331,7 +411,7 @@ def bootstrap_provider(composition: str):
         DependencyCapability.DOS_SERVICES.value,
         DependencyCapability.DOS_RE_RUNTIME.value,
     }
-    if composition == "generated-cpu":
+    if composition == "faithful-product":
         runtime_capabilities.add(DependencyCapability.CPU_MODEL.value)
     artifact_specs = (
         ("state", "state.json"),
@@ -397,11 +477,19 @@ def configuration(
     *,
     build_platform: str = "windows",
     requested_capabilities: Iterable[str] = (),
+    enabled_features: Iterable[str] = (),
+    include_authored: bool = True,
 ) -> ExecutionConfiguration:
     """Map a product composition onto dos_re's orthogonal policy axes."""
     if composition == "auto":
-        composition = "generated-abi" if profile in {"detached", "release"} else (
-            "generated-functions" if profile == "verification" else "play"
+        composition = "generated-detached" if profile in {"detached", "release"} else (
+            "workbench-auto"
+        )
+    enabled_features = tuple(enabled_features)
+    if enabled_features and composition == "generated-detached":
+        raise ValueError(
+            "SkyRoads product features do not yet have a generated-CPUless "
+            "state adapter"
         )
     preferences: tuple[str, ...]
     selected: tuple[str, ...] = ()
@@ -412,28 +500,27 @@ def configuration(
     product_services: tuple[str, ...] = (
         (FRAME_PARK_SERVICE_ID,)
         if composition in {
-            "oracle", "generated-functions", "authored-candidates", "play",
+            "oracle", "workbench-auto",
         }
         else ()
     )
     if composition == "oracle":
         preferences = ("baseline:interpreted-exe",)
-    elif composition == "generated-functions":
-        preferences = (*generated_function_ids(), "baseline:interpreted-exe")
-    elif composition == "authored-candidates":
-        selected = implementation_ids(OverrideCategory.FAITHFUL)
+    elif composition == "workbench-auto":
+        selected = (
+            implementation_ids(OverrideCategory.FAITHFUL)
+            if include_authored else ()
+        )
         preferences = (
             *selected, *generated_function_ids(), "baseline:interpreted-exe",
         )
-    elif composition == "play":
-        selected = implementation_ids(OverrideCategory.FAITHFUL)
-        preferences = (
-            *selected, *generated_function_ids(), "baseline:interpreted-exe",
+    elif composition == "faithful-product":
+        selected = (
+            implementation_ids(OverrideCategory.FAITHFUL)
+            if include_authored else ()
         )
-    elif composition == "generated-cpu":
-        selected = implementation_ids(OverrideCategory.FAITHFUL)
         preferences = (*selected, "baseline:generated-vmless")
-    elif composition == "generated-abi":
+    elif composition == "generated-detached":
         preferences = ("baseline:generated-cpuless",)
     else:
         raise ValueError(f"unknown SkyRoads composition {composition!r}")
@@ -448,14 +535,21 @@ def configuration(
         product_profile="game",
         provider_preference=preferences,
         selected_overrides=selected,
+        enabled_features=enabled_features,
         product_services=product_services,
         requested_capabilities=requested_capabilities,
         bootstrap_provider=bootstrap_provider(composition),
         build_target=target,
     )
-    # Preserve the resolved product composition in the profile identity without
-    # adding another mutable configuration authority.
-    return replace(config, product_profile=f"game/{composition}")
+    if selected:
+        config = replace(
+            config,
+            execution_policy=replace(
+                config.execution_policy,
+                minimum_authored_evidence=EvidenceGrade.FOCUSED,
+            ),
+        )
+    return config
 
 
 def selected_whole_program_provider(plan) -> str:

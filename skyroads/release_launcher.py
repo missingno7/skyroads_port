@@ -26,7 +26,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     bootstrap_artifacts = packaged_bootstrap_artifacts(
         PRODUCT_ROOT,
-        expected_provider="skyroads-generated-abi-build-image",
+        expected_provider="skyroads-generated-detached-build-image",
     )
     return run(args, bootstrap_artifacts=bootstrap_artifacts)
 

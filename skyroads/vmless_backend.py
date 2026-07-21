@@ -25,7 +25,7 @@ generated boundary set is its own replay-verified provider contract. It is
 separate from the interpreted frame-parking runtime service, which intercepts
 only two proven side-effect-free waits.
 
-Selected with ``scripts/play.py --profile detached --composition generated-cpu``.
+Selected with ``scripts/play.py --composition faithful-product``.
 """
 from __future__ import annotations
 
