@@ -53,7 +53,7 @@ def _arguments(argv=None):
     parser.add_argument("--end", type=int)
     parser.add_argument(
         "--composition", default="faithful-product",
-        choices=("faithful-product", "workbench-auto", "oracle"),
+        choices=("auto", "faithful-product", "workbench-auto", "oracle"),
     )
     parser.add_argument(
         "--renderer", default="native-3d", choices=("original", "native-3d"),

@@ -262,6 +262,59 @@ def test_region_exit_drops_same_level_gameplay_packet_before_menu_handoff() -> N
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
+def test_region_exit_retains_native_owner_until_gameplay_fade_reaches_shell() -> None:
+    """The exit marker persists; ownership follows the recovered visual head."""
+    state = NativeGameState()
+    level = 3
+    native_level_load(state, road_archive_index(level), game_root=ASSETS)
+    state.ww(0x9332, level)
+    memory = Memory()
+    ds = 0x1686
+    base = ds << 4
+    memory.data[base:base + len(state.data)] = state.data
+    runtime = SimpleNamespace(
+        cpu=SimpleNamespace(
+            s=SimpleNamespace(cs=0x1010, ip=0x434A, ds=ds),
+            mem=memory,
+        ),
+        dos=SimpleNamespace(vga_palette=((1, 1, 1),) * 256),
+        execution_regions=SimpleNamespace(active_region_id=None),
+        _skyroads_last_region_exit="gameplay-aborted",
+    )
+    args = SimpleNamespace(
+        renderer="native-3d",
+        widescreen=False,
+        tweening=False,
+        render_debug="final",
+        game_root=str(ASSETS),
+        simulation_hz=30,
+        present_hz=60,
+    )
+    presentation = SkyroadsPresentation(runtime, args)
+    live = GameView(memory.data, base=base)
+
+    # The same persistent exit marker is observed at every generated gameplay
+    # presentation boundary. It must not toggle ownership at any of them.
+    for ip, phase in (
+        (0x434A, "gameplay-fade"),
+        (0x0EF8, "gameplay-exit"),
+        (0x4468, "gameplay-exit-wait"),
+        (0x434A, "gameplay-fade"),
+    ):
+        runtime.cpu.s.ip = ip
+        assert presentation._observe_ownership(live)
+        assert presentation._ownership_phase == phase
+
+    # 5FED is the generated level-selector input wait observed immediately
+    # after the fade in replay 233559. This is the one external-shell handoff.
+    runtime.cpu.s.ip = 0x5FED
+    presentation.polygon_frame = object()
+    assert not presentation._observe_ownership(live)
+    assert presentation._ownership_phase == "region-exit:gameplay-aborted"
+    assert presentation.polygon_frame is None
+
+
+@pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
 def test_scene_retains_every_level_30_road_object_and_interpolation_is_read_only() -> None:
     state = NativeGameState()
     native_level_load(state, road_archive_index(29), game_root=ASSETS)

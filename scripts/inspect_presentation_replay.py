@@ -1,8 +1,9 @@
 """Report native-presentation ownership and original visual-state transitions.
 
 This diagnostic replays the immutable input stream through the selected
-workbench composition and prints only state changes.  It is intentionally
-headless and never captures framebuffer pixels as presentation authority.
+composition and prints only state changes for either the oracle or candidate
+driver. It is intentionally headless and never captures framebuffer pixels as
+presentation authority.
 """
 from __future__ import annotations
 
@@ -27,6 +28,10 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("replay", type=Path)
     parser.add_argument("--composition", default="workbench-auto")
+    parser.add_argument(
+        "--driver", choices=("oracle", "candidate"), default="oracle",
+        help="execution side whose presentation ownership is inspected",
+    )
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -130,16 +135,17 @@ def main(argv: list[str] | None = None) -> int:
     ])
     frontend.apply_replay_metadata(launch_args, artifact.metadata)
     launch_args.execution_plan = frontend.resolve_execution_plan(launch_args)
-    oracle, _candidate = frontend.verification_drivers(
+    oracle, candidate = frontend.verification_drivers(
         launch_args, launch_args.execution_plan, artifact,
     )
-    base_point = artifact.cached_points(oracle.profile)[0]
-    oracle.restore(artifact.restore(oracle.profile, base_point), base_point)
+    driver = oracle if args.driver == "oracle" else candidate
+    base_point = artifact.cached_points(driver.profile)[0]
+    driver.restore(artifact.restore(driver.profile, base_point), base_point)
     launch_args.renderer = "native-3d"
     launch_args.widescreen = False
     launch_args.tweening = False
     launch_args.render_debug = "final"
-    presentation = SkyroadsPresentation(oracle.runtime, launch_args)
+    presentation = SkyroadsPresentation(driver.runtime, launch_args)
     end = ReplayPoint.from_json(artifact.metadata["end_point"]).ordinal
     records = []
     previous = None
@@ -147,17 +153,17 @@ def main(argv: list[str] | None = None) -> int:
     for ordinal in range(end + 1):
         if ordinal:
             try:
-                oracle.replay_to(
+                driver.replay_to(
                     artifact, ReplayPoint(ordinal, artifact.timeline_id),
                 )
             except Exception as exc:  # diagnostic must retain the last valid state
                 error = f"{type(exc).__name__}: {exc}"
-                current = _snapshot(oracle, ordinal - 1, presentation)
+                current = _snapshot(driver, ordinal - 1, presentation)
                 current["replay_error_at"] = ordinal
                 current["replay_error"] = error
                 records.append(current)
                 break
-        current = _snapshot(oracle, ordinal, presentation)
+        current = _snapshot(driver, ordinal, presentation)
         signature = {key: value for key, value in current.items()
                      if key not in {"ordinal", "coordinate"}}
         if signature != previous or ordinal == end:

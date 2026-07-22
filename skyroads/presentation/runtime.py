@@ -154,13 +154,21 @@ class SkyroadsPresentation:
         active_gameplay_island = self._active_gameplay_island()
         region_exit = getattr(self.runtime, "_skyroads_last_region_exit", None)
         if self._owns_gameplay and region_exit and not active_gameplay_island:
-            # The gameplay region has returned to generated code.  The caller
-            # can retain DS:[9332] until after it has replaced the framebuffer
-            # and palette, so level identity alone cannot distinguish this
-            # transition from active gameplay.  Do not let the last native GPU
-            # packet survive into that generated continuation.
-            self._release_gameplay(f"region-exit:{region_exit}")
-            return False
+            if phase is None:
+                # The generated caller has left every recovered gameplay
+                # presentation head.  It can retain DS:[9332] after replacing
+                # the framebuffer and palette, so level identity alone cannot
+                # identify this external-shell seam.
+                self._release_gameplay(f"region-exit:{region_exit}")
+                return False
+            # A region exit is a persistent diagnostic, not an edge-triggered
+            # presentation command.  Crash/restart, departure, and abort all
+            # return through generated gameplay-owned fade/wait heads before
+            # the level selector actually takes the screen. Releasing here
+            # used to make every subsequent frame reacquire from valid road
+            # geometry and then release from the same stale exit marker,
+            # alternating native/original renderers throughout the fade.
+            self._ownership_phase = phase
         if (self._owns_gameplay
                 and self._owned_level is not None
                 and selected != self._owned_level

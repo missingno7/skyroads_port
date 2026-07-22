@@ -49,6 +49,13 @@ crashed live simulation fields while it draws the reset frame at full black;
 the reset fields are published only after fade-in. Native presentation follows
 the call signature, so the reset frame is already under the entire fade and
 does not jump when those live fields are finally published.
+Presentation ownership also follows those recovered visual heads rather than
+the persistent `last_region_exit` diagnostic. Crash/restart fades (`434A`),
+road-departure rendering (`0EF8`), and its wait (`4468`) remain one continuous
+native presentation interval after the gameplay island returns. Ownership
+passes to the generated selector only at its external shell seam (observed at
+`5FED`) or when a changed level identity is published under a black palette.
+This prevents native/original renderer oscillation on successive fade points.
 In `final`, one immutable whole-level lane/row/elevation mesh remains resident
 on the GPU and passes through the recovered continuous lens at the real window
 resolution. Track interpolation changes one camera uniform, never object
