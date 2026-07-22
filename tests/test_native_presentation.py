@@ -199,6 +199,52 @@ def test_shadow_uses_ship_row_depth_with_road_bias() -> None:
     )
 
 
+def test_shadow_depth_test_does_not_occlude_the_ship() -> None:
+    """The shadow reads world depth but cannot write over the later ship."""
+    draws: list[tuple[int, bool]] = []
+
+    class FakeContext:
+        depth_mask = True
+        viewport = None
+        blend_func = None
+
+        def enable(self, _capability) -> None:
+            pass
+
+        def disable(self, _capability) -> None:
+            pass
+
+    context = FakeContext()
+    presenter = object.__new__(ModernGLFramePresenter)
+    presenter._ctx = context
+    presenter._moderngl = SimpleNamespace(
+        DEPTH_TEST=1,
+        BLEND=2,
+        SRC_ALPHA=3,
+        ONE_MINUS_SRC_ALPHA=4,
+        TRIANGLE_STRIP=5,
+    )
+    presenter._billboard_program = {
+        "clip_depth": SimpleNamespace(value=None),
+        "color_gain": SimpleNamespace(value=None),
+    }
+    presenter._billboard_vao = SimpleNamespace(
+        render=lambda mode: draws.append((mode, context.depth_mask)),
+    )
+    texture = SimpleNamespace(use=lambda **_kwargs: None)
+
+    presenter._draw_ship_billboard(
+        texture, (0, 0, 1, 1), shadow_camera_depth(SimpleNamespace()),
+        write_depth=False,
+    )
+    presenter._draw_ship_billboard(
+        texture, (0, 0, 1, 1), ship_camera_depth(SimpleNamespace()),
+    )
+
+    assert draws == [(5, False), (5, True)]
+    assert context.depth_mask is True
+
+
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
 def test_black_level_selector_handoff_atomically_drops_native_gpu_packet() -> None:
     state = NativeGameState()

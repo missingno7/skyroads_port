@@ -284,7 +284,8 @@ class ModernGLFramePresenter:
 
     def _draw_ship_billboard(self, texture, viewport,
                              camera_depth: float | None,
-                             *, color_gain: float = 1.0) -> None:
+                             *, color_gain: float = 1.0,
+                             write_depth: bool = True) -> None:
         """Draw the ship at an exact painter seam or in the debug depth field."""
         self._ctx.viewport = viewport
         if camera_depth is None:
@@ -300,7 +301,16 @@ class ModernGLFramePresenter:
         self._billboard_program["clip_depth"].value = clip_depth
         self._billboard_program["color_gain"].value = float(color_gain)
         texture.use(location=0)
-        self._billboard_vao.render(self._moderngl.TRIANGLE_STRIP)
+        # The recovered shadow participates in the world's depth test, but it
+        # is not an occluder: the original 2D1F painter order draws the ship
+        # after the shadow.  Keep depth writes configurable so the shadow can
+        # be hidden by tunnel geometry without ever hiding the ship itself.
+        self._ctx.depth_mask = bool(write_depth)
+        try:
+            self._billboard_vao.render(self._moderngl.TRIANGLE_STRIP)
+        finally:
+            # Do not leak read-only depth state into the ship or later passes.
+            self._ctx.depth_mask = True
 
     def _draw_recovered_projection(self, vertices, viewport,
                                    reference_width: float,
@@ -465,6 +475,7 @@ class ModernGLFramePresenter:
                 # incorrectly paints the shadow over tunnel shells.
                 None if recovered_projection else shadow_camera_depth(scene),
                 color_gain=packet.palette_gain,
+                write_depth=False,
             )
 
         if packet.ship_rgba:
