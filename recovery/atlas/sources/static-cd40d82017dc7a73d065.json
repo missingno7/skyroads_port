@@ -1648,6 +1648,17 @@
       "observation_count": 0,
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
       "status": "containment",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5dee"
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "contains",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+      "status": "containment",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5e5a"
     },
     {
@@ -1660,6 +1671,17 @@
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
       "status": "containment",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5ef6"
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "contains",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+      "status": "containment",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f0c"
     },
     {
       "evidence": [
@@ -1880,6 +1902,17 @@
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
       "status": "containment",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6364"
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "contains",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+      "status": "containment",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A63a3"
     },
     {
       "evidence": [
@@ -5667,7 +5700,7 @@
       "observation_count": 0,
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4331",
       "status": "containment",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A434a"
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A43b0"
     },
     {
       "evidence": [
@@ -8933,6 +8966,39 @@
       "kind": "call",
       "metadata": {},
       "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f0c",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5d33"
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "call",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f0c",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5d8c"
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "call",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f0c",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5dee"
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "call",
+      "metadata": {},
+      "observation_count": 0,
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f52",
       "status": "resolved",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5d33"
@@ -9113,8 +9179,8 @@
       "metadata": {},
       "observation_count": 0,
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6001",
-      "status": "frontier",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A5f0c"
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f0c"
     },
     {
       "evidence": [
@@ -9490,8 +9556,8 @@
       "metadata": {},
       "observation_count": 0,
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A61f3",
-      "status": "frontier",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A5f0c"
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f0c"
     },
     {
       "evidence": [
@@ -9613,6 +9679,28 @@
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A6364",
       "status": "resolved",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f7d"
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "call",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A63a3",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A60ab"
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "call",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A63a3",
+      "status": "frontier",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A63bf"
     },
     {
       "evidence": [
@@ -12944,6 +13032,26 @@
       "evidence": [
         "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
       ],
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5dee",
+      "kind": "function",
+      "label": "1010:5DEE",
+      "metadata": {
+        "address_space": "real-mode",
+        "entry": "1010:5DEE",
+        "exits": [
+          "ret"
+        ],
+        "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+        "liftable": true,
+        "refusals": [],
+        "signature": "558bec538b460a0bc07515",
+        "smc": null
+      }
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
       "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5e5a",
       "kind": "function",
       "label": "1010:5E5A",
@@ -12977,6 +13085,26 @@
         "liftable": true,
         "refusals": [],
         "signature": "8bdcff77046a00ff7702e818fe",
+        "smc": null
+      }
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f0c",
+      "kind": "function",
+      "label": "1010:5F0C",
+      "metadata": {
+        "address_space": "real-mode",
+        "entry": "1010:5F0C",
+        "exits": [
+          "ret"
+        ],
+        "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+        "liftable": true,
+        "refusals": [],
+        "signature": "558bec568b760483c60ac604006a006a",
         "smc": null
       }
     },
@@ -13378,6 +13506,26 @@
         "liftable": true,
         "refusals": [],
         "signature": "a1b4418b1eb2412bc350891eb64153ff",
+        "smc": null
+      }
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A63a3",
+      "kind": "function",
+      "label": "1010:63A3",
+      "metadata": {
+        "address_space": "real-mode",
+        "entry": "1010:63A3",
+        "exits": [
+          "ret"
+        ],
+        "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
+        "liftable": true,
+        "refusals": [],
+        "signature": "a1b6418b1eb2412bc35053ff36ac41e8",
         "smc": null
       }
     },
@@ -14359,14 +14507,14 @@
       "evidence": [
         "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
       ],
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A434a",
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A43b0",
       "kind": "execution-point",
-      "label": "1010:434A",
+      "label": "1010:43B0",
       "metadata": {
-        "address": "1010:434A",
+        "address": "1010:43B0",
         "address_space": "real-mode",
-        "boundary_effect": true,
-        "dispatch_entry": false,
+        "boundary_effect": false,
+        "dispatch_entry": true,
         "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
       }
     },
@@ -14396,20 +14544,6 @@
         "address": "1010:5A77",
         "address_space": "real-mode",
         "frontier_reason": "call_ind",
-        "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
-      }
-    },
-    {
-      "evidence": [
-        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
-      ],
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A5f0c",
-      "kind": "execution-point",
-      "label": "1010:5F0C",
-      "metadata": {
-        "address": "1010:5F0C",
-        "address_space": "real-mode",
-        "frontier_reason": "call",
         "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
       }
     },
@@ -14473,6 +14607,20 @@
       "evidence": [
         "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
       ],
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A63bf",
+      "kind": "execution-point",
+      "label": "1010:63BF",
+      "metadata": {
+        "address": "1010:63BF",
+        "address_space": "real-mode",
+        "frontier_reason": "call",
+        "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      }
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
       "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A669c",
       "kind": "execution-point",
       "label": "1010:669C",
@@ -14501,11 +14649,11 @@
       "snapshot": "gap_snapshot_skyroads_20260720_012010",
       "toolchain": "unknown"
     },
-    "sha256": "becdf7315dfab63e9fb8456175126e3dbc75aedd9df03733355992b63069048b",
+    "sha256": "a3b10ae7d15626bf342be759ee7786e5e063fad60d06201e13148bff5d21a274",
     "version": 0
   },
   "roots": [
     "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A61f3"
   ],
-  "source_digest": "296335631a03b225485614d875651b7c4b5a4799fcb62857d62934b911482bc2"
+  "source_digest": "10c993ebb848b17158bb248c2dcf36b280fb678d8f0169083db5f1d47687619f"
 }

@@ -1,4 +1,4 @@
-"""OPL write stream → semantic events — the decoder side of the boundary.
+"""Offline OPL-write analysis into human-readable semantic events.
 
 Consumes the exact `(register, value)` writes the RECOVERED music engine emits
 (`skyroads.handrecovered.music.Engine.run_tick`, byte-exact over 12,882 verified
@@ -9,7 +9,9 @@ key-on transitions become :class:`NoteOn` (with the channel's current
 :class:`PitchBend`/:class:`SetVolume`, and rhythm-mode drum-bit rises become
 :class:`DrumHit`s. Pure and stateful-but-tiny; no VM, no pygame.
 
-OPL2 frequency: ``freq = fnum * 49716 / 2**(20 - block)``.
+This decoder is diagnostic only. It must never feed faithful playback because
+that would discard register-level behavior. OPL2 frequency:
+``freq = fnum * 49716 / 2**(20 - block)``.
 """
 from __future__ import annotations
 

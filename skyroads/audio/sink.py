@@ -1,55 +1,24 @@
-"""SkyRoads live-viewer audio: AdLib/OPL music + PC speaker + Sound Blaster PCM SFX.
+"""Faithful playback of SkyRoads OPL, speaker, and Sound Blaster commands.
 
-SkyRoads plays its music through the AdLib/OPL FM chip and its *sound effects*
-as digitized 8-bit PCM streamed to the Sound Blaster over single-cycle DMA
-(DSP command 0x14).  The stock :class:`dos_re.audio_sink.AdlibSpeakerSink`
-renders the OPL + PC speaker but not the SB PCM, so the game's engine/jump/
-crash/pickup effects (the ``*.SND`` sample banks) were silent.
+Music consumes the exact OPL register stream emitted by the selected program
+implementation. Digital audio consumes the original unsigned-8 PCM blocks the
+game submits with Sound Blaster DSP command ``0x14``. The original owns one
+PCM voice: a new transfer interrupts the current effect instead of mixing it.
 
-This sink adds the missing digital layer as a read-only presentation observer:
-it never writes game memory. The VM's emulated Sound Blaster is attached in
-*capture* mode (see :func:`skyroads.runtime.create_game_runtime`
-``capture_sb_pcm``), so each single-cycle DMA-out block is copied into
-``sb.pcm_out`` and its programmed sample rate recorded in ``sb.log``. The sink
-only drains those captured blocks, resamples them to the mixer rate, and sums
-them into host output. Sound Blaster device state and IRQ behavior remain owned
-by the emulator and are included in replay profile identity.
+Both host sinks are read-only observers. Device state, command timing, and
+replay evidence remain authoritative in the emulator. ``SkyroadsAudioSink``
+provides device-reference playback. ``NativeFaithfulAudioSink`` additionally
+forces :class:`dos_re.opl3_fast.OPL3Fast` and rejects PCM that does not match
+the recovered ``SFX.SND``/``INTRO.SND`` catalog byte-for-byte.
 
-Because SkyRoads fires each effect as a one-shot ``0x14`` (never auto-init
-streaming) and never waits on the completion IRQ, the presentation sink needs
-no feedback path into authoritative game state.
-
-## Wall-clock pacing (why ``pump()`` is overridden)
-
-The base :class:`AdlibSpeakerSink.pump` generates and drains a **fixed**
-``chunk = rate // present_hz`` samples per call, on the assumption that the
-viewer calls ``pump()`` at a steady ``present_hz``.  Under CPython the viewer
-loop cannot hold 30 Hz: ~29% of E2E-replay frames exceed the 33 ms budget (p99
-230 ms, max 450 ms — measured), and ``clock.tick(present_hz)`` only pads a
-frame *up* to the budget, never speeds a slow one up.  So ``pump()`` is called
-well below 30 Hz on nearly a third of frames, and the fixed-chunk model then
-emits fewer samples than the mixer consumes.  Two audible failures result:
-
-* **Stutter** — the OPL music channel underruns on every slow stretch, goes
-  idle, and restarts with a fresh lead (an audible gap).
-* **Multi-second SFX delay** — a captured effect is resampled to real-time
-  duration and dumped into ``self._sfx`` all at once, but drained at only
-  ``chunk`` samples *per pump*.  Coupled to pump frequency rather than the wall
-  clock, that backlog ratchets up on every slow frame and never clears, so
-  effects play seconds after their visual (measured structural deficit over
-  one replay: ~26 s).
-
-The fix (this class's :meth:`pump`) sizes each pump by **real elapsed
-wall-clock time** instead of a fixed chunk, so samples produced/drained always
-track what the mixer consumes, and hard-caps the pre-mixer buffer so a long
-stall resyncs to "now" (a brief glitch) instead of accumulating delay.  This
-cannot fix *music tempo* dragging when the VM itself runs below 30 Hz — the
-game emits note changes at its own tick rate, so a slow VM genuinely advances
-the score slowly; only a faster VM (more hooking) addresses that.  It does fix
-the stutter and the SFX delay, which are pacing artifacts, not tempo.
+The pump follows elapsed wall time because presentation frames are not an
+audio clock. A bounded OPL buffer prevents a slow host frame from becoming
+seconds of playback latency; it does not alter the game's command timeline.
 """
 from __future__ import annotations
 
+from hashlib import sha256
+import math
 import time
 
 from dos_re.audio_sink import AdlibSpeakerSink
@@ -63,12 +32,17 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
     #: Above it we drop the oldest samples and resync to "now" — trading a brief
     #: glitch for staying in sync, instead of ratcheting into seconds of lag.
     MAX_BUFFER_S = 0.20
-    #: Safety cap on the pending-SFX buffer (wall-clock draining already keeps
-    #: it bounded in practice; this only guards a pathological pile-up).
-    MAX_SFX_S = 1.0
     #: Clamp on how many samples a single pump may synthesize, so one long stall
     #: doesn't allocate a huge array (multiple pumps catch up instead).
     MAX_PUMP_S = 0.25
+    # The source replay exposed repeatable 90-105ms transition frames before
+    # the renderer/palette fixes; its post-fix non-cold maximum is about 44ms.
+    # SDL's mixer thread consumes queued Sound objects independently of the
+    # Python render/simulation thread, but pygame exposes only one queue slot.
+    # Two 80ms chunks provide measured headroom without adding a second Python
+    # thread that could race OPL writes or replay state.
+    QUEUE_CHUNK_S = 0.080
+    START_LEAD_S = 0.160
 
     def __init__(self, pygame, rt, present_hz: int, *, now=time.perf_counter) -> None:
         super().__init__(pygame, rt, present_hz)
@@ -78,17 +52,22 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
 
         self._now = now
         self._last_pump = None            # perf_counter of the previous pump
+        self._max_pump_gap = 0.0
+        self._underruns = 0
         self._min_chunk = 256
         self._max_pump = max(self._min_chunk, int(self._rate * self.MAX_PUMP_S))
         self._buf_cap = int(self._rate * self.MAX_BUFFER_S)
-        self._sfx_cap = int(self._rate * self.MAX_SFX_S)
-
         self._sb = getattr(rt.dos, "sound_blaster", None)
         self._log_cursor = 0      # next unread index in sb.log
         self._pcm_cursor = 0      # bytes of sb.pcm_out already consumed
-        # Pending SFX samples, mono, already resampled to the mixer rate.
-        # Overlapping effects sum into this buffer; pump() drains its front.
-        self._sfx = np.zeros(0, dtype=np.float32)
+        # The original uses one Sound Blaster voice.  Every effect issues DSP
+        # D0 (pause) before programming a new single-cycle 0x14 transfer, so a
+        # new effect INTERRUPTS the old one; effects never mix with each other.
+        if pygame.mixer.get_num_channels() < 3:
+            pygame.mixer.set_num_channels(3)
+        self._sfx_channel = pygame.mixer.Channel(2)
+        self._last_sfx_pcm = None
+        self._last_sfx_rate = None
         if self._sb is not None and getattr(self._sb, "detection_only", True):
             # Capture mode was not enabled (SB is a detection stub); the DMA
             # blocks are never copied out, so there is nothing to play.  Warn
@@ -96,27 +75,53 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
             print("[audio] Sound Blaster is in detection-only mode; digital SFX "
                   "silent (front-end must attach a capture-mode SB).")
 
-    # ---- SB PCM capture -> resampled mono SFX buffer -------------------------
+    # ---- SB PCM capture -> original one-voice PCM playback ------------------
     def _drain_sb(self) -> None:
-        """Pull any newly-captured single-cycle DMA blocks into the SFX buffer."""
+        """Pull newly captured single-cycle DMA blocks into host playback."""
         sb = self._sb
         if sb is None:
             return
         log = sb.log
         pcm = sb.pcm_out
         while self._log_cursor < len(log):
-            tag, payload = log[self._log_cursor]
+            log_index = self._log_cursor
+            tag, payload = log[log_index]
             self._log_cursor += 1
             if tag != "dma_start":
                 continue
             length = int(payload.get("len", 0))
             rate = int(payload.get("rate") or 0) or 8000
+            # Input probes and DSP silence commands append no bytes to
+            # ``pcm_out``.  Treating them as output consumed the next real
+            # effect and shifted every subsequent DMA block.
+            if payload.get("input") or payload.get("silence"):
+                continue
             block = bytes(pcm[self._pcm_cursor:self._pcm_cursor + length])
             self._pcm_cursor += length
-            self._enqueue_sfx(block, rate)
+            if len(block) != length:
+                raise RuntimeError(
+                    "Sound Blaster PCM observer lost block alignment: "
+                    f"wanted {length} bytes, found {len(block)}"
+                )
+            trigger = getattr(self, "_sfx_pan_by_log_index", {}).pop(
+                log_index, None,
+            )
+            self._enqueue_sfx(
+                block, rate,
+                pan=(None if trigger is None else trigger["pan"]),
+                expected_effect_id=(
+                    None if trigger is None else trigger["effect_id"]
+                ),
+            )
 
-    def _enqueue_sfx(self, block: bytes, rate: int) -> None:
-        """Resample one 8-bit-unsigned PCM effect to the mixer rate and mix it in."""
+    def _enqueue_sfx(self, block: bytes, rate: int, *, pan=None,
+                     expected_effect_id=None) -> None:
+        """Resample and start one original mono effect.
+
+        ``Channel.play`` intentionally replaces any sound already on this
+        channel, reproducing the original D0 + new 0x14 transfer instead of
+        the previous (invented) overlap mixer.
+        """
         if not block:
             return
         np = self._np
@@ -129,43 +134,25 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
             xp = np.arange(len(sig), dtype=np.float32)
             x = np.linspace(0.0, len(sig) - 1, num=n_out, dtype=np.float32)
             res = np.interp(x, xp, sig).astype(np.float32)
-        if len(res) > len(self._sfx):
-            self._sfx = np.concatenate(
-                [self._sfx, np.zeros(len(res) - len(self._sfx), np.float32)])
-        self._sfx[:len(res)] += res
-        # Bounded backlog: if effects pile up past the cap (only under a severe
-        # stall), keep the most recent audio so a new effect is never buried
-        # behind seconds of stale SFX.
-        if len(self._sfx) > self._sfx_cap:
-            self._sfx = self._sfx[-self._sfx_cap:]
-
-    def _take_sfx(self, n: int):
-        """Pop ``n`` mono SFX samples (int32) off the front, or None if idle."""
-        if len(self._sfx) == 0:
-            return None
-        np = self._np
-        chunk = self._sfx[:n]
-        self._sfx = self._sfx[n:]
-        if len(chunk) < n:
-            chunk = np.concatenate([chunk, np.zeros(n - len(chunk), np.float32)])
-        return chunk.astype(np.int32)
-
-    # ---- hook into the base mixer -------------------------------------------
-    def _speaker_chunk(self, n: int):
-        """Base pump() adds this into the (int32) output; fold the SB SFX in here
-        alongside the PC-speaker square wave so no pump() logic is duplicated."""
-        self._drain_sb()
-        np = self._np
-        spk = super()._speaker_chunk(n)      # int16 array or None
-        sfx = self._take_sfx(n)              # int32 array or None
-        if spk is None and sfx is None:
-            return None
-        out = np.zeros(n, dtype=np.int32)
-        if spk is not None:
-            out += spk
-        if sfx is not None:
-            out += sfx
-        return out
+        mono = np.clip(res, -32768, 32767).astype(np.int16)
+        if pan is None:
+            # SkyRoads' SB 1.x PCM path is mono. Faithful output is centered
+            # dual-mono; positional stereo is an explicit enhancement.
+            stereo = np.repeat(mono[:, None], 2, axis=1)
+        else:
+            position = max(-1.0, min(1.0, float(pan)))
+            angle = (position + 1.0) * math.pi / 4.0
+            gains = np.asarray(
+                (math.cos(angle), math.sin(angle)), dtype=np.float32,
+            )
+            stereo = np.clip(
+                mono.astype(np.float32)[:, None] * gains[None, :],
+                -32768, 32767,
+            ).astype(np.int16)
+        sound = self._pygame.sndarray.make_sound(np.ascontiguousarray(stereo))
+        self._last_sfx_pcm = bytes(block)
+        self._last_sfx_rate = int(rate)
+        self._sfx_channel.play(sound)
 
     # ---- wall-clock-paced pump (replaces the fixed-chunk base) ---------------
     def _synthesize(self, n: int):
@@ -176,7 +163,7 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
             out = pcm.astype(np.int32)
         else:
             out = np.zeros((n, 2), dtype=np.int32)
-        extra = self._speaker_chunk(n)       # speaker + SFX, drains SFX by n
+        extra = super()._speaker_chunk(n)
         if extra is not None:
             out += extra[:, None]
         out = np.clip(out, -32768, 32767).astype(np.int16)
@@ -197,11 +184,14 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
         presented frame, exactly like the base sink."""
         if not self.available:
             return
+        self._drain_sb()
         now = self._now()
         if self._last_pump is None:
             n = self._chunk                  # first pump: one nominal frame
         else:
-            n = int(round((now - self._last_pump) * self._rate))
+            gap = max(0.0, now - self._last_pump)
+            self._max_pump_gap = max(self._max_pump_gap, gap)
+            n = int(round(gap * self._rate))
             n = max(self._min_chunk, min(n, self._max_pump))
         self._last_pump = now
 
@@ -213,11 +203,183 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
 
         if not self._started:
             if len(self._buf) >= self._lead:
-                self._channel.play(self._pop_sound(len(self._buf)))
+                self._channel.play(self._pop_sound(self._chunk))
                 self._started = True
             return
         if not self._channel.get_busy():
+            self._underruns += 1
             self._started = False
             return
-        if self._channel.get_queue() is None and len(self._buf) >= self._min_chunk:
-            self._channel.queue(self._pop_sound(len(self._buf)))
+        if self._channel.get_queue() is None and len(self._buf) >= self._chunk:
+            self._channel.queue(self._pop_sound(self._chunk))
+
+    def pacing_diagnostics(self) -> dict:
+        return {
+            "mixer_thread": "SDL playback (presentation-only)",
+            "python_synthesis": "main thread before rendering",
+            "queue_chunk_ms": round(self._chunk * 1000 / self._rate),
+            "jitter_reservoir_ms": round(2 * self._chunk * 1000 / self._rate),
+            "max_pump_gap_ms": round(self._max_pump_gap * 1000, 3),
+            "underruns": self._underruns,
+        }
+
+
+class NativeFaithfulAudioSink(SkyroadsAudioSink):
+    """Closed-world native playback of the recovered original audio commands.
+
+    Music consumes the exact OPL register writes emitted by the selected
+    original/generated/recovered sequencer, rendered only by ``OPL3Fast``.
+    Digital effects consume the exact DMA bytes and must match ``SFX.SND`` or
+    ``INTRO.SND`` byte-for-byte before playback.  There are no inferred event
+    names, substitute oscillators, noise drums, panning rules, or fallbacks.
+    """
+
+    def __init__(self, pygame, rt, present_hz: int, *, game_root,
+                 now=time.perf_counter) -> None:
+        self._trace_enabled = False
+        self.opl_write_count = 0
+        self._opl_digest = sha256()
+        self.sfx_events = []
+        self.sfx_triggers = []
+        self._sfx_pan_by_log_index = {}
+        super().__init__(pygame, rt, present_hz, now=now)
+        if not self.available:
+            return
+
+        from dos_re.opl3_fast import OPL3Fast
+        from skyroads.native.sfx import load_original_pcm_catalog
+
+        # ``SkyroadsAudioSink`` permits the optional Nuked backend for the
+        # device-reference mode.  Native-faithful is deliberately fixed to
+        # the requested dos_re implementation and cannot be changed by an
+        # environment variable.
+        self._opl = OPL3Fast(sample_rate=self._rate)
+        self.opl_label = "opl3-fast"
+        self._pcm_catalog = load_original_pcm_catalog(game_root)
+        if self._sb is None or getattr(self._sb, "detection_only", True):
+            raise RuntimeError(
+                "native-faithful audio requires capture-mode Sound Blaster "
+                "observation; launch interactively with sound enabled"
+            )
+        self._trace_enabled = True
+        rt.dos.set_adlib_callback(self._on_adlib, emit_current=True)
+        rt._skyroads_audio_sink = self
+
+    def _on_adlib(self, reg: int, value: int) -> None:
+        register = int(reg) & 0x1FF
+        byte = int(value) & 0xFF
+        if self._trace_enabled:
+            self.opl_write_count += 1
+            self._opl_digest.update(register.to_bytes(2, "little"))
+            self._opl_digest.update(bytes((byte,)))
+        super()._on_adlib(register, byte)
+
+    def _identify_sfx(self, block: bytes, rate: int):
+        asset = self._pcm_catalog.identify(bytes(block), int(rate))
+        self.sfx_events.append({
+            "source": asset.source,
+            "effect_id": asset.effect_id,
+            "roles": asset.roles,
+            "rate": asset.rate,
+            "length": len(asset.pcm),
+            "sha256": asset.digest,
+        })
+        return asset
+
+    def _enqueue_sfx(self, block: bytes, rate: int, *, pan=None,
+                     expected_effect_id=None) -> None:
+        asset = self._identify_sfx(block, rate)
+        if (expected_effect_id is not None
+                and asset.effect_id != int(expected_effect_id)):
+            self.sfx_events.pop()
+            raise RuntimeError(
+                "recovered 03C2 trigger/DMA identity mismatch: "
+                f"requested effect {expected_effect_id}, captured "
+                f"{asset.effect_id} from {asset.source}"
+            )
+        # Faithful mode deliberately ignores the enhancement coordinate.
+        super()._enqueue_sfx(asset.pcm, asset.rate, pan=None)
+
+    def begin_sfx_trigger(self, effect_id: int, tick: int, *, pan=0.0):
+        """Mark one recovered ``03C2`` call before its generated carrier runs."""
+        trigger = {
+            "tick": int(tick) & 0xFFFF,
+            "effect_id": int(effect_id),
+            "pan": max(-1.0, min(1.0, float(pan))),
+            "log_start": len(self._sb.log),
+        }
+        self.sfx_triggers.append(trigger)
+        return trigger
+
+    def end_sfx_trigger(self, trigger) -> None:
+        """Bind the call to the exact DMA transfer it synchronously emitted."""
+        for index in range(int(trigger["log_start"]), len(self._sb.log)):
+            tag, payload = self._sb.log[index]
+            if (tag == "dma_start" and not payload.get("input")
+                    and not payload.get("silence")):
+                self._sfx_pan_by_log_index[index] = trigger
+                return
+
+    def diagnostics(self) -> dict:
+        return {
+            "mode": "native-faithful",
+            "music_renderer": self.opl_label,
+            "music_claim": "exact original OPL register stream",
+            "opl_writes": self.opl_write_count,
+            "opl_digest": self._opl_digest.hexdigest(),
+            "sfx_claim": "byte-exact original PCM assets",
+            "sfx_plays": len(self.sfx_events),
+            "sfx_triggers": len(self.sfx_triggers),
+            "last_sfx": (None if not self.sfx_events else self.sfx_events[-1]),
+            "stereo": "centered dual-mono (original OPL2 and SB PCM)",
+            "enhancement": "none",
+            "pacing": self.pacing_diagnostics(),
+        }
+
+
+class EnhancedStereoAudioSink(NativeFaithfulAudioSink):
+    """Optional stereo presentation over the closed faithful audio model.
+
+    Music, asset identity, trigger timing and one-voice interruption remain
+    unchanged.  Only ship-local effects 0/1/2 are equal-power panned from the
+    exact recovered ship screen position at their original ``03C2`` call.
+    HUD/menu effects and INTRO.SND remain centred because they have no ship
+    source in the recovered call graph.
+    """
+
+    _SHIP_LOCAL_EFFECTS = frozenset((0, 1, 2))
+
+    def _enqueue_sfx(self, block: bytes, rate: int, *, pan=None,
+                     expected_effect_id=None) -> None:
+        asset = self._identify_sfx(block, rate)
+        if (expected_effect_id is not None
+                and asset.effect_id != int(expected_effect_id)):
+            self.sfx_events.pop()
+            raise RuntimeError(
+                "recovered 03C2 trigger/DMA identity mismatch: "
+                f"requested effect {expected_effect_id}, captured "
+                f"{asset.effect_id} from {asset.source}"
+            )
+        spatial = pan if asset.effect_id in self._SHIP_LOCAL_EFFECTS else None
+        self.sfx_events[-1].update({
+            "pan": spatial,
+            "spatial_source": (
+                None if spatial is None
+                else "recovered 0C98/325B ship screen coordinate"
+            ),
+        })
+        SkyroadsAudioSink._enqueue_sfx(
+            self, asset.pcm, asset.rate, pan=spatial,
+            expected_effect_id=expected_effect_id,
+        )
+
+    def diagnostics(self) -> dict:
+        result = super().diagnostics()
+        result.update({
+            "mode": "native-stereo",
+            "stereo": "equal-power ship-local PCM; music/UI remain centred",
+            "enhancement": (
+                "pan from recovered 0C98/325B ship screen coordinate at 03C2"
+            ),
+        })
+        return result

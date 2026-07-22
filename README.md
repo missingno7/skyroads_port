@@ -32,8 +32,14 @@ python scripts/play.py --profile verification --composition workbench-auto --pla
 # canonical generated-shell/native-gameplay product (also the default)
 python scripts/play.py --profile development --composition faithful-product
 
-# direct launch through the same generated loader and gameplay region
+# direct launch through the same generated loader and gameplay region (0..29)
 python scripts/play.py --level 14
+
+# full-resolution recovered pseudo-3D presentation over the same fixed tick
+python scripts/play.py --composition faithful-product --renderer native-3d --widescreen --tweening --simulation-hz 30 --present-hz 90 --audio native-faithful
+
+# optional spatial enhancement over the same verified original audio stream
+python scripts/play.py --composition faithful-product --renderer native-3d --widescreen --tweening --audio native-stereo
 
 # generated CPUless implementation while recovery frontiers remain visible
 python scripts/play.py --profile development --composition generated-detached --headless
@@ -81,6 +87,41 @@ loading and gameplay setup still run normally. The adapter removes itself
 immediately. The generated `2B3D/01B8` callers alone decide whether a raw
 gameplay result retries the level or returns to selection, and alone advance
 campaign state. The native region never starts level N+1.
+
+Modern presentation is explicitly layered above that faithful island. The
+native GPU renderer consumes a read-only semantic `GameplayScene` containing
+authoritative track/player state and every source-mapped road record. Its
+default view projects immutable lane/row/elevation primitives through one
+continuous pseudo-perspective lens recovered from all TREKDAT phases. Camera
+motion is a uniform; objects never inherit integer phase snapping. The exact
+RLE painter stream remains the `exact-projection` reference. Topology,
+source-ID, collision, and wireframe views use the same world vertices.
+Widescreen expands presentation around the faithful aperture. WORLD texture
+coordinates alternate normal and horizontally mirrored tiles at each original
+edge, avoiding a restart discontinuity. The original 4:3 HUD remains unchanged
+in the centre; as a temporary enhancement its outermost texels are clamped
+into the extra side area instead of stretching or cutting off instruments.
+Any future road or purpose-designed HUD expansion must derive from stable
+source geometry and recovered presentation roles. Tweening and viewport size
+change only host presentation.
+`--audio native-faithful` renders the exact OPL register stream with
+`dos_re.opl3_fast` and plays only byte-identified original `SFX.SND` or
+`INTRO.SND` PCM transfers. SkyRoads' original AdLib and Sound Blaster sources
+are mono, so faithful host output is centred dual-mono. `--audio native-stereo`
+is a separate presentation claim over exactly that stream: original ship-local
+effects are equal-power panned from the recovered `0C98`/`325B` sprite position
+at their `03C2` trigger, while music and UI audio remain centred. There is no
+substitute sound mapping. `--simulation-hz`
+sets fixed authoritative ticks while `--present-hz` may be higher for
+interpolated rendering. SkyRoads defaults these independent clocks to 30 Hz and
+60 Hz respectively; changing presentation rate does not change its 180 Hz PIT
+delivery or gameplay speed. The original framebuffer and device-backed audio remain
+available as diagnostics. See [native gameplay presentation](docs/native_gameplay_presentation.md).
+The recovered OPL sequencer, exact PCM catalog, effect roles, interruption
+rules, and verification surface are documented in
+[audio recovery](docs/audio_recovery.md).
+The evidence boundary and original data-to-frame trace are documented in
+[rendering recovery](docs/rendering_recovery.md).
 
 Product features are separate from implementations. For example,
 `--practice-level-position 0x123 --record-replay practice` records an explicit

@@ -17,18 +17,18 @@ dashboard/bootstrap dependency closure; no level-load identity is claimed.
 
 What the authored simulation reads per level
 (see docs/history/skyroads/run_status.md):
-  * the `0x162C` perspective LUT (LZS-decompressed from `WORLD<n>.LZS` block B),
-  * the road-cell geometry (derived from `ROADS.LZS[level]` `road[]`),
+  * the road-cell geometry at `0x162C` (decoded from `ROADS.LZS[level]`),
   * per-level scalars — gravity (via the jump-level gate), fuel, oxygen.
 
 The faithful loader implementation for `1010:5614` was disassembled
 (churn-immune, from `gameplay_f640`) and its DGROUP writes reproduced here;
 verified byte-exact against the VM (the level-select replay loads level 14 — its
 `[4562]`/`[54A2]`/`[4566]`, `road[]@0x162C` and `palette@0x41C2` all match
-`roads_archive`). KEY finding: the sim's "perspective table" at `0x162C` is
-simply `road[]` from `ROADS.LZS` (LZS-decoded) — there is NO separate `WORLD`
-perspective decode for the SIM; `WORLD*.LZS` is render-graphics only. So the
-whole sim geometry seed comes from `ROADS.LZS[level]`, which `roads_archive`
+`roads_archive`). KEY finding: the region historically called the
+"perspective table" at `0x162C` is the seven-cell road grid from `ROADS.LZS`
+(LZS-decoded); `1010:04C0` computes an address into that grid. There is no
+separate WORLD perspective decode for the simulation; `WORLD*.LZS` supplies
+render graphics. The geometry seed comes from `ROADS.LZS[level]`, which `roads_archive`
 already decodes byte-exact — this module just places it.
 
 Loader shape (`1010:5614`, verified): memset `[0x162C..+0x1B58]` (`5D07`); seek a
@@ -66,7 +66,7 @@ def read_game_file(game_root: str | Path, name: str) -> bytes:
 class DecodedLevel(NamedTuple):
     """The VM-free decode of a level's `ROADS.LZS` entry — the recovered,
     byte-exact input the loader's DGROUP placement consumes."""
-    index: int
+    archive_index: int
     gravity: int
     fuel: int
     oxygen: int
@@ -74,22 +74,27 @@ class DecodedLevel(NamedTuple):
     road: bytes              # UINT16LE[] road-geometry array (LZSS-decompressed)
 
 
-def decode_level_files(level: int, *, game_root: str | Path) -> DecodedLevel:
+def decode_level_files(archive_index: int, *, game_root: str | Path) -> DecodedLevel:
     """Decode `ROADS.LZS[level]` to its header + palette + road[] — 100% native
     (no VM), reusing the VM-verified `roads_archive` recovery. This is the
     file-decode half of native level loading; it is complete and testable today.
 
-    Raises IndexError if `level` is out of range for the archive."""
+    This accepts the file identity, not ``DS:[9332]``. Playable callers map
+    through :func:`skyroads.levels.road_archive_index` first.
+
+    Raises IndexError if ``archive_index`` is out of range for the archive."""
     roads = read_game_file(game_root, "ROADS.LZS")
-    if not (0 <= level < roads_archive.level_count(roads)):
+    archive_index = int(archive_index)
+    if not (0 <= archive_index < roads_archive.level_count(roads)):
         raise IndexError(
-            f"level {level} out of range 0..{roads_archive.level_count(roads) - 1}")
-    hdr = roads_archive.read_level_header(roads, level)
+            f"ROADS archive entry {archive_index} out of range "
+            f"0..{roads_archive.level_count(roads) - 1}")
+    hdr = roads_archive.read_level_header(roads, archive_index)
     return DecodedLevel(
-        index=level,
+        archive_index=archive_index,
         gravity=hdr.gravity, fuel=hdr.fuel, oxygen=hdr.oxygen,
-        palette=roads_archive.read_level_palette(roads, level),
-        road=roads_archive.read_level_road(roads, level),
+        palette=roads_archive.read_level_palette(roads, archive_index),
+        road=roads_archive.read_level_road(roads, archive_index),
     )
 
 
@@ -97,8 +102,8 @@ def decode_level_files(level: int, *, game_root: str | Path) -> DecodedLevel:
 # (disassembled from gameplay_f640; churn-immune) and VERIFIED byte-exact against
 # the VM (the level-select replay loads level 14: [4562]==gravity, [54A2]==fuel,
 # [4566]==oxygen, road[]@0x162C and palette@0x41C2 all match roads_archive).
-_PERSP_OFF = 0x162C       # road[] (the sim's "perspective"/geometry) — [asm 5614: call 66E6(0x162C, size)]
-_PERSP_CLEAR = 0x1B58     # region cleared before the road decode — [asm 5614: call 5D07(0x162C, 0, 0x1B58)]
+_PERSP_OFF = 0x162C       # legacy name: road[] geometry grid — [asm 5614: call 66E6]
+_PERSP_CLEAR = 0x1B58     # region cleared before the road decode — [asm 5614: 5D07]
 _GRAVITY_OFF = 0x4562     # jump-level gate / gravity — [asm 5614: 6576 -> [4562]]
 _FUEL_OFF = 0x54A2        # [asm 5614: 6576 -> [54A2]]
 _OXYGEN_OFF = 0x4566      # [asm 5614: 6576 -> [4566]]
@@ -110,9 +115,13 @@ _LENGTH_OFF = 0x41C0      # level length in road ROWS (7 UINT16 = 14 bytes each)
 _ROAD_ROW_BYTES = 14
 
 
-def native_level_load(state, level: int, *, game_root: str | Path) -> DecodedLevel:
+def native_level_load(
+    state, archive_index: int, *, game_root: str | Path,
+) -> DecodedLevel:
     """Populate ``state`` (a :class:`~skyroads.native.state.NativeGameState`)
-    with level ``level``'s geometry seed, 100% VM-free, and return the decode.
+    from an explicit archive entry, 100% VM-free, and return the decode.
+    Playable callers must convert the selector through
+    :func:`skyroads.levels.road_archive_index`.
     The caller then runs ``apply_level_init`` (player state) to reach a playable
     cold start.
 
@@ -122,7 +131,7 @@ def native_level_load(state, level: int, *, game_root: str | Path) -> DecodedLev
     fixed offsets. (The `WORLD*.LZS` tile-bitmap banks are render-only and NOT
     part of this sim contract — see the module docstring.)
     """
-    decoded = decode_level_files(level, game_root=game_root)  # native, verified
+    decoded = decode_level_files(archive_index, game_root=game_root)  # native, verified
     d = state.data
 
     # [asm 5614: 5D07 memset(0x162C, 0, 0x1B58)] clear the region, then decode road[] in.
@@ -130,7 +139,7 @@ def native_level_load(state, level: int, *, game_root: str | Path) -> DecodedLev
         d[(_PERSP_OFF + i) & 0xFFFF] = 0
     if len(decoded.road) > _PERSP_CLEAR:
         raise ValueError(
-            f"level {level} road[] ({len(decoded.road)}B) exceeds the "
+            f"ROADS entry {archive_index} road[] ({len(decoded.road)}B) exceeds the "
             f"0x{_PERSP_CLEAR:X}-byte region at 0x{_PERSP_OFF:X}")
     d[_PERSP_OFF:_PERSP_OFF + len(decoded.road)] = decoded.road   # [asm 5614: 66E6 LZS-decode -> 0x162C]
 

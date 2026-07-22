@@ -12,8 +12,13 @@ def _args(*, audio="off", no_sound=False, headless=False):
     )
 
 
-def test_pcm_capture_requires_interactive_adlib_presentation() -> None:
+def test_pcm_capture_requires_interactive_pcm_audio_presentation() -> None:
     assert capture_sound_blaster_pcm(_args(audio="adlib"))
+    assert capture_sound_blaster_pcm(_args(audio="native-faithful"))
+    assert capture_sound_blaster_pcm(_args(audio="native-stereo"))
     assert not capture_sound_blaster_pcm(_args(audio="off"))
     assert not capture_sound_blaster_pcm(_args(audio="adlib", headless=True))
     assert not capture_sound_blaster_pcm(_args(audio="adlib", no_sound=True))
+    assert not capture_sound_blaster_pcm(
+        _args(audio="native-faithful", headless=True),
+    )

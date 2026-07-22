@@ -14,13 +14,13 @@ each frame. Focused oracle evidence covers all three targets; the
 impulse) have already run. Simple integration: the view-Y-base target is
 just "where gravity/impulse says velocity will carry it this frame".
 
-    tgt_lateral = (ship_pos + lateral) & 0xFFFFFFFF
+    tgt_track_position = (forward_increment + track_position) & 0xFFFFFFFF
 
-Adding the 32-bit forward position (`ship_pos`, `ds:[54AC:54AE]`) to the
-current lateral coordinate re-centers the target each frame as the (curving)
-track advances — not a "how far should I turn" delta, a "where the road puts
-me" recompute. **No offset term** — 0/682 mismatches across the whole replay,
-including every steering sample.
+The public function retains the earlier ``ship_pos``/``lateral`` argument
+names, but original render addressing proves their semantic roles: add the
+forward increment (`ship_pos`, `ds:[54AC:54AE]`) to the current track
+coordinate (`lateral`, `ds:[9618:961A]`). **No offset term** — 0/682
+mismatches across the whole replay, including every steering sample.
 
     tgt_af1c_raw = af1c + slong_div(ulong_mul(lateral_accel_s16_as_s32,
                                               ship_pos + af1c_base_offset), 0x200)
@@ -91,7 +91,7 @@ AF1C_BASE_OFFSET = 0x0618
 
 
 class MovementTargets(NamedTuple):
-    tgt_lateral: int   # 32-bit, ds:[9618:961A]'s target
+    tgt_lateral: int   # legacy name: 32-bit track-position target at ds:[9618]
     tgt_af1c: int       # ds:[AF1C]'s target
     tgt_af2c: int       # ds:[AF2C]'s target
 

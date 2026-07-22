@@ -162,8 +162,8 @@ def test_authored_candidate_plan_selects_replacements_explicitly(
         entry.descriptor.implementation_id
         for entry in catalog().entries
         if entry.descriptor.category is OverrideCategory.FAITHFUL
-        and entry.descriptor.region_contract is None
     }
+    assert {item.region_id for item in plan.regions} == {GAMEPLAY_REGION}
 
 
 def test_default_play_is_fast_but_has_no_behavioral_modifications(
@@ -179,7 +179,9 @@ def test_default_play_is_fast_but_has_no_behavioral_modifications(
     assert OverrideCategory.BEHAVIORAL not in categories
     assert selected_whole_program_provider(plan) == "baseline:generated-vmless"
     assert {item.region_id for item in plan.regions} == {GAMEPLAY_REGION}
-    assert plan.services == ()
+    assert {item.service_id for item in plan.services} == {
+        FRAME_PARK_SERVICE_ID,
+    }
 
 
 def test_faithful_product_composes_selected_faithful_adapters(
@@ -216,7 +218,7 @@ def test_faithful_product_composes_selected_faithful_adapters(
     assert gameplay.adapters == ()
     assert {
         adapter.host_carrier_id for adapter in gameplay.region_adapters
-    } == {GENERATED_VMLESS_CARRIER}
+    } == {INTERPRETED_CPU_CARRIER, GENERATED_VMLESS_CARRIER}
     assert plan.regions[0].region_id == GAMEPLAY_REGION
 
 
@@ -442,7 +444,9 @@ def test_authored_catalog_contains_only_complete_semantic_adapter_pairs() -> Non
         == "skyroads:gameplay-region-faithful/v1"
     )
     assert gameplay.adapters == ()
-    assert len(gameplay.region_adapters) == 1
+    assert {
+        adapter.host_carrier_id for adapter in gameplay.region_adapters
+    } == {INTERPRETED_CPU_CARRIER, GENERATED_VMLESS_CARRIER}
 
     for ip, (name, semantic, adapter) in hooks.FAITHFUL_OVERRIDE_ADAPTERS.items():
         entry = faithful_entries[function_identity(ip)]

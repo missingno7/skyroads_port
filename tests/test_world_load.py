@@ -87,8 +87,8 @@ def test_composed_level14_palette_matches_real_dac():
 
 
 def test_world_mapping_is_level_over_three():
-    # GRAPHICS are per-world (level // 3); the attract level 30 uses world 9.
-    assert world_for_level(30) == 9
+    # GRAPHICS are per-world over the 30 level-select identities.
+    assert world_for_level(29) == 9
     assert world_for_level(14) == 4
     assert world_for_level(0) == 0 and world_for_level(2) == 0
 

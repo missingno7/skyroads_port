@@ -2,7 +2,7 @@
 
 Two things are locked in here:
 
-1. **The pure resample/mix logic** of
+1. **The pure resample/playback logic** of
    :class:`skyroads.audio.sink.SkyroadsAudioSink`
    (8-bit-unsigned PCM -> mixer-rate int samples), which needs no VM or pygame.
 
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -30,50 +31,50 @@ from skyroads.runtime import create_game_runtime  # noqa: E402
 
 
 class _FakeSink(SkyroadsAudioSink):
-    """Bypass the pygame/OPL __init__ to unit-test the SB resample/mix maths."""
+    """Bypass pygame/OPL initialization to test exact SB PCM conversion."""
 
     def __init__(self, rate: int) -> None:
         self._np = np
+        self._pygame = SimpleNamespace(
+            sndarray=SimpleNamespace(make_sound=lambda array: np.array(array, copy=True)),
+        )
         self._rate = rate
         self._chunk = rate // 30
         self._sb = None
         self._log_cursor = 0
         self._pcm_cursor = 0
-        self._sfx = np.zeros(0, dtype=np.float32)
-        # SFX backlog cap (part of _enqueue_sfx's contract since the wall-clock
-        # pacing fix); large enough that these small maths cases never trim.
-        self._sfx_cap = int(rate * SkyroadsAudioSink.MAX_SFX_S)
+        self._sfx_channel = SimpleNamespace(
+            plays=[], play=lambda sound: self._sfx_channel.plays.append(sound),
+        )
+        self._last_sfx_pcm = None
+        self._last_sfx_rate = None
 
 
 def test_unsigned8_pcm_is_recentred_and_scaled() -> None:
     sink = _FakeSink(rate=8000)
     # A block already at the mixer rate is not resampled: 0x80 -> 0, full swing maps out.
     sink._enqueue_sfx(bytes([128, 128, 255, 0]), rate=8000)
-    out = sink._take_sfx(4)
-    assert out is not None
-    assert list(out[:2]) == [0, 0]                 # 0x80 == silence
-    assert out[2] == (255 - 128) * 256             # +full
-    assert out[3] == (0 - 128) * 256               # -full
+    out = sink._sfx_channel.plays[-1]
+    assert list(out[:2, 0]) == [0, 0]               # 0x80 == silence
+    assert out[2, 0] == (255 - 128) * 256           # +full
+    assert out[3, 0] == (0 - 128) * 256             # -full
+    assert np.array_equal(out[:, 0], out[:, 1])      # original mono -> centred
 
 
 def test_resample_changes_length_by_rate_ratio() -> None:
     sink = _FakeSink(rate=44100)
     sink._enqueue_sfx(bytes([128] * 1000), rate=8000)   # 1000 samples @ 8 kHz
     # resampled to 44100 Hz -> ~ 1000 * 44100/8000 = 5512 samples
-    assert abs(len(sink._sfx) - round(1000 * 44100 / 8000)) <= 1
+    assert abs(len(sink._sfx_channel.plays[-1])
+               - round(1000 * 44100 / 8000)) <= 1
 
 
-def test_overlapping_effects_sum() -> None:
+def test_new_effect_interrupts_instead_of_mixing_with_the_old_one() -> None:
     sink = _FakeSink(rate=8000)
     sink._enqueue_sfx(bytes([255, 255]), rate=8000)     # +full, +full
-    sink._enqueue_sfx(bytes([255, 255]), rate=8000)     # summed on top
-    out = sink._take_sfx(2)
-    assert out[0] == 2 * (255 - 128) * 256
-
-
-def test_take_sfx_none_when_idle() -> None:
-    sink = _FakeSink(rate=8000)
-    assert sink._take_sfx(16) is None
+    sink._enqueue_sfx(bytes([0, 0]), rate=8000)         # DSP D0 + replacement
+    assert len(sink._sfx_channel.plays) == 2
+    assert sink._sfx_channel.plays[-1][0, 0] == (0 - 128) * 256
 
 
 # --- integration: capture is a byte-exact observer -----------------------------

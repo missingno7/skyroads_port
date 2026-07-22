@@ -99,7 +99,7 @@ def main(argv=None) -> int:
         help="enrich only this prefix (defaults to the complete replay)",
     )
     parser.add_argument(
-        "--audio", choices=("off", "adlib"),
+        "--audio", choices=("off", "adlib", "native-faithful", "native-stereo"),
         help="device topology for recordings that predate audio metadata",
     )
     parser.add_argument(

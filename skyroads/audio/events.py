@@ -1,11 +1,9 @@
-"""Semantic game-audio events at the presentation boundary.
+"""Offline semantic analysis of an exact SkyRoads OPL register stream.
 
-The decoder (:mod:`skyroads.audio.opl_events`) emits these as the recovered
-music engine plays; backends consume them. They describe *what* the music does
-— a note with a timbre, a pitch slide, a volume change, a drum hit — with no
-OPL registers or DGROUP offsets leaking across the boundary. Events are
-self-contained: a NoteOn carries its full :class:`FmPatch` timbre snapshot, so
-a backend needs neither the VM nor the game files to render it.
+The diagnostic decoder (:mod:`skyroads.audio.opl_events`) describes notes,
+pitch slides, volume changes, and drum hits for inspection. This projection is
+lossy and no faithful runtime backend consumes it. Faithful playback always
+uses the complete original register stream.
 """
 from __future__ import annotations
 
@@ -19,8 +17,7 @@ __all__ = ["FmPatch", "AudioEvent", "NoteOn", "NoteOff", "PitchBend",
 class FmPatch:
     """One channel's 2-operator FM timbre, as the song's patch load programmed
     it (the 11 bytes of an op1 instrument, register-order but semantically
-    named). A modern backend interprets these as *timbre hints* — it does not
-    have to emulate the OPL to honour them."""
+    named). Values are diagnostic descriptions, not playback instructions."""
     mod_char: int      # 0x20+op: tremolo/vibrato/sustain/KSR/multiple
     car_char: int      # 0x23+op
     mod_level: int     # 0x40+op: key-scale + total level (63 = silent)

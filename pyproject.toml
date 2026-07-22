@@ -41,6 +41,7 @@ addopts = "--import-mode=importlib"
 viewer = [
     "numpy>=1.23",
     "pygame>=2.5",
+    "moderngl>=5.12",
 ]
 test = [
     "pytest>=8",

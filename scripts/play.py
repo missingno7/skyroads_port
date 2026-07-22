@@ -18,6 +18,7 @@ from copy import copy
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -54,6 +55,15 @@ from skyroads.execution import (  # noqa: E402
     services,
 )
 from skyroads.product_features import SkyroadsFeatureState  # noqa: E402
+from skyroads.presentation.features import (  # noqa: E402
+    ENHANCED_STEREO_AUDIO_FEATURE_ID,
+    NATIVE_3D_RENDERER_FEATURE_ID,
+    NATIVE_FAITHFUL_AUDIO_FEATURE_ID,
+    TWEENING_FEATURE_ID,
+    WIDESCREEN_FEATURE_ID,
+)
+from skyroads.presentation.runtime import install_presentation  # noqa: E402
+from skyroads.presentation.renderer import DEBUG_RENDER_MODES  # noqa: E402
 from skyroads.pacing import (  # noqa: E402
     begin_frame_park,
     FrameIdle,
@@ -70,7 +80,16 @@ class SkyroadsFrontend(player.GameFrontend):
     default_game_root = str(ROOT / "assets")
     default_steps_per_frame = 48_000
     default_timer_irqs_per_frame = 6
-    default_present_hz = 30
+    # The guest programs PIT channel 0 to 180 Hz and software-divides it by six:
+    # authoritative gameplay is 30 Hz. Host presentation is an independent
+    # clock and may redraw/interpolate the latest state more often.
+    default_simulation_hz = 30
+    default_present_hz = 60
+    # ``adlib`` is the emulated-device reference. ``native-faithful`` consumes
+    # the same exact OPL/DMA command streams through opl3_fast and the recovered
+    # shipped PCM catalog. ``native-stereo`` is a separate presentation-only
+    # spatial enhancement over that same verified command/effect stream.
+    audio_choices = ("adlib", "native-faithful", "native-stereo", "off")
     # 3x produces a 960x720 client area before window chrome and Windows DPI
     # scaling, which can place the title bar above a 768-line desktop. Keep the
     # portable default at 640x480; larger displays can opt into --scale 3.
@@ -111,6 +130,26 @@ class SkyroadsFrontend(player.GameFrontend):
         execution.add_argument(
             "--no-sound", action="store_true",
             help="run without SkyRoads sound hardware",
+        )
+        presentation = parser.add_argument_group("native gameplay presentation")
+        presentation.add_argument(
+            "--renderer", choices=("original", "native-3d"), default="original",
+            help="presentation backend; native-3d is a read-only semantic scene renderer "
+                 "for the complete loaded-level lifecycle, including generated transitions",
+        )
+        presentation.add_argument(
+            "--widescreen", action="store_true",
+            help="expand native gameplay to the available width while preserving "
+                 "the physical 4:3 recovered centre",
+        )
+        presentation.add_argument(
+            "--tweening", action="store_true",
+            help="interpolate presentation-only ship/camera state between fixed ticks",
+        )
+        presentation.add_argument(
+            "--render-debug", choices=DEBUG_RENDER_MODES, default="final",
+            help="native-3d view: complete enhanced frame, recovered terrain, wireframe "
+                 "polygons, stable source IDs, collision structures, or original oracle frame",
         )
 
     def replay_metadata(self, args):
@@ -156,12 +195,33 @@ class SkyroadsFrontend(player.GameFrontend):
                 "--practice-level-position changes authoritative state and "
                 "must be used with --record-replay (or restored from one)"
             )
+        enabled_features = []
+        if args.practice_level_position is not None:
+            enabled_features.append(PRACTICE_LEVEL_FEATURE_ID)
+        if args.renderer == "native-3d":
+            enabled_features.append(NATIVE_3D_RENDERER_FEATURE_ID)
+        if args.widescreen:
+            enabled_features.append(WIDESCREEN_FEATURE_ID)
+        if args.tweening:
+            enabled_features.append(TWEENING_FEATURE_ID)
+        if args.audio in {"native-faithful", "native-stereo"}:
+            enabled_features.append(NATIVE_FAITHFUL_AUDIO_FEATURE_ID)
+        if args.audio == "native-stereo":
+            enabled_features.append(ENHANCED_STEREO_AUDIO_FEATURE_ID)
+        generated_only = (
+            args.composition == "generated-detached"
+            or (args.composition == "auto" and args.profile in {"detached", "release"})
+        )
+        if args.renderer == "native-3d" and generated_only:
+            raise ValueError(
+                "--renderer native-3d requires the selected faithful native gameplay "
+                "island; generated-detached currently has no gameplay-region adapter"
+            )
         return configuration(
             args.profile,
             args.composition,
             requested_capabilities=self.requested_capabilities(args),
-            enabled_features=(PRACTICE_LEVEL_FEATURE_ID,)
-            if args.practice_level_position is not None else (),
+            enabled_features=tuple(enabled_features),
         )
 
     def execution_coverage(self, args):
@@ -181,6 +241,15 @@ class SkyroadsFrontend(player.GameFrontend):
         report += "\n" + format_provider_diagnostics(plan)
         if args.level is not None:
             report += f"\ndirect launch level: {args.level}"
+        report += (
+            "\npresentation requested: "
+            f"renderer={args.renderer}, audio={args.audio}, "
+            f"widescreen={str(args.widescreen).lower()}, "
+            f"tweening={str(args.tweening).lower()}, "
+            f"debug-view={args.render_debug}, "
+            f"simulation-hz={args.simulation_hz}, "
+            f"presentation-hz={args.present_hz}"
+        )
         return report
 
     def bind_execution_plan(self, runtime, plan, *,
@@ -195,6 +264,102 @@ class SkyroadsFrontend(player.GameFrontend):
             service.service_id for service in plan.services
         }:
             install_frame_park(runtime)
+        options = getattr(runtime, "_skyroads_presentation_options", None)
+        if options is None:
+            selected_features = {item.feature_id for item in plan.features}
+            options = SimpleNamespace(
+                renderer=("native-3d" if NATIVE_3D_RENDERER_FEATURE_ID in selected_features
+                          else "original"),
+                widescreen=WIDESCREEN_FEATURE_ID in selected_features,
+                tweening=TWEENING_FEATURE_ID in selected_features,
+                render_debug="final",
+                game_root=str(getattr(runtime.dos, "game_root", ROOT / "assets")),
+                present_hz=self.default_present_hz,
+                simulation_hz=self.default_simulation_hz,
+            )
+        install_presentation(runtime, options)
+        runtime._dos_re_product_diagnostics = lambda: self.runtime_diagnostics(
+            runtime, options,
+        )
+
+    @staticmethod
+    def runtime_diagnostics(runtime, args) -> tuple[str, ...]:
+        presentation = getattr(runtime, "_skyroads_presentation", None)
+        if presentation is None:
+            return ()
+        state = presentation.diagnostics()
+        dispatcher = getattr(runtime, "execution_regions", None)
+        active = bool(dispatcher is not None and dispatcher.active)
+        coverage = getattr(runtime, "_skyroads_gameplay_coverage", {})
+        paths = coverage.get("paths", {})
+        levels = sorted(coverage.get("levels", ()))
+        path_text = ", ".join(
+            f"{name}={count}" for name, count in sorted(paths.items())
+        ) or "none yet"
+        frame_park = bool(getattr(
+            runtime.cpu, "_skyroads_frame_park_installed", False,
+        ))
+        diagnostics = [
+            "runtime acceleration: frame-park="
+            f"{str(frame_park).lower()} selected-cpu-bindings="
+            f"{len(runtime.cpu.replacement_hooks)} "
+            "live-differential-comparison=false",
+            f"native gameplay island: {'active' if active else 'inactive'}",
+            "gameplay presentation owner: "
+            f"{'native-3d' if state.active else 'generated/original'} "
+            f"phase={state.ownership_phase} execution-region="
+            f"{'active' if state.execution_region_active else 'inactive'}",
+            f"presentation: renderer={state.renderer} audio={args.audio} "
+            f"widescreen={str(state.widescreen).lower()} "
+            f"tweening={str(state.tweening).lower()}",
+            f"render world: view={state.debug_view} rows={state.visible_rows} "
+            f"vertices={state.world_vertices} triangles={state.world_triangles} "
+            f"mesh={state.world_digest} camera="
+            f"{'exact-rle-reference' if state.debug_view in ('exact-projection', 'original') else 'continuous-world-lens'}",
+            "render reference: TREKDAT-phase="
+            f"{state.projection_phase if state.projection_phase is not None else 'none'} "
+            f"draw-calls={state.projection_draw_calls} "
+            f"spans={state.projection_spans} trace={state.projection_digest}",
+            "render source: selected-level="
+            f"{state.level if state.level is not None else 'none'} "
+            "road-archive-entry="
+            f"{state.road_archive_index if state.road_archive_index is not None else 'none'} "
+            f"ship-screen={state.ship_screen} ship-frame="
+            f"{state.ship_sprite_index if state.ship_sprite_index is not None else 'none'}",
+            f"presentation rates: authoritative={state.simulation_hz}Hz "
+            f"host={state.presentation_hz}Hz last-tick="
+            f"{state.last_semantic_tick if state.last_semantic_tick is not None else 'none'}",
+            "gameplay replay coverage: levels="
+            + (",".join(str(item) for item in levels) if levels else "none")
+            + f" paths={path_text}",
+            "verification projection: gameplay semantic state + scene contents; "
+            "machine continuation only at generated seams",
+        ]
+        audio_sink = getattr(runtime, "_skyroads_audio_sink", None)
+        if audio_sink is not None and hasattr(audio_sink, "diagnostics"):
+            audio = audio_sink.diagnostics()
+            diagnostics.append(
+                "audio evidence: "
+                f"mode={audio['mode']} renderer={audio['music_renderer']} "
+                f"opl-writes={audio['opl_writes']} sfx-plays={audio['sfx_plays']} "
+                f"stereo={audio['stereo']} enhancement={audio['enhancement']}"
+            )
+        return tuple(diagnostics)
+
+    def recording_finished(self, rt, args):
+        coverage = getattr(rt, "_skyroads_recording_gameplay_coverage", {})
+        if hasattr(rt, "_skyroads_recording_gameplay_coverage"):
+            del rt._skyroads_recording_gameplay_coverage
+        return {"gameplay_coverage": {
+            "schema": "skyroads:gameplay-lifecycle-coverage/v1",
+            "levels": sorted(int(item) for item in coverage.get("levels", ())),
+            "paths": {
+                str(name): int(count)
+                for name, count in sorted(coverage.get("paths", {}).items())
+            },
+            "semantic_ticks": int(coverage.get("ticks", 0)),
+            "composition": args.composition,
+        }}
 
     def apply_replay_state(self, runtime, state) -> None:
         reset_gameplay_region_for_restore(runtime)
@@ -285,6 +450,12 @@ class SkyroadsFrontend(player.GameFrontend):
         return projected
 
     def recording_started(self, rt, args, *, record_event) -> None:
+        # Replay evidence is scoped to the captured interval.  A player may
+        # spend minutes in menus or gameplay before recording begins, so the
+        # cumulative runtime diagnostics cannot be copied into the artifact.
+        rt._skyroads_recording_gameplay_coverage = {
+            "paths": {}, "levels": set(), "ticks": 0,
+        }
         if args.practice_level_position is None:
             return
         rt._skyroads_feature_state.request_level_position(
@@ -351,6 +522,7 @@ class SkyroadsFrontend(player.GameFrontend):
             capture_sb_pcm=self._capture_sb(args),
         )
         runtime._skyroads_direct_level_request = args.level
+        runtime._skyroads_presentation_options = args
         return runtime
 
     def load_snapshot_runtime(self, args, snapshot_dir):
@@ -374,6 +546,7 @@ class SkyroadsFrontend(player.GameFrontend):
             capture_sb_pcm=self._capture_sb(args),
         )
         runtime._skyroads_direct_level_request = args.level
+        runtime._skyroads_presentation_options = args
         return runtime
 
     def replay_point_coordinate(
@@ -438,20 +611,30 @@ class SkyroadsFrontend(player.GameFrontend):
         begin_frame_park(rt)
         for _ in range(max(0, args.timer_irqs_per_frame)):
             deliver_interrupt(rt, 0x08)
-        # Interactive play owns presentation pacing, so semantic-boundary
-        # discovery gets exactly one normal guest budget.  A long guest region
-        # spans several presented points instead of becoming one long host
-        # dispatch.  Offline analysis keeps seeking the same semantic event
-        # without injecting another timer batch.
-        budget = max(1, int(args.steps_per_frame))
+        # A replay point is a semantic boundary, not an arbitrary slice of
+        # interpreter work.  Keep seeking the same boundary without injecting
+        # another timer batch: otherwise a slow interpreter records thousands
+        # of synthetic points (and IRQ batches) where a generated carrier
+        # records one.  Interactive execution uses small cooperative chunks so
+        # the canonical viewer can service its host window while loading or a
+        # long guest operation is in progress.
+        guest_slice = max(1, int(args.steps_per_frame))
+        budget = guest_slice
         if offline_replay:
             # Verification follows the recorded game event, not the capture
             # carrier's instruction throughput.  The interactive viewer still
             # uses one bounded presentation slice; offline replay may seek much
             # farther to the same frame park or blocking-input seam.
             budget = max(budget, self.offline_semantic_seek_budget)
-        chunks = self.offline_semantic_seek_chunks if offline_replay else 1
-        for _ in range(chunks):
+            chunks = self.offline_semantic_seek_chunks
+        else:
+            total_budget = (
+                self.offline_semantic_seek_budget
+                * self.offline_semantic_seek_chunks
+            )
+            chunks = max(1, (total_budget + guest_slice - 1) // guest_slice)
+        host_yield = getattr(rt, "_dos_re_host_yield", None)
+        for chunk in range(chunks):
             try:
                 rt.cpu.run(budget)
             except FrameIdle:
@@ -466,6 +649,8 @@ class SkyroadsFrontend(player.GameFrontend):
                 rt._skyroads_replay_boundary_identity = "dos:console-input"
                 self._apply_product_features(rt)
                 raise
+            if host_yield is not None and chunk + 1 < chunks:
+                host_yield()
         rt._skyroads_replay_boundary_kind = "guest-fallback"
         return "guest-fallback"
 
@@ -629,11 +814,38 @@ class SkyroadsFrontend(player.GameFrontend):
         )
 
     def create_audio_sink(self, pygame, rt, args):
-        if args.audio != "adlib":
+        if args.no_sound or args.audio == "off":
             return None
+        if args.audio in {"native-faithful", "native-stereo"}:
+            from skyroads.audio.sink import (
+                EnhancedStereoAudioSink, NativeFaithfulAudioSink,
+            )
+            sink_type = (
+                EnhancedStereoAudioSink
+                if args.audio == "native-stereo"
+                else NativeFaithfulAudioSink
+            )
+            return sink_type(
+                pygame, rt, args.present_hz, game_root=args.game_root,
+            )
         from skyroads.audio.sink import SkyroadsAudioSink
         sink = SkyroadsAudioSink(pygame, rt, args.present_hz)
         return sink if sink.available else None
+
+    def create_gpu_frame_presenter(self, rt, args):
+        if args.renderer != "native-3d":
+            return None
+        from skyroads.presentation.moderngl_presenter import ModernGLFramePresenter
+        presentation = None if rt is None else getattr(rt, "_skyroads_presentation", None)
+        return ModernGLFramePresenter(presentation)
+
+    def render_presentation_frame(self, rt, args, *, interpolation: float):
+        presentation = getattr(rt, "_skyroads_presentation", None)
+        if presentation is None:
+            return self.decode_frame(rt)
+        return presentation.frame(
+            lambda: self.decode_frame(rt), interpolation=interpolation,
+        )
 
 
 def main(argv: list[str] | None = None) -> int:

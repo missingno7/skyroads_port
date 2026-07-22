@@ -21,6 +21,7 @@ pinned down.
 from __future__ import annotations
 
 import struct
+from functools import lru_cache
 from pathlib import Path
 
 from skyroads.native.exe_image import initial_dgroup
@@ -183,6 +184,66 @@ def _load_graphic_bank(dg: bytearray, data: bytes, cmap_dest: int,
     return load_pict(data, at)
 
 
+@lru_cache(maxsize=4)
+def load_trek_display_lists(game_root: str) -> tuple[bytes, ...]:
+    """Decode the eight original pseudo-3D projection phases from TREKDAT.
+
+    Unlike :func:`native_boot_image`, this is a data-only operation and never
+    reads the original executable.  Release presentation can therefore use
+    the exact recovered projection templates without retaining an EXE runtime
+    dependency.  Each returned 64 KiB image uses the original segment-relative
+    offsets and has already passed through the recovered ``3A96`` expansion.
+    """
+    from skyroads.codecs.lzs import LzsWidths, _BitReader
+    from skyroads.handrecovered.intro_anim import unpack_animation_segment
+
+    def decompress_tracked(payload: bytes, widths: LzsWidths, out_size: int):
+        reader = _BitReader(payload)
+        out = bytearray()
+        while len(out) < out_size:
+            if reader.get_bit() == 0:
+                distance = reader.get_bits(widths.width_dist_long) + 2
+            else:
+                if reader.get_bit() == 1:
+                    out.append(reader.get_bits(8))
+                    continue
+                distance = (
+                    reader.get_bits(widths.width_dist_short)
+                    + (1 << widths.width_dist_long) + 2
+                )
+            length = reader.get_bits(widths.width_len) + 2
+            source = len(out) - distance
+            for _ in range(length):
+                out.append(out[source] if 0 <= source < len(out) else 0)
+                source += 1
+        consumed = reader._pos - (1 if reader._bits_left == 8 else 0)
+        return bytes(out), consumed
+
+    trek = read_game_file(Path(game_root), "TREKDAT.LZS")
+    position = 0
+    phases: list[bytes] = []
+    for _ in SEG_DISPLAY_LISTS:
+        a, size = struct.unpack_from("<2H", trek, position)
+        dest_off = (a - size) & 0xFFFF
+        widths = LzsWidths(
+            trek[position + 4], trek[position + 5], trek[position + 6],
+        )
+        out, consumed = decompress_tracked(
+            trek[position + 7:], widths, size,
+        )
+        segment = bytearray(0x10000)
+        segment[0] = dest_off & 0xFF
+        segment[1] = (dest_off >> 8) & 0xFF
+        segment[dest_off:dest_off + size] = out
+        unpack_animation_segment(
+            lambda off, data=segment: data[off],
+            lambda off, value, data=segment: data.__setitem__(off, value),
+        )
+        phases.append(bytes(segment))
+        position += 7 + consumed
+    return tuple(phases)
+
+
 def native_boot_image(game_root: "str | Path") -> bytearray:
     """The full snapshot-free 1 MB boot image: program at ``LOAD_SEG``,
     DGROUP, and every asset bank at its (deterministic) segment. Enough for
@@ -234,46 +295,8 @@ def native_boot_image(game_root: "str | Path") -> bytearray:
     # compile time so it lines up with where the loader places the data).
     # Then 3 LZS width bytes + the compressed stream, consumed length
     # tracked via the bit reader's own position to locate the next record.
-    from skyroads.codecs.lzs import LzsWidths, _BitReader
-    from skyroads.handrecovered.intro_anim import unpack_animation_segment
-
-    def _decompress_tracked(payload: bytes, widths: LzsWidths, out_size: int):
-        r = _BitReader(payload)
-        out = bytearray()
-        while len(out) < out_size:
-            if r.get_bit() == 0:
-                d = r.get_bits(widths.width_dist_long) + 2
-            else:
-                if r.get_bit() == 1:
-                    out.append(r.get_bits(8))
-                    continue
-                d = r.get_bits(widths.width_dist_short) + (1 << widths.width_dist_long) + 2
-            length = r.get_bits(widths.width_len) + 2
-            src = len(out) - d
-            for _ in range(length):
-                out.append(out[src] if 0 <= src < len(out) else 0)
-                src += 1
-        consumed = r._pos - (1 if r._bits_left == 8 else 0)
-        return bytes(out), consumed
-
-    trek = read_game_file(root, "TREKDAT.LZS")
-    pos = 0
-    for seg in SEG_DISPLAY_LISTS:
-        a, b = struct.unpack_from("<2H", trek, pos)
-        size = b
-        dest_off = (a - b) & 0xFFFF
-        widths = LzsWidths(trek[pos + 4], trek[pos + 5], trek[pos + 6])
-        out, consumed = _decompress_tracked(trek[pos + 7:], widths, size)
+    for seg, phase in zip(SEG_DISPLAY_LISTS, load_trek_display_lists(str(root.resolve()))):
         base = seg << 4
-        # [asm 1010:015E] the loader also stamps dest_off itself as a word
-        # bookmark at the segment's offset 0 -- 3A96 reads it back as the
-        # "self-referential offset" of its own header-relocation step.
-        img[base] = dest_off & 0xFF
-        img[base + 1] = (dest_off >> 8) & 0xFF
-        img[base + dest_off:base + dest_off + size] = out
-        pos += 7 + consumed
-        unpack_animation_segment(
-            lambda off, b_=base: img[b_ + off],
-            lambda off, v, b_=base: img.__setitem__(b_ + off, v))
+        img[base:base + len(phase)] = phase
 
     return img

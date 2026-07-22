@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "index_digest": "08324947644c863a7c117cdbc9c5bc410fe1112841116d891dcceee9fb1951a8",
+  "index_digest": "b922715d7d86d5faec0d63561c9628710743b7b0d07e1fe55b68a65f2f379f4f",
   "product_roots": {
     "game": [
       "skyroads:1.0:region:program"
@@ -12,7 +12,7 @@
       "identity": "manual:skyroads-retained-entry-census-v1",
       "kind": "manual",
       "path": "sources/manual-151c5d83bcd3e821abc5.json",
-      "source_digest": "ff0bb95cab7d61e73d22ef931f071be5aa7d86ad68180d2049dcb17a1493809c"
+      "source_digest": "741447f7326973e003748cded1e921fc6d259849907bf2a3da6d7c0d8ca6cc3d"
     },
     {
       "identity": "replay:032e597d92345dbcd3e1ae0bd039cabf7c139b8ede20092d67935e370ef381bb",
@@ -30,7 +30,7 @@
       "identity": "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
       "kind": "static",
       "path": "sources/static-cd40d82017dc7a73d065.json",
-      "source_digest": "296335631a03b225485614d875651b7c4b5a4799fcb62857d62934b911482bc2"
+      "source_digest": "10c993ebb848b17158bb248c2dcf36b280fb678d8f0169083db5f1d47687619f"
     }
   ]
 }

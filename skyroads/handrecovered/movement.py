@@ -11,13 +11,13 @@ predicate and binary-refining each axis to the exact contact boundary.
 State it reads/writes (the movement fields; DS-relative offsets in the captured
 runtime, ds == 0x1686):
 
-    ds:0x9618  dword  lateral    lane / horizontal position (32-bit)
-    ds:0xAF1C  word   af1c       depth/vertical accumulator A
-    ds:0xAF2C  word   af2c       depth/vertical accumulator B (the view Y base)
+    ds:0x9618  dword  lateral    forward track coordinate (legacy name)
+    ds:0xAF1C  word   af1c       cross-road coordinate
+    ds:0xAF2C  word   af2c       vertical/height coordinate
 
 The three *target* values (``tgt_lateral``, ``tgt_af1c``, ``tgt_af2c``) are the
 routine's stack arguments ([bp+4:6], [bp+8], [bp+10]) — the position the caller
-(the road-walk render pass) wants the ship moved to this step.
+(the gameplay loop) wants the ship moved to this step.
 
 ``visible(lateral32, depth, screen_y) -> int`` is the collision predicate: the
 original passes ``(lateral_lo, lateral_hi, depth, screen_y)`` to ``1732`` and

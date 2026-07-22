@@ -99,7 +99,7 @@ def test_slow_wall_crash_emits_no_thud():
     from skyroads.bridge.dgroup_view import GameView
     from skyroads.native.gaps import SkyroadsGap
     from skyroads.native.loop import GameplayScratch, native_gameplay_substep
-    from skyroads.native.sfx import SFX_TOUCHDOWN
+    from skyroads.native.sfx import SFX_CRASH
     from skyroads.native.state import NativeGameState
     from skyroads.handrecovered.dynamics import JumpScratch
 
@@ -169,7 +169,7 @@ def test_slow_wall_crash_emits_no_thud():
         CPU8086.step = orig
 
     assert stats["ok"] > 20, f"too few re-seeded sub-steps checked: {stats}"
-    assert SFX_TOUCHDOWN not in events, (
+    assert SFX_CRASH not in events, (
         f"the slow/pre-milestone wall crash fired the crash thud (events={events})")
     assert events, "expected at least the bump/landing SFX to fire"
 

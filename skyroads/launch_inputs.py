@@ -2,21 +2,20 @@
 from __future__ import annotations
 
 from skyroads.identities import CODE_SEG
+from skyroads.levels import PLAYABLE_LEVEL_COUNT, validate_playable_level
 
 
 LEVEL_SELECTION_IP = 0x5180
-LEVEL_COUNT = 30
+# The selector owns 30 playable identities. ``ROADS.LZS`` has 31 entries
+# because entry zero is the intro attract/demo course; the outer loop maps a
+# selected level to archive entry ``level + 1`` before calling 1010:5614.
+LEVEL_COUNT = PLAYABLE_LEVEL_COUNT
 SELECTED_LEVEL_OFFSET = 0x9332
 DIRECT_LEVEL_ADAPTER_ID = "skyroads:direct-level/1010:5180-selection:v1"
 
 
 def validate_level(level: int) -> int:
-    level = int(level)
-    if not 0 <= level < LEVEL_COUNT:
-        raise ValueError(
-            f"SkyRoads level must be 0..{LEVEL_COUNT - 1}, got {level}"
-        )
-    return level
+    return validate_playable_level(level)
 
 
 def install_direct_level_launch(runtime, level: int | None) -> None:

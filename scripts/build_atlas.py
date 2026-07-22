@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -44,7 +45,27 @@ from skyroads.pacing import (  # noqa: E402
 RECOVERY = ROOT / "recovery"
 IR = RECOVERY / "recovery_ir.json"
 ATLAS = RECOVERY / "atlas"
+OBSERVED_ENTRY_POINTS = RECOVERY / "observed_entry_points.txt"
+BOUNDARY_HEADS = RECOVERY / "boundary_heads.txt"
 PRODUCT_PROFILES = ("game",)
+
+
+def _read_addresses(path: Path) -> tuple[str, ...]:
+    """Read stable ``CS:IP`` facts, preserving their source outside the IR.
+
+    Runtime-frontier probes can discover a direct executable entry that the
+    retained static census did not include.  Such a point is evidence, not a
+    handwritten implementation: keep it in a small reviewed source file and
+    let ``irgen`` reproduce the corresponding IR record.
+    """
+    if not path.is_file():
+        return ()
+    entries = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        value = line.split("#", 1)[0].strip()
+        if value:
+            entries.append(value.upper())
+    return tuple(entries)
 
 
 def _entry_census() -> tuple[str, ...]:
@@ -62,6 +83,7 @@ def _entry_census() -> tuple[str, ...]:
         raise RuntimeError(
             "no retained function-entry evidence is available; provide a retained "
             "Recovery IR or bootstrap it from a generated ABI corpus")
+    entries.extend(_read_addresses(OBSERVED_ENTRY_POINTS))
     return tuple(sorted(set(entries)))
 
 
@@ -70,6 +92,16 @@ def _generate_ir(snapshot: Path) -> None:
         raise FileNotFoundError(
             f"snapshot does not exist: {snapshot}\n"
             "Pass a complete oracle snapshot with --snapshot.")
+    manifest_path = snapshot / "manifest.json"
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("poison", {}).get("enabled"):
+            raise RuntimeError(
+                "refusing to regenerate Recovery IR from a code-poisoned build image: "
+                f"{snapshot}\n"
+                "Use an explicit unpoisoned development snapshot.  A release build "
+                "image deliberately has no executable bytes and is not analysis input."
+            )
     RECOVERY.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="skyroads-atlas-") as temp:
         temp = Path(temp)
@@ -77,15 +109,20 @@ def _generate_ir(snapshot: Path) -> None:
         entries.write_text(
             "".join(f"{entry}\n" for entry in _entry_census()),
             encoding="utf-8", newline="\n")
-        boundaries = temp / "boundary_heads.txt"
-        boundaries.write_text(
-            "".join(
-                f"1010:{offset:04X}\n"
-                for offset in sorted({
-                    PACING_SPIN_IP, MENU_ANIM_WAIT_IP,
-                })
-            ),
-            encoding="utf-8", newline="\n")
+        boundaries = BOUNDARY_HEADS
+        if not boundaries.is_file():
+            # The file is committed in normal use.  Retain this deterministic
+            # fallback so a fresh historical checkout can still rebuild its
+            # initial skeleton before adding the evidence file.
+            boundaries = temp / "boundary_heads.txt"
+            boundaries.write_text(
+                "".join(
+                    f"1010:{offset:04X}\n"
+                    for offset in sorted({
+                        PACING_SPIN_IP, MENU_ANIM_WAIT_IP,
+                    })
+                ),
+                encoding="utf-8", newline="\n")
         subprocess.run([
             sys.executable, str(ROOT / "dos_re" / "tools" / "irgen.py"),
             "--exe", str(ROOT / "assets" / "SKYROADS.EXE"),

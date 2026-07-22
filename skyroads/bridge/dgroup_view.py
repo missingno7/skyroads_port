@@ -46,7 +46,7 @@ class GameView(StructView):
     # would double-convert. Read these as-is; a caller wanting a signed
     # reading applies the same `v - 0x10000 if v & 0x8000 else v` the
     # recovered functions do.
-    speed = U16(0x9330)            # forward(+)/back(-) axis; advance_ship's `speed`
+    speed = U16(0x9330)            # throttle/acceleration term; advance_ship's `speed`
     bounce = U16(0x9336)           # vertical velocity (decay_bounce / update_vertical_velocity)
     game_state = U16(0x456E)       # 3 == gameplay; 2 == level-select (menu.py)
     #: ds:[456A] -- "entered" (level-select latch, menu.py) and "grounded"
@@ -62,8 +62,8 @@ class GameView(StructView):
     lateral_accel = U16(0x4568)    # steer*29 accumulator feeding the (unrecovered) vertical target term
 
     # -- movement.py's three swept-collision axes --------------------------------------------
-    af1c = U16(0xAF1C)             # depth/vertical accumulator A
-    af2c = U16(0xAF2C)             # depth/vertical accumulator B == view Y base
+    af1c = U16(0xAF1C)             # cross-road coordinate; 7 lanes x 0x1700
+    af2c = U16(0xAF2C)             # vertical/height coordinate; deck == 0x2800
 
     # -- level-select / respawn timers (menu.py, RespawnState) --------------------------------
     timer_a = U16(0x5494)          # ds:[5494] distance/"fuel" timer (progression.py)
@@ -99,8 +99,12 @@ class GameView(StructView):
     # union/raw offsets as backend access with a comment" guidance, extended to widths).
     @property
     def ship_pos(self) -> int:
-        """ds:[54AC:54AE] -- forward road position (advance_ship); reused as the
-        level-select scroll position while game_state != 3 (menu.py)."""
+        """ds:[54AC:54AE] -- forward velocity/increment (legacy field name).
+
+        ``advance_ship`` changes and clamps this value; movement then adds it
+        to the track coordinate at ``DS:9618``. It is reused as level-select
+        scroll state while ``game_state != 3``.
+        """
         return self._backend.rw(0x54AC) | (self._backend.rw(0x54AE) << 16)
 
     @ship_pos.setter
@@ -111,7 +115,13 @@ class GameView(StructView):
 
     @property
     def lateral(self) -> int:
-        """ds:[9618:961A] -- 32-bit lateral (lane) position (movement.py)."""
+        """ds:[9618:961A] -- 32-bit forward track coordinate (legacy name).
+
+        The renderer selects road row ``lateral // 0x10000``. Cross-road
+        movement is ``af1c``; keeping this property name avoids changing the
+        recovered function signatures while the semantic scene uses the
+        correct terminology.
+        """
         return self._backend.rw(0x9618) | (self._backend.rw(0x961A) << 16)
 
     @lateral.setter

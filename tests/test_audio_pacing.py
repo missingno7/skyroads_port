@@ -37,6 +37,7 @@ class _FakeChannel:
         self._clock = clock          # returns current fake seconds
         self._playing = None         # (start_t, dur_s)
         self._queued = None
+        self.play_count = 0
 
     def _advance(self):
         # promote the queued sound once the playing one has finished
@@ -58,6 +59,7 @@ class _FakeChannel:
                 self._playing = None
 
     def play(self, sound):
+        self.play_count += 1
         self._playing = (self._clock(), sound.n / RATE)
         self._queued = None
 
@@ -154,30 +156,26 @@ def _make_sink(clock, sb):
 
 
 # ---- tests -------------------------------------------------------------------
-def test_sfx_backlog_stays_bounded_when_pumps_run_slow():
-    """The core delay bug: with pumps arriving at ~15Hz (half of present_hz) and
-    a long effect fired, the SFX buffer must NOT keep growing pump after pump."""
+def test_new_single_cycle_dma_interrupts_the_previous_effect():
+    """03C2 issues DSP D0 before each 0x14 block: one mono SB voice, no mix."""
     clock = _Clock()
     sb = _FakeSB()
     sink = _make_sink(clock, sb)
     assert sink.available
 
-    # Fire a 1.0s effect (8000 bytes @ 8kHz), then pump slowly (66ms/pump = 15Hz)
-    # for 3 seconds of fake wall-clock. A fixed-chunk drain would need ~90 pumps
-    # to clear 1s of audio but only gets ~45 in 3s -> permanent backlog.
     sb.fire(8000, 8000)
-    lengths = []
-    for _ in range(45):                    # 45 * 66ms = ~3.0s wall clock
-        clock.tick(1.0 / 15)
-        sink.pump()
-        lengths.append(len(sink._sfx))
+    sink.pump()
+    assert sink._sfx_channel.play_count == 1
+    first_start, first_duration = sink._sfx_channel._playing
+    assert first_duration == pytest.approx(1.0)
 
-    # Backlog must be bounded by the SFX cap, and must actually be draining
-    # (end well below its early peak), not ratcheting up.
-    assert max(lengths) <= sink._sfx_cap + sink._max_pump
-    assert lengths[-1] < max(lengths), "SFX buffer never drained — still ratcheting"
-    # After ~3s of real time a 1s effect must be long gone.
-    assert lengths[-1] == 0
+    clock.tick(0.1)
+    sb.fire(4000, 8000)
+    sink.pump()
+    assert sink._sfx_channel.play_count == 2
+    second_start, second_duration = sink._sfx_channel._playing
+    assert second_start > first_start
+    assert second_duration == pytest.approx(0.5)
 
 
 def test_pre_mixer_buffer_resyncs_after_a_long_stall():
@@ -194,6 +192,28 @@ def test_pre_mixer_buffer_resyncs_after_a_long_stall():
 
     assert len(sink._buf) <= sink._buf_cap
     assert sink._buf_cap == int(RATE * SkyroadsAudioSink.MAX_BUFFER_S)
+
+
+def test_profiled_transition_stall_remains_inside_mixer_jitter_reservoir():
+    """The replay's post-fix long tail is below one queued 80ms chunk.
+
+    SDL consumes playing/queued sounds on its mixer thread while Python is in
+    simulation or ModernGL preparation.  This proves a 60ms transition frame
+    cannot drain both slots or force music to restart.
+    """
+    clock = _Clock()
+    sink = _make_sink(clock, _FakeSB())
+    for _ in range(8):
+        clock.tick(1.0 / PRESENT_HZ)
+        sink.pump()
+    assert sink._started
+    assert sink._channel.get_queue() is not None
+
+    clock.tick(0.060)
+
+    assert sink._channel.get_busy()
+    assert sink._underruns == 0
+    assert sink.pacing_diagnostics()["jitter_reservoir_ms"] == 160
 
 
 def test_samples_generated_track_wall_clock_not_pump_count():

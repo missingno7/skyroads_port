@@ -13,6 +13,9 @@ from skyroads.native.dashboard import (
     DASHBOARD_LEN, DASHBOARD_VGA_OFFSET, SEG_DASHBRD, paint_dashboard,
 )
 from skyroads.native.level_load import read_game_file
+from skyroads.handrecovered.rle_sprite import (
+    RECOVERED_FILL_BACKWARD, RECOVERED_FILL_FORWARD,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
@@ -97,6 +100,18 @@ def test_display_list_buffers_byte_exact_vs_cold_boot():
         a = bytes(img[seg << 4:(seg << 4) + 0x10000])
         b = menu[seg << 4:(seg << 4) + 0x10000]
         assert a == b, hex(seg)
+
+
+@needs_assets
+def test_exe_free_projection_fill_tables_match_initialized_dgroup() -> None:
+    """The committed selector maps are recovered data, not approximate shades."""
+    dgroup = native_boot_dgroup(ASSETS)
+    assert tuple(dgroup[0x0352 + index * 4] for index in range(74)) == (
+        RECOVERED_FILL_FORWARD[:74]
+    )
+    assert tuple(dgroup[0x0353 + index * 4] for index in range(74)) == (
+        RECOVERED_FILL_BACKWARD[:74]
+    )
 
 
 @needs_assets

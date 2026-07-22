@@ -42,6 +42,7 @@ Observed gameplay id map:
 from __future__ import annotations
 
 import struct
+from hashlib import sha256
 from pathlib import Path
 from typing import List, NamedTuple
 
@@ -50,7 +51,7 @@ EFFECT_COUNT = 5
 HEADER_LEN = 12
 
 #: gameplay SFX ids (see the module docstring's map).
-SFX_TOUCHDOWN = 0
+SFX_CRASH = 0
 SFX_LANDING = 1
 SFX_BUMP = 2
 SFX_WARNING = 3
@@ -59,12 +60,54 @@ SFX_MENU = 4
 #: the `0476` busy window: ticks of `[1600]` since the last trigger.
 BUSY_TICKS = 8
 
+SFX_ROLES = (
+    ("wall-crash-thud", "level-select-enter"),
+    ("bounce-landing",),
+    ("wall-bump", "blocked-repeat-thump"),
+    ("hud-low-resource-warning",),
+    ("menu-action-9",),
+)
+
+# INTRO.SND is the one headerless digital sample.  The original intro path
+# programs DSP time constant 90 before submitting the complete file.
+INTRO_TIME_CONSTANT = 90
+INTRO_RATE = 1_000_000 // (256 - INTRO_TIME_CONSTANT)
+
 
 class SfxEffect(NamedTuple):
     """One decoded SFX.SND effect: 8-bit-unsigned PCM at ``rate`` Hz."""
     tc: int        # the raw SB DSP time constant (first byte of the effect)
     rate: int      # 1_000_000 // (256 - tc)
     pcm: bytes     # unsigned-8 PCM samples
+
+
+class OriginalPcmAsset(NamedTuple):
+    """One byte-exact PCM payload accepted by the faithful native sink."""
+
+    source: str
+    effect_id: int | None
+    roles: tuple[str, ...]
+    rate: int
+    pcm: bytes
+    digest: str
+
+
+class OriginalPcmCatalog:
+    """The closed set of digital samples recovered from the shipped game."""
+
+    def __init__(self, assets: tuple[OriginalPcmAsset, ...]) -> None:
+        self.assets = assets
+
+    def identify(self, pcm: bytes, rate: int) -> OriginalPcmAsset:
+        digest = sha256(pcm).hexdigest()
+        for asset in self.assets:
+            if (asset.rate == int(rate) and asset.digest == digest
+                    and asset.pcm == pcm):
+                return asset
+        raise ValueError(
+            "unrecovered SkyRoads PCM command: "
+            f"rate={int(rate)} length={len(pcm)} sha256={digest}"
+        )
 
 
 def load_sfx_bank(path: "str | Path") -> List[SfxEffect]:
@@ -83,3 +126,30 @@ def load_sfx_bank(path: "str | Path") -> List[SfxEffect]:
         effects.append(SfxEffect(tc, 1_000_000 // (256 - tc),
                                  data[start + 1:end]))
     return effects
+
+
+def load_original_pcm_catalog(game_root: "str | Path") -> OriginalPcmCatalog:
+    """Load every digital sound the recovered original audio path can emit.
+
+    Unknown DMA payloads are deliberately not given a guessed fallback.  A
+    native-faithful run fails with the payload identity so the missing source
+    can be recovered and added explicitly.
+    """
+    root = Path(game_root)
+    assets = [
+        OriginalPcmAsset(
+            "SFX.SND",
+            effect_id,
+            SFX_ROLES[effect_id],
+            effect.rate,
+            effect.pcm,
+            sha256(effect.pcm).hexdigest(),
+        )
+        for effect_id, effect in enumerate(load_sfx_bank(root / "SFX.SND"))
+    ]
+    intro = (root / "INTRO.SND").read_bytes()
+    assets.append(OriginalPcmAsset(
+        "INTRO.SND", None, ("intro-digital-playback",), INTRO_RATE, intro,
+        sha256(intro).hexdigest(),
+    ))
+    return OriginalPcmCatalog(tuple(assets))

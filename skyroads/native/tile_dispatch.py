@@ -23,6 +23,7 @@ occlusion-mask copy are the FRAME assembler's job, not this loop's.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable, Optional
 
 from skyroads.native.image import NativeGameImage
@@ -35,17 +36,54 @@ RECORD_STEP = 0xE
 RECORD_BIAS = 0x62
 SHIP_ROW_E44 = 4           # the [0E44] value of the twice-rendered ship row
 SHIP_ROW_DI = (0x210, 0x240)
+TUNNEL_SHELL_ROLES = tuple(f"tunnel/shell-{index}" for index in range(6))
+
+
+@dataclass(frozen=True)
+class TileDrawCall:
+    """One original painter-order display-list dispatch.
+
+    This is deliberately a low-level recovered identity.  ``role`` names the
+    exact handler path and slot instead of guessing a modern face orientation;
+    tools can group or relabel these facts without changing the rasterizer.
+    """
+
+    order: int
+    source_offset: int
+    road_row: int
+    lane: int
+    tile_type: int
+    track_phase: int
+    display_offset: int
+    pass_index: int
+    ship_layer: int
+    after_ship: bool
+    stream_segment: int
+    stream_offset: int
+    destination_segment: int
+    role: str
 
 
 class _Ctx:
     """Register state the handlers share (SI flows through draw/skip calls)."""
-    __slots__ = ("img", "dg", "ls", "dest", "di", "bp", "pass_idx")
+    __slots__ = (
+        "img", "dg", "ls", "dest", "di", "bp", "pass_idx", "phase",
+        "ship_layer", "ship_inserted", "observer", "rasterize", "draw_order", "role",
+    )
 
-    def __init__(self, img: NativeGameImage, dg: int, ls: int, dest: int):
+    def __init__(self, img: NativeGameImage, dg: int, ls: int, dest: int,
+                 *, phase: int = 0, observer=None, rasterize: bool = True):
         self.img, self.dg, self.ls, self.dest = img, dg, ls, dest
         self.di = 0
         self.bp = 0
         self.pass_idx = 0
+        self.phase = phase
+        self.ship_layer = 0
+        self.ship_inserted = False
+        self.observer = observer
+        self.rasterize = rasterize
+        self.draw_order = 0
+        self.role = "unclassified"
 
     # DGROUP / display-list accessors ---------------------------------------
     def rbg(self, off: int) -> int:
@@ -59,6 +97,30 @@ class _Ctx:
 
     # the [0E40] rasterizer: forward on pass 0, backward on pass 1 ----------
     def draw(self, si: int) -> int:
+        if self.observer is not None:
+            relative = (self.bp - RECORD_BASE) & 0xFFFF
+            if relative & 0x8000:
+                relative -= 0x10000
+            road_row, lane_bytes = divmod(relative, RECORD_STEP)
+            self.observer(TileDrawCall(
+                order=self.draw_order,
+                source_offset=self.bp,
+                road_row=road_row,
+                lane=lane_bytes // 2,
+                tile_type=self.rbg(self.bp + 1) & 0xF,
+                track_phase=self.phase,
+                display_offset=self.di,
+                pass_index=self.pass_idx,
+                ship_layer=self.ship_layer,
+                after_ship=self.ship_inserted,
+                stream_segment=self.ls,
+                stream_offset=si,
+                destination_segment=self.dest,
+                role=self.role,
+            ))
+            self.draw_order += 1
+        if not self.rasterize:
+            return self.skip(si)
         fn = rle_sprite_forward if self.pass_idx == 0 else rle_sprite_backward
         return fn(self.img.rb, self.img.wb, self.dg, self.ls, self.dest, si)
 
@@ -87,9 +149,15 @@ class _Ctx:
         return (self.rbg(self.bp - 14) & 0xF) == 0
 
 
-def _patch_draw(ctx: _Ctx, si: int, tile: int) -> int:
-    ctx.wbl(si, tile)
+def _draw(ctx: _Ctx, si: int, role: str) -> int:
+    if ctx.observer is not None:
+        ctx.role = role
     return ctx.draw(si)
+
+
+def _patch_draw(ctx: _Ctx, si: int, tile: int, role: str) -> int:
+    ctx.wbl(si, tile)
+    return _draw(ctx, si, role)
 
 
 def _hi_or_default(ctx: _Ctx) -> int:
@@ -103,96 +171,96 @@ def _h0(ctx: _Ctx) -> None:
     if tid == 0:
         return
     si = ctx.rwl(ctx.di)
-    si = _patch_draw(ctx, si, tid)
+    si = _patch_draw(ctx, si, tid, "deck/top")
     if ctx.side_height_empty():
-        si = _patch_draw(ctx, si, (tid + 0x1E) & 0xFF)
+        si = _patch_draw(ctx, si, (tid + 0x1E) & 0xFF, "deck/side")
     else:
         si = ctx.skip(si)
     if ctx.above_height_empty():
-        _patch_draw(ctx, si, (tid + 0x0F) & 0xFF)
+        _patch_draw(ctx, si, (tid + 0x0F) & 0xFF, "deck/far-edge")
 
 
 def _h1(ctx: _Ctx) -> None:
     """type 1 (`3059`)."""
     _h0(ctx)
     if ctx.above_type() < 1:
-        _patch_draw(ctx, ctx.rwl(ctx.di + 2), 0x43)
+        _patch_draw(ctx, ctx.rwl(ctx.di + 2), 0x43, "tunnel/front-rim")
     si = ctx.rwl(ctx.di + 8)
-    for _ in range(6):
-        si = ctx.draw(si)
+    for role in TUNNEL_SHELL_ROLES:
+        si = _draw(ctx, si, role)
     if ctx.above_type() < 1:
-        si = ctx.draw(si)
-        ctx.draw(si)
+        si = _draw(ctx, si, "tunnel/inner-rim")
+        _draw(ctx, si, "tunnel/underside")
 
 
 def _h2(ctx: _Ctx) -> None:
     """type 2 (`2EBB`)."""
     _h0(ctx)
     if ctx.above_type() < 2:
-        ctx.draw(ctx.rwl(ctx.di + 6))
+        _draw(ctx, ctx.rwl(ctx.di + 6), "block/far-cap")
     si = ctx.rwl(ctx.di + 4)
-    si = _patch_draw(ctx, si, _hi_or_default(ctx))
+    si = _patch_draw(ctx, si, _hi_or_default(ctx), "block/top")
     if ctx.side_type() < 2:
-        ctx.draw(si)
+        _draw(ctx, si, "block/side")
 
 
 def _h3(ctx: _Ctx) -> None:
     """type 3 (`2EFD`)."""
     _h0(ctx)
     if ctx.above_type() < 2:
-        _patch_draw(ctx, ctx.rwl(ctx.di + 2), 0x41)
+        _patch_draw(ctx, ctx.rwl(ctx.di + 2), 0x41, "block/front-rim")
     si = ctx.rwl(ctx.di + 4)
-    si = _patch_draw(ctx, si, _hi_or_default(ctx))
+    si = _patch_draw(ctx, si, _hi_or_default(ctx), "block/top")
     if ctx.side_type() < 2:
-        ctx.draw(si)
+        _draw(ctx, si, "block/side")
     if ctx.above_type() < 2:
         si = ctx.rwl(ctx.di + 6)
         si = ctx.skip(si)
-        si = ctx.draw(si)
-        ctx.draw(si)
+        si = _draw(ctx, si, "block/inner-side")
+        _draw(ctx, si, "block/underside")
 
 
 def _h4(ctx: _Ctx) -> None:
     """type 4 (`2F58`)."""
     _h0(ctx)
     if ctx.above_type() < 2:
-        ctx.draw(ctx.rwl(ctx.di + 6))
+        _draw(ctx, ctx.rwl(ctx.di + 6), "raised/far-cap")
     si = ctx.rwl(ctx.di + 4)
     si = ctx.skip(si)
     if ctx.side_type() < 2:
-        si = ctx.draw(si)
+        si = _draw(ctx, si, "raised/lower-side")
     si = ctx.rwl(ctx.di + 10)
-    si = _patch_draw(ctx, si, _hi_or_default(ctx))
+    si = _patch_draw(ctx, si, _hi_or_default(ctx), "raised/top")
     if ctx.side_type() < 4:
-        si = ctx.draw(si)
+        si = _draw(ctx, si, "raised/side")
     else:
         si = ctx.skip(si)
     if ctx.above_type() < 4:
-        ctx.draw(si)
+        _draw(ctx, si, "raised/far-edge")
 
 
 def _h5(ctx: _Ctx) -> None:
     """type 5 (`2FCC`)."""
     _h0(ctx)
     if ctx.above_type() < 2:
-        _patch_draw(ctx, ctx.rwl(ctx.di + 2), 0x41)
+        _patch_draw(ctx, ctx.rwl(ctx.di + 2), 0x41, "raised/front-rim")
     si = ctx.rwl(ctx.di + 4)
     si = ctx.skip(si)
     if ctx.side_type() < 2:
-        si = ctx.draw(si)
+        si = _draw(ctx, si, "raised/lower-side")
     if ctx.above_type() < 2:
         si = ctx.rwl(ctx.di + 6)
         si = ctx.skip(si)
-        si = ctx.draw(si)
-        ctx.draw(si)
+        si = _draw(ctx, si, "raised/inner-side")
+        _draw(ctx, si, "raised/underside")
     si = ctx.rwl(ctx.di + 10)
-    si = _patch_draw(ctx, si, _hi_or_default(ctx))
+    si = _patch_draw(ctx, si, _hi_or_default(ctx), "raised/top")
     if ctx.side_type() < 4:
-        si = ctx.draw(si)
+        si = _draw(ctx, si, "raised/side")
     else:
         si = ctx.skip(si)
     if ctx.above_type() < 4:
-        ctx.draw(si)
+        _draw(ctx, si, "raised/far-edge")
 
 
 _HANDLERS = {0: _h0, 1: _h1, 2: _h2, 3: _h3, 4: _h4, 5: _h5}
@@ -201,6 +269,8 @@ _HANDLERS = {0: _h0, 1: _h1, 2: _h2, 3: _h3, 4: _h4, 5: _h5}
 def render_tile_passes(
     img: NativeGameImage, dgroup_seg: int,
     on_ship_row: Optional[Callable[[_Ctx], None]] = None,
+    *, observer: Optional[Callable[[TileDrawCall], None]] = None,
+    rasterize: bool = True,
 ) -> None:
     """Run `2D1F`'s 11-row × 2-pass × 4-column tile dispatch over ``img`` in
     place. Expects the 8 render params already stored at `[0E28..0E36]` (see
@@ -214,7 +284,10 @@ def render_tile_passes(
     e2a = img.rw(dg, 0x0E2A)
     ls = img.rw(dg, (BUFFER_SEG_TABLE + ((e2a & 7) << 1)) & 0xFFFF)  # [asm 2D82]
 
-    ctx = _Ctx(img, dg, ls, dest)
+    ctx = _Ctx(
+        img, dg, ls, dest, phase=e2a & 7, observer=observer,
+        rasterize=rasterize,
+    )
     ctx.bp = ((e2a >> 3) * RECORD_STEP + RECORD_BASE + RECORD_BIAS) & 0xFFFF  # [asm 2D6F]
 
     e44 = 0x0B                                                   # [asm 2D98]
@@ -226,6 +299,7 @@ def render_tile_passes(
         if e44 == SHIP_ROW_E44:                                  # [asm 2DAE]
             saved_di = ctx.di
             ctx.di = SHIP_ROW_DI[1] if e4a else SHIP_ROW_DI[0]
+            ctx.ship_layer = e4a
         while True:
             # --- 2DC5 four columns ---
             for _ in range(4):
@@ -247,9 +321,11 @@ def render_tile_passes(
             e4a += 1
             if e4a < 2:
                 ctx.bp = (ctx.bp - 8) & 0xFFFF                   # [asm 2E22]
+                ctx.ship_inserted = True
                 if on_ship_row is not None:
                     on_ship_row(ctx)                             # call ss:[0E3E]
                 continue                                         # redo the row
+        ctx.ship_layer = 0
         ctx.di = (ctx.di + 0x30) & 0xFFFF                        # [asm 2E2D]
         ctx.bp = (ctx.bp - 0x16) & 0xFFFF
         e44 -= 1

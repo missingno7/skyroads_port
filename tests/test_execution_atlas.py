@@ -25,7 +25,7 @@ def test_committed_atlas_combines_retained_ir_and_real_oracle_replay():
     refused = [
         node for node in functions if node.metadata.get("liftable") is False]
 
-    assert len(functions) == 180
+    assert len(functions) == 183
     assert len(refused) == 3
     assert atlas.resolve("1010:61F3").identity == function_identity(0x61F3)
     assert atlas.unresolved()
@@ -63,7 +63,9 @@ def test_atlas_is_the_planner_coverage_authority():
     assert product.roots == (PROGRAM_ROOT,)
     assert function_identity(0x61F3) in product.reachable
     assert execution_point_identity(0x22F8) in product.reachable
-    assert execution_point_identity(0x434A) in product.reachable
+    # Palette-transition dispatch is now rooted at the recovered 43B0 entry;
+    # 434A was a stale interior point from the earlier incomplete boundary.
+    assert execution_point_identity(0x43B0) in product.reachable
     assert execution_point_identity(0x47CD) in product.reachable
     assert product.unresolved_edges
     assert len(product.edges) > 1_000

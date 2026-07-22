@@ -20,7 +20,7 @@
     },
     {
       "kind": "resume-handoff",
-      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22fb",
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22f8",
       "status": "resolved",
       "target": "skyroads:1.0:region:gameplay"
     },
@@ -28,7 +28,7 @@
       "kind": "replay-boundary",
       "source": "skyroads:1.0:region:gameplay",
       "status": "resolved",
-      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22fb"
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22f8"
     },
     {
       "kind": "region-exit",
@@ -946,6 +946,12 @@
       "kind": "retained-recovery-entry",
       "source": "skyroads:1.0:region:program",
       "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5dee"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5e5a"
     },
     {
@@ -953,6 +959,12 @@
       "source": "skyroads:1.0:region:program",
       "status": "resolved",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5ef6"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A5f0c"
     },
     {
       "kind": "retained-recovery-entry",
@@ -1078,6 +1090,12 @@
       "kind": "retained-recovery-entry",
       "source": "skyroads:1.0:region:program",
       "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A63a3"
+    },
+    {
+      "kind": "retained-recovery-entry",
+      "source": "skyroads:1.0:region:program",
+      "status": "resolved",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A63d3"
     },
     {
@@ -1166,11 +1184,11 @@
       }
     },
     {
-      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22fb",
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A22f8",
       "kind": "execution-point",
-      "label": "1010:22FB gameplay frame-resume boundary",
+      "label": "1010:22F8 gameplay frame-resume boundary",
       "metadata": {
-        "entry": "1010:22FB",
+        "entry": "1010:22F8",
         "phase": "awaiting-virtual-time"
       }
     },
@@ -1197,5 +1215,5 @@
     "kind": "project-declared-entry-census",
     "source": "retained Recovery IR and skyroads.execution catalog"
   },
-  "source_digest": "ff0bb95cab7d61e73d22ef931f071be5aa7d86ad68180d2049dcb17a1493809c"
+  "source_digest": "741447f7326973e003748cded1e921fc6d259849907bf2a3da6d7c0d8ca6cc3d"
 }

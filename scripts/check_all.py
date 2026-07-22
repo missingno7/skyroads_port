@@ -34,6 +34,7 @@ BOOTSTRAP_ARTIFACTS = (
     ROOT / "artifacts" / "boot_image" / "memory_1mb.bin",
     ROOT / "artifacts" / "boot_image" / "manifest.json",
 )
+PYTEST_WORKERS = 4
 
 
 def fast_python(enabled: bool = True) -> str:
@@ -53,12 +54,19 @@ def fast_python(enabled: bool = True) -> str:
 
 
 def pytest_argv(target: str, *, xdist_available: bool | None = None) -> list[str]:
-    """Build a pytest command, using xdist only when it is installed."""
+    """Build a bounded parallel pytest command when xdist is installed.
+
+    ``-n auto`` can create dozens of workers on a development workstation.
+    Besides providing little benefit for the fixture-heavy port suite, an
+    interrupted parent can leave enough workers behind to starve interactive
+    game execution.  Four workers keeps the repository gate parallel without
+    turning it into a machine-wide scheduling policy.
+    """
     if xdist_available is None:
         xdist_available = importlib.util.find_spec("xdist") is not None
     argv = ["-m", "pytest", target, "-q"]
     if xdist_available:
-        argv.extend(("-n", "auto"))
+        argv.extend(("-n", str(PYTEST_WORKERS)))
     return argv
 
 

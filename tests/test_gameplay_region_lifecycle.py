@@ -175,6 +175,73 @@ def test_direct_level_uses_the_same_planned_gameplay_region() -> None:
     assert runtime.cpu.hook_names.get(LEVEL_SELECTION) != DIRECT_LEVEL_ADAPTER_ID
 
 
+def test_escape_from_native_gameplay_uses_generated_confirmation_and_reenters() -> None:
+    """The native island owns gameplay only; its abort continuation is real."""
+    artifact = ReplayArtifact.open(REPLAY)
+    frontend = SkyroadsFrontend(ROOT)
+    args = player.build_arg_parser(frontend).parse_args([
+        "--headless", "--composition", "faithful-product", "--level", "14",
+    ])
+    args.execution_plan = frontend.resolve_execution_plan(args)
+    runtime, _manifest = create_planned_runtime(
+        args,
+        bootstrap_artifacts=args.execution_plan.bootstrap_artifact_paths(),
+        bind_plan=lambda current: frontend.bind_execution_plan(
+            current, args.execution_plan, carrier_id=GENERATED_VMLESS_CARRIER,
+        ),
+    )
+    runtime.dos.console_input_fallback = None
+    runtime.dos.mouse_present = bool(artifact.metadata.get("mouse_present", False))
+    inputs = RealModeInputAdapter(artifact.events)
+    selections: list[int] = []
+    original_selection = runtime.cpu.replacement_hooks[LEVEL_SELECTION]
+
+    def observe_selection(cpu) -> None:
+        selections.append(getattr(runtime, "_skyroads_gameplay_entries", 0))
+        original_selection(cpu)
+
+    observe_selection.owns_time = getattr(original_selection, "owns_time", False)
+    runtime.cpu.replacement_hooks[LEVEL_SELECTION] = observe_selection
+    for frame in range(min(900, artifact.end_point.ordinal)):
+        inputs.apply_to_runtime(frame, runtime,
+                                deliver=lambda current, sc: frontend.deliver_input(current, sc))
+        try:
+            frontend.advance_frame(runtime, args, frame)
+        except ConsoleInputWouldBlock:
+            pass
+        if getattr(runtime, "_skyroads_gameplay_entries", 0):
+            break
+    assert runtime.execution_regions.active
+    selections.clear()
+
+    runtime.cpu.mem.wb(runtime.cpu.s.ds, 0x0BDA, 0x80)  # Escape make
+    for frame in range(180):
+        try:
+            frontend.advance_frame(runtime, args, 900 + frame)
+        except ConsoleInputWouldBlock:
+            pass
+        if selections:
+            break
+
+    assert runtime._skyroads_last_region_exit == "gameplay-aborted"
+    # The original generated shell asks for one key at 1010:5FED (DOS AH=07)
+    # before it decides the next lifecycle action.  Direct launch is a one-shot
+    # menu selection, so this observed abort path confirms and re-enters the
+    # selected level; it must not be relabelled as an invented native menu.
+    runtime.cpu.mem.wb(runtime.cpu.s.ds, 0x0BDA, 0)  # Escape break
+    frontend.deliver_input(runtime, 0x1C)  # Enter
+    for frame in range(180, 360):
+        try:
+            frontend.advance_frame(runtime, args, 900 + frame)
+        except ConsoleInputWouldBlock:
+            pass
+        if selections:
+            break
+    assert not selections
+    assert runtime.execution_regions.active
+    assert runtime._skyroads_gameplay_entries >= 2
+
+
 def test_replay_continuation_reconstructs_the_active_native_region() -> None:
     artifact = ReplayArtifact.open(REPLAY)
     frontend = SkyroadsFrontend(ROOT)

@@ -1,0 +1,3 @@
+# Interior execution points used as persistent ReplayArtifact recording bases.
+# Each must be emitted as a resume entry into its containing generated body.
+1010:43B0  # replay_skyroads_20260721_090856 capture base; bytes match irgen_source

@@ -34,7 +34,7 @@ from typing import List, NamedTuple
 from skyroads.codecs.lzs import LzsWidths, decompress_block
 from skyroads.native.level_load import read_game_file
 
-#: GRAPHICS are per-world: the background/palette a level shows is
+#: GRAPHICS are per-world: the background/palette a selected level shows is
 #: ``world_for_level(level) = level // 3`` (verified: WORLD<n>.LZS byte-exact).
 #: Music is selected independently; see :func:`pick_gameplay_song`.
 LEVELS_PER_WORLD = 3
@@ -45,7 +45,9 @@ GAMEPLAY_SONG_COUNT = 9
 
 
 def world_for_level(level: int) -> int:
-    return 9 if level == 30 else level // LEVELS_PER_WORLD
+    from skyroads.levels import validate_playable_level
+
+    return validate_playable_level(level) // LEVELS_PER_WORLD
 
 
 def pick_gameplay_song(rand_value: int, prev: "int | None" = None) -> "tuple[int, int]":

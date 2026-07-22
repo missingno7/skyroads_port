@@ -1,6 +1,6 @@
 """Native, VM-free level loading (`skyroads.native.level_load`).
 
-`decode_level_files` reads and decompresses any of ROADS.LZS's 31 levels with no
+`decode_level_files` reads and decompresses any of ROADS.LZS's 31 archive entries with no
 VM (reusing the VM-verified `roads_archive`); `native_level_load` places the
 geometry seed at its recovered, VM-verified DGROUP offsets. The final test plays
 a natively-loaded level and checks it advances on the golden trajectory that was
@@ -41,7 +41,7 @@ def test_decode_every_level_vm_free() -> None:
     for lv in range(n):
         d = decode_level_files(lv, game_root=ASSETS)
         assert isinstance(d, DecodedLevel)
-        assert d.index == lv
+        assert d.archive_index == lv
         assert len(d.palette) == 72 * 3          # 216-byte VGA 6-bit palette
         assert len(d.road) > 0 and len(d.road) % 2 == 0   # UINT16LE[] road array
         assert 0 <= d.gravity <= 0xFFFF
@@ -67,7 +67,7 @@ def test_native_level_load_places_geometry() -> None:
     216-byte palette — all at their recovered, VM-verified offsets."""
     state = NativeGameState()
     d = native_level_load(state, 14, game_root=ASSETS)
-    assert isinstance(d, DecodedLevel) and d.index == 14
+    assert isinstance(d, DecodedLevel) and d.archive_index == 14
     # road[] decoded into 0x162C, padded with zeros to the 0x1B58 clear region.
     assert bytes(state.data[0x162C:0x162C + len(d.road)]) == d.road
     assert all(b == 0 for b in state.data[0x162C + len(d.road):0x162C + 0x1B58])

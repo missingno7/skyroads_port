@@ -315,7 +315,7 @@ def test_semantic_frame_park_is_stable_across_oracle_and_generated(tmp_path):
     ), rejected.comparison.differences
 
 
-def test_interactive_semantic_seek_uses_one_guest_budget() -> None:
+def test_interactive_semantic_seek_cooperates_without_creating_guest_points() -> None:
     class CountingCpu:
         def __init__(self) -> None:
             self.instruction_count = 100
@@ -328,11 +328,18 @@ def test_interactive_semantic_seek_uses_one_guest_budget() -> None:
             self.s.ip = 0x43B1
 
     frontend = SkyroadsFrontend(ROOT)
-    runtime = SimpleNamespace(cpu=CountingCpu())
-    args = SimpleNamespace(timer_irqs_per_frame=0, steps_per_frame=48_000)
+    frontend.offline_semantic_seek_budget = 96
+    frontend.offline_semantic_seek_chunks = 2
+    yielded: list[None] = []
+    runtime = SimpleNamespace(
+        cpu=CountingCpu(),
+        _dos_re_host_yield=lambda: yielded.append(None),
+    )
+    args = SimpleNamespace(timer_irqs_per_frame=0, steps_per_frame=48)
 
     assert frontend._advance_to_semantic_boundary(runtime, args) == "guest-fallback"
-    assert runtime.cpu.budgets == [48_000]
+    assert runtime.cpu.budgets == [48, 48, 48, 48]
+    assert yielded == [None, None, None]
     schema, value = frontend.replay_point_coordinate(
         runtime, args, point_ordinal=7, event_cursor=13)
     assert schema == frontend.semantic_replay_coordinate
@@ -341,19 +348,19 @@ def test_interactive_semantic_seek_uses_one_guest_budget() -> None:
         "timeline_position": 7,
         "event_cursor": 13,
         "kind": "guest-fallback",
-        "guest_instruction_count": 48_100,
-        "guest_budget": 48_000,
+        "guest_instruction_count": 292,
+        "guest_budget": 48,
         "fallback_reason": "semantic-boundary-not-reached-within-budget",
         "machine_position": {"cs": 0x1010, "ip": 0x43B1},
     }
 
     runtime.cpu.budgets.clear()
+    yielded.clear()
     assert frontend._advance_to_semantic_boundary(
         runtime, args, offline_replay=True,
     ) == "guest-fallback"
-    assert runtime.cpu.budgets == [
-        frontend.offline_semantic_seek_budget
-    ] * frontend.offline_semantic_seek_chunks
+    assert runtime.cpu.budgets == [96, 96]
+    assert yielded == [None]
 
 
 def test_generated_driver_preserves_boundary_phase_across_guest_slice(

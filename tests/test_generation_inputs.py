@@ -1,9 +1,15 @@
 """Generated-corpus recipes require explicit, valid evidence inputs."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from scripts import build_codemap, rebuild_all
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_build_codemap_requires_an_explicit_evidence_source(capsys) -> None:
@@ -75,3 +81,25 @@ def test_rebuild_forwards_declared_evidence(monkeypatch) -> None:
         "build_recovered.py",
     ]
     assert all(not extra for _, extra in calls[1:])
+
+
+def test_replay_resume_augmentation_preserves_semantic_boundaries() -> None:
+    document = json.loads(
+        (ROOT / "recovery" / "recovery_ir.json").read_text(encoding="utf-8")
+    )
+    record = document["functions"]["1010:4331"]
+    instructions = {
+        instruction["ip"]: instruction
+        for block in record["blocks"]
+        for instruction in block["instructions"]
+    }
+
+    assert instructions["434A"]["boundary_effect"] is True
+    assert instructions["43B0"]["dispatch_entry"] is True
+
+    emitted = (
+        ROOT / "skyroads" / "lifted" / "functions" / "lifted_1010_4331.py"
+    ).read_text(encoding="utf-8")
+    assert '"1010:434A"' in emitted
+    assert '"1010:43B0"' in emitted
+    assert "cpu.boundary_hook(cpu, 0x1010, 0x434A, 0x434E)" in emitted

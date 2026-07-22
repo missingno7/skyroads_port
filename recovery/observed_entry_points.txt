@@ -1,0 +1,7 @@
+# Direct executable entries discovered by reproducible generated-runtime probes.
+#
+# They are inputs to Recovery IR generation, not implementations.  Each entry
+# must have a matching crash/replay/Atlas witness before it is added here.
+1010:5F0C  # direct call from 1010:61F3, observed by level-30 probe 2026-07-21
+1010:63A3  # direct call from 1010:61F3, observed by level-30 probe 2026-07-21
+1010:5DEE  # direct call from the witnessed startup formatter 1010:5F0C

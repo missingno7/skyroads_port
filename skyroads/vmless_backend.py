@@ -429,6 +429,7 @@ def create_planned_runtime(
                          capture_sb=capture_sound_blaster_pcm(args))
     rt._skyroads_no_sound = bool(args.no_sound)
     rt._skyroads_direct_level_request = getattr(args, "level", None)
+    rt._skyroads_presentation_options = args
     drv = VmlessDriver(
         rt, crash_root=ROOT / "artifacts" / "crashes", stamp=_stamp())
     rt._skyroads_vmless_driver = drv

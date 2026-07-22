@@ -13,14 +13,17 @@ functions are represented as focused rules over the named state view.
 
 All in the game data segment (ds == 0x1686 in the captured runtime):
 
-    ds:0x54AC  dword  ship_pos      forward position along the road (0..LEVEL_END)
-    ds:0x9330  word   speed         forward speed (pos advances by speed*75/frame)
+    ds:0x54AC  dword  ship_pos      forward velocity/increment (legacy name)
+    ds:0x9330  word   speed         throttle term (velocity changes by speed*75/frame)
     ds:0x9336  word   bounce        vertical landing-bounce offset (signed, damped)
     ds:0xAF2C  word   view_y_base   screen-Y base the bounce is added to
     ds:0x456E  word   game_state    3 == in gameplay (else this update is skipped)
-    ds:0x9618  dword  lateral_x     lateral (lane) position, 32-bit (see renderer)
+    ds:0x9618  dword  lateral_x     forward track coordinate (legacy name)
+    ds:0xAF1C  word   af1c          cross-road coordinate (7 lanes x 0x1700)
 
-Constant `LEVEL_END = 0x2AAA` is the road length; reaching it completes the level.
+Constant ``LEVEL_END = 0x2AAA`` is the forward-velocity clamp, not the road
+length. The source API retains its historical names because the recovered
+callers already use them; presentation exposes the corrected semantic names.
 """
 from __future__ import annotations
 
@@ -32,8 +35,7 @@ from skyroads.handrecovered.movement import _ulong_div, _ulong_mul
 GRAVITY_LEVEL_MUL = 0x1680
 GRAVITY_LEVEL_DIV = 0x190
 
-#: Road length in forward-position units; ship_pos is clamped to [0, LEVEL_END],
-#: and reaching LEVEL_END is level-complete (1010:2514 `cmp [54AC],0x2AAA`).
+#: Forward velocity/increment clamp (1010:2514 `cmp [54AC],0x2AAA`).
 LEVEL_END = 0x2AAA
 
 #: Forward-position units advanced per unit of speed per frame (1010:24C8 `mov cx,75`).
@@ -55,10 +57,11 @@ def _s16(v: int) -> int:
 
 
 def advance_ship(pos: int, speed: int) -> int:
-    """The per-frame forward-motion rule (1010:24C4-2528).
+    """The per-frame forward-velocity rule (1010:24C4-2528).
 
-    ``pos`` and the return are the 32-bit forward position (ds:[54AC:54AE]);
-    ``speed`` is ds:[9330]. Reaching ``LEVEL_END`` means the level is complete.
+    ``pos`` and the return are the 32-bit forward increment (ds:[54AC:54AE]);
+    ``speed`` is ds:[9330]. The separate DS:9618 coordinate accumulates this
+    return value to move through road rows.
     """
     s = speed & 0xFFFF
     if s & 0x8000:                  # cwd: sign-extend speed to 32-bit before *75

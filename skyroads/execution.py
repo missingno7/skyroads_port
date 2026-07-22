@@ -81,6 +81,13 @@ from skyroads.product_features import (
     PRACTICE_FEATURE_CHANNEL,
     PRACTICE_LEVEL_FEATURE_ID,
 )
+from skyroads.presentation.features import (
+    ENHANCED_STEREO_AUDIO_FEATURE_ID,
+    NATIVE_3D_RENDERER_FEATURE_ID,
+    NATIVE_FAITHFUL_AUDIO_FEATURE_ID,
+    TWEENING_FEATURE_ID,
+    WIDESCREEN_FEATURE_ID,
+)
 from skyroads.verification_contracts import GAMEPLAY_REGION_VERIFICATION
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
@@ -400,24 +407,31 @@ def _gameplay_region_entry() -> ImplementationEntry:
         # generated-carrier adapter reconstructs pacing and lifecycle from the
         # original 1FD9/2B3D/01B8 control flow around it.
         implementation=native_gameplay_body,
-        region_adapters=(RegionAdapter(
-            f"{implementation_id}/generated-vmless",
-            GENERATED_VMLESS_CARRIER,
-            DOS_MEMORY_CARRIER,
-            activate_gameplay_region,
-            content_digest(
-                (
-                    SOURCE_ROOT / "skyroads" / "gameplay_region.py",
-                    SOURCE_ROOT / "skyroads" / "vmless_backend.py",
-                    SOURCE_ROOT / "dos_re" / "dos_re" / "regions.py",
+        region_adapters=tuple(
+            RegionAdapter(
+                f"{implementation_id}/{adapter_name}",
+                host_carrier,
+                DOS_MEMORY_CARRIER,
+                activate_gameplay_region,
+                content_digest(
+                    (
+                        SOURCE_ROOT / "skyroads" / "gameplay_region.py",
+                        SOURCE_ROOT / "skyroads" / "vmless_backend.py",
+                        SOURCE_ROOT / "dos_re" / "dos_re" / "regions.py",
+                    ),
+                    repository_root=SOURCE_ROOT,
+                    records=(
+                        ("host-carrier", host_carrier),
+                        ("entry", GAMEPLAY_ENTRY_POINT),
+                        ("resume", GAMEPLAY_RESUME_POINT),
+                    ),
                 ),
-                repository_root=SOURCE_ROOT,
-                records=(
-                    ("entry", GAMEPLAY_ENTRY_POINT),
-                    ("resume", GAMEPLAY_RESUME_POINT),
-                ),
-            ),
-        ),),
+            )
+            for adapter_name, host_carrier in (
+                ("interpreted-cpu", INTERPRETED_CPU_CARRIER),
+                ("generated-vmless", GENERATED_VMLESS_CARRIER),
+            )
+        ),
     )
 
 
@@ -516,21 +530,75 @@ def services() -> RuntimeServiceCatalog:
 
 
 def features() -> FeatureCatalog:
-    return FeatureCatalog((FeatureDescriptor(
-        feature_id=PRACTICE_LEVEL_FEATURE_ID,
-        category=FeatureCategory.BEHAVIORAL,
-        changes_authoritative_state=True,
-        replay_channel=PRACTICE_FEATURE_CHANNEL,
-        safe_boundaries=frozenset({FEATURE_SAFE_BOUNDARY}),
-        default_value=None,
-        required_capabilities=frozenset({
-            DependencyCapability.DOS_MEMORY.value,
-        }),
-        feature_digest=content_digest((
-            SOURCE_ROOT / "skyroads" / "product_features.py",
-            SOURCE_ROOT / "skyroads" / "bridge" / "dgroup_view.py",
-        ), repository_root=SOURCE_ROOT),
-    ),))
+    """Optional product capabilities, all selected through one plan.
+
+    Presentation features are explicitly non-authoritative: their descriptors
+    make the planner reject any attempt to treat a visual/audio improvement as
+    a replay-affecting gameplay modification.
+    """
+    return FeatureCatalog((
+        FeatureDescriptor(
+            feature_id=PRACTICE_LEVEL_FEATURE_ID,
+            category=FeatureCategory.BEHAVIORAL,
+            changes_authoritative_state=True,
+            replay_channel=PRACTICE_FEATURE_CHANNEL,
+            safe_boundaries=frozenset({FEATURE_SAFE_BOUNDARY}),
+            default_value=None,
+            required_capabilities=frozenset({
+                DependencyCapability.DOS_MEMORY.value,
+            }),
+            feature_digest=content_digest((
+                SOURCE_ROOT / "skyroads" / "product_features.py",
+                SOURCE_ROOT / "skyroads" / "bridge" / "dgroup_view.py",
+            ), repository_root=SOURCE_ROOT),
+        ),
+        FeatureDescriptor(
+            feature_id=NATIVE_3D_RENDERER_FEATURE_ID,
+            category=FeatureCategory.PRESENTATION,
+            default_value=False,
+            feature_digest=content_digest((
+                SOURCE_ROOT / "skyroads" / "presentation" / "scene.py",
+                SOURCE_ROOT / "skyroads" / "presentation" / "renderer.py",
+                SOURCE_ROOT / "skyroads" / "presentation" / "runtime.py",
+            ), repository_root=SOURCE_ROOT),
+        ),
+        FeatureDescriptor(
+            feature_id=WIDESCREEN_FEATURE_ID,
+            category=FeatureCategory.PRESENTATION,
+            default_value=False,
+            feature_digest=content_digest((
+                SOURCE_ROOT / "skyroads" / "presentation" / "runtime.py",
+            ), repository_root=SOURCE_ROOT),
+        ),
+        FeatureDescriptor(
+            feature_id=TWEENING_FEATURE_ID,
+            category=FeatureCategory.PRESENTATION,
+            default_value=False,
+            feature_digest=content_digest((
+                SOURCE_ROOT / "skyroads" / "presentation" / "scene.py",
+                SOURCE_ROOT / "skyroads" / "presentation" / "runtime.py",
+            ), repository_root=SOURCE_ROOT),
+        ),
+        FeatureDescriptor(
+            feature_id=NATIVE_FAITHFUL_AUDIO_FEATURE_ID,
+            category=FeatureCategory.PRESENTATION,
+            default_value=False,
+            feature_digest=content_digest((
+                SOURCE_ROOT / "skyroads" / "audio" / "sink.py",
+                SOURCE_ROOT / "skyroads" / "native" / "sfx.py",
+                SOURCE_ROOT / "dos_re" / "dos_re" / "opl3_fast.py",
+            ), repository_root=SOURCE_ROOT),
+        ),
+        FeatureDescriptor(
+            feature_id=ENHANCED_STEREO_AUDIO_FEATURE_ID,
+            category=FeatureCategory.PRESENTATION,
+            default_value=False,
+            feature_digest=content_digest((
+                SOURCE_ROOT / "skyroads" / "audio" / "sink.py",
+                SOURCE_ROOT / "skyroads" / "presentation" / "scene.py",
+            ), repository_root=SOURCE_ROOT),
+        ),
+    ))
 
 
 def implementation_ids(category: OverrideCategory) -> tuple[str, ...]:
@@ -680,14 +748,17 @@ def configuration(
         )
     preferences: tuple[str, ...]
     selected: tuple[str, ...] = ()
-    # Interpreter-backed compositions all use the same stateless semantic
-    # frame seam.  It is scheduling infrastructure, not a recovery-level hook:
-    # oracle, generated and authored bodies must stop at the identical blocked
-    # main-loop wait for replay points to be backend-independent.
+    # CPU-backed compositions all use the same stateless semantic frame seam.
+    # It is scheduling infrastructure, not a recovery-level hook: oracle,
+    # generated and authored bodies must stop at the identical blocked
+    # main-loop wait for replay points to be backend-independent.  In
+    # particular, generated-vmless still owns a CPU-shaped carrier and must
+    # not burn its frame budget in the original timer waits merely because it
+    # is EXE-detached.
     product_services: tuple[str, ...] = (
         (FRAME_PARK_SERVICE_ID,)
         if composition in {
-            "oracle", "workbench-auto",
+            "oracle", "workbench-auto", "faithful-product",
         }
         else ()
     )

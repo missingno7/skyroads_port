@@ -14,7 +14,7 @@ def test_pytest_command_falls_back_to_serial_without_xdist() -> None:
 
 def test_pytest_command_uses_xdist_when_available() -> None:
     assert check_all.pytest_argv("tests/", xdist_available=True) == [
-        "-m", "pytest", "tests/", "-q", "-n", "auto",
+        "-m", "pytest", "tests/", "-q", "-n", "4",
     ]
 
 

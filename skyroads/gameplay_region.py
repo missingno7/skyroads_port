@@ -57,6 +57,34 @@ _REGISTER_FIELDS = (
     "cs", "ds", "es", "ss", "ip", "flags", "fsw", "fcw",
 )
 
+
+def _coverage(runtime, path: str, *, level: int | None = None) -> None:
+    """Record compact, derived lifecycle evidence without affecting gameplay.
+
+    Runtime diagnostics are cumulative, while replay metadata must describe
+    only the interval captured by that replay.  Recording therefore installs
+    a second accumulator which receives the same events without resetting the
+    process-wide diagnostics.
+    """
+    accumulators = []
+    evidence = getattr(runtime, "_skyroads_gameplay_coverage", None)
+    if evidence is None:
+        evidence = {"paths": {}, "levels": set(), "ticks": 0}
+        runtime._skyroads_gameplay_coverage = evidence
+    accumulators.append(evidence)
+
+    recording = getattr(runtime, "_skyroads_recording_gameplay_coverage", None)
+    if recording is not None and recording is not evidence:
+        accumulators.append(recording)
+
+    for evidence in accumulators:
+        paths = evidence["paths"]
+        paths[path] = int(paths.get(path, 0)) + 1
+        if level is not None:
+            evidence["levels"].add(int(level))
+        if path == "semantic-tick":
+            evidence["ticks"] = int(evidence["ticks"]) + 1
+
 def _stack_word(cpu, distance: int) -> int:
     return cpu.mem.rw(cpu.s.ss, (cpu.s.bp - distance) & 0xFFFF)
 
@@ -120,11 +148,30 @@ class _GeneratedGameplayServices:
             )
 
     def emit_sfx(self, effect_id: int) -> None:
+        # The native audio sink records the recovered 03C2 identity at the
+        # authoritative call site. Playback still comes from the exact DMA
+        # payload produced by the generated carrier below; this notification
+        # is evidence/diagnostics only and cannot alter sound selection.
+        audio_sink = getattr(self.runtime, "_skyroads_audio_sink", None)
+        trigger = None
+        if audio_sink is not None:
+            from skyroads.presentation.scene import ship_stereo_pan
+            view = GameView(
+                self.cpu.mem.data,
+                base=(self.cpu.s.ds & 0xFFFF) << 4,
+            )
+            trigger = audio_sink.begin_sfx_trigger(
+                int(effect_id),
+                int(self.cpu.mem.rw(self.cpu.s.ds, 0x1600)),
+                pan=ship_stereo_pan(view),
+            )
         hooks = getattr(self.cpu, "replacement_hooks", None)
         if hooks is None:
             # Minimal state-only test runtimes have no CPU dispatcher.  The
             # semantic layer has already applied 03C2's authoritative AF38
             # timestamp before invoking this presentation/device seam.
+            if trigger is not None:
+                audio_sink.end_sfx_trigger(trigger)
             return
         cpu = self.cpu
         state = cpu.s
@@ -150,6 +197,25 @@ class _GeneratedGameplayServices:
             cpu.instruction_count = saved_count
             cpu.call_depth = saved_depth
             cpu.boundary_hook = saved_boundary
+            if trigger is not None:
+                audio_sink.end_sfx_trigger(trigger)
+
+
+def _gameplay_services(runtime) -> _GeneratedGameplayServices:
+    """Resolve external generated seams after the full plan is bound.
+
+    Execution regions are registered before individual function adapters so
+    their covered inner bindings can be suppressed coherently.  The SFX seam
+    is external to this region, however, and is installed later in that same
+    binding pass on an interpreted carrier.  Resolve it only when gameplay is
+    actually entered instead of making region registration depend on binder
+    iteration order.
+    """
+    services = getattr(runtime, "_skyroads_gameplay_services", None)
+    if services is None:
+        services = _GeneratedGameplayServices(runtime)
+        runtime._skyroads_gameplay_services = services
+    return services
 
 
 class SkyroadsGameplaySession:
@@ -215,12 +281,17 @@ class SkyroadsGameplaySession:
                 self.scratch = native_gameplay_body(
                     self.view,
                     self.scratch,
-                    sfx=self.runtime._skyroads_gameplay_services.emit_sfx,
+                    sfx=_gameplay_services(self.runtime).emit_sfx,
                 )
             except RoadDepartureTransition:
                 _materialize_scratch(self.cpu, self.scratch)
+                _coverage(self.runtime, ROAD_DEPARTURE_EXIT)
                 return RegionProgress.exited(ROAD_DEPARTURE_EXIT)
             _materialize_scratch(self.cpu, self.scratch)
+            _coverage(
+                self.runtime, "semantic-tick",
+                level=getattr(self.runtime, "_skyroads_gameplay_level", None),
+            )
             local_tick = (local_tick + 1) & 0xFFFF
             _set_stack_word(self.cpu, 2, local_tick)
             elapsed = self.view.elapsed_ticks & 0xFFFF
@@ -238,12 +309,14 @@ class SkyroadsGameplaySession:
         _set_stack_word(self.cpu, 4, elapsed)
 
         if self.view.key_row[_ESCAPE_KEY_OFFSET] & _KEY_DOWN_BIT:
+            _coverage(self.runtime, GAMEPLAY_ABORTED_EXIT)
             return RegionProgress.exited(GAMEPLAY_ABORTED_EXIT)
         if not should_run_gameplay(
             self.view.game_state,
             self.view.grounded,
             self.view.frame_ctr,
         ):
+            _coverage(self.runtime, GAMEPLAY_RESULT_EXIT)
             return RegionProgress.exited(GAMEPLAY_RESULT_EXIT)
 
         self._render()
@@ -340,6 +413,10 @@ class _GameplayRegistration:
             getattr(self.runtime, "_skyroads_gameplay_entries", 0) + 1
         )
         self.runtime._skyroads_gameplay_level = cpu.mem.rw(cpu.s.ds, 0x9332)
+        _coverage(
+            self.runtime, "entry",
+            level=self.runtime._skyroads_gameplay_level,
+        )
 
         def complete(exit_point) -> None:
             if exit_point.continuation not in {
@@ -370,6 +447,7 @@ class _GameplayRegistration:
             self.runtime._skyroads_last_region_continuation = (
                 exit_point.continuation
             )
+            _coverage(self.runtime, f"exit:{exit_point.exit_id}")
 
         dispatcher.handoff(
             self.binding,
@@ -386,7 +464,6 @@ def activate_gameplay_region(
     runtime, binding: ResolvedExecutionRegion,
 ) -> None:
     """Install the planned generated-carrier-to-native-region handoff."""
-    runtime._skyroads_gameplay_services = _GeneratedGameplayServices(runtime)
     ensure_region_dispatcher(runtime)
     runtime._skyroads_gameplay_registration = _GameplayRegistration(
         runtime, binding,
