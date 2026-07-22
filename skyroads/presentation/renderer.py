@@ -353,9 +353,8 @@ def _uniform_palette_gain(
     if not denominator:
         return None
     gain = numerator / denominator
-    # This cache is a fade-*down* optimization.  A level first acquired while
-    # black must discover its own real palette normally; amplifying a heavily
-    # quantized near-black basis would manufacture colours that never existed.
+    # The basis is the immutable four-bank asset palette, never a transient
+    # live DAC sample.  The same test therefore covers fade-in and fade-out.
     if not -0.01 <= gain <= 1.01:
         return None
     for source, target in channels:
@@ -778,6 +777,7 @@ class RecoveredPolygonRenderer:
         self._projection_after_ship = ()
         self._mesh_key = None
         self._mesh = None
+        self._mesh_cache = {}
         # Presentation runs independently of the 30 Hz simulation.  These
         # payloads are immutable for a given semantic input and must not be
         # decoded/recoloured again on every interpolated host frame.
@@ -792,20 +792,31 @@ class RecoveredPolygonRenderer:
         self._palette_basis_key = None
         self._palette_basis = None
 
+    def _mesh_identity(self, scene: GameplayScene):
+        return (
+            scene.geometry.digest,
+            scene.palette,
+            scene.face_palette_forward,
+            scene.face_palette_backward,
+            self.debug_mode,
+        )
+
     def _render_scene(self, scene: GameplayScene) -> tuple[GameplayScene, float]:
         """Return an immutable RGB basis plus a GPU-only fade multiplier."""
         key = (
             scene.assets.digest,
+            scene.source_palette,
             scene.face_palette_forward,
             scene.face_palette_backward,
         )
         if key != self._palette_basis_key or self._palette_basis is None:
             self._palette_basis_key = key
-            self._palette_basis = scene.palette
-            return scene, 1.0
+            self._palette_basis = scene.source_palette
         gain = _uniform_palette_gain(self._palette_basis, scene.palette)
         if gain is None:
-            self._palette_basis = scene.palette
+            # Non-scalar DAC changes are authoritative colour changes, not a
+            # fade. Preserve the exact fallback without allowing transient
+            # display state to replace the declared source palette.
             return scene, 1.0
         return replace(scene, palette=self._palette_basis), gain
 
@@ -905,18 +916,17 @@ class RecoveredPolygonRenderer:
             # and offline verification tools.
             projection = None
             before_ship = after_ship = ()
-            mesh_key = (
-                render_scene.geometry.digest,
-                render_scene.palette,
-                render_scene.face_palette_forward,
-                render_scene.face_palette_backward,
-                self.debug_mode,
-            )
+            mesh_key = self._mesh_identity(render_scene)
             if mesh_key != self._mesh_key:
-                self._mesh = build_polygon_mesh(
-                    render_scene, debug_mode=self.debug_mode,
-                    full_level=True,
-                )
+                self._mesh = self._mesh_cache.get(mesh_key)
+                if self._mesh is None:
+                    self._mesh = build_polygon_mesh(
+                        render_scene, debug_mode=self.debug_mode,
+                        full_level=True,
+                    )
+                    self._mesh_cache[mesh_key] = self._mesh
+                    while len(self._mesh_cache) > 4:
+                        self._mesh_cache.pop(next(iter(self._mesh_cache)))
                 self._mesh_key = mesh_key
             mesh = self._mesh
         return PolygonFrame(

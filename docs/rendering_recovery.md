@@ -224,6 +224,15 @@ black handoff, a changed selected-level identity releases presentation to the
 generated level selector. This prevents both an original-frame flash and the
 opposite error of drawing stale gameplay geometry over the selector.
 
+The gameplay DAC is recovered as four immutable asset banks: 72 level-road
+colours, 20 CARS colours, 50 DASHBRD colours, and 114 WORLD colours.  The live
+VGA DAC remains authoritative for fades, but it is display state rather than
+mesh identity.  During `4331`'s uniform fade the renderer therefore retains
+one source-colour mesh and one set of decoded indexed assets, applying only a
+GPU colour gain.  A bounded four-level mesh cache also preserves recently
+visited levels.  Non-uniform DAC changes deliberately fall back to exact
+recolouring rather than being misclassified as a fade.
+
 Remaining visual work is limited to fidelity refinement: validate native
 depth-field ship/tunnel occlusion across more replay points and extend
 widescreen road contents only from stable source geometry. Exact `325B`

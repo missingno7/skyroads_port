@@ -35,6 +35,7 @@ from skyroads.replay import (  # noqa: E402
     capture_base,
     capture_profile,
 )
+from skyroads.presentation.renderer import _uniform_palette_gain  # noqa: E402
 from skyroads.vmless_backend import create_planned_runtime  # noqa: E402
 
 
@@ -214,6 +215,7 @@ def main(argv=None) -> int:
             () if packet is None else packet.shadow_rgba[3::4]
         )
         palette = tuple(runtime.dos.vga_palette)
+        source_palette = (() if packet is None else packet.scene.source_palette)
         opl = opl_count[0]
         dispatcher = getattr(runtime, "execution_regions", None)
         record = {
@@ -233,6 +235,7 @@ def main(argv=None) -> int:
                 None if dispatcher is None else dispatcher.active_region_id
             ),
             "game_state": int(view.game_state),
+            "level": int(view.rw(0x9332)),
             "track_row": int(view.lateral) >> 16,
             "height": int(view.af2c),
             "shadow_band": int(view.rw(0x0E34)) // 5,
@@ -241,6 +244,15 @@ def main(argv=None) -> int:
             "shadow_alpha": max(shadow_alpha, default=0),
             "mesh_changed": mesh != last_mesh,
             "palette_changed": palette != last_palette,
+            "palette_gain": None if packet is None else packet.palette_gain,
+            "palette_ranges": (
+                () if packet is None else tuple(
+                    _uniform_palette_gain(
+                        source_palette[left:right], palette[left:right],
+                    )
+                    for left, right in ((0, 72), (72, 142), (142, 256))
+                )
+            ),
             "opl_writes": opl - last_opl,
         }
         if recording:
@@ -272,11 +284,14 @@ def main(argv=None) -> int:
             f"prep={item['presentation_ms']:7.3f} "
             f"input={item['input_ms']:6.3f} ins={item['instructions']:8d} "
             f"events={item['events']} opl={item['opl_writes']:3d} "
-            f"state={item['game_state']} row={item['track_row']:3d} "
+            f"state={item['game_state']} level={item['level']:2d} "
+            f"row={item['track_row']:3d} "
             f"height={item['height']:04X} shadow={item['shadow_band']}:"
             f"{item['shadow_offset']:04X}/{item['shadow_pixels']}px@"
             f"{item['shadow_alpha']} mesh={'new' if item['mesh_changed'] else 'same'} "
             f"palette={'new' if item['palette_changed'] else 'same'} "
+            f"gain={item['palette_gain'] if item['palette_gain'] is not None else '-'} "
+            f"banks={item['palette_ranges']} "
             f"at={item['machine']} boundary={item['boundary']}"
         )
 

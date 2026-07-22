@@ -24,6 +24,7 @@ import struct
 from pathlib import Path
 
 from skyroads.bridge.dgroup_view import GameView
+from skyroads.handrecovered import roads_archive
 from skyroads.levels import road_archive_index, validate_playable_level
 from skyroads.native.boot import load_pict, parse_lzs_container
 from skyroads.native.boot import DAC_DASHBRD_BASE
@@ -166,8 +167,11 @@ class PresentationAssets:
     ship_sheet_width: int
     ship_sheet_height: int
     ship_sheet_indices: bytes
+    road_palette: tuple[tuple[int, int, int], ...]
     ship_palette: tuple[tuple[int, int, int], ...]
+    dashboard_palette: tuple[tuple[int, int, int], ...]
     world_palette: tuple[tuple[int, int, int], ...]
+    source_palette: tuple[tuple[int, int, int], ...]
     projection_lists: tuple[bytes, ...]
     dashboard_indices: bytes
     oxygen_cells: tuple[int, ...]
@@ -218,6 +222,11 @@ class GameplayScene:
     ship_sprite_index: int
     ship_screen_x: int
     ship_screen_y: int
+    # The immutable palette installed by the level loader before VGA fade
+    # scaling.  ``palette`` below is the live DAC and may be black (or partly
+    # faded) when native presentation first acquires the scene.  Keeping both
+    # prevents a transient display effect from becoming asset/mesh identity.
+    source_palette: tuple[tuple[int, int, int], ...]
     palette: tuple[tuple[int, int, int], ...]
     face_palette_forward: tuple[int, ...]
     face_palette_backward: tuple[int, ...]
@@ -248,7 +257,8 @@ class GameplayScene:
             self.tick, self.level, self.track_position, self.lateral_position,
             self.height, self.forward_velocity, self.vertical_velocity,
             self.game_state, self.ship_sprite_index,
-            self.ship_screen_x, self.ship_screen_y, self.palette,
+            self.ship_screen_x, self.ship_screen_y,
+            self.source_palette, self.palette,
             self.face_palette_forward, self.face_palette_backward,
             self.dashboard, self.shadow,
             self.geometry.digest, self.assets.digest,
@@ -379,6 +389,10 @@ def load_presentation_assets(game_root: str, level: int) -> PresentationAssets:
     from skyroads.native.boot import load_trek_display_lists
 
     root = Path(game_root)
+    roads = read_game_file(root, "ROADS.LZS")
+    road_palette = _rgb6(roads_archive.read_level_palette(
+        roads, road_archive_index(level),
+    ))
     world = load_world_assets(level, game_root=root)
     world_palette = _rgb6(world.cmap)
     cars = read_game_file(root, "CARS.LZS")
@@ -387,9 +401,10 @@ def load_presentation_assets(game_root: str, level: int) -> PresentationAssets:
     car_palette = _rgb6(cars_cmap)
     projection_lists = load_trek_display_lists(str(root.resolve()))
     dashboard_file = read_game_file(root, "DASHBRD.LZS")
-    _, _, dashboard_at, _, dashboard_h, dashboard_w = parse_lzs_container(
-        dashboard_file
+    dashboard_cmap, _, dashboard_at, _, dashboard_h, dashboard_w = (
+        parse_lzs_container(dashboard_file)
     )
+    dashboard_palette = _rgb6(dashboard_cmap)
     _, dashboard_pixels = load_pict(dashboard_file, dashboard_at)
     dashboard_indices = bytes(
         (pixel + DAC_DASHBRD_BASE) & 0xFF if pixel else 0
@@ -406,15 +421,23 @@ def load_presentation_assets(game_root: str, level: int) -> PresentationAssets:
     oxygen_cells, oxygen_widgets = widgets("OXY_DISP.DAT", 20)
     fuel_cells, fuel_widgets = widgets("FUL_DISP.DAT", 20)
     speed_cells, speed_widgets = widgets("SPEED.DAT", 68)
+    source_palette_list = [(0, 0, 0)] * 256
+    source_palette_list[:72] = road_palette
+    source_palette_list[72:72 + len(car_palette)] = car_palette
+    source_palette_list[92:92 + len(dashboard_palette)] = dashboard_palette
+    source_palette_list[142:142 + len(world_palette)] = world_palette
+    source_palette = tuple(source_palette_list)
     digest = sha256(
-        world.background + world.cmap + cars_pixels + cars_cmap
+        world.background + world.cmap + cars_pixels + cars_cmap + dashboard_cmap
+        + bytes(channel for color in road_palette for channel in color)
         + struct.pack("<HH", cars_w, cars_h)
         + b"".join(projection_lists) + dashboard_indices
         + oxygen_widgets + fuel_widgets + speed_widgets
     ).hexdigest()
     return PresentationAssets(
         BACKGROUND_W, BACKGROUND_H, world.background,
-        cars_w, cars_h, cars_pixels, car_palette, world_palette,
+        cars_w, cars_h, cars_pixels, road_palette, car_palette,
+        dashboard_palette, world_palette, source_palette,
         projection_lists, dashboard_indices,
         oxygen_cells, oxygen_widgets, fuel_cells, fuel_widgets,
         speed_cells, speed_widgets, digest,
@@ -436,16 +459,7 @@ def _palette(
             palette += ((0, 0, 0),) * (256 - len(palette))
         return palette[:256]
 
-    road = tuple(
-        tuple(expand6(int(view._backend.rb(0x41C2 + index * 3 + component)))
-              for component in range(3))
-        for index in range(72)
-    )
-    palette = [(0, 0, 0)] * 256
-    palette[:72] = road
-    palette[72:72 + len(assets.ship_palette)] = assets.ship_palette
-    palette[142:142 + len(assets.world_palette)] = assets.world_palette
-    return tuple(palette)
+    return assets.source_palette
 
 
 def build_gameplay_scene(
@@ -533,6 +547,7 @@ def build_gameplay_scene(
         ship_sprite_index=int(view.rw(0x0E24)),
         ship_screen_x=ship_x,
         ship_screen_y=ship_y,
+        source_palette=_palette(view, assets, None),
         palette=_palette(view, assets, device_palette),
         face_palette_forward=live_fill_forward,
         face_palette_backward=live_fill_backward,
@@ -647,6 +662,7 @@ def interpolate_scene(previous: GameplayScene, current: GameplayScene,
         ship_sprite_index=current.ship_sprite_index,
         ship_screen_x=blend(previous.ship_screen_x, current.ship_screen_x),
         ship_screen_y=blend(previous.ship_screen_y, current.ship_screen_y),
+        source_palette=current.source_palette,
         palette=current.palette,
         face_palette_forward=current.face_palette_forward,
         face_palette_backward=current.face_palette_backward,

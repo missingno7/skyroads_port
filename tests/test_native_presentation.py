@@ -563,6 +563,26 @@ def test_native_renderer_keeps_one_resident_level_mesh_across_row_changes() -> N
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
+def test_native_renderer_reuses_recent_level_mesh_after_level_switch() -> None:
+    pytest.importorskip("numpy")
+    renderer = RecoveredPolygonRenderer()
+    scenes = []
+    for level in (0, 1):
+        state = NativeGameState()
+        native_level_load(state, road_archive_index(level), game_root=ASSETS)
+        scenes.append(build_gameplay_scene(
+            GameView(state), level=level, game_root=ASSETS,
+        ))
+
+    first = renderer.prepare(scenes[0])
+    second = renderer.prepare(scenes[1])
+    revisited = renderer.prepare(scenes[0])
+
+    assert second.mesh is not first.mesh
+    assert revisited.mesh is first.mesh
+
+
+@pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
 def test_ship_frame_uses_the_original_column_major_cars_layout() -> None:
     pytest.importorskip("numpy")
     import numpy as np
@@ -734,11 +754,8 @@ def test_live_vga_palette_controls_enhanced_assets_during_fades() -> None:
     native_level_load(state, road_archive_index(0), game_root=ASSETS)
     state.ww(0x0E24, 14)
     view = GameView(state)
-    visible_palette = tuple((index, index, index) for index in range(256))
     black_palette = ((0, 0, 0),) * 256
-    visible = build_gameplay_scene(
-        view, level=0, game_root=ASSETS, device_palette=visible_palette,
-    )
+    visible = build_gameplay_scene(view, level=0, game_root=ASSETS)
     black = build_gameplay_scene(
         view, level=0, game_root=ASSETS, device_palette=black_palette,
     )
@@ -758,6 +775,43 @@ def test_live_vga_palette_controls_enhanced_assets_during_fades() -> None:
     assert any(visible_packet.ship_rgba)
     assert black_packet.ship_rgba is visible_packet.ship_rgba
     assert black_packet.dashboard_rgba is visible_packet.dashboard_rgba
+
+
+@pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
+def test_fade_in_acquired_while_black_reuses_source_palette_payloads() -> None:
+    """A cold native handoff at black must not rebuild on every fade step."""
+    pytest.importorskip("numpy")
+    state = NativeGameState()
+    native_level_load(state, road_archive_index(0), game_root=ASSETS)
+    view = GameView(state)
+    canonical = build_gameplay_scene(view, level=0, game_root=ASSETS)
+    assert canonical.source_palette[:72] == canonical.assets.road_palette
+    assert canonical.source_palette[72:92] == canonical.assets.ship_palette
+    assert canonical.source_palette[92:142] == canonical.assets.dashboard_palette
+    assert canonical.source_palette[142:] == canonical.assets.world_palette
+    black = build_gameplay_scene(
+        view,
+        level=0,
+        game_root=ASSETS,
+        device_palette=((0, 0, 0),) * 256,
+    )
+    renderer = RecoveredPolygonRenderer()
+
+    first = renderer.prepare(black)
+    assert first.palette_gain == pytest.approx(0.0)
+    assert any(first.background_rgb)
+
+    for numerator in (1, 7, 15, 23, 31):
+        live = tuple(
+            tuple(round(channel * numerator / 31) for channel in color)
+            for color in canonical.source_palette
+        )
+        packet = renderer.prepare(replace(canonical, palette=live))
+        assert packet.palette_gain == pytest.approx(numerator / 31, abs=0.03)
+        assert packet.mesh is first.mesh
+        assert packet.background_rgb is first.background_rgb
+        assert packet.dashboard_rgba is first.dashboard_rgba
+        assert packet.ship_rgba is first.ship_rgba
 
 
 @pytest.mark.skipif(not (ASSETS / "DASHBRD.LZS").exists(), reason="needs game assets")
