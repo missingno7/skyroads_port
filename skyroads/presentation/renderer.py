@@ -139,10 +139,13 @@ def shadow_camera_depth(
 
     The original emits the shadow from the ship-row 325B pass, before nearer
     tunnel/terrain painter spans.  Its recovered 29x9 mask remains the exact
-    alpha authority, while this tiny toward-camera bias prevents z-fighting
-    with the road deck and still lets every nearer tunnel face occlude it.
+    alpha authority.  The billboard depth is just behind the ship seam: the
+    original painter draws the rocket after its road-shadow stencil, so their
+    overlapping opaque texels must resolve to the rocket independently of the
+    depth-write optimization used for the translucent decal.  The bias remains
+    tiny enough that genuinely nearer tunnel faces occlude both.
     """
-    return ship_camera_depth(scene, calibration) - 0.01
+    return ship_camera_depth(scene, calibration) + 0.01
 
 
 @dataclass(frozen=True)

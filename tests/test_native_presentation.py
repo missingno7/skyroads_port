@@ -189,13 +189,13 @@ def test_stereo_pan_uses_the_recovered_ship_projection() -> None:
     assert left < centre < right
 
 
-def test_shadow_uses_ship_row_depth_with_road_bias() -> None:
-    """Near tunnel faces must depth-occlude the recovered 33FD stencil."""
+def test_shadow_uses_ship_row_depth_behind_the_rocket() -> None:
+    """The rocket is nearer than its stencil; nearer tunnels hide both."""
     scene = SimpleNamespace()
-    assert shadow_camera_depth(scene) < ship_camera_depth(scene)
+    assert shadow_camera_depth(scene) > ship_camera_depth(scene)
     assert (
         ModernGLFramePresenter._clip_depth(shadow_camera_depth(scene))
-        < ModernGLFramePresenter._clip_depth(ship_camera_depth(scene))
+        > ModernGLFramePresenter._clip_depth(ship_camera_depth(scene))
     )
 
 
