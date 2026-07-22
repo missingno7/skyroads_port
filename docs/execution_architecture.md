@@ -192,6 +192,13 @@ and `generated-detached` use a declared `BuildImageBootstrapProvider` containing
 python scripts/build_boot_image.py
 ```
 
+The generated build image is captured before SkyRoads initializes optional
+audio hardware and therefore contains no Sound Blaster instance. Device
+topology is selected by the execution profile after bootstrap restoration:
+headless verification attaches the deterministic detection stub, while an
+interactive native-audio profile attaches PCM capture. Mid-execution replay
+and snapshot continuations remain device-profile-specific.
+
 Build-time EXE use does not imply runtime EXE use. Missing images fail planning
 with this instruction. Detached and release policy forbid the EXE,
 original-code execution, and interpreter fallback at runtime. Ordinary

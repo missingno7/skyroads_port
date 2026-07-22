@@ -4,7 +4,7 @@ This is one bootstrap implementation for generated, EXE-detached compositions.
 It captures the deterministic post-unpack machine state during development so
 the packaged runtime can initialize without opening ``SKYROADS.EXE``:
 
-1. boot the interpreted runtime on the real EXE and run its packer stub to the
+1. boot a device-neutral interpreted runtime on the real EXE and run its packer stub to the
    CANONICAL POST-DECOMPRESSION ENTRY -- ``1010:61F3``, the far jump the stub
    makes once it has decompressed the ~30 KB program image and applied its three
    relocations (see ``skyroads/native/exe_image.py``, which reproduces that
@@ -69,6 +69,23 @@ def run_to_canonical_entry(rt, *, max_steps: int = 60_000_000) -> int:
         f"in {max_steps} steps -- the stub or the entry moved")
 
 
+def create_bootstrap_runtime(exe_path, *, game_root):
+    """Construct the profile-neutral runtime captured by the build image.
+
+    The canonical entry is still inside the unpacker hand-off: SkyRoads has
+    not probed or programmed audio hardware yet.  Persisting a build-time
+    detection-only Sound Blaster here would incorrectly bind the generated
+    bootstrap to that device profile and prevent an interactive runtime from
+    selecting capture mode.  Runtime profiles attach their declared device
+    topology after loading this neutral machine state.
+    """
+    return create_game_runtime(
+        exe_path,
+        game_root=game_root,
+        enable_sound=False,
+    )
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--exe", default=str(ROOT / "assets" / "SKYROADS.EXE"))
@@ -90,7 +107,7 @@ def main(argv=None) -> int:
             "run: python scripts/build_atlas.py --snapshot artifacts/SNAPSHOT_DIR")
 
     print(f"[boot] booting the interpreted runtime on {Path(args.exe).name}")
-    rt = create_game_runtime(args.exe, game_root=args.game_root)
+    rt = create_bootstrap_runtime(args.exe, game_root=args.game_root)
     steps = run_to_canonical_entry(rt)
     print(f"[boot] reached the canonical entry {CANONICAL_CS:04X}:{CANONICAL_IP:04X} "
           f"after {steps:,} stub steps (decompression + 3 relocations done)")

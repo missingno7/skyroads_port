@@ -215,18 +215,20 @@ def test_live_audio_output_worker_owns_synthesis_and_stops_cleanly() -> None:
     runtime.dos.adlib_callback(0x20, 0x01)
     runtime.dos.adlib_callback(0xB0, 0x31)
     sink.pump()
-    deadline = time.perf_counter() + 2.0
-    while sink._worker_chunks < 2 and time.perf_counter() < deadline:
-        time.sleep(0.005)
+    try:
+        channel = pygame.mixer.channels[1]
+        deadline = time.perf_counter() + 2.0
+        while channel.get_queue() is None and time.perf_counter() < deadline:
+            time.sleep(0.005)
 
-    pacing = sink.pacing_diagnostics()
-    assert pacing["worker_alive"]
-    assert sink._worker_chunks >= 2
-    assert pygame.mixer.channels[1].get_queue() is not None
-    assert pacing["python_synthesis"] == "independent bounded output worker"
-    assert pacing["command_callback_max_ms"] < 10.0
-
-    sink.close()
+        pacing = sink.pacing_diagnostics()
+        assert pacing["worker_alive"]
+        assert sink._worker_chunks >= 2
+        assert channel.get_queue() is not None
+        assert pacing["python_synthesis"] == "independent bounded output worker"
+        assert pacing["command_callback_max_ms"] < 10.0
+    finally:
+        sink.close()
     assert sink._audio_thread is None
 
 
