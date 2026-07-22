@@ -136,8 +136,10 @@ class SkyroadsPresentation:
         A selected level may already be fully loaded while execution is still
         in the generated fade head.  Conversely, after the fade reaches black
         the selector changes before stale road memory is replaced.  Exact road
-        identity is therefore the safe acquisition token and black is the
-        only permitted release seam for a stale token.
+        identity is therefore the safe acquisition token.  A changed selector
+        releases a stale token only while black, but a completed native region
+        is an independent, explicit release seam: its generated continuation
+        may keep the same selected level while it prepares the selector/menu.
         """
         cpu = self.runtime.cpu
         cs = int(cpu.s.cs) & 0xFFFF
@@ -149,6 +151,16 @@ class SkyroadsPresentation:
             (max(int(channel) for channel in color[:3]) for color in palette),
             default=0,
         )
+        active_gameplay_island = self._active_gameplay_island()
+        region_exit = getattr(self.runtime, "_skyroads_last_region_exit", None)
+        if self._owns_gameplay and region_exit and not active_gameplay_island:
+            # The gameplay region has returned to generated code.  The caller
+            # can retain DS:[9332] until after it has replaced the framebuffer
+            # and palette, so level identity alone cannot distinguish this
+            # transition from active gameplay.  Do not let the last native GPU
+            # packet survive into that generated continuation.
+            self._release_gameplay(f"region-exit:{region_exit}")
+            return False
         if (self._owns_gameplay
                 and self._owned_level is not None
                 and selected != self._owned_level
@@ -162,7 +174,7 @@ class SkyroadsPresentation:
         if self._owns_gameplay and selected == self._owned_level:
             if phase is not None:
                 self._ownership_phase = phase
-            elif self._active_gameplay_island():
+            elif active_gameplay_island:
                 self._ownership_phase = "gameplay-region"
             return True
 
@@ -176,7 +188,7 @@ class SkyroadsPresentation:
         except (OSError, ValueError):
             live = None
             matches = False
-        if self._active_gameplay_island() or (phase is not None and matches):
+        if active_gameplay_island or (phase is not None and matches):
             self._owns_gameplay = True
             self._owned_level = selected
             self._ownership_phase = phase or "gameplay-region"
