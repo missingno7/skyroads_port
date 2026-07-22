@@ -12,6 +12,7 @@ from skyroads.presentation.scene import (
     build_precomposed_level_start_scene,
     interpolate_scene,
     is_precomposed_level_start,
+    load_presentation_assets,
     load_road_geometry,
     project_live_road_geometry,
 )
@@ -102,20 +103,119 @@ class SkyroadsPresentation:
         self._scene_source_key = None
         self._source_scene: GameplayScene | None = None
         self._native_placeholder = None
+        self._prewarmed_levels: set[int] = set()
+        if self._renderer is not None:
+            # Immutable asset decoding, TREKDAT expansion and numpy import are
+            # startup/menu work.  Deferring them until the first audible
+            # gameplay frame caused a reproducible 0.4-0.7 s main-thread stall.
+            self._prewarm_selected_level()
 
-    # Recovered gameplay presentation heads.  434A owns palette fades around
-    # the loaded road; 22F8 is the native gameplay seam; 0EF8/4468 are the
-    # generated finish/departure continuation observed in the replay corpus.
+    # Recovered gameplay presentation heads.  Palette routine 4331 parks at
+    # 434A for every screen in the program, so 434A alone is deliberately not
+    # an ownership identity.  Its caller's caller is the stable distinction:
+    # 2B3D's 2C5B/2CBE continuations fade the loaded gameplay frame, whereas
+    # 5180's 5295/5377 continuations fade the level selector.
     _PRESENTATION_HEADS = {
-        0x434A: "gameplay-fade",
         0x22F8: "gameplay",
         0x0EF8: "gameplay-exit",
         0x4468: "gameplay-exit-wait",
+    }
+    _GAMEPLAY_FADE_RETURNS = {
+        0x2C5B: "gameplay-start-fade",
+        0x2CBE: "gameplay-exit-fade",
+    }
+    _SELECTOR_FADE_RETURNS = {
+        0x5295: "selector-fade-in",
+        0x5377: "selector-fade-out",
+    }
+    _SHELL_PRESENTATION_HEADS = {
+        0x5FED: "level-selector-input",
     }
 
     def _active_gameplay_island(self) -> bool:
         dispatcher = getattr(self.runtime, "execution_regions", None)
         return bool(dispatcher is not None and dispatcher.active_region_id == GAMEPLAY_REGION)
+
+    def _prewarm_selected_level(self, view: GameView | None = None) -> None:
+        """Materialize immutable level presentation data before gameplay.
+
+        The generated selector publishes DS:[9332] while the user navigates,
+        well before 2B3D enters the gameplay fade.  Caching that selection here
+        keeps decompression/import work out of the simulation and audio window.
+        Failure remains lazy and explicit at actual acquisition; menu states
+        whose selected-level word is not yet initialized are simply ignored.
+        """
+        cpu = self.runtime.cpu
+        if view is None:
+            view = GameView(
+                cpu.mem.data, base=(int(cpu.s.ds) & 0xFFFF) << 4,
+            )
+        try:
+            level = int(view.rw(0x9332))
+            if level in self._prewarmed_levels:
+                return
+            geometry = load_road_geometry(str(self.args.game_root), level)
+            assets = load_presentation_assets(str(self.args.game_root), level)
+            forward = tuple(
+                int(view._backend.rb(0x0352 + index * 4))
+                for index in range(256)
+            )
+            backward = tuple(
+                int(view._backend.rb(0x0353 + index * 4))
+                for index in range(256)
+            )
+            if not any(forward[1:74]) or not any(backward[1:74]):
+                from skyroads.handrecovered.rle_sprite import (
+                    RECOVERED_FILL_BACKWARD,
+                    RECOVERED_FILL_FORWARD,
+                )
+                if not any(forward[1:74]):
+                    forward = RECOVERED_FILL_FORWARD
+                if not any(backward[1:74]):
+                    backward = RECOVERED_FILL_BACKWARD
+            self._renderer.prewarm_level(
+                geometry, assets, forward, backward,
+            )
+        except (OSError, ValueError):
+            return
+        self._prewarmed_levels.add(level)
+
+    def prewarm_current(self) -> None:
+        """Warm disposable presentation caches after continuation restore."""
+        if self._renderer is None:
+            return
+        cpu = self.runtime.cpu
+        view = GameView(
+            cpu.mem.data, base=(int(cpu.s.ds) & 0xFFFF) << 4,
+        )
+        self._prewarm_selected_level(view)
+        if self._observe_ownership(view):
+            # A replay may begin inside gameplay rather than pass through the
+            # selector. Decode its first dashboard/ship/shadow packet while
+            # restoring, not inside replay point 1's presentation deadline.
+            scene = self._scene(view)
+            self._renderer.prepare(scene)
+
+    def _fade_outer_return(self) -> int | None:
+        """Return 4B8E's recovered caller identity while parked in 4331.
+
+        Both frame parking and replay snapshots preserve SS:BP and the guest
+        stack.  Unlike a host-only region-exit diagnostic, this identity can
+        therefore be reconstructed after restoring an arbitrary cached point.
+        """
+        cpu = self.runtime.cpu
+        if ((int(cpu.s.cs) & 0xFFFF) != 0x1010
+                or (int(cpu.s.ip) & 0xFFFF) != 0x434A):
+            return None
+        try:
+            ss = int(cpu.s.ss) & 0xFFFF
+            fade_bp = int(cpu.s.bp) & 0xFFFF
+            wrapper_bp = int(cpu.mem.rw(ss, fade_bp)) & 0xFFFF
+            return int(cpu.mem.rw(ss, (wrapper_bp + 2) & 0xFFFF)) & 0xFFFF
+        except (AttributeError, IndexError, TypeError, ValueError):
+            # Small adapter tests and non-x86 semantic carriers may not expose
+            # a guest stack. They can still use explicit region identities.
+            return None
 
     def _release_gameplay(self, reason: str) -> None:
         """Atomically hand presentation back to the generated shell."""
@@ -145,6 +245,14 @@ class SkyroadsPresentation:
         cs = int(cpu.s.cs) & 0xFFFF
         ip = int(cpu.s.ip) & 0xFFFF
         phase = self._PRESENTATION_HEADS.get(ip) if cs == 0x1010 else None
+        fade_return = self._fade_outer_return()
+        if fade_return in self._GAMEPLAY_FADE_RETURNS:
+            phase = self._GAMEPLAY_FADE_RETURNS[fade_return]
+        selector_phase = self._SELECTOR_FADE_RETURNS.get(fade_return)
+        shell_phase = (
+            self._SHELL_PRESENTATION_HEADS.get(ip)
+            if cs == 0x1010 else None
+        )
         selected = int(view.rw(0x9332))
         palette = getattr(self.runtime.dos, "vga_palette", ())
         palette_peak = max(
@@ -153,6 +261,16 @@ class SkyroadsPresentation:
         )
         active_gameplay_island = self._active_gameplay_island()
         region_exit = getattr(self.runtime, "_skyroads_last_region_exit", None)
+        if selector_phase is not None or shell_phase is not None:
+            # 5180 has already composed the selector before its fade-in call.
+            # Release at that recovered call identity while the palette is
+            # black, not one frame later and not based on framebuffer pixels.
+            reason = selector_phase or shell_phase
+            if self._owns_gameplay:
+                self._release_gameplay(reason)
+            else:
+                self._ownership_phase = reason
+            return False
         if self._owns_gameplay and region_exit and not active_gameplay_island:
             if phase is None:
                 # The generated caller has left every recovered gameplay
@@ -240,6 +358,7 @@ class SkyroadsPresentation:
         cpu = self.runtime.cpu
         view = GameView(cpu.mem.data, base=(cpu.s.ds & 0xFFFF) << 4)
         if not self._observe_ownership(view):
+            self._prewarm_selected_level(view)
             self.polygon_frame = None
             return fallback()
         # A host presentation frame can run several times between fixed

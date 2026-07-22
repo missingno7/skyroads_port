@@ -212,17 +212,21 @@ It is the five-band 29x9 stencil selected by original routine `1010:33FD`; its
 position follows `[0E70]`. Routine `325B` first builds a 29x33 per-pixel
 coverage mask at `[113E]`; `33FD` darkens a shadow pixel only when both its
 29x9 band stencil and that coverage byte are nonzero. The native renderer
-captures and applies the same mask, draw order, and live road-palette
-darkening. It renders this already-occluded result in screen space rather than
-depth-testing it as an invented world-space billboard.
+captures and applies the same mask and live road-palette darkening. The
+original emits it at the ship-row painter seam, before nearer terrain and
+tunnel faces; the continuous renderer expresses that ordering in the shared
+depth field. Thus the recovered mask is not reshaped into a guessed world
+blob, but near tunnel shells correctly cover it instead of the shadow being
+painted as a final always-visible overlay.
 
 Presentation ownership is deliberately wider than execution-region ownership.
-Road identity allows native output to begin at recovered fade head `434A`
-before entry into the gameplay region and remain active through `22F8`, the
-generated departure head `0EF8`, wait head `4468`, and the final fade. At the
-black handoff, a changed selected-level identity releases presentation to the
-generated level selector. This prevents both an original-frame flash and the
-opposite error of drawing stale gameplay geometry over the selector.
+The shared fade head `434A` cannot identify a screen. Its recovered caller
+chain does: `2C5B`/`2CBE` are gameplay fades and `5295`/`5377` are selector
+fades. Native output remains active through `22F8`, generated departure head
+`0EF8`, wait head `4468`, and the gameplay exit fade, then releases on the
+first selector fade even when the selected-level value has not changed. This
+prevents both an original-frame flash and stale gameplay drawn with the
+selector palette, and is stable after replay boundary restoration.
 
 The gameplay DAC is recovered as four immutable asset banks: 72 level-road
 colours, 20 CARS colours, 50 DASHBRD colours, and 114 WORLD colours.  The live

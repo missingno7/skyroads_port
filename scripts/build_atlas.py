@@ -35,6 +35,7 @@ from skyroads.identities import (  # noqa: E402
     PROGRAM,
     PROGRAM_ROOT,
     RECOVERY_ENTRY_FUNCTION,
+    execution_point_identity,
     function_identity,
 )
 from skyroads.pacing import (  # noqa: E402
@@ -218,6 +219,16 @@ def _build_atlas() -> ExecutionAtlas:
                 "label": "1010:0F05 generated road-departure transition",
                 "metadata": {"entry": "1010:0F05"},
             },
+            {
+                "id": execution_point_identity(0x6712),
+                "kind": "execution-point",
+                "label": "1010:6712 LZS symbol-loop entry",
+                "metadata": {
+                    "entry": "1010:6712",
+                    "function": "1010:66E6",
+                    "role": "replaceable-internal-block",
+                },
+            },
             *manual_hook_nodes,
         ],
         edges=[
@@ -273,6 +284,12 @@ def _build_atlas() -> ExecutionAtlas:
                 "source": GAMEPLAY_ROAD_DEPARTURE_CONTINUATION,
                 "target": function_identity(0x0F05),
                 "kind": "continuation",
+                "status": "resolved",
+            },
+            {
+                "source": function_identity(0x66E6),
+                "target": execution_point_identity(0x6712),
+                "kind": "internal-block-entry",
                 "status": "resolved",
             },
             *(

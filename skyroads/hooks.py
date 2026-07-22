@@ -7,8 +7,11 @@ installs nothing.
 from __future__ import annotations
 
 from dos_re.cpu import CPU8086, CF, DF
+from dos_re.lift.runtime import emulate_call
 
+from skyroads.codecs.lzs import LzsWidths
 from skyroads.handrecovered.blit import stencil_blit_steps
+from skyroads.handrecovered.lzs import decode_lzs_block
 from skyroads.handrecovered.present import sprite_blit_detail
 from skyroads.handrecovered.renderer import (
     perspective_row_offset,
@@ -19,6 +22,7 @@ from skyroads.handrecovered.rle_sprite import (
     rle_sprite_backward,
     rle_sprite_forward,
 )
+from skyroads.handrecovered.relocate import patch_nonzero_bytes
 from skyroads.handrecovered.tile_raster import (
     tile_mask_build,
     tile_rasterize,
@@ -26,6 +30,297 @@ from skyroads.handrecovered.tile_raster import (
 )
 
 CODE_SEG = 0x1010  # SKYROADS.EXE's single code segment (from program.entry_cs)
+
+# 1010:6712 is the stable top of 66E6's per-symbol LZS loop.  The original
+# implementation revisits it tens of thousands of times while composing a
+# selector/background.  This adapter was strict-machine-state verified over
+# all TREKDAT records plus MUZAX and INTRO (including refill and EOF cases);
+# it collapses one complete block while retaining the exact file, bit-reader,
+# register, flags, and continuation state.
+_LZS_CUR_BYTE = 0x41B0
+_LZS_BITS_LEFT = 0x41AE
+_LZS_BUF_START = 0x41B2
+_LZS_BUF_END = 0x41B4
+_LZS_BUF_CURSOR = 0x41B6
+_LZS_FILE_HANDLE = 0x41AC
+_LZS_LAST_REFILL_LEN = 0x41B8
+_LZS_WIDTH_LEN_ADDR = 0x6729
+_LZS_WIDTH_DIST_LONG_ADDR = 0x671F
+_LZS_WIDTH_DIST_SHORT_ADDR = 0x674C
+_LZS_LOOP_EXIT_IP = 0x6760
+
+
+def lzs_decode_loop_hook(cpu: CPU8086) -> None:
+    """Collapse the recovered 6712 symbol loop without changing its carrier."""
+    s = cpu.s
+    mem = cpu.mem
+    ds = s.ds
+    end_di = mem.rw(s.ss, (s.bp + 8) & 0xFFFF)
+    cur_di = s.di
+    if ((end_di - cur_di) & 0xFFFF) == 0:
+        s.ip = _LZS_LOOP_EXIT_IP
+        return
+
+    widths = LzsWidths(
+        mem.rb(CODE_SEG, _LZS_WIDTH_LEN_ADDR),
+        mem.rb(CODE_SEG, _LZS_WIDTH_DIST_LONG_ADDR),
+        mem.rb(CODE_SEG, _LZS_WIDTH_DIST_SHORT_ADDR),
+    )
+    handle = mem.rw(ds, _LZS_FILE_HANDLE)
+    dos = cpu.interrupt_handler.__self__
+    fh = dos.files[handle]
+    buf_start = mem.rw(ds, _LZS_BUF_START)
+    buf_end = mem.rw(ds, _LZS_BUF_END)
+    cursor = mem.rw(ds, _LZS_BUF_CURSOR)
+    loaded_this_refill = buf_end - buf_start
+    buf_file_start = fh.pos - loaded_this_refill
+    abs_pos = buf_file_start + (cursor - buf_start) - 1
+    cur_byte = mem.rb(ds, _LZS_CUR_BYTE)
+    bits_left = mem.rw(ds, _LZS_BITS_LEFT)
+    data = fh.data
+    file_pos = abs_pos + 1
+    entry_sp = s.sp
+    call_refetch_pos = None
+
+    def get_bits(count: int) -> int:
+        """Consume MSB-first bits a byte slice at a time.
+
+        The first recovered adapter called a Python ``get_bit`` function for
+        every one of the ~212k compressed bits in this transition.  This is
+        the identical 64AB state machine, but consumes the remaining bits of
+        the current byte in one operation and records the same refill point.
+        """
+        nonlocal cur_byte, bits_left, file_pos, call_refetch_pos
+        value = 0
+        remaining = count
+        while remaining:
+            take = min(remaining, bits_left)
+            value = (value << take) | (
+                cur_byte >> (8 - take)
+            )
+            cur_byte = (cur_byte << take) & 0xFF
+            bits_left -= take
+            remaining -= take
+            if bits_left == 0:
+                bits_left = 8
+                call_refetch_pos = file_pos
+                cur_byte = data[file_pos] if file_pos < len(data) else 0
+                file_pos += 1
+        return value
+
+    last_ax, last_cx, last_dx, last_si = s.ax, 0xFFFF, s.dx, s.si
+    bx_call_refetch_pos = None
+    bx_sp_baseline = entry_sp
+    es = s.es
+    di = cur_di
+    while di != end_di:
+        di_before = di
+        if get_bits(1) == 0:
+            distance = get_bits(widths.width_dist_long) + 2
+        else:
+            if get_bits(1) == 1:
+                call_refetch_pos = None
+                literal = get_bits(8)
+                bx_call_refetch_pos = call_refetch_pos
+                bx_sp_baseline = (entry_sp - 4) & 0xFFFF
+                mem.wb(es, di, literal)
+                di = (di + 1) & 0xFFFF
+                last_ax, last_cx, last_dx = literal, 0xFFFF, literal & 1
+                continue
+            distance = (
+                get_bits(widths.width_dist_short)
+                + (1 << widths.width_dist_long) + 2
+            )
+        call_refetch_pos = None
+        raw_length = get_bits(widths.width_len)
+        bx_call_refetch_pos = call_refetch_pos
+        bx_sp_baseline = (entry_sp - 6) & 0xFFFF
+        source = (di - distance) & 0xFFFF
+        for _ in range(raw_length + 2):
+            mem.wb(es, di, mem.rb(es, source))
+            di = (di + 1) & 0xFFFF
+            source = (source + 1) & 0xFFFF
+        last_ax = raw_length
+        last_cx = 0
+        last_dx = (end_di - di_before) & 0xFFFF
+        last_si = source
+
+    # Reproduce only refills the original bit reader would have performed.
+    # The final short read deliberately retains the previous chunk's tail.
+    chunks = [(buf_file_start, loaded_this_refill)]
+    pos = buf_file_start + loaded_this_refill
+    while pos < file_pos:
+        chunk_len = min(loaded_this_refill, len(data) - pos)
+        if chunk_len <= 0:
+            break
+        chunks.append((pos, chunk_len))
+        pos += chunk_len
+    final_chunk_start, final_chunk_len = chunks[-1]
+    new_cursor = buf_start + (file_pos - final_chunk_start)
+    if len(chunks) > 1:
+        mem.ww(ds, _LZS_BUF_END, (buf_start + final_chunk_len) & 0xFFFF)
+        mem.ww(ds, _LZS_LAST_REFILL_LEN, loaded_this_refill & 0xFFFF)
+        fh.pos = final_chunk_start + final_chunk_len
+        if final_chunk_len < loaded_this_refill and len(chunks) >= 2:
+            previous_start, previous_len = chunks[-2]
+            for index, byte in enumerate(
+                data[previous_start:previous_start + previous_len],
+            ):
+                mem.wb(ds, (buf_start + index) & 0xFFFF, byte)
+        for index, byte in enumerate(
+            data[final_chunk_start:final_chunk_start + final_chunk_len],
+        ):
+            mem.wb(ds, (buf_start + index) & 0xFFFF, byte)
+
+    mem.wb(ds, _LZS_CUR_BYTE, cur_byte)
+    mem.ww(ds, _LZS_BITS_LEFT, bits_left)
+    mem.ww(ds, _LZS_BUF_CURSOR, new_cursor & 0xFFFF)
+    if bx_call_refetch_pos is None:
+        s.bx = bx_sp_baseline
+    else:
+        fetch_chunk_start = buf_file_start
+        for chunk_start, chunk_len in chunks:
+            if chunk_start <= bx_call_refetch_pos < chunk_start + chunk_len:
+                fetch_chunk_start = chunk_start
+                break
+        cursor_at_fetch = buf_start + (
+            bx_call_refetch_pos - fetch_chunk_start
+        )
+        fetched_byte = (
+            data[bx_call_refetch_pos]
+            if bx_call_refetch_pos < len(data) else 0
+        )
+        s.bx = ((cursor_at_fetch & 0xFF00) | fetched_byte) & 0xFFFF
+
+    s.ax = last_ax & 0xFFFF
+    s.cx = last_cx & 0xFFFF
+    s.dx = last_dx & 0xFFFF
+    s.si = last_si & 0xFFFF
+    s.di = end_di
+    cpu.set_sub_flags(end_di, end_di, 0, 16)
+    s.ip = _LZS_LOOP_EXIT_IP
+
+
+def lzs_decode_function_hook(cpu: CPU8086) -> None:
+    """Exact 66E6 carrier adapter around the recovered semantic loop.
+
+    The generated carrier dispatches implementations at stable function
+    identities, so it cannot observe an internal CPU-hook table entry at
+    6712.  Reproduce 66E6's small evidenced prologue/header and epilogue here,
+    while the already-verified loop adapter owns 6712..675E.  The helper calls
+    still pass through the selected carrier and preserve their DOS/file state.
+    """
+    s = cpu.s
+    mem = cpu.mem
+
+    # 66E6..66F2: enter; save SI/DI; load output far pointer; turn the caller's
+    # output length into the exact end offset consumed by the loop.
+    cpu.push(s.bp)
+    s.bp = s.sp
+    cpu.push(s.si)
+    cpu.push(s.di)
+    pointer = (s.bp + 4) & 0xFFFF
+    s.di = mem.rw(s.ss, pointer)
+    s.es = mem.rw(s.ss, (pointer + 2) & 0xFFFF)
+    end_pointer = (s.bp + 8) & 0xFFFF
+    out_size = mem.rw(s.ss, end_pointer)
+    result = out_size + s.di
+    cpu.set_add_flags(out_size, s.di, result, 16)
+    mem.ww(s.ss, end_pointer, result & 0xFFFF)
+    cpu.instruction_count += 6
+
+    # 6490 returns the three byte-aligned width bytes.  The original stores
+    # them in self-modified immediates and computes the short-distance base.
+    emulate_call(cpu, CODE_SEG, 0x6490, 0x66F5)
+    mem.wb(CODE_SEG, _LZS_WIDTH_LEN_ADDR, s.ax & 0xFF)
+    cpu.instruction_count += 2
+    emulate_call(cpu, CODE_SEG, 0x6490, 0x66FC)
+    mem.wb(CODE_SEG, _LZS_WIDTH_DIST_LONG_ADDR, s.ax & 0xFF)
+    s.cx = s.ax
+    s.ax = 1
+    s.ax = cpu.shift(4, s.ax, s.cx & 0xFF, 16) & 0xFFFF
+    mem.ww(CODE_SEG, 0x6751, s.ax)
+    cpu.instruction_count += 6
+    emulate_call(cpu, CODE_SEG, 0x6490, 0x670E)
+    mem.wb(CODE_SEG, _LZS_WIDTH_DIST_SHORT_ADDR, s.ax & 0xFF)
+    cpu.instruction_count += 1
+
+    s.ip = 0x6712
+    lzs_decode_loop_hook(cpu)
+    if s.ip != _LZS_LOOP_EXIT_IP:
+        raise RuntimeError(
+            f"LZS loop returned at unexpected 1010:{s.ip:04X}"
+        )
+
+    cpu.instruction_count += 1
+    emulate_call(cpu, CODE_SEG, 0x6679, 0x6763)
+    s.di = cpu.pop()
+    s.si = cpu.pop()
+    s.sp = s.bp
+    s.bp = cpu.pop()
+    cpu.instruction_count += 4
+    s.ip = cpu.pop()
+
+
+# 1010:4052 scans an asset buffer and adds a relocation delta to every
+# nonzero byte.  It is especially expensive at selector/gameplay handoffs,
+# where a zero CX intentionally means a complete 64 KiB pass.  The adapter
+# below is the lift-derived, strict-machine-state-verified implementation
+# previously used by SkyRoads; keeping it in the canonical catalog avoids
+# making this recovered transition cost depend on the selected carrier.
+_RELOC_SEG_STEP = 0x1000
+
+
+def buffer_relocate_hook(cpu: CPU8086) -> None:
+    s = cpu.s
+    mem = cpu.mem
+    ss, sp = s.ss, s.sp
+    ret_ip = mem.rw(ss, sp)
+    far_off = mem.rw(ss, (sp + 2) & 0xFFFF)
+    far_seg = mem.rw(ss, (sp + 4) & 0xFFFF)
+    count = mem.rw(ss, (sp + 6) & 0xFFFF)
+    extra_addr = (sp + 8) & 0xFFFF
+    remaining_extra = mem.rw(ss, extra_addr)
+    delta_word = mem.rw(ss, (sp + 10) & 0xFFFF)
+    delta = delta_word & 0xFF
+
+    pos, seg = far_off, far_seg
+    wrapped_any = False
+    pass_len = count if count != 0 else 0x10000
+    old_extra = new_extra = remaining_extra
+    while True:
+        left = pass_len
+        while left > 0:
+            span = min(left, 0x10000 - pos)
+            source = bytes(
+                mem.rb(seg, (pos + index) & 0xFFFF)
+                for index in range(span)
+            )
+            patched = patch_nonzero_bytes(source, delta)
+            for index, value in enumerate(patched):
+                mem.wb(seg, (pos + index) & 0xFFFF, value)
+            pos = (pos + span) & 0xFFFF
+            left -= span
+            if pos == 0:
+                seg = (seg + _RELOC_SEG_STEP) & 0xFFFF
+                wrapped_any = True
+        old_extra = remaining_extra
+        new_extra = (remaining_extra - 1) & 0xFFFF
+        remaining_extra = new_extra
+        if new_extra & 0x8000:
+            break
+        pass_len = 0x10000
+
+    mem.ww(ss, extra_addr, new_extra)
+    s.bx = pos
+    s.cx = 0
+    s.ax = delta_word
+    if wrapped_any:
+        s.ds = seg
+        s.dx = seg
+    cpu.set_incdec_flags(old_extra, new_extra, 16, dec=True)
+    s.sp = (sp + 2) & 0xFFFF
+    s.ip = ret_ip
 
 # CS:IP 1010:3A22 - masked sprite/overlay blit. Bare register-clobbering
 # routine (no push/pop anywhere in it -- its caller, 1010:39D4, reloads
@@ -800,6 +1095,8 @@ from skyroads.lifted.functions.lifted_1010_0baf import lifted_1010_0baf as _lift
 # authority. Only complete semantic-plus-adapter pairs remain in this module;
 # there is no dormant override inventory outside the catalog declaration below.
 FAITHFUL_OVERRIDE_ADAPTERS = {
+    0x4052: ("buffer_relocate", patch_nonzero_bytes, buffer_relocate_hook),
+    0x66E6: ("lzs_decode", decode_lzs_block, lzs_decode_function_hook),
     0x3A22: ("sprite_blit", sprite_blit_detail, sprite_blit_hook),
     0x32C1: ("tile_clip_mask", tile_mask_build, tile_clip_mask_hook),
     0x33FD: ("tile_shade", tile_shade, tile_shade_hook),

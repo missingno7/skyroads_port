@@ -7,7 +7,7 @@ prepared by ``SkyroadsPresentation`` and cannot advance or mutate simulation.
 from __future__ import annotations
 
 from skyroads.presentation.renderer import (
-    CALIBRATION, DASHBOARD_TOP, ship_camera_depth,
+    CALIBRATION, DASHBOARD_TOP, shadow_camera_depth, ship_camera_depth,
 )
 
 
@@ -458,12 +458,12 @@ class ModernGLFramePresenter:
             )
             self._draw_ship_billboard(
                 shadow, self._gl_viewport(shadow_rect, window_height),
-                # 33FD is a screen-space palette remap performed only where
-                # its independently recovered coverage mask admits a road
-                # pixel.  It is not a world billboard and must not be rejected
-                # by a second, approximate depth comparison after that exact
-                # visibility decision has already been made.
-                None,
+                # 33FD supplies exact pixel admission, while 2D1F's painter
+                # order lets subsequent near tunnel faces cover those pixels.
+                # The continuous renderer expresses that same second rule in
+                # its shared depth field; otherwise a screen-space overlay
+                # incorrectly paints the shadow over tunnel shells.
+                None if recovered_projection else shadow_camera_depth(scene),
                 color_gain=packet.palette_gain,
             )
 

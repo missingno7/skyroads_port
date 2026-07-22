@@ -373,6 +373,12 @@ class SkyroadsReplayDriver:
         self.frontend.apply_replay_state(self.runtime, state)
         self.input.seek(state.event_cursor)
         self._point = point
+        presentation = getattr(self.runtime, "_skyroads_presentation", None)
+        if presentation is not None:
+            # GPU/asset caches are deliberately absent from continuation
+            # state. Rebuild them at restore time, outside the first replayed
+            # semantic point and outside its audio/presentation deadline.
+            presentation.prewarm_current()
 
     def begin_observable_interval(self):
         previous = getattr(self.runtime.dos, "observable_effect_sink", None)

@@ -28,6 +28,7 @@ colors.
 """
 from __future__ import annotations
 
+from functools import lru_cache
 import struct
 from typing import List, NamedTuple
 
@@ -104,6 +105,7 @@ def expand6(v: int) -> int:
     return ((v << 2) | (v >> 4)) & 0xFF
 
 
+@lru_cache(maxsize=8)
 def load_world_assets(level: int, *, game_root) -> WorldAssets:
     """Parse level ``level``'s world file: CMAP palette + the 320x138
     background (decompressed and +0x8E-biased, exactly as the game banks it)."""

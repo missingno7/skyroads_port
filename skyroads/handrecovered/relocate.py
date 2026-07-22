@@ -17,4 +17,10 @@ from __future__ import annotations
 def patch_nonzero_bytes(source: bytes, delta: int) -> bytes:
     """Add ``delta`` to every nonzero byte in ``source``, mod 256 (1010:4062-4069)."""
     d = delta & 0xFF
-    return bytes(b if b == 0 else (b + d) & 0xFF for b in source)
+    # ``bytes.translate`` performs the same byte-local mapping in native code.
+    # 4052 deliberately scans complete 64 KiB regions during transitions, so
+    # allocating one Python integer per byte here used to turn an invisible
+    # black-frame fixup into a visible/audio-stalling pause.
+    table = bytes(0 if value == 0 else (value + d) & 0xFF
+                  for value in range(256))
+    return source.translate(table)

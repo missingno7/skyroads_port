@@ -81,7 +81,9 @@ FAITHFUL_IPS = {
     0x325B,
     0x32C1,
     0x33FD,
+    0x4052,
     0x3A22,
+    0x66E6,
 }
 HEX_DIGEST = re.compile(r"[0-9a-f]{64}")
 

@@ -42,12 +42,14 @@ replaced here by the native :func:`read_game_file` shim.
 """
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import NamedTuple
 
 from skyroads.handrecovered import roads_archive
 
 
+@lru_cache(maxsize=64)
 def read_game_file(game_root: str | Path, name: str) -> bytes:
     """The native file-read shim: read a game resource straight from disk, with
     NO VM/DOS layer. Replaces the game's `INT 21h` open+read (`0x6C2E` wrapper).

@@ -49,13 +49,17 @@ crashed live simulation fields while it draws the reset frame at full black;
 the reset fields are published only after fade-in. Native presentation follows
 the call signature, so the reset frame is already under the entire fade and
 does not jump when those live fields are finally published.
-Presentation ownership also follows those recovered visual heads rather than
-the persistent `last_region_exit` diagnostic. Crash/restart fades (`434A`),
-road-departure rendering (`0EF8`), and its wait (`4468`) remain one continuous
-native presentation interval after the gameplay island returns. Ownership
-passes to the generated selector only at its external shell seam (observed at
-`5FED`) or when a changed level identity is published under a black palette.
-This prevents native/original renderer oscillation on successive fade points.
+Presentation ownership follows recovered call identities rather than the
+persistent `last_region_exit` diagnostic. Routine `4331` and its frame head
+`434A` are shared by every screen; they do not identify the owner. The caller
+continuations on the preserved `SS:BP` chain do: gameplay start/restart and
+exit fades return through `2C5B`/`2CBE`, while selector fade-in/fade-out return
+through `5295`/`5377`. Road-departure rendering (`0EF8`) and its wait (`4468`)
+therefore remain in the continuous native interval, but ownership is released
+before the first selector fade point and remains original at selector input
+`5FED`. Because the identity is continuation state, restoring a cached replay
+boundary in the middle of either fade reaches the same decision without host
+history or framebuffer heuristics.
 In `final`, one immutable whole-level lane/row/elevation mesh remains resident
 on the GPU and passes through the recovered continuous lens at the real window
 resolution. Track interpolation changes one camera uniform, never object
@@ -67,7 +71,16 @@ mask plus the recovered speed/oxygen/fuel DAT stencils, progress bar, and
 grav-o-meter. The upper bezel's holes are therefore truly transparent over the
 native road rather than a low-resolution oracle-frame crop. The rocket shadow
 uses the original five-band `33FD` road-darkening stencil and recovered screen
-placement; it is not an inferred blob beneath the sprite.
+placement; it is not an inferred blob beneath the sprite. Its exact recovered
+alpha remains authoritative, while its ship-row depth participates in the
+same native depth field as the road and tunnel. Near tunnel faces therefore
+occlude both the ship and shadow, matching the original painter order.
+
+Immutable level files, parsed world assets, decoded presentation assets, and
+the whole-level GPU mesh are cached by stable level/content identity. They are
+prewarmed while the generated selector owns presentation (and immediately
+after replay continuation restore), rather than decoded or uploaded on the
+first audible gameplay frame.
 
 The transparency boundary follows the original compositor exactly. The road
 renderer can overwrite rows 129..137, so zero-keyed `DASHBRD` pixels expose the

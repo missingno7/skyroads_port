@@ -14,6 +14,7 @@ import colorsys
 from hashlib import sha256
 import math
 import struct
+from types import SimpleNamespace
 from typing import Iterable
 
 from skyroads.presentation.scene import (
@@ -129,6 +130,19 @@ def ship_camera_depth(
     """
     del scene
     return calibration.ship_depth
+
+
+def shadow_camera_depth(
+    scene: GameplayScene, calibration: ProjectionCalibration = CALIBRATION,
+) -> float:
+    """Place 33FD's stencil on the road in the shared native depth field.
+
+    The original emits the shadow from the ship-row 325B pass, before nearer
+    tunnel/terrain painter spans.  Its recovered 29x9 mask remains the exact
+    alpha authority, while this tiny toward-camera bias prevents z-fighting
+    with the road deck and still lets every nearer tunnel face occlude it.
+    """
+    return ship_camera_depth(scene, calibration) - 0.01
 
 
 @dataclass(frozen=True)
@@ -792,6 +806,33 @@ class RecoveredPolygonRenderer:
         self._palette_basis_key = None
         self._palette_basis = None
 
+    def prewarm_level(self, geometry, assets, face_palette_forward,
+                      face_palette_backward) -> None:
+        """Build immutable native geometry before the gameplay clock starts."""
+        if self.debug_mode == "exact-projection":
+            return
+        # prepare() imports numpy lazily for headless users. Native-3D has
+        # already been selected here, so pay that module-import cost during
+        # startup/selector idle rather than on the first audible game frame.
+        import numpy  # noqa: F401
+        scene = SimpleNamespace(
+            geometry=geometry,
+            palette=assets.source_palette,
+            face_palette_forward=tuple(face_palette_forward),
+            face_palette_backward=tuple(face_palette_backward),
+        )
+        key = self._mesh_identity(scene)
+        mesh = self._mesh_cache.get(key)
+        if mesh is None:
+            mesh = build_polygon_mesh(
+                scene, debug_mode=self.debug_mode, full_level=True,
+            )
+            self._mesh_cache[key] = mesh
+            while len(self._mesh_cache) > 4:
+                self._mesh_cache.pop(next(iter(self._mesh_cache)))
+        self._mesh_key = key
+        self._mesh = mesh
+
     def _mesh_identity(self, scene: GameplayScene):
         return (
             scene.geometry.digest,
@@ -970,5 +1011,6 @@ class RecoveredPolygonRenderer:
 __all__ = [
     "CALIBRATION", "DEBUG_RENDER_MODES", "PolygonFrame", "PolygonMesh",
     "DASHBOARD_TOP", "ProjectionCalibration", "RecoveredPolygonRenderer", "build_polygon_mesh",
-    "project_world_vertex", "projection_scale", "ship_camera_depth",
+    "project_world_vertex", "projection_scale", "shadow_camera_depth",
+    "ship_camera_depth",
 ]

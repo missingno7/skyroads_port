@@ -55,6 +55,12 @@
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A0f05"
     },
     {
+      "kind": "internal-block-entry",
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A66e6",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A6712"
+    },
+    {
       "kind": "retained-recovery-entry",
       "source": "skyroads:1.0:region:program",
       "status": "resolved",
@@ -1207,6 +1213,16 @@
       "metadata": {
         "entry": "1010:0F05"
       }
+    },
+    {
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A6712",
+      "kind": "execution-point",
+      "label": "1010:6712 LZS symbol-loop entry",
+      "metadata": {
+        "entry": "1010:6712",
+        "function": "1010:66E6",
+        "role": "replaceable-internal-block"
+      }
     }
   ],
   "program_id": "skyroads:1.0",
@@ -1215,5 +1231,5 @@
     "kind": "project-declared-entry-census",
     "source": "retained Recovery IR and skyroads.execution catalog"
   },
-  "source_digest": "741447f7326973e003748cded1e921fc6d259849907bf2a3da6d7c0d8ca6cc3d"
+  "source_digest": "fd83d86e200c08e9af1245e3b3da6fd70c8b75fe3441651fcf261804a6b1d661"
 }

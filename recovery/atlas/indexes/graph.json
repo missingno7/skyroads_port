@@ -10588,6 +10588,18 @@
       "observation_count": 0,
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4331",
       "status": "containment",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A434a"
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "contains",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4331",
+      "status": "containment",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A43b0"
     },
     {
@@ -19224,6 +19236,18 @@
       "evidence": [
         "manual:skyroads-retained-entry-census-v1"
       ],
+      "kind": "internal-block-entry",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A66e6",
+      "status": "resolved",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A6712"
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "manual:skyroads-retained-entry-census-v1"
+      ],
       "kind": "continuation",
       "metadata": {},
       "observation_count": 0,
@@ -26940,6 +26964,22 @@
       "evidence": [
         "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
       ],
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A434a",
+      "kind": "execution-point",
+      "label": "1010:434A",
+      "metadata": {
+        "address": "1010:434A",
+        "address_space": "real-mode",
+        "boundary_effect": true,
+        "dispatch_entry": false,
+        "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      }
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
       "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A43b0",
       "kind": "execution-point",
       "label": "1010:43B0",
@@ -27070,6 +27110,20 @@
         "address_space": "real-mode",
         "frontier_reason": "call",
         "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      }
+    },
+    {
+      "conflicts": {},
+      "evidence": [
+        "manual:skyroads-retained-entry-census-v1"
+      ],
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A6712",
+      "kind": "execution-point",
+      "label": "1010:6712 LZS symbol-loop entry",
+      "metadata": {
+        "entry": "1010:6712",
+        "function": "1010:66E6",
+        "role": "replaceable-internal-block"
       }
     },
     {

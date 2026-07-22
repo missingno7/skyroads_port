@@ -131,6 +131,15 @@ function untouched. It writes the selected level, generated code loads the
 level and transition assets, and the generated gameplay caller reaches the
 native region at `1010:2317`.
 
+The selector is therefore still a generated region, not a second player. Its
+screen composition currently includes verified native implementations for the
+`66E6` LZS decode function and `4052` relocation pass, selected through the
+same implementation catalog on interpreted and generated carriers. A future
+authored selector may replace `5180` as a larger faithful execution region and
+collapse those internal seams. It must retain the recovered selection,
+palette/fade, input, and gameplay-continuation contracts; it must not become an
+independent menu runtime or bypass the canonical execution plan.
+
 `--level N` is a one-shot launch-input adapter at the same `1010:5180` seam.
 It supplies the authoritative result of one confirmed selection and restores
 the selected generated function before the level starts. It does not load a

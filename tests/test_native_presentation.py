@@ -18,6 +18,7 @@ from skyroads.presentation.renderer import (
     build_polygon_mesh,
     project_world_vertex,
     projection_scale,
+    shadow_camera_depth,
     ship_camera_depth,
 )
 from skyroads.presentation.moderngl_presenter import (
@@ -54,6 +55,16 @@ from skyroads.presentation.runtime import SkyroadsPresentation, _scene_state_key
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
+
+
+def _set_fade_callsite(runtime, return_ip: int) -> None:
+    """Install the two recovered 4331 -> 4B8E stack frames."""
+    state = runtime.cpu.s
+    state.ss = int(state.ds)
+    state.bp = 0xB700
+    wrapper_bp = 0xB720
+    runtime.cpu.mem.ww(state.ss, state.bp, wrapper_bp)
+    runtime.cpu.mem.ww(state.ss, wrapper_bp + 2, return_ip)
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
@@ -178,6 +189,16 @@ def test_stereo_pan_uses_the_recovered_ship_projection() -> None:
     assert left < centre < right
 
 
+def test_shadow_uses_ship_row_depth_with_road_bias() -> None:
+    """Near tunnel faces must depth-occlude the recovered 33FD stencil."""
+    scene = SimpleNamespace()
+    assert shadow_camera_depth(scene) < ship_camera_depth(scene)
+    assert (
+        ModernGLFramePresenter._clip_depth(shadow_camera_depth(scene))
+        < ModernGLFramePresenter._clip_depth(ship_camera_depth(scene))
+    )
+
+
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
 def test_black_level_selector_handoff_atomically_drops_native_gpu_packet() -> None:
     state = NativeGameState()
@@ -208,13 +229,20 @@ def test_black_level_selector_handoff_atomically_drops_native_gpu_packet() -> No
     presentation = SkyroadsPresentation(runtime, args)
     live = GameView(memory.data, base=base)
 
+    _set_fade_callsite(runtime, 0x2CBE)
     assert presentation._observe_ownership(live)
     presentation.polygon_frame = object()
-    memory.ww(ds, 0x9332, level + 1)
+    _set_fade_callsite(runtime, 0x5295)
 
     assert not presentation._observe_ownership(live)
-    assert presentation._ownership_phase == "black-handoff"
+    assert presentation._ownership_phase == "selector-fade-in"
     assert presentation.polygon_frame is None
+
+    # A boundary restored in the middle of the selector fade has no host
+    # ownership history and must reach the same decision from SS:BP alone.
+    restored = SkyroadsPresentation(runtime, args)
+    assert not restored._observe_ownership(live)
+    assert restored._ownership_phase == "selector-fade-in"
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
@@ -251,6 +279,7 @@ def test_region_exit_drops_same_level_gameplay_packet_before_menu_handoff() -> N
     presentation = SkyroadsPresentation(runtime, args)
     live = GameView(memory.data, base=base)
 
+    _set_fade_callsite(runtime, 0x2CBE)
     assert presentation._observe_ownership(live)
     presentation.polygon_frame = object()
     runtime.cpu.s.ip = 0x2C61  # GAMEPLAY_ABORTED_EXIT generated continuation
@@ -293,13 +322,15 @@ def test_region_exit_retains_native_owner_until_gameplay_fade_reaches_shell() ->
     presentation = SkyroadsPresentation(runtime, args)
     live = GameView(memory.data, base=base)
 
+    _set_fade_callsite(runtime, 0x2CBE)
+
     # The same persistent exit marker is observed at every generated gameplay
     # presentation boundary. It must not toggle ownership at any of them.
     for ip, phase in (
-        (0x434A, "gameplay-fade"),
+        (0x434A, "gameplay-exit-fade"),
         (0x0EF8, "gameplay-exit"),
         (0x4468, "gameplay-exit-wait"),
-        (0x434A, "gameplay-fade"),
+        (0x434A, "gameplay-exit-fade"),
     ):
         runtime.cpu.s.ip = ip
         assert presentation._observe_ownership(live)
@@ -310,7 +341,7 @@ def test_region_exit_retains_native_owner_until_gameplay_fade_reaches_shell() ->
     runtime.cpu.s.ip = 0x5FED
     presentation.polygon_frame = object()
     assert not presentation._observe_ownership(live)
-    assert presentation._ownership_phase == "region-exit:gameplay-aborted"
+    assert presentation._ownership_phase == "level-selector-input"
     assert presentation.polygon_frame is None
 
 

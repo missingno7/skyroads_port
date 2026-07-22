@@ -48,6 +48,9 @@ def _snapshot(driver, ordinal: int, presentation=None) -> dict:
     )
     memory = cpu.mem
 
+    def stack_word(offset: int) -> int:
+        return int(memory.rw(int(cpu.s.ss) & 0xFFFF, offset & 0xFFFF))
+
     def rw(offset: int) -> int:
         return int(memory.rw(ds, offset))
 
@@ -103,6 +106,21 @@ def _snapshot(driver, ordinal: int, presentation=None) -> dict:
             runtime, "_skyroads_last_region_exit", None,
         ),
     }
+    if int(cpu.s.cs) == 0x1010 and 0x4331 <= int(cpu.s.ip) <= 0x4467:
+        bp = int(cpu.s.bp) & 0xFFFF
+        caller_bp = stack_word(bp)
+        result["fade_frame"] = {
+            "bp": bp,
+            "caller_bp": caller_bp,
+            "return_ip": stack_word(bp + 2),
+            "target_palette": stack_word(bp + 4),
+            "source_palette": stack_word(bp + 6),
+            "steps": stack_word(bp + 8),
+            "outer_return_ip": stack_word(caller_bp + 2),
+            "outer_arg0": stack_word(caller_bp + 4),
+            "outer_arg1": stack_word(caller_bp + 6),
+            "outer_arg2": stack_word(caller_bp + 8),
+        }
     if presentation is not None:
         view = GameView(cpu.mem.data, base=ds << 4)
         owns = presentation._observe_ownership(view)
@@ -189,7 +207,8 @@ def main(argv: list[str] | None = None) -> int:
                 f"{'native' if item.get('native_presentation_owner') else 'original'}:"
                 f"{item.get('ownership_phase', '-')} "
                 f"params={','.join(f'{value:04X}' for value in item['render_params'])} "
-                f"exit={item['last_region_exit'] or '-'}"
+                f"exit={item['last_region_exit'] or '-'} "
+                f"fade={('-' if 'fade_frame' not in item else '/'.join(format(item['fade_frame'][name], '04X') for name in ('return_ip', 'outer_return_ip', 'outer_arg0', 'outer_arg1', 'outer_arg2')))}"
             )
         if error:
             print(f"STOPPED: {error}")

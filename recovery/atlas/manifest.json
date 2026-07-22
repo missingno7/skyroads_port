@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "index_digest": "b922715d7d86d5faec0d63561c9628710743b7b0d07e1fe55b68a65f2f379f4f",
+  "index_digest": "7dd52f21cae4cba165af6b02528d4b6eb684d268f0262127eee8e3015c62414e",
   "product_roots": {
     "game": [
       "skyroads:1.0:region:program"
@@ -12,7 +12,7 @@
       "identity": "manual:skyroads-retained-entry-census-v1",
       "kind": "manual",
       "path": "sources/manual-151c5d83bcd3e821abc5.json",
-      "source_digest": "741447f7326973e003748cded1e921fc6d259849907bf2a3da6d7c0d8ca6cc3d"
+      "source_digest": "fd83d86e200c08e9af1245e3b3da6fd70c8b75fe3441651fcf261804a6b1d661"
     },
     {
       "identity": "replay:032e597d92345dbcd3e1ae0bd039cabf7c139b8ede20092d67935e370ef381bb",
@@ -24,13 +24,13 @@
       "identity": "replay:c83acfffde75d9d185aa24599caaa9ac1b384f2f692f6c017717bed8bca09272",
       "kind": "replay",
       "path": "sources/replay-9601726553e52c74cdec.json",
-      "source_digest": "4129b3fe64e277f10157c4b054ef24e4d39c6cab8a19391c44507a05f38ed700"
+      "source_digest": "082a56b863b51f55e3d73bf8383984267ec76c9632a63c7038b333c2b383b2d2"
     },
     {
       "identity": "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f",
       "kind": "static",
       "path": "sources/static-cd40d82017dc7a73d065.json",
-      "source_digest": "10c993ebb848b17158bb248c2dcf36b280fb678d8f0169083db5f1d47687619f"
+      "source_digest": "4c6e1ca52a0e0cab9c9786cb8435acd0c4f569a3de4701cae145c87508f1493f"
     }
   ]
 }

@@ -13,6 +13,23 @@
         "ordinal": 3,
         "timeline_id": "skyroads-presented-frame-boundaries-v1"
       }
+    },
+    {
+      "kind": "verified-semantic-interval",
+      "metadata": {
+        "candidate_profile": "real-mode-verification-9cda4d4feb91",
+        "checkpoint_span": 64,
+        "digest": "1cb169ae8a5cfdf8d1526a85b0ef11239add7f4cc1c9fc9b9e91badcdab134e1",
+        "observable_effects": false,
+        "observable_event_count": 0,
+        "oracle_profile": "real-mode-development-7a5c7a97297f",
+        "points_observed": 3
+      },
+      "point": {
+        "key": "f029e88d5c291312-0000000000000003",
+        "ordinal": 3,
+        "timeline_id": "skyroads-presented-frame-boundaries-v1"
+      }
     }
   ],
   "artifact": {
@@ -42,7 +59,7 @@
     },
     "oracle_profile_identity_digest": "43c8051e47f405e93ab8ae82d2f1b00fc38c002a40e45a1e5db6da326e3b9342",
     "timeline_id": "skyroads-presented-frame-boundaries-v1",
-    "validation_count": 0
+    "validation_count": 1
   },
   "evidence_identity_digest": "b2519a1d0f007f14ea8871cae0c80f3f03e39d04b37b4e81a4e14e5683b28417",
   "evidence_provenance": {},
@@ -56,7 +73,7 @@
   "kind": "replay",
   "program_id": "skyroads:1.0",
   "runtime_variants": [],
-  "source_digest": "4129b3fe64e277f10157c4b054ef24e4d39c6cab8a19391c44507a05f38ed700",
+  "source_digest": "082a56b863b51f55e3d73bf8383984267ec76c9632a63c7038b333c2b383b2d2",
   "transfers": [
     {
       "count": 7,
@@ -235,6 +252,23 @@
             "ordinal": 3,
             "timeline_id": "skyroads-presented-frame-boundaries-v1"
           }
+        },
+        {
+          "kind": "verified-semantic-interval",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-9cda4d4feb91",
+            "checkpoint_span": 64,
+            "digest": "1cb169ae8a5cfdf8d1526a85b0ef11239add7f4cc1c9fc9b9e91badcdab134e1",
+            "observable_effects": false,
+            "observable_event_count": 0,
+            "oracle_profile": "real-mode-development-7a5c7a97297f",
+            "points_observed": 3
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
         }
       ],
       "cached_at_or_before_entry": {
@@ -270,6 +304,23 @@
             "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
             "oracle_profile": "real-mode-development-b1d8a0e6dcca",
             "projection_schema": "dos-re-complete-machine-v1"
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        },
+        {
+          "kind": "verified-semantic-interval",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-9cda4d4feb91",
+            "checkpoint_span": 64,
+            "digest": "1cb169ae8a5cfdf8d1526a85b0ef11239add7f4cc1c9fc9b9e91badcdab134e1",
+            "observable_effects": false,
+            "observable_event_count": 0,
+            "oracle_profile": "real-mode-development-7a5c7a97297f",
+            "points_observed": 3
           },
           "point": {
             "key": "f029e88d5c291312-0000000000000003",
@@ -317,6 +368,23 @@
             "ordinal": 3,
             "timeline_id": "skyroads-presented-frame-boundaries-v1"
           }
+        },
+        {
+          "kind": "verified-semantic-interval",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-9cda4d4feb91",
+            "checkpoint_span": 64,
+            "digest": "1cb169ae8a5cfdf8d1526a85b0ef11239add7f4cc1c9fc9b9e91badcdab134e1",
+            "observable_effects": false,
+            "observable_event_count": 0,
+            "oracle_profile": "real-mode-development-7a5c7a97297f",
+            "points_observed": 3
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
         }
       ],
       "cached_at_or_before_entry": {
@@ -358,6 +426,23 @@
             "ordinal": 3,
             "timeline_id": "skyroads-presented-frame-boundaries-v1"
           }
+        },
+        {
+          "kind": "verified-semantic-interval",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-9cda4d4feb91",
+            "checkpoint_span": 64,
+            "digest": "1cb169ae8a5cfdf8d1526a85b0ef11239add7f4cc1c9fc9b9e91badcdab134e1",
+            "observable_effects": false,
+            "observable_event_count": 0,
+            "oracle_profile": "real-mode-development-7a5c7a97297f",
+            "points_observed": 3
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
         }
       ],
       "cached_at_or_before_entry": {
@@ -393,6 +478,23 @@
             "digest": "7b6d492ace3b957f2cd4aa26fd618fabce17946560f54227225dd9d6ba9d9236",
             "oracle_profile": "real-mode-development-b1d8a0e6dcca",
             "projection_schema": "dos-re-complete-machine-v1"
+          },
+          "point": {
+            "key": "f029e88d5c291312-0000000000000003",
+            "ordinal": 3,
+            "timeline_id": "skyroads-presented-frame-boundaries-v1"
+          }
+        },
+        {
+          "kind": "verified-semantic-interval",
+          "metadata": {
+            "candidate_profile": "real-mode-verification-9cda4d4feb91",
+            "checkpoint_span": 64,
+            "digest": "1cb169ae8a5cfdf8d1526a85b0ef11239add7f4cc1c9fc9b9e91badcdab134e1",
+            "observable_effects": false,
+            "observable_event_count": 0,
+            "oracle_profile": "real-mode-development-7a5c7a97297f",
+            "points_observed": 3
           },
           "point": {
             "key": "f029e88d5c291312-0000000000000003",

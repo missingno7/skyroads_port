@@ -5700,6 +5700,17 @@
       "observation_count": 0,
       "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4331",
       "status": "containment",
+      "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A434a"
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
+      "kind": "contains",
+      "metadata": {},
+      "observation_count": 0,
+      "source": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A4331",
+      "status": "containment",
       "target": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A43b0"
     },
     {
@@ -14507,6 +14518,21 @@
       "evidence": [
         "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
       ],
+      "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A434a",
+      "kind": "execution-point",
+      "label": "1010:434A",
+      "metadata": {
+        "address": "1010:434A",
+        "address_space": "real-mode",
+        "boundary_effect": true,
+        "dispatch_entry": false,
+        "image_id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      }
+    },
+    {
+      "evidence": [
+        "recovery-ir:skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f"
+      ],
       "id": "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:point:real-mode:1010%3A43b0",
       "kind": "execution-point",
       "label": "1010:43B0",
@@ -14649,11 +14675,11 @@
       "snapshot": "gap_snapshot_skyroads_20260720_012010",
       "toolchain": "unknown"
     },
-    "sha256": "a3b10ae7d15626bf342be759ee7786e5e063fad60d06201e13148bff5d21a274",
+    "sha256": "44ad08632dedeb6acd90c9461dbb7d2f961426ac7c8d7aaec57d92bb04f73376",
     "version": 0
   },
   "roots": [
     "skyroads:1.0:image:skyroads-exe:sha256:ce1b1ec1688eb853b6fbb11614793d8c4bef563b0d31e5cbd76cd1801832ec0f:function:real-mode:1010%3A61f3"
   ],
-  "source_digest": "10c993ebb848b17158bb248c2dcf36b280fb678d8f0169083db5f1d47687619f"
+  "source_digest": "4c6e1ca52a0e0cab9c9786cb8435acd0c4f569a3de4701cae145c87508f1493f"
 }
