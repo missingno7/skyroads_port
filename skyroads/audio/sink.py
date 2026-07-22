@@ -17,8 +17,10 @@ seconds of playback latency; it does not alter the game's command timeline.
 """
 from __future__ import annotations
 
+from collections import deque
 from hashlib import sha256
 import math
+import threading
 import time
 
 from dos_re.audio_sink import AdlibSpeakerSink
@@ -39,21 +41,46 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
     # the renderer/palette fixes; its post-fix non-cold maximum is about 44ms.
     # SDL's mixer thread consumes queued Sound objects independently of the
     # Python render/simulation thread, but pygame exposes only one queue slot.
-    # Two 80ms chunks provide measured headroom without adding a second Python
-    # thread that could race OPL writes or replay state.
+    # SDL_mixer owns the playing block and one queued block in native code, so
+    # those two blocks keep flowing even while PyPy is executing Python on the
+    # main thread. This is secondary protection: synthesis is independently
+    # scheduled and the recurring renderer stalls are removed at their source.
     QUEUE_CHUNK_S = 0.080
     START_LEAD_S = 0.160
+    WORKER_POLL_S = 0.005
 
     def __init__(self, pygame, rt, present_hz: int, *, now=time.perf_counter) -> None:
+        # Device callbacks run on the deterministic execution thread.  In a
+        # live viewer they append compact commands only; the output worker is
+        # the sole owner of the synthesizer and pygame music channel.  Tests
+        # that inject a clock retain a deterministic synchronous pump.
+        self._threaded_output = now is time.perf_counter
+        self._now = now
+        self._audio_condition = threading.Condition()
+        self._audio_commands = deque()
+        self._audio_thread = None
+        self._audio_stop = False
+        self._audio_started_at = now()
+        self._audio_command_count = 0
+        self._opl_command_count = 0
+        self._last_command_at = None
+        self._max_command_gap = 0.0
+        self._max_callback_s = 0.0
         super().__init__(pygame, rt, present_hz)
         if not self.available:
             return
         import numpy as np
 
-        self._now = now
         self._last_pump = None            # perf_counter of the previous pump
         self._max_pump_gap = 0.0
         self._underruns = 0
+        self._worker_started = False
+        self._worker_chunks = 0
+        self._worker_synth_s = 0.0
+        self._worker_max_synth_s = 0.0
+        self._worker_last_block_at = None
+        self._worker_max_block_gap = 0.0
+        self._scheduled_until = 0.0
         self._min_chunk = 256
         self._max_pump = max(self._min_chunk, int(self._rate * self.MAX_PUMP_S))
         self._buf_cap = int(self._rate * self.MAX_BUFFER_S)
@@ -74,6 +101,114 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
             # once so a misconfigured front-end is diagnosable.
             print("[audio] Sound Blaster is in detection-only mode; digital SFX "
                   "silent (front-end must attach a capture-mode SB).")
+
+    # ---- deterministic device commands -> independent output clock ---------
+    def _queue_audio_command(self, kind: str, first, second) -> None:
+        started = self._now()
+        with self._audio_condition:
+            if self._last_command_at is not None:
+                self._max_command_gap = max(
+                    self._max_command_gap, started - self._last_command_at,
+                )
+            self._last_command_at = started
+            self._audio_command_count += 1
+            if kind == "opl":
+                self._opl_command_count += 1
+            self._audio_commands.append((kind, first, second))
+            self._audio_condition.notify()
+        self._max_callback_s = max(self._max_callback_s, self._now() - started)
+
+    def _on_adlib(self, reg: int, value: int) -> None:
+        if not self._threaded_output:
+            return super()._on_adlib(reg, value)
+        self._queue_audio_command("opl", int(reg) & 0x1FF, int(value) & 0xFF)
+
+    def _on_speaker(self, on: bool, freq: float) -> None:
+        if not self._threaded_output:
+            return super()._on_speaker(on, freq)
+        self._queue_audio_command("speaker", bool(on), float(freq or 0.0))
+
+    def _apply_audio_commands(self) -> None:
+        with self._audio_condition:
+            commands = tuple(self._audio_commands)
+            self._audio_commands.clear()
+        for kind, first, second in commands:
+            if kind == "opl":
+                if self._opl is not None:
+                    self._opl.write(first, second)
+            else:
+                # Worker-owned speaker state is sampled by _speaker_chunk.
+                self._spk_on, self._spk_freq = first, second
+
+    def _worker_sound(self):
+        self._apply_audio_commands()
+        started = self._now()
+        sound = self._pygame.sndarray.make_sound(
+            self._np.ascontiguousarray(
+                self._synthesize(self._chunk)
+                if self._channels > 1
+                else self._synthesize(self._chunk).reshape(-1)
+            )
+        )
+        finished = self._now()
+        duration = finished - started
+        self._worker_chunks += 1
+        self._worker_synth_s += duration
+        self._worker_max_synth_s = max(self._worker_max_synth_s, duration)
+        if self._worker_last_block_at is not None:
+            self._worker_max_block_gap = max(
+                self._worker_max_block_gap,
+                finished - self._worker_last_block_at,
+            )
+        self._worker_last_block_at = finished
+        return sound
+
+    def _audio_worker(self) -> None:
+        chunk_s = self._chunk / float(self._rate)
+        while True:
+            with self._audio_condition:
+                if self._audio_stop:
+                    return
+            self._apply_audio_commands()
+            now = self._now()
+            busy = self._channel.get_busy()
+            queued = self._channel.get_queue()
+            if not busy:
+                if self._worker_started:
+                    self._underruns += 1
+                sound = self._worker_sound()
+                self._channel.play(sound)
+                now = self._now()
+                self._scheduled_until = now + chunk_s
+                self._worker_started = True
+                continue
+            if queued is None:
+                sound = self._worker_sound()
+                now = self._now()
+                if self._channel.get_busy():
+                    self._channel.queue(sound)
+                    self._scheduled_until = max(
+                        self._scheduled_until, now,
+                    ) + chunk_s
+                else:
+                    self._underruns += 1
+                    self._channel.play(sound)
+                    self._scheduled_until = now + chunk_s
+                continue
+            with self._audio_condition:
+                if self._audio_stop:
+                    return
+                self._audio_condition.wait(timeout=self.WORKER_POLL_S)
+
+    def _ensure_audio_worker(self) -> None:
+        if not self._threaded_output or self._audio_thread is not None:
+            return
+        self._audio_thread = threading.Thread(
+            target=self._audio_worker,
+            name="skyroads-audio-output",
+            daemon=True,
+        )
+        self._audio_thread.start()
 
     # ---- SB PCM capture -> original one-voice PCM playback ------------------
     def _drain_sb(self) -> None:
@@ -177,7 +312,7 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
         arr = chunk if self._channels > 1 else chunk.reshape(-1)
         return self._pygame.sndarray.make_sound(self._np.ascontiguousarray(arr))
 
-    def pump(self) -> None:
+    def _pump_synchronously(self) -> None:
         """Feed audio sized by REAL elapsed time, not a fixed per-frame chunk, so
         a viewer frame that runs slower than ``present_hz`` neither underruns the
         mixer (stutter) nor lets the SFX backlog grow (delay). Call once per
@@ -213,13 +348,60 @@ class SkyroadsAudioSink(AdlibSpeakerSink):
         if self._channel.get_queue() is None and len(self._buf) >= self._chunk:
             self._channel.queue(self._pop_sound(self._chunk))
 
+    def pump(self) -> None:
+        """Drain deterministic SFX commands and keep output independently fed."""
+        if not self.available:
+            return
+        if not self._threaded_output:
+            # Injected-clock tests and offline tools deliberately remain
+            # single-threaded and deterministic.
+            return self._pump_synchronously()
+        self._drain_sb()
+        self._ensure_audio_worker()
+
+    def service_host(self) -> None:
+        """Keep output alive during a long backend semantic-boundary seek."""
+        self.pump()
+
+    def close(self) -> None:
+        """Stop synthesis before pygame tears down the mixer."""
+        thread = self._audio_thread
+        if thread is None:
+            return
+        with self._audio_condition:
+            self._audio_stop = True
+            self._audio_condition.notify_all()
+        thread.join(timeout=2.0)
+        self._audio_thread = None
+
     def pacing_diagnostics(self) -> dict:
+        now = self._now()
+        worker = self._audio_thread
+        elapsed = max(now - self._audio_started_at, 1e-9)
         return {
             "mixer_thread": "SDL playback (presentation-only)",
-            "python_synthesis": "main thread before rendering",
+            "python_synthesis": (
+                "independent bounded output worker"
+                if self._threaded_output else "deterministic synchronous pump"
+            ),
+            "worker_alive": bool(worker is not None and worker.is_alive()),
             "queue_chunk_ms": round(self._chunk * 1000 / self._rate),
             "jitter_reservoir_ms": round(2 * self._chunk * 1000 / self._rate),
+            "buffer_depth_ms": round(
+                max(0.0, self._scheduled_until - now) * 1000, 3,
+            ),
             "max_pump_gap_ms": round(self._max_pump_gap * 1000, 3),
+            "max_output_block_gap_ms": round(
+                self._worker_max_block_gap * 1000, 3,
+            ),
+            "synthesis_mean_ms": round(
+                (self._worker_synth_s / max(1, self._worker_chunks)) * 1000,
+                3,
+            ),
+            "synthesis_max_ms": round(self._worker_max_synth_s * 1000, 3),
+            "command_callback_max_ms": round(self._max_callback_s * 1000, 3),
+            "pending_commands": len(self._audio_commands),
+            "music_command_rate_hz": round(self._opl_command_count / elapsed, 3),
             "underruns": self._underruns,
         }
 
@@ -262,6 +444,12 @@ class NativeFaithfulAudioSink(SkyroadsAudioSink):
                 "observation; launch interactively with sound enabled"
             )
         self._trace_enabled = True
+        if self._threaded_output:
+            # Superclass construction observed the device once through the
+            # generic core that has just been replaced.  Re-emit the complete
+            # register file into the authoritative native-faithful core once.
+            with self._audio_condition:
+                self._audio_commands.clear()
         rt.dos.set_adlib_callback(self._on_adlib, emit_current=True)
         rt._skyroads_audio_sink = self
 

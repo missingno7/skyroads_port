@@ -680,7 +680,8 @@ class _MeshBuilder:
 
 
 def build_polygon_mesh(scene: GameplayScene, *, debug_mode: str = "final",
-                       rows_behind: int = 2, rows_ahead: int = 10) -> PolygonMesh:
+                       rows_behind: int = 2, rows_ahead: int = 10,
+                       full_level: bool = False) -> PolygonMesh:
     """Build the stable native source window around the camera row.
 
     ``2D1F`` starts at ``current + 7`` and walks backward through
@@ -692,8 +693,16 @@ def build_polygon_mesh(scene: GameplayScene, *, debug_mode: str = "final",
     """
     if debug_mode not in DEBUG_RENDER_MODES:
         raise ValueError(f"unknown render debug mode {debug_mode!r}")
-    first = max(0, scene.track_row - rows_behind)
-    last = min(len(scene.geometry.rows), scene.track_row + rows_ahead + 1)
+    if full_level:
+        # The world geometry is immutable for a loaded level.  Keeping one
+        # resident mesh lets the GPU near/far clip it as the camera advances;
+        # rebuilding a moving 13-row window caused a large Python allocation
+        # and GPU-upload spike at every row crossing.
+        first = 0
+        last = len(scene.geometry.rows)
+    else:
+        first = max(0, scene.track_row - rows_behind)
+        last = min(len(scene.geometry.rows), scene.track_row + rows_ahead + 1)
     builder = _MeshBuilder(scene, debug_mode)
     visible_rows = scene.geometry.rows[first:last] if first < last else ()
     for row in visible_rows:
@@ -898,7 +907,6 @@ class RecoveredPolygonRenderer:
             before_ship = after_ship = ()
             mesh_key = (
                 render_scene.geometry.digest,
-                render_scene.track_row,
                 render_scene.palette,
                 render_scene.face_palette_forward,
                 render_scene.face_palette_backward,
@@ -907,6 +915,7 @@ class RecoveredPolygonRenderer:
             if mesh_key != self._mesh_key:
                 self._mesh = build_polygon_mesh(
                     render_scene, debug_mode=self.debug_mode,
+                    full_level=True,
                 )
                 self._mesh_key = mesh_key
             mesh = self._mesh

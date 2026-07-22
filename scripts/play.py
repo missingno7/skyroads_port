@@ -344,6 +344,18 @@ class SkyroadsFrontend(player.GameFrontend):
                 f"opl-writes={audio['opl_writes']} sfx-plays={audio['sfx_plays']} "
                 f"stereo={audio['stereo']} enhancement={audio['enhancement']}"
             )
+            pacing = audio.get("pacing", {})
+            diagnostics.append(
+                "audio output: synthesis="
+                f"{pacing.get('python_synthesis', 'unknown')} "
+                f"buffer={pacing.get('buffer_depth_ms', 0)}ms "
+                f"chunk={pacing.get('queue_chunk_ms', 0)}ms "
+                f"underruns={pacing.get('underruns', 0)} "
+                f"synth-mean={pacing.get('synthesis_mean_ms', 0)}ms "
+                f"synth-max={pacing.get('synthesis_max_ms', 0)}ms "
+                f"callback-max={pacing.get('command_callback_max_ms', 0)}ms "
+                f"output-gap-max={pacing.get('max_output_block_gap_ms', 0)}ms"
+            )
         return tuple(diagnostics)
 
     def recording_finished(self, rt, args):

@@ -56,22 +56,32 @@ def _arguments(argv=None):
         choices=("faithful-product", "workbench-auto", "oracle"),
     )
     parser.add_argument(
+        "--renderer", default="native-3d", choices=("original", "native-3d"),
+    )
+    parser.add_argument(
+        "--skip-presentation", action="store_true",
+        help="measure execution/input only (no semantic scene preparation)",
+    )
+    parser.add_argument(
+        "--synchronous-audio-reference", action="store_true",
+        help="also synthesize one 30 Hz OPL block on the profiling thread; "
+             "this models the former frame-coupled output path",
+    )
+    parser.add_argument(
         "--cprofile", action="store_true",
         help="also print the hottest Python call stacks over the interval",
     )
     return parser.parse_args(argv)
 
 
-def _runtime(artifact: ReplayArtifact, composition: str):
+def _runtime(artifact: ReplayArtifact, composition: str, renderer: str):
     frontend = SkyroadsFrontend(ROOT)
     args = player.build_arg_parser(frontend).parse_args([
         "--profile", "development",
         "--composition", composition,
         "--play-replay", str(artifact.directory),
         "--headless",
-        "--renderer", "native-3d",
-        "--widescreen",
-        "--tweening",
+        "--renderer", renderer,
         "--audio", "native-stereo",
     ])
     frontend.apply_replay_metadata(args, artifact.metadata)
@@ -120,7 +130,7 @@ def main(argv=None) -> int:
     options = _arguments(argv)
     artifact = ReplayArtifact.open(options.replay.resolve())
     frontend, args, runtime, driver = _runtime(
-        artifact, options.composition,
+        artifact, options.composition, options.renderer,
     )
     end = artifact.end_point.ordinal
     if options.end is not None:
@@ -140,9 +150,15 @@ def main(argv=None) -> int:
     last_palette = None
     last_opl = 0
     opl_count = [0]
+    synchronous_opl = None
+    if options.synchronous_audio_reference:
+        from dos_re.opl3_fast import OPL3Fast
+        synchronous_opl = OPL3Fast(sample_rate=44100)
 
-    def count_opl(_register, _value) -> None:
+    def count_opl(register, value) -> None:
         opl_count[0] += 1
+        if synchronous_opl is not None:
+            synchronous_opl.write(register, value)
 
     runtime.dos.set_adlib_callback(count_opl, emit_current=False)
 
@@ -174,6 +190,11 @@ def main(argv=None) -> int:
             pass
         execution_ns = time.perf_counter_ns() - started
 
+        started = time.perf_counter_ns()
+        if synchronous_opl is not None:
+            synchronous_opl.generate_stereo(44100 // 30)
+        audio_ns = time.perf_counter_ns() - started
+
         # Keep the driver's cursor/point coherent without replaying the work a
         # second time.  These assignments mirror SkyroadsReplayDriver's public
         # sequential contract solely for later state capture/diagnostics.
@@ -181,7 +202,8 @@ def main(argv=None) -> int:
         driver._point = point
 
         started = time.perf_counter_ns()
-        presentation.frame(lambda: None, interpolation=0.5)
+        if not options.skip_presentation:
+            presentation.frame(lambda: None, interpolation=0.5)
         presentation_ns = time.perf_counter_ns() - started
 
         cpu = runtime.cpu
@@ -198,8 +220,11 @@ def main(argv=None) -> int:
             "point": ordinal + 1,
             "input_ms": input_ns / 1_000_000.0,
             "execution_ms": execution_ns / 1_000_000.0,
+            "audio_ms": audio_ns / 1_000_000.0,
             "presentation_ms": presentation_ns / 1_000_000.0,
-            "total_ms": (input_ns + execution_ns + presentation_ns) / 1_000_000.0,
+            "total_ms": (
+                input_ns + execution_ns + audio_ns + presentation_ns
+            ) / 1_000_000.0,
             "instructions": int(cpu.instruction_count) - instructions,
             "events": input_adapter.event_cursor - event_cursor,
             "machine": f"{int(cpu.s.cs):04X}:{int(cpu.s.ip):04X}",
@@ -226,7 +251,9 @@ def main(argv=None) -> int:
     if profiler is not None:
         profiler.disable()
 
-    for field in ("total_ms", "execution_ms", "presentation_ms", "input_ms"):
+    for field in (
+        "total_ms", "execution_ms", "audio_ms", "presentation_ms", "input_ms",
+    ):
         values = [float(record[field]) for record in records]
         print(
             f"{field[:-3]}: median={statistics.median(values):.3f}ms "
@@ -241,7 +268,8 @@ def main(argv=None) -> int:
     )[:max(1, options.top)]:
         print(
             f"{item['point']:4d} total={item['total_ms']:8.3f}ms "
-            f"exec={item['execution_ms']:8.3f} prep={item['presentation_ms']:7.3f} "
+            f"exec={item['execution_ms']:8.3f} audio={item['audio_ms']:7.3f} "
+            f"prep={item['presentation_ms']:7.3f} "
             f"input={item['input_ms']:6.3f} ins={item['instructions']:8d} "
             f"events={item['events']} opl={item['opl_writes']:3d} "
             f"state={item['game_state']} row={item['track_row']:3d} "

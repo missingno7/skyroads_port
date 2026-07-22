@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import time
 
 import pytest
 
@@ -199,3 +200,50 @@ def test_native_faithful_requires_capture_mode_sound_blaster() -> None:
         NativeFaithfulAudioSink(
             _Pygame(), runtime, 60, game_root=ASSETS, now=lambda: 0.0,
         )
+
+
+@pytest.mark.skipif(not (ASSETS / "SFX.SND").exists(), reason="needs game assets")
+def test_live_audio_output_worker_owns_synthesis_and_stops_cleanly() -> None:
+    pygame = _Pygame()
+    runtime = _runtime()
+    sink = NativeFaithfulAudioSink(
+        pygame, runtime, 120, game_root=ASSETS,
+    )
+
+    # Authoritative execution emits compact register commands only.  Starting
+    # the host pump creates an independent producer which fills both SDL slots.
+    runtime.dos.adlib_callback(0x20, 0x01)
+    runtime.dos.adlib_callback(0xB0, 0x31)
+    sink.pump()
+    deadline = time.perf_counter() + 2.0
+    while sink._worker_chunks < 2 and time.perf_counter() < deadline:
+        time.sleep(0.005)
+
+    pacing = sink.pacing_diagnostics()
+    assert pacing["worker_alive"]
+    assert sink._worker_chunks >= 2
+    assert pygame.mixer.channels[1].get_queue() is not None
+    assert pacing["python_synthesis"] == "independent bounded output worker"
+    assert pacing["command_callback_max_ms"] < 10.0
+
+    sink.close()
+    assert sink._audio_thread is None
+
+
+@pytest.mark.skipif(not (ASSETS / "SFX.SND").exists(), reason="needs game assets")
+def test_output_worker_command_handoff_preserves_opl_pcm() -> None:
+    writes = ((0x20, 0x01), (0x40, 0x10), (0xA0, 0x98), (0xB0, 0x31))
+    sync_runtime = _runtime()
+    sync = NativeFaithfulAudioSink(
+        _Pygame(), sync_runtime, 60, game_root=ASSETS, now=lambda: 0.0,
+    )
+    worker_runtime = _runtime()
+    worker = NativeFaithfulAudioSink(
+        _Pygame(), worker_runtime, 60, game_root=ASSETS,
+    )
+    for register, value in writes:
+        sync_runtime.dos.adlib_callback(register, value)
+        worker_runtime.dos.adlib_callback(register, value)
+
+    worker._apply_audio_commands()
+    assert np.array_equal(sync._synthesize(2048), worker._synthesize(2048))

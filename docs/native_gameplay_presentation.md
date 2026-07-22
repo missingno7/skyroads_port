@@ -49,9 +49,11 @@ crashed live simulation fields while it draws the reset frame at full black;
 the reset fields are published only after fade-in. Native presentation follows
 the call signature, so the reset frame is already under the entire fade and
 does not jump when those live fields are finally published.
-In `final`, immutable lane/row/elevation primitives pass through one recovered
-continuous lens and rasterize at the real window resolution. Track
-interpolation changes one camera uniform, never object topology or dimensions.
+In `final`, one immutable whole-level lane/row/elevation mesh remains resident
+on the GPU and passes through the recovered continuous lens at the real window
+resolution. Track interpolation changes one camera uniform, never object
+topology or dimensions; crossing a road row does not rebuild or upload a new
+moving geometry window.
 Original pixel art remains pixel art by design.
 The cockpit is independently reconstructed from `DASHBRD.LZS`'s zero-keyed
 mask plus the recovered speed/oxygen/fuel DAT stencils, progress bar, and
@@ -155,6 +157,11 @@ remain centred. Offline OPL-to-note decoding remains a
 diagnostic analysis tool and is never a faithful playback authority. Audio
 device commands and their replay positions remain part of deterministic
 observable-effect verification; host samples never affect gameplay timing.
+The gameplay thread only emits compact deterministic audio commands. A bounded
+output worker owns `OPL3Fast` and keeps two immutable SDL blocks queued, so
+sample generation and continuous device consumption do not wait for simulation
+or rendering. Diagnostics expose buffer depth, synthesis and callback timing,
+command rate, output gaps, and underruns.
 
 ## Corpus and gaps
 

@@ -491,6 +491,25 @@ def test_explicit_exact_projection_cache_tracks_trekdat_phase() -> None:
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
+def test_native_renderer_keeps_one_resident_level_mesh_across_row_changes() -> None:
+    state = NativeGameState()
+    native_level_load(state, road_archive_index(15), game_root=ASSETS)
+    view = GameView(state)
+    view.lateral = 20 << 16
+    first_scene = build_gameplay_scene(view, level=15, game_root=ASSETS)
+    renderer = RecoveredPolygonRenderer()
+
+    first = renderer.prepare(first_scene)
+    view.lateral = 21 << 16
+    second_scene = build_gameplay_scene(view, level=15, game_root=ASSETS)
+    second = renderer.prepare(second_scene)
+
+    assert first.mesh is second.mesh
+    assert first.mesh.first_row == 0
+    assert first.mesh.last_row == len(first_scene.geometry.rows) - 1
+
+
+@pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
 def test_ship_frame_uses_the_original_column_major_cars_layout() -> None:
     pytest.importorskip("numpy")
     import numpy as np

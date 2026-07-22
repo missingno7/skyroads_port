@@ -105,22 +105,28 @@ position and continuation equivalence.
 ## Host pacing and stall isolation
 
 Game simulation remains the sole producer of deterministic OPL writes and PCM
-transfers. Native synthesis runs on the player thread before rendering, while
-SDL's mixer thread consumes immutable queued sample buffers independently. No
-second Python owner is introduced for DOS, gameplay, OPL, or replay state.
+transfers. Device callbacks append compact register/speaker commands on that
+authoritative thread; they do not synthesize samples. A bounded output worker
+is the sole owner of `OPL3Fast`, consumes those commands in order, synthesizes
+immutable blocks ahead, and keeps SDL_mixer's playing and queued slots filled.
+SDL then consumes both blocks independently of gameplay and rendering. The
+worker cannot mutate DOS, gameplay, replay, or verification state.
 
 The native sink queues fixed 80 ms chunks with a two-slot 160 ms reservoir.
-Those values come from point-by-point profiling of
-`replay_skyroads_20260722_173742`: after removing duplicate original-projection
-work and collapsing the recovered palette byte loop, its worst non-cold
-transition point is about 44 ms. A slow render or generated-shell transition
-therefore cannot starve playback. Runtime diagnostics report the chunk,
-reservoir, largest observed pump gap, and underrun count. The buffer affects
-host presentation latency only; it never changes command timing or replay
+Those values are a jitter reservoir rather than the architecture itself. The
+worker removes OPL generation from frame latency, while the renderer keeps one
+immutable level mesh resident instead of rebuilding and uploading a moving
+window at every road-row crossing. On replay `222529`, that change reduced the
+non-cold CPU-side p95 from 33.5 ms to 10.3 ms and p99 from 57.2 ms to 18.7 ms;
+the old synchronous OPL path independently reached 27--40 ms. Runtime
+diagnostics report current buffer depth, command callback cost, synthesis
+mean/max, longest output-block gap, command rate, and underrun count. Buffering
+changes host playback latency only; it never changes command timing or replay
 state.
 
-The profiler also reports a roughly 0.4 s cold first native frame while Python
-imports NumPy and decodes immutable presentation assets. The canonical player
-renders that initial frame before it creates the audio sink, so this startup
-cost cannot drain a live mixer queue and is kept separate from steady-state
-stall measurements.
+The profiler still reports a one-time cold native frame while Python imports
+NumPy, decodes immutable presentation assets, and builds the resident level
+mesh. It is reported separately from steady-state latency. Once built, that
+mesh is reused for the level; the previous recurring row-crossing rebuilds no
+longer exist, and the output worker can replenish SDL independently while the
+main thread prepares presentation state.
