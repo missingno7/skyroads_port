@@ -97,13 +97,14 @@ CALIBRATION = ProjectionCalibration()
 # offsets, a 0.43-lane aperture half-width, and the already recovered
 # 0.08+0.30 mouse-hole height.  These are world dimensions shared by every
 # carved-half/full cell, not snapshot-specific screen coordinates.
-# All raised families start at the same recovered display-list plane.  The
-# phase-0 level-22 wall in snapshot 20260723_140337 alternates type-2 solids
-# and type-3 carved cells: both project their front/far-cap roles from
-# ``row + 0.10``. Starting ordinary blocks at the raw row boundary created a
-# false depth step at every solid/tunnel boundary.
-RAISED_FRONT_SETBACK = 0.10
-CARVED_FRONT_SETBACK = RAISED_FRONT_SETBACK
+# Every TREKDAT road-cell slot has the same recovered display-list footprint:
+# row+0.10 through row+1.10. Snapshot 144526 makes the shared boundary
+# explicit: row-8 ``deck/top`` ends at y=98 exactly where row-9
+# ``raised/far-cap`` begins. Keeping decks on raw integer rows while moving
+# blocks to +0.10 left a real uncovered strip behind the ship.
+ROAD_CELL_DEPTH_OFFSET = 0.10
+RAISED_FRONT_SETBACK = ROAD_CELL_DEPTH_OFFSET
+CARVED_FRONT_SETBACK = ROAD_CELL_DEPTH_OFFSET
 CARVED_REVEAL_DEPTH = 0.10
 CARVED_OPENING_HALF_WIDTH = 0.43
 CARVED_OPENING_SPRING = 0.08
@@ -1041,12 +1042,14 @@ class _MeshBuilder:
                 )
             else:
                 deck_splits = ()
+            deck_z0 = z0 + ROAD_CELL_DEPTH_OFFSET
+            deck_z1 = z1 + ROAD_CELL_DEPTH_OFFSET
             # Splitting the otherwise planar deck at the tunnel depth planes
             # makes its floor vertices identical to the face/reveal/passage
             # vertices. This avoids a geometric T-junction while preserving
             # the original continuous deck material.
             self.box(
-                cell, x0, x1, z0, z1, -0.07, 0.0,
+                cell, x0, x1, deck_z0, deck_z1, -0.07, 0.0,
                 depth_splits=deck_splits,
             )
         if cell.raised is not RaisedShape.NONE and not cell.tunnel:

@@ -1387,11 +1387,26 @@ def test_full_wall_uses_two_neighbor_gated_tiers_on_fixed_depth_planes() -> None
         builder.cell(wall.cells[lane], previous=nearer.cells[lane])
         builders.append(builder)
 
-    # All three upper tiers occupy the same recovered display-list footprint.
-    # The row+0.10 far plane of row 8 is exactly the row+0.10 near plane of
-    # row 9, so no screen-space crack can open between them.
+    # All road-cell slots occupy the same recovered display-list footprint.
+    # The row+1.10 far plane of the row-8 centre deck is exactly the row+0.10
+    # near plane of row 9, so no uncovered strip can open behind the ship.
     near_z = wall.ordinal + RAISED_FRONT_SETBACK
     far_z = wall.ordinal + 1 + RAISED_FRONT_SETBACK
+    deck_builder = _MeshBuilder(scene, "final")
+    deck_builder.cell(
+        nearer.cells[3],
+        previous=scene.geometry.rows[7].cells[3],
+        following=wall.cells[3],
+    )
+    deck_positions = set(zip(
+        deck_builder.vertices[0::6],
+        deck_builder.vertices[1::6],
+        deck_builder.vertices[2::6],
+    ))
+    assert near_z in {position[2] for position in deck_positions}
+    assert float(wall.ordinal) not in {
+        position[2] for position in deck_positions
+    }
     for builder in builders:
         positions = set(zip(
             builder.vertices[0::6],

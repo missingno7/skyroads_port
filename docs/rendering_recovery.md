@@ -306,11 +306,22 @@ The former native model selected one entrance plane for an entire box. Lanes
 2/4 therefore started at raw row 9 while lane 3 started at row 9.10, opening
 two background holes and making the centre cell resemble a pillar. The native
 mesh now represents the two recovered tiers independently, uses their original
-neighbor thresholds, and keeps the display-list depth interval fixed. On the
-preserved 320x200 framebuffer comparison, differing road-band pixels fall
-from `2,470` to `375` and normalized road-band mean absolute error from
-`0.01380977` to `0.00225652`. The remaining differences are continuous-lens
-versus integer-phase edge quantization, not missing wall topology.
+neighbor thresholds, and keeps the display-list depth interval fixed.
+
+The first tier correction exposed a narrower high-resolution gap directly
+behind the ship. Its cause was the same coordinate contract on the other side
+of the junction: ordinary deck quads still ended at raw row 9 while the lower
+block face began at row 9.10. The exact row-8 `deck/top` spans cover y=98..102
+and the row-9 `raised/far-cap` begins at y=98. Inverting those shared pixels
+proves that the deck slot also spans `row + 0.10` through `row + 1.10`.
+All deck cells now use that common footprint; there is no overlap or
+renderer-only filler.
+
+On the preserved 320x200 nearest-sampled framebuffer comparison, differing
+road-band pixels fall from `2,470` to `160` and normalized road-band mean
+absolute error from `0.01380977` to `0.00092567`. The remaining differences
+are continuous-lens versus integer-phase edge quantization, not missing wall
+topology.
 
 This correction uses directly recovered handler comparisons, road words,
 draw roles and palettes. The `+0.10` / `+1.10` planes are derived by inverting
