@@ -103,6 +103,24 @@ CARVED_OPENING_HALF_WIDTH = 0.43
 CARVED_OPENING_SPRING = 0.08
 CARVED_OPENING_ARCH_HEIGHT = 0.30
 
+# Direct selector constants from the original 1010:2FCC type-5 handler:
+# 3023 supplies 0x3D when the road word has no explicit raised-top material;
+# the display-list streams at DI+6/DI+0A carry the other fixed selectors.
+# Selector-to-palette resolution remains data-driven through the live
+# forward/backward tables at DS:0352/0353.
+RAISED_TOP_DEFAULT_SELECTOR = 0x3D
+CARVED_FACE_SELECTOR = 0x3E
+CARVED_SIDE_SELECTOR = 0x3F
+CARVED_RIM_SELECTOR = 0x41
+
+# Direct gameplay heights from 1010:1631, normalized by the 0x1700 lane unit.
+# A full block is exactly two equal 0x0A00 tiers above the 0x2800 deck:
+# 0x3200 (half) then 0x3C00 (full). The RLE role boundary in the supplied
+# snapshot projects to y=79.58, matching its integer row-79 split.
+CARVED_LOWER_LAYER_HEIGHT = (
+    HALF_BLOCK_HEIGHT - ROAD_DECK_HEIGHT
+) / LANE_UNITS
+
 
 def projection_scale(
     relative_depth: float,
@@ -631,32 +649,65 @@ class _MeshBuilder:
     def _carved_face(
         self, cell: RoadCell, x0: float, x1: float, height: float, z: float,
         color: tuple[float, float, float], *,
+        upper_color: tuple[float, float, float] | None = None,
+        layer_height: float | None = None,
         half_width: float = CARVED_OPENING_HALF_WIDTH,
         spring: float = CARVED_OPENING_SPRING,
         reverse: bool = False,
     ) -> None:
-        """Tessellate a box end while leaving one real arched aperture."""
+        """Tessellate a layered solid end around one real arched aperture."""
         center = (x0 + x1) * 0.5
         arch = self._arch_points(
             center, spring, half_width, CARVED_OPENING_ARCH_HEIGHT, 12,
         )
         left, right = center - half_width, center + half_width
+        lower_top = (
+            height if layer_height is None
+            else max(spring + CARVED_OPENING_ARCH_HEIGHT,
+                     min(height, layer_height))
+        )
         self.quad(
             ((x0, 0.0, z), (left, 0.0, z),
-             (left, height, z), (x0, height, z)), color, reverse=reverse,
+             (left, lower_top, z), (x0, lower_top, z)),
+            color, reverse=reverse,
         )
         self.quad(
             ((right, 0.0, z), (x1, 0.0, z),
-             (x1, height, z), (right, height, z)), color, reverse=reverse,
+             (x1, lower_top, z), (right, lower_top, z)),
+            color, reverse=reverse,
         )
         for left_point, right_point in zip(arch, arch[1:]):
             self.quad(
                 ((left_point[0], left_point[1], z),
                  (right_point[0], right_point[1], z),
-                 (right_point[0], height, z),
-                 (left_point[0], height, z)),
+                 (right_point[0], lower_top, z),
+                 (left_point[0], lower_top, z)),
                 color, reverse=reverse,
             )
+        if height > lower_top:
+            self.quad(
+                ((x0, lower_top, z), (x1, lower_top, z),
+                 (x1, height, z), (x0, height, z)),
+                color if upper_color is None else upper_color,
+                reverse=reverse,
+            )
+
+    def _carved_side(
+        self, x: float, front_z: float, z1: float, height: float,
+        color: tuple[float, float, float], *, left: bool,
+    ) -> None:
+        """Emit the original equal lower/upper tiers on one lateral face."""
+        split = min(height, CARVED_LOWER_LAYER_HEIGHT)
+        levels = (0.0, split, height) if height > split else (0.0, height)
+        for y0, y1 in zip(levels, levels[1:]):
+            points = (
+                ((x, y0, z1), (x, y0, front_z),
+                 (x, y1, front_z), (x, y1, z1))
+                if left else
+                ((x, y0, front_z), (x, y0, z1),
+                 (x, y1, z1), (x, y1, front_z))
+            )
+            self.quad(points, color)
 
     def _carved_reveal(
         self, center: float, front_z: float, passage_z: float,
@@ -697,17 +748,29 @@ class _MeshBuilder:
         height: float, *, entrance: bool, exit: bool,
     ) -> None:
         """Build selectors 3/5 as one solid with an arched passage cut out."""
-        backward = cell.lane > 3
         # The high terrain nibble remains authoritative for carved solids.
         # Level 18's 0x0520 passage is the first replay-covered example: the
         # original 2D1F trace selects palette 2 for its green exterior top,
         # while its rim/interior/side roles still use selectors 62..65.
         top_color = self.selector_color(
-            cell, cell.top_material or 61, backward=backward,
+            cell, cell.top_material or RAISED_TOP_DEFAULT_SELECTOR,
+            backward=False,
         )
-        inner_color = self.selector_color(cell, 62, backward=backward)
-        side_color = self.selector_color(cell, 63, backward=backward)
-        rim_color = self.selector_color(cell, 65, backward=backward)
+        face_color = self.selector_color(
+            cell, CARVED_FACE_SELECTOR, backward=False,
+        )
+        # 2D1F's forward pass draws the +X face; the backward pass draws the
+        # mirrored -X face. Resolve each physical face independently rather
+        # than inferring one shade for the whole cell from its lane.
+        left_side_color = self.selector_color(
+            cell, CARVED_SIDE_SELECTOR, backward=True,
+        )
+        right_side_color = self.selector_color(
+            cell, CARVED_SIDE_SELECTOR, backward=False,
+        )
+        rim_color = self.selector_color(
+            cell, CARVED_RIM_SELECTOR, backward=False,
+        )
         center = (x0 + x1) * 0.5
         half_width = CARVED_OPENING_HALF_WIDTH
         spring = CARVED_OPENING_SPRING
@@ -731,22 +794,26 @@ class _MeshBuilder:
             ((x0, height, front_z), (x1, height, front_z),
              (x1, height, z1), (x0, height, z1)), top_color,
         )
-        self.quad(
-            ((x0, 0.0, z1), (x0, 0.0, front_z),
-             (x0, height, front_z), (x0, height, z1)), side_color,
+        self._carved_side(
+            x0, front_z, z1, height, left_side_color, left=True,
         )
-        self.quad(
-            ((x1, 0.0, front_z), (x1, 0.0, z1),
-             (x1, height, z1), (x1, height, front_z)), side_color,
+        self._carved_side(
+            x1, front_z, z1, height, right_side_color, left=False,
         )
+        layer_height = min(height, CARVED_LOWER_LAYER_HEIGHT)
         if entrance:
             # Selector 62 owns the main solid face. Selector 65 is only the
             # narrow aperture reveal (the original raised/front-rim role).
-            self._carved_face(cell, x0, x1, height, front_z, inner_color)
+            self._carved_face(
+                cell, x0, x1, height, front_z, face_color,
+                upper_color=face_color, layer_height=layer_height,
+            )
             self._carved_reveal(center, front_z, passage_z0, rim_color)
         if exit:
             self._carved_face(
-                cell, x0, x1, height, z1, inner_color, reverse=True,
+                cell, x0, x1, height, z1, face_color,
+                upper_color=face_color, layer_height=layer_height,
+                reverse=True,
             )
 
         left, right = center - half_width, center + half_width
@@ -754,17 +821,17 @@ class _MeshBuilder:
         # the solid and are therefore genuine passage surfaces for occlusion.
         self.quad(
             ((left, 0.0, passage_z0), (left, spring, passage_z0),
-             (left, spring, z1), (left, 0.0, z1)), inner_color,
+             (left, spring, z1), (left, 0.0, z1)), face_color,
         )
         self.quad(
             ((right, spring, passage_z0), (right, 0.0, passage_z0),
-             (right, 0.0, z1), (right, spring, z1)), inner_color,
+             (right, 0.0, z1), (right, spring, z1)), face_color,
         )
         for a, b in zip(arch, arch[1:]):
             self.quad(
                 ((a[0], a[1], passage_z0), (a[0], a[1], z1),
                  (b[0], b[1], z1), (b[0], b[1], passage_z0)),
-                inner_color,
+                face_color,
             )
 
     @staticmethod

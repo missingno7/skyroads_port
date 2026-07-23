@@ -33,12 +33,16 @@ from skyroads.presentation.original_projection import (
     trace_original_projection,
 )
 from skyroads.presentation.scene import (
+    FULL_BLOCK_HEIGHT,
+    HALF_BLOCK_HEIGHT,
     INITIAL_HEIGHT,
     INITIAL_LATERAL_POSITION,
     INITIAL_SHIP_SCREEN_X,
     INITIAL_SHIP_SCREEN_Y,
     INITIAL_SHIP_SPRITE_INDEX,
     INITIAL_TRACK_POSITION,
+    LANE_UNITS,
+    ROAD_DECK_HEIGHT,
     RoadGeometry,
     RaisedShape,
     TunnelShape,
@@ -1275,7 +1279,69 @@ def test_tunnel_mesh_has_distinct_shell_rim_and_passage_surfaces() -> None:
             and vertex[3:] == pytest.approx(deck_rgb)
             for vertex in carved_vertices
         )
+    lower_layer = (HALF_BLOCK_HEIGHT - ROAD_DECK_HEIGHT) / LANE_UNITS
+    assert any(
+        abs(y - lower_layer) < 1e-6
+        for _x, y, _z in carved_positions
+    )
     assert len(carved_builder.indices) // 3 > 40
+
+
+@pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
+def test_carved_tunnel_shading_uses_original_selector_tables_per_face() -> None:
+    from skyroads.presentation.renderer import (
+        CARVED_FACE_SELECTOR,
+        CARVED_RIM_SELECTOR,
+        CARVED_SIDE_SELECTOR,
+        RAISED_TOP_DEFAULT_SELECTOR,
+        _MeshBuilder,
+    )
+
+    state = NativeGameState()
+    native_level_load(state, road_archive_index(7), game_root=ASSETS)
+    scene = build_gameplay_scene(GameView(state), level=7, game_root=ASSETS)
+    # The supplied oracle snapshot is at level 7, row 42.  Its lane-2 cell is
+    # the first row of the full-height carved tunnel, so all five recovered
+    # face roles are present at the structural entrance.
+    carved = scene.geometry.rows[42].cells[2]
+    assert carved.tunnel_shape is TunnelShape.CARVED_FULL
+    builder = _MeshBuilder(scene, "final")
+    builder.cell(carved)
+    vertices = tuple(zip(*(iter(builder.vertices),) * 6))
+    x0 = carved.lane - 3.5
+    x1 = x0 + 1.0
+    front = carved.row + 0.1
+    height = (FULL_BLOCK_HEIGHT - ROAD_DECK_HEIGHT) / LANE_UNITS
+
+    def rgb(selector: int, *, backward: bool = False):
+        table = (
+            scene.face_palette_backward if backward
+            else scene.face_palette_forward
+        )
+        return tuple(channel / 255.0 for channel in scene.palette[
+            table[selector]
+        ])
+
+    expected = (
+        ("front", (x0, 0.0, front), rgb(CARVED_FACE_SELECTOR)),
+        ("top", (x0, height, front), rgb(
+            carved.top_material or RAISED_TOP_DEFAULT_SELECTOR,
+        )),
+        ("left", (x0, height / 2, front), rgb(
+            CARVED_SIDE_SELECTOR, backward=True,
+        )),
+        ("right", (x1, height / 2, front), rgb(
+            CARVED_SIDE_SELECTOR, backward=False,
+        )),
+        ("rim", (carved.lane - 3.0 - 0.43, 0.0, front),
+         rgb(CARVED_RIM_SELECTOR)),
+    )
+    for role, position, color in expected:
+        assert any(
+            vertex[:3] == pytest.approx(position)
+            and vertex[3:] == pytest.approx(color, abs=1e-6)
+            for vertex in vertices
+        ), role
 
 
 def test_carved_tunnel_geometry_matches_snapshot_rle_boundaries() -> None:

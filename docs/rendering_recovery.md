@@ -135,6 +135,69 @@ passages and in-volume ship occlusion. Carved-half uses the same recovered
 aperture/reveal topology and is covered by the level-wide mesh tests; exposed
 tubes remain a separate structural family and were intentionally unchanged.
 
+### Carved-block shading and vertical tiers
+
+The original renderer has no continuous face-lighting calculation for these
+blocks. `1010:2FCC` selects display-list strips and patches selector bytes;
+`3153`/`3190` resolve each selector through the live forward/backward tables
+at `DS:0352/0353`, then write that palette index. Depth affects only the RLE
+shape selected by TREKDAT. It does not scale face brightness.
+
+The recovered selector rules are:
+
+| Surface/role | Selector source | Orientation rule |
+|---|---:|---|
+| deck top | road word bits 0..3 | same selector in both passes |
+| deck lateral side | deck selector + `0x1E` | forward `+X`, backward `-X` table |
+| raised top | road word bits 4..7, or `0x3D` when zero | same selector in both passes |
+| carved front, inner side, underside | `0x3E` | resolved through the active pass table |
+| raised lateral side/lower side | `0x3F` | forward `+X`, backward `-X` table |
+| entrance reveal | immediate `0x41` at `1010:2FD8` | resolved through the active pass table |
+
+For the supplied snapshot this yields:
+
+| Selector | Forward palette/RGB | Backward palette/RGB |
+|---:|---|---|
+| `0x3D` | 61 / `(16,28,255)` | 61 / `(16,28,255)` |
+| `0x3E` | 62 / `(12,20,211)` | 62 / `(12,20,211)` |
+| `0x3F` | 63 / `(8,20,182)` | 64 / `(8,16,150)` |
+| `0x41` | 65 / `(8,16,150)` | 65 / `(8,16,150)` |
+
+The native renderer therefore performs no renderer-local lightening or
+darkening. It retains the selector identity and resolves it through the
+scene's captured tables and live VGA palette. The two physical lateral faces
+are resolved independently; choosing one shade from the cell's lane fails for
+center-lane cells, which the original draws in both passes.
+
+The apparent lower "brick" tier is also not an artist-adjusted proportion.
+Collision routine `1010:1631` and the road-word `0x0200`/`0x0400` bits define
+the absolute heights:
+
+```text
+deck = 0x2800
+half = 0x3200
+full = 0x3C00
+lane unit = 0x1700
+```
+
+Both vertical tiers are exactly `0x0A00 / 0x1700 = 0.4347826087` lane units.
+The type-5 draw handler confirms the composition: it emits the lower-side and
+aperture roles from the half-height list, then the raised top/side/far-edge
+roles from the second tier. There is no intermediate horizontal top because
+the second tier occupies it. At snapshot camera row `41.9999847` and recovered
+front depth `42.1`, the common lens projects the deck, tier seam and full top
+to `y=98.81`, `79.58` and `60.35`. The original RLE spans divide at integer
+rows 79/60. A one-pixel thickness difference between phases is consequently
+integer clipping/overdraw, not a different world height.
+
+Evidence classification:
+
+| Classification | Values/rules |
+|---|---|
+| Directly recovered | map bits; `0x2800/0x3200/0x3C00` heights; selector immediates `0x3D/0x3E/0x3F/0x41`; forward/backward fill tables; RLE painter order and row spans |
+| Derived from original behavior | normalization by `0x1700`; the continuous projection of tier boundaries; `0.10` front/reveal depths and `0.43` opening width obtained by inverting the recovered lens against the exact spans |
+| Remaining approximation | the normal view's rational continuous lens and twelve-facet arch interpretation; both intentionally remove low-resolution stair steps. `exact-projection` retains the literal TREKDAT raster when byte/pixel identity is required |
+
 ## Recovering the higher-level projection
 
 An earlier experiment joined consecutive RLE span endpoints into trapezoids.
