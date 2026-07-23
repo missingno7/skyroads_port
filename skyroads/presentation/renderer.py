@@ -609,6 +609,97 @@ class _MeshBuilder:
                 (x1, y1, front_z), (x0, y1, front_z),
             ), self.color(cell, "front", raised=raised))
 
+    @staticmethod
+    def _raised_tiers(cell: RoadCell | None) -> int:
+        """Return the original dispatcher's ordered height threshold.
+
+        Types 2/3 own the lower 0x0a00 tier and types 4/5 own both equal
+        tiers.  This is exactly the comparison domain used by 2EBB/2F58:
+        ``neighbor_type < 2`` exposes tier one and ``neighbor_type < 4``
+        exposes tier two.  Tunnel and solid cells therefore participate in
+        the same occlusion topology even though their front faces differ.
+        """
+        if cell is None or cell.raised is RaisedShape.NONE:
+            return 0
+        return 2 if cell.raised is RaisedShape.FULL else 1
+
+    def raised_block(
+        self,
+        cell: RoadCell,
+        x0: float,
+        x1: float,
+        z0: float,
+        z1: float,
+        *,
+        previous: RoadCell | None,
+        left: RoadCell | None,
+        right: RoadCell | None,
+    ) -> None:
+        """Build an ordinary raised cell using 2EBB/2F58's tier topology.
+
+        A type-4 cell is not one independent floor-to-top box.  The recovered
+        handler first conditionally emits the type-2 lower tier, then emits a
+        second equal tier with independent previous-row and side-neighbor
+        gates.  Preserving those two gates makes adjacent cells share one
+        continuous wall and prevents false holes where a full block follows a
+        half block.
+        """
+        tiers = self._raised_tiers(cell)
+        previous_tiers = self._raised_tiers(previous)
+        side_tiers = (
+            self._raised_tiers(left),
+            self._raised_tiers(right),
+        )
+        tier_height = CARVED_LOWER_LAYER_HEIGHT
+        top_color = self.color(cell, "top", raised=True)
+        front_color = self.color(cell, "front", raised=True)
+        side_colors = (
+            self.color(cell, "left", raised=True),
+            self.color(cell, "right", raised=True),
+        )
+        # The display-list slot has one fixed row-relative footprint. Traces
+        # invert its near/far planes to row+0.10 and row+1.10 for isolated and
+        # continued blocks alike; neighbor checks suppress end/side faces,
+        # they do not move the strip. This also makes consecutive source rows
+        # share the exact same world-space boundary.
+        plane_offset = min(RAISED_FRONT_SETBACK, (z1 - z0) * 0.2)
+        near_z = z0 + plane_offset
+        far_z = z1 + plane_offset
+
+        # The top belongs only to the highest occupied tier.  Its front depth
+        # is fixed by the slot; the tier's ``above_type`` threshold controls
+        # only whether its near face is visible.
+        self.quad(
+            ((x0, tiers * tier_height, near_z),
+             (x1, tiers * tier_height, near_z),
+             (x1, tiers * tier_height, far_z),
+             (x0, tiers * tier_height, far_z)),
+            top_color,
+        )
+
+        for tier in range(1, tiers + 1):
+            y0 = (tier - 1) * tier_height
+            y1 = tier * tier_height
+            entrance = previous_tiers < tier
+            if entrance:
+                self.quad(
+                    ((x0, y0, near_z), (x1, y0, near_z),
+                     (x1, y1, near_z), (x0, y1, near_z)),
+                    front_color,
+                )
+            if side_tiers[0] < tier:
+                self.quad(
+                    ((x0, y0, far_z), (x0, y0, near_z),
+                     (x0, y1, near_z), (x0, y1, far_z)),
+                    side_colors[0],
+                )
+            if side_tiers[1] < tier:
+                self.quad(
+                    ((x1, y0, near_z), (x1, y0, far_z),
+                     (x1, y1, far_z), (x1, y1, near_z)),
+                    side_colors[1],
+                )
+
     def exposed_tunnel(
         self, cell: RoadCell, x0: float, x1: float, z0: float, z1: float,
         *, entrance: bool, exit: bool,
@@ -959,16 +1050,12 @@ class _MeshBuilder:
                 depth_splits=deck_splits,
             )
         if cell.raised is not RaisedShape.NONE and not cell.tunnel:
-            original_top = (FULL_BLOCK_HEIGHT if cell.raised is RaisedShape.FULL
-                            else HALF_BLOCK_HEIGHT)
-            y1 = (original_top - ROAD_DECK_HEIGHT) / LANE_UNITS
-            raised_entrance = (
-                previous is None
-                or previous.raised is RaisedShape.NONE
-            )
-            self.box(
-                cell, x0, x1, z0, z1, 0.0, y1,
-                raised=True, entrance=raised_entrance,
+            row = self.scene.geometry.rows[cell.row]
+            left = row.cells[cell.lane - 1] if cell.lane > 0 else None
+            right = row.cells[cell.lane + 1] if cell.lane + 1 < len(row.cells) else None
+            self.raised_block(
+                cell, x0, x1, z0, z1,
+                previous=previous, left=left, right=right,
             )
         if cell.tunnel_shape is TunnelShape.EXPOSED_TUBE:
             self.exposed_tunnel(

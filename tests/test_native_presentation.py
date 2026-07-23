@@ -1335,8 +1335,9 @@ def test_raised_wall_front_plane_and_continuation_follow_original_gate() -> None
         for position in carved_positions
     )
 
-    # 2EBB/2F58 gate the cap on above_type < 2. A continued raised run keeps
-    # the shared row plane and emits no redundant internal front quad.
+    # 2EBB/2F58 gate the two tier faces independently at above_type <2/<4.
+    # A continued raised run keeps the shared row plane and emits no redundant
+    # internal front quad for every tier already occupied by its predecessor.
     continued_pair = next(
         (scene.geometry.rows[index - 1].cells[lane],
          scene.geometry.rows[index].cells[lane])
@@ -1352,7 +1353,90 @@ def test_raised_wall_front_plane_and_continuation_follow_original_gate() -> None
     continued.cell(continued_pair[1], previous=continued_pair[0])
     isolated = _MeshBuilder(scene, "final")
     isolated.cell(continued_pair[1])
-    assert len(continued.indices) + 6 == len(isolated.indices)
+    suppressed_tiers = min(
+        continued._raised_tiers(continued_pair[0]),
+        continued._raised_tiers(continued_pair[1]),
+    )
+    assert len(continued.indices) + suppressed_tiers * 6 == len(isolated.indices)
+
+
+@pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
+def test_full_wall_uses_two_neighbor_gated_tiers_on_fixed_depth_planes() -> None:
+    """Snapshot 144526: half/full adjacency must remain one solid wall."""
+    from skyroads.presentation.renderer import (
+        CARVED_LOWER_LAYER_HEIGHT,
+        RAISED_FRONT_SETBACK,
+        _MeshBuilder,
+    )
+
+    state = NativeGameState()
+    native_level_load(state, road_archive_index(12), game_root=ASSETS)
+    scene = build_gameplay_scene(GameView(state), level=12, game_root=ASSETS)
+    nearer = scene.geometry.rows[8]
+    wall = scene.geometry.rows[9]
+    assert [wall.cells[lane].code for lane in (2, 3, 4)] == [
+        0x0400, 0x0400, 0x0400,
+    ]
+    assert nearer.cells[2].raised is RaisedShape.HALF
+    assert nearer.cells[3].raised is RaisedShape.NONE
+    assert nearer.cells[4].raised is RaisedShape.HALF
+
+    builders = []
+    for lane in (2, 3, 4):
+        builder = _MeshBuilder(scene, "final")
+        builder.cell(wall.cells[lane], previous=nearer.cells[lane])
+        builders.append(builder)
+
+    # All three upper tiers occupy the same recovered display-list footprint.
+    # The row+0.10 far plane of row 8 is exactly the row+0.10 near plane of
+    # row 9, so no screen-space crack can open between them.
+    near_z = wall.ordinal + RAISED_FRONT_SETBACK
+    far_z = wall.ordinal + 1 + RAISED_FRONT_SETBACK
+    for builder in builders:
+        positions = set(zip(
+            builder.vertices[0::6],
+            builder.vertices[1::6],
+            builder.vertices[2::6],
+        ))
+        assert {near_z, far_z}.issubset({position[2] for position in positions})
+
+    # Lanes 2/4 continue an existing lower tier and expose only the new upper
+    # front face. The centre lane begins both tiers. Internal lateral faces
+    # are suppressed because all three side neighbors reach full height.
+    lower = CARVED_LOWER_LAYER_HEIGHT
+    full = lower * 2
+    front_rgb = builders[1].color(wall.cells[3], "front", raised=True)
+    centre_front_heights = {
+        builder_y
+        for _builder_x, builder_y, builder_z, red, green, blue
+        in zip(
+            builders[1].vertices[0::6],
+            builders[1].vertices[1::6],
+            builders[1].vertices[2::6],
+            builders[1].vertices[3::6],
+            builders[1].vertices[4::6],
+            builders[1].vertices[5::6],
+        )
+        if builder_z == pytest.approx(near_z)
+        and (red, green, blue) == pytest.approx(front_rgb)
+    }
+    side_front_heights = {
+        builder_y
+        for _builder_x, builder_y, builder_z, red, green, blue
+        in zip(
+            builders[0].vertices[0::6],
+            builders[0].vertices[1::6],
+            builders[0].vertices[2::6],
+            builders[0].vertices[3::6],
+            builders[0].vertices[4::6],
+            builders[0].vertices[5::6],
+        )
+        if builder_z == pytest.approx(near_z)
+        and (red, green, blue) == pytest.approx(front_rgb)
+    }
+    assert sorted(centre_front_heights) == pytest.approx([0.0, lower, full])
+    assert sorted(side_front_heights) == pytest.approx([lower, full])
+    assert len(builders[1].indices) == 18
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")

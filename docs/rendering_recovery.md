@@ -239,9 +239,10 @@ Two previously hidden mismatches became obvious only across this set:
   cells started at `row + 0.10`. Capture `140337` therefore showed vertical
   seams between alternating solid and hollow cells. Exact phase-0 spans put
   both `block/far-cap` and `block/inner-side` on the `+0.10` plane. The
-  `above_type < 2` gates in `2EBB`/`2F58` further prove that the cap belongs
-  only to the first cell of a raised run. Continuation cells now start at the
-  shared integer row and do not emit internal caps.
+  display-list footprint is fixed at `row + 0.10` through `row + 1.10` for
+  every cell. The `above_type < 2` / `< 4` gates in `2EBB`/`2F58` suppress
+  only internal lower/upper faces; they do not move continuation geometry
+  back to an integer row.
 * The exposed shell was modelled lane-wide and its backward palette was
   applied without mirroring shell roles. Across phase-6 scanlines its color
   bands had nearly correct widths but lay 4--6 pixels too far outboard.
@@ -276,6 +277,46 @@ Evidence classification for the multi-capture corrections:
 | Directly recovered | handler/type association; `above_type` and `side_type` gates; shell/rim/inner display-list order; selectors `61..73`; forward/backward raster direction and palette tables; exact VGA spans and painter order |
 | Derived by inverting exact original output through the shared lens | raised shell plane `+0.10`; passage plane `+0.20`; exposed outer `(0.43,0.50)` and inner `(0.36,0.35)` cross-sections; `0.07` centre-facing lane anchor |
 | Still inferred | treating the six exposed shade strips as twelve smooth stable facets in the enhanced view; the continuous lens between the eight literal TREKDAT phases; depth-buffer equivalence where the original uses ship-row painter duplication |
+
+### Raised-tier junction validation
+
+Snapshot `snapshot_skyroads_20260723_144526` isolates a non-tunnel case that
+the earlier tunnel captures did not exercise. The camera is immediately before
+row 9 of level 12. Exact live road words and the `2D1F` draw trace show:
+
+| Row | Lanes | Words | Recovered role |
+|---:|---:|---:|---|
+| 8 | 2, 4 | `0x0200` | continuing lower type-2 tier |
+| 8 | 3 | `0x0009` | deck-only opening between the lower tiers |
+| 9 | 2, 3, 4 | `0x0400` | one contiguous full-height type-4 wall |
+
+`2F58` does not describe each type-4 word as an independent floor-to-top box.
+It reuses the type-2 lower tier and adds an equal upper tier. For each original
+pass, `side_type < 2` exposes a lower side, `side_type < 4` exposes an upper
+side, `above_type < 2` exposes the lower near face, and `above_type < 4`
+exposes the upper near face. Consequently:
+
+* lanes 2 and 4 suppress their lower near faces because row 8 already reaches
+  half height;
+* lane 3 emits both near-face tiers because its predecessor is deck-only;
+* all three lanes emit their upper tier on the same `row + 0.10` plane;
+* the internal lateral faces between lanes 2/3/4 are suppressed.
+
+The former native model selected one entrance plane for an entire box. Lanes
+2/4 therefore started at raw row 9 while lane 3 started at row 9.10, opening
+two background holes and making the centre cell resemble a pillar. The native
+mesh now represents the two recovered tiers independently, uses their original
+neighbor thresholds, and keeps the display-list depth interval fixed. On the
+preserved 320x200 framebuffer comparison, differing road-band pixels fall
+from `2,470` to `375` and normalized road-band mean absolute error from
+`0.01380977` to `0.00225652`. The remaining differences are continuous-lens
+versus integer-phase edge quantization, not missing wall topology.
+
+This correction uses directly recovered handler comparisons, road words,
+draw roles and palettes. The `+0.10` / `+1.10` planes are derived by inverting
+the exact block-top spans through the already shared continuous lens. No
+snapshot-specific screen coordinates or visual fill polygons are present in
+the implementation.
 
 The remaining normal-view differences concentrate on one-pixel phase
 quantization, near-plane clipping, and the original ship-row overdraw. They
