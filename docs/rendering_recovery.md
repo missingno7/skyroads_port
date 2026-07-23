@@ -262,6 +262,25 @@ The native tube therefore uses the common `row + 0.10 .. row + 1.10` road-cell
 footprint, starts a continued inner surface on the shared `+0.10` plane, and
 does not invent a closing annulus at the far end.
 
+The entrance face is also not a uniform selector-67 arch. The unobscured
+row-31 lane-2 trace in capture `185622` exposes the exact `3059` painter
+ownership:
+
+* selector 67 (`front-rim`) is emitted first;
+* the six longitudinal shell strips cover its upper/far parts;
+* selector 66 `inner-rim` then owns the road-outward half's outer band;
+* selector 66 `underside` owns the complete road-inward half.
+
+Consequently selector 67 survives only as the inner strip of the outward
+half. At the near entrance its boundary runs from x=65 at the floor to x=87
+near the spring; the selector-66 outer edge runs from x=61 to x=76 over the
+same rows. Inverting both boundaries through the continuous lens places their
+shared world-space edge 45% of the way from the outer cross-section to the
+recessed opening. The native entrance therefore splits one coherent reveal
+surface at that recovered 45/55 boundary and mirrors the ownership for the
+backward road pass. It does not reproduce the VGA stair steps or fit two
+independent screen-space arcs.
+
 The final normal-view comparisons use the untouched VGA framebuffer restored
 from each snapshot as oracle:
 
@@ -283,7 +302,7 @@ Evidence classification for the multi-capture corrections:
 | Classification | Values/rules |
 |---|---|
 | Directly recovered | handler/type association; `above_type` and `side_type` gates; shell/rim/inner display-list order; selectors `61..73`; forward/backward raster direction and palette tables; exact VGA spans and painter order |
-| Derived by inverting exact original output through the shared lens | raised shell plane `+0.10`; carved passage plane `+0.20`; exposed outer `(0.50,0.43)` and inner `(0.43,0.33)` cross-sections; exposed reveal `+0.08` |
+| Derived by inverting exact original output through the shared lens | raised shell plane `+0.10`; carved passage plane `+0.20`; exposed outer `(0.50,0.43)` and inner `(0.43,0.33)` cross-sections; exposed reveal `+0.08`; exposed front-face selector-66/67 split at `45%` of the reveal |
 | Still inferred | treating the six exposed shade strips as twelve smooth stable facets in the enhanced view; the continuous lens between the eight literal TREKDAT phases; depth-buffer equivalence where the original uses ship-row painter duplication |
 
 ### Raised-tier junction validation

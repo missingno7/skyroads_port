@@ -124,6 +124,14 @@ EXPOSED_OUTER_HEIGHT = 0.43
 EXPOSED_INNER_HALF_WIDTH = 0.43
 EXPOSED_INNER_HEIGHT = 0.33
 EXPOSED_RIM_DEPTH = 0.08
+# The type-1 entrance is not one selector-67 annulus. 3059 paints selector 67
+# first, then the selector-66 inner-rim and underside streams overwrite it
+# from opposite halves. At snapshot 185622's unobscured row-31 entrance, the
+# surviving boundary is x=65 at the floor and x=87 near the spring. Inverting
+# those spans through the shared lens puts the boundary 45% of the way from
+# the outer cross-section to the recessed opening. Selector 67 survives only
+# on the remaining inner 55% of the road-outward half.
+EXPOSED_FRONT_OUTER_SHARE = 0.45
 
 # Direct selector constants from the original 1010:2FCC type-5 handler:
 # 3023 supplies 0x3D when the road word has no explicit raised-top material;
@@ -741,8 +749,6 @@ class _MeshBuilder:
             if entrance else front_z
         )
         backward = cell.lane > 3
-        inner_color = self.selector_color(cell, 66, backward=backward)
-        rim_color = self.selector_color(cell, 67, backward=backward)
 
         for step in range(segments):
             # The backward rasterizer mirrors the display-list geometry, not
@@ -765,6 +771,9 @@ class _MeshBuilder:
                 shade = 68 + min(5, shade_step * 6 // segments)
             oa, ob = outer[step], outer[step + 1]
             ia, ib = inner[step], inner[step + 1]
+            inner_color = self.selector_color(
+                cell, 66, backward=facet_backward,
+            )
             self.quad(
                 ((oa[0], oa[1], front_z), (ob[0], ob[1], front_z),
                  (ob[0], ob[1], far_z), (oa[0], oa[1], far_z)),
@@ -781,25 +790,68 @@ class _MeshBuilder:
                 inner_color,
             )
             if entrance:
-                self.quad(
-                    ((oa[0], oa[1], front_z),
-                     (ia[0], ia[1], inner_z0),
-                     (ib[0], ib[1], inner_z0),
-                     (ob[0], ob[1], front_z)),
-                    rim_color,
+                # 3059's final paint ownership is asymmetric. ``inner-rim``
+                # owns the outward half's outer band, ``underside`` owns the
+                # complete inward half, and only the inner part of the
+                # outward half retains the earlier ``front-rim`` selector.
+                # The backward road pass mirrors these roles physically.
+                outward_half = (
+                    cell.lane == 3
+                    or (cell.lane < 3 and step < segments // 2)
+                    or (cell.lane > 3 and step >= segments // 2)
                 )
+                if outward_half:
+                    share = EXPOSED_FRONT_OUTER_SHARE
+                    split_a = (
+                        oa[0] + (ia[0] - oa[0]) * share,
+                        oa[1] + (ia[1] - oa[1]) * share,
+                        front_z + (inner_z0 - front_z) * share,
+                    )
+                    split_b = (
+                        ob[0] + (ib[0] - ob[0]) * share,
+                        ob[1] + (ib[1] - ob[1]) * share,
+                        front_z + (inner_z0 - front_z) * share,
+                    )
+                    self.quad(
+                        ((oa[0], oa[1], front_z), split_a, split_b,
+                         (ob[0], ob[1], front_z)),
+                        inner_color,
+                    )
+                    self.quad(
+                        (split_a, (ia[0], ia[1], inner_z0),
+                         (ib[0], ib[1], inner_z0), split_b),
+                        self.selector_color(
+                            cell, 67, backward=facet_backward,
+                        ),
+                    )
+                else:
+                    self.quad(
+                        ((oa[0], oa[1], front_z),
+                         (ia[0], ia[1], inner_z0),
+                         (ib[0], ib[1], inner_z0),
+                         (ob[0], ob[1], front_z)),
+                        inner_color,
+                    )
         # The two exposed base ledges are the recovered underside material.
         # They close the shell thickness without closing the passage floor.
-        for outer_x, inner_x in (
-            (center - EXPOSED_OUTER_HALF_WIDTH,
-             center - EXPOSED_INNER_HALF_WIDTH),
-            (center + EXPOSED_INNER_HALF_WIDTH,
-             center + EXPOSED_OUTER_HALF_WIDTH),
+        for outer_x, inner_x, ledge_backward in (
+            (
+                center - EXPOSED_OUTER_HALF_WIDTH,
+                center - EXPOSED_INNER_HALF_WIDTH,
+                False if cell.lane == 3 else backward,
+            ),
+            (
+                center + EXPOSED_INNER_HALF_WIDTH,
+                center + EXPOSED_OUTER_HALF_WIDTH,
+                True if cell.lane == 3 else backward,
+            ),
         ):
             self.quad(
                 ((outer_x, 0.0, front_z), (inner_x, 0.0, inner_z0),
                  (inner_x, 0.0, far_z), (outer_x, 0.0, far_z)),
-                inner_color,
+                self.selector_color(
+                    cell, 66, backward=ledge_backward,
+                ),
             )
 
     def _carved_face(

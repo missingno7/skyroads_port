@@ -1474,7 +1474,10 @@ def test_full_wall_uses_two_neighbor_gated_tiers_on_fixed_depth_planes() -> None
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
 def test_exposed_tube_uses_mirrored_roles_and_full_lane_anchor() -> None:
     from skyroads.presentation.renderer import (
+        EXPOSED_FRONT_OUTER_SHARE,
+        EXPOSED_INNER_HALF_WIDTH,
         EXPOSED_OUTER_HALF_WIDTH,
+        EXPOSED_RIM_DEPTH,
         ROAD_CELL_DEPTH_OFFSET,
         _MeshBuilder,
     )
@@ -1482,9 +1485,11 @@ def test_exposed_tube_uses_mirrored_roles_and_full_lane_anchor() -> None:
     state = NativeGameState()
     native_level_load(state, road_archive_index(6), game_root=ASSETS)
     scene = build_gameplay_scene(GameView(state), level=6, game_root=ASSETS)
-    row = scene.geometry.rows[38]
-    previous = scene.geometry.rows[37]
-    following = scene.geometry.rows[39]
+    # Row 37 is the structural entrance; row 38 is already a continuation
+    # and therefore deliberately has no front-face roles.
+    row = scene.geometry.rows[37]
+    previous = scene.geometry.rows[36]
+    following = scene.geometry.rows[38]
     left, right = row.cells[1], row.cells[5]
     assert left.tunnel_shape is right.tunnel_shape is TunnelShape.EXPOSED_TUBE
 
@@ -1538,6 +1543,54 @@ def test_exposed_tube_uses_mirrored_roles_and_full_lane_anchor() -> None:
     assert any(vertex[2] == pytest.approx(far) for vertex in left_vertices)
     assert not any(vertex[2] == pytest.approx(float(row.ordinal))
                    for vertex in left_vertices)
+
+    # Original 3059 paint ownership leaves selector 67 only on the inner part
+    # of the road-outward half. Selector 66 owns the outer part and the whole
+    # inward half. The split is a world-space reveal vertex, not a fitted
+    # screen-space line, and mirrors with the backward road pass.
+    reveal = front + EXPOSED_RIM_DEPTH
+    split_depth = (
+        front + EXPOSED_RIM_DEPTH * EXPOSED_FRONT_OUTER_SHARE
+    )
+    for vertices, center, outward_sign, backward in (
+        (left_vertices, left_center, -1.0, False),
+        (right_vertices, right_center, 1.0, True),
+    ):
+        outer_x = center + outward_sign * EXPOSED_OUTER_HALF_WIDTH
+        inner_x = center + outward_sign * EXPOSED_INNER_HALF_WIDTH
+        split_x = (
+            outer_x
+            + (inner_x - outer_x) * EXPOSED_FRONT_OUTER_SHARE
+        )
+        inner_rgb = selector_rgb(66, backward=backward)
+        rim_rgb = selector_rgb(67, backward=backward)
+        assert any(
+            vertex[:3] == pytest.approx((split_x, 0.0, split_depth))
+            and vertex[3:] == pytest.approx(inner_rgb, abs=1e-6)
+            for vertex in vertices
+        )
+        assert any(
+            vertex[:3] == pytest.approx((split_x, 0.0, split_depth))
+            and vertex[3:] == pytest.approx(rim_rgb, abs=1e-6)
+            for vertex in vertices
+        )
+        assert any(
+            vertex[:3] == pytest.approx((inner_x, 0.0, reveal))
+            and vertex[3:] == pytest.approx(rim_rgb, abs=1e-6)
+            for vertex in vertices
+        )
+
+        inward_x = center - outward_sign * EXPOSED_INNER_HALF_WIDTH
+        assert any(
+            vertex[:3] == pytest.approx((inward_x, 0.0, reveal))
+            and vertex[3:] == pytest.approx(inner_rgb, abs=1e-6)
+            for vertex in vertices
+        )
+        assert not any(
+            vertex[:3] == pytest.approx((inward_x, 0.0, reveal))
+            and vertex[3:] == pytest.approx(rim_rgb, abs=1e-6)
+            for vertex in vertices
+        )
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
