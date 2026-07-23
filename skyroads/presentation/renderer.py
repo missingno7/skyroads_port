@@ -110,16 +110,20 @@ CARVED_OPENING_HALF_WIDTH = 0.43
 CARVED_OPENING_SPRING = 0.08
 CARVED_OPENING_ARCH_HEIGHT = 0.30
 
-# Selector-1's outer tube is elliptical only in the game's square 320x200
-# coordinate grid. The phase-0/6 RLE spans in snapshots 140305 and 140428
-# invert to a 0.43-lane horizontal radius and 0.50-lane vertical rise. After
-# the original 6:5 pixel aspect is applied this is the intended round shell.
-# Its independently recovered passage and reveal remain smaller/deeper.
-EXPOSED_OUTER_HALF_WIDTH = 0.43
-EXPOSED_OUTER_HEIGHT = 0.50
-EXPOSED_INNER_HALF_WIDTH = 0.36
-EXPOSED_INNER_HEIGHT = 0.35
-EXPOSED_RIM_DEPTH = 0.10
+# Selector-1 occupies the complete lane cross-section. In snapshot 185622,
+# the near row-31 entrance projects to x=61..126; inversion at row+0.10 gives
+# exactly -1.50..-0.50 for lane 2. Its near/far apex spans invert to a
+# 0.43-lane rise. Earlier distant captures could not separate that full-lane
+# base from the asymmetric rim strips and incorrectly implied a 0.43-wide
+# shell shifted 0.07 lane inward.
+EXPOSED_OUTER_HALF_WIDTH = 0.50
+EXPOSED_OUTER_HEIGHT = 0.43
+# The selector-66/67 masks at rows 31, 34 and 35 constrain the recessed
+# opening independently: a 0.07 lateral and 0.10 vertical shell thickness,
+# with the inner surface beginning 0.08 row behind the entrance.
+EXPOSED_INNER_HALF_WIDTH = 0.43
+EXPOSED_INNER_HEIGHT = 0.33
+EXPOSED_RIM_DEPTH = 0.08
 
 # Direct selector constants from the original 1010:2FCC type-5 handler:
 # 3023 supplies 0x3D when the road word has no explicit raised-top material;
@@ -703,7 +707,7 @@ class _MeshBuilder:
 
     def exposed_tunnel(
         self, cell: RoadCell, x0: float, x1: float, z0: float, z1: float,
-        *, entrance: bool, exit: bool,
+        *, entrance: bool,
     ) -> None:
         """Build the selector-1 tube as a thick, open-bottom shell.
 
@@ -713,18 +717,7 @@ class _MeshBuilder:
         recovered shade bands but samples a stable twelve-facet cross-section
         so the intended rounded tube does not inherit 320x200 stair steps.
         """
-        nominal_center = (x0 + x1) * 0.5
-        # The original forward/backward strips anchor an edge tube to the
-        # lane boundary facing the road centre. With the recovered 0.43
-        # half-width this shifts the whole section inward by 0.07 lane units,
-        # matching the invariant 4--6 pixel displacement across the phase-6
-        # scanlines. A centre-lane tube remains symmetric.
-        if cell.lane < 3:
-            center = x1 - EXPOSED_OUTER_HALF_WIDTH
-        elif cell.lane > 3:
-            center = x0 + EXPOSED_OUTER_HALF_WIDTH
-        else:
-            center = nominal_center
+        center = (x0 + x1) * 0.5
         segments = 12
         outer = self._arch_points(
             center, 0.0,
@@ -737,13 +730,15 @@ class _MeshBuilder:
             segments,
         )
         rim_depth = min(EXPOSED_RIM_DEPTH, (z1 - z0) * 0.2)
-        front_z = (
-            z0 + min(RAISED_FRONT_SETBACK, (z1 - z0) * 0.2)
-            if entrance else z0
-        )
+        # Every shell occupies the same fixed road-cell display-list
+        # footprint as its deck: row+0.10 through row+1.10. ``above_type < 1``
+        # controls only whether 3059 emits entrance roles.
+        plane_offset = min(ROAD_CELL_DEPTH_OFFSET, (z1 - z0) * 0.2)
+        front_z = z0 + plane_offset
+        far_z = z1 + plane_offset
         inner_z0 = (
             front_z + min(rim_depth, (z1 - front_z) * 0.2)
-            if entrance else z0
+            if entrance else front_z
         )
         backward = cell.lane > 3
         inner_color = self.selector_color(cell, 66, backward=backward)
@@ -772,7 +767,7 @@ class _MeshBuilder:
             ia, ib = inner[step], inner[step + 1]
             self.quad(
                 ((oa[0], oa[1], front_z), (ob[0], ob[1], front_z),
-                 (ob[0], ob[1], z1), (oa[0], oa[1], z1)),
+                 (ob[0], ob[1], far_z), (oa[0], oa[1], far_z)),
                 self.selector_color(
                     cell, shade, backward=facet_backward,
                 ),
@@ -781,8 +776,8 @@ class _MeshBuilder:
             # without face culling, so winding documents topology rather than
             # deciding whether the interior exists.
             self.quad(
-                ((ia[0], ia[1], inner_z0), (ia[0], ia[1], z1),
-                 (ib[0], ib[1], z1), (ib[0], ib[1], inner_z0)),
+                ((ia[0], ia[1], inner_z0), (ia[0], ia[1], far_z),
+                 (ib[0], ib[1], far_z), (ib[0], ib[1], inner_z0)),
                 inner_color,
             )
             if entrance:
@@ -793,13 +788,6 @@ class _MeshBuilder:
                      (ob[0], ob[1], front_z)),
                     rim_color,
                 )
-            if exit:
-                self.quad(
-                    ((ob[0], ob[1], z1), (ib[0], ib[1], z1),
-                     (ia[0], ia[1], z1), (oa[0], oa[1], z1)),
-                    inner_color,
-                )
-
         # The two exposed base ledges are the recovered underside material.
         # They close the shell thickness without closing the passage floor.
         for outer_x, inner_x in (
@@ -810,7 +798,7 @@ class _MeshBuilder:
         ):
             self.quad(
                 ((outer_x, 0.0, front_z), (inner_x, 0.0, inner_z0),
-                 (inner_x, 0.0, z1), (outer_x, 0.0, z1)),
+                 (inner_x, 0.0, far_z), (outer_x, 0.0, far_z)),
                 inner_color,
             )
 
@@ -1064,7 +1052,6 @@ class _MeshBuilder:
             self.exposed_tunnel(
                 cell, x0, x1, z0, z1,
                 entrance=entrance,
-                exit=exit,
             )
         elif cell.tunnel_shape in (
             TunnelShape.CARVED_HALF, TunnelShape.CARVED_FULL,

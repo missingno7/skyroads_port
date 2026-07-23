@@ -210,6 +210,7 @@ evidence beyond the original level-7 type-5 entrance:
 | `140337` | level 22, row 20, phase 0 | one wall alternating type-3 passages and type-2 solids across all seven lanes |
 | `140428` | level 22, row 59, phase 0 | type-1 and type-3 structures in the same view, including a contiguous type-3 run |
 | `140435` | level 22, row 67, phase 7 | a near type-3 entrance followed by contiguous type-5 (`carved-full`) cells |
+| `185622` | attract level 0, row 31, phase 5 | near, middle, and distant lane-2/4 type-1 entrances with the near bases unobscured |
 
 These establish three structural families rather than one interchangeable
 "tunnel":
@@ -217,10 +218,9 @@ These establish three structural families rather than one interchangeable
 1. Type 1 is an exposed open-bottom tube. `3059` emits six immutable shell
    strips (`68..73`), front rim `67`, and inner rim/underside `66`. The
    backward pass mirrors the strip order *and* resolves it through the
-   backward palette table. Its outer section has recovered radii
-   `(x=0.43, y=0.50)` in the internal square-pixel coordinate grid. The 6:5
-   output pixel aspect makes that shell physically round. Its opening uses
-   `(x=0.36, y=0.35)`.
+   backward palette table. Its outer section spans the complete lane with
+   recovered radii `(x=0.50, y=0.43)`. Its opening uses `(x=0.43, y=0.33)`
+   on a passage plane `0.08` row behind the shell entrance.
 2. Type 3 is a passage through the single `0x3200` half-height block family.
    `2EFD` uses top `61`, optional side `63`, front rim `65`, and inner
    side/underside `62`. It must join type-2 solid blocks without a depth or
@@ -243,17 +243,24 @@ Two previously hidden mismatches became obvious only across this set:
   every cell. The `above_type < 2` / `< 4` gates in `2EBB`/`2F58` suppress
   only internal lower/upper faces; they do not move continuation geometry
   back to an integer row.
-* The exposed shell was modelled lane-wide and its backward palette was
-  applied without mirroring shell roles. Across phase-6 scanlines its color
-  bands had nearly correct widths but lay 4--6 pixels too far outboard.
-  Inverting the spans gives the `0.43` horizontal radius. The pass geometry
-  anchors an off-centre tube to the lane boundary facing road centre, shifting
-  its centre inward by `0.07`. At capture `140428`, projecting the outer base
-  on `row + 0.10` gives `(x=89.59, y=75.97)`, matching the exact rim boundary
-  `(89,76)`; the raw row gives `(86.47,77.89)`. The opening begins on the next
-  `+0.10` plane. A centre-lane tube is the overlap between both original
-  passes: only shell roles 1/2 survive on each half, so the native section
-  mirrors that exact pair instead of exposing all six off-centre bands.
+* The backward palette must be applied while mirroring shell roles. Distant
+  phase-0/6 spans originally suggested an off-centre `0.43` outer radius, but
+  capture `185622` supplies the missing near-field lower rim. At row 31 lane
+  2, its exact x=61..126 entrance bounds invert on the `row + 0.10` plane to
+  world x=-1.50..-0.50: precisely the complete lane, centered at -1.00.
+  The apex spans independently recover a `0.43` rise. The inner palette masks
+  across rows 31, 34, and 35 constrain the opening to `(0.43, 0.33)` and its
+  reveal to `0.08` row. A centre-lane tube remains the overlap between both
+  original passes: only shell roles 1/2 survive on each half, so the native
+  section mirrors that exact pair instead of exposing all six off-centre
+  bands.
+
+`3059` always emits its six longitudinal shell strips. Its only neighbor
+query is `above_type < 1`, which admits the front rim, inner rim, and underside
+at an entrance. It never queries the following row and has no exit-cap role.
+The native tube therefore uses the common `row + 0.10 .. row + 1.10` road-cell
+footprint, starts a continued inner surface on the shared `+0.10` plane, and
+does not invent a closing annulus at the far end.
 
 The final normal-view comparisons use the untouched VGA framebuffer restored
 from each snapshot as oracle:
@@ -261,10 +268,11 @@ from each snapshot as oracle:
 | Capture | Road differing pixels, before → after | Tunnel-span differing pixels, before → after |
 |---|---:|---:|
 | `140212` | 377 → 224 | 43 → 19 |
-| `140305` | 5,908 → 2,787 | 5,425 → 2,689 |
+| `140305` | 5,908 → 1,683 | 5,425 → 1,579 |
 | `140337` | 1,886 → 1,749 | 568 → 476 |
-| `140428` | 1,136 → 1,053 | 588 → 537 |
+| `140428` | 1,136 → 768 | 588 → 426 |
 | `140435` | 1,240 → 1,240 | 666 → 666 |
+| `185622` | not previously measured → 1,419 | not previously measured → 1,188 |
 
 `140435` is deliberately unchanged: it exercises the previously recovered
 full-height type-5 geometry and proves that correcting type-1 tubes and
@@ -275,7 +283,7 @@ Evidence classification for the multi-capture corrections:
 | Classification | Values/rules |
 |---|---|
 | Directly recovered | handler/type association; `above_type` and `side_type` gates; shell/rim/inner display-list order; selectors `61..73`; forward/backward raster direction and palette tables; exact VGA spans and painter order |
-| Derived by inverting exact original output through the shared lens | raised shell plane `+0.10`; passage plane `+0.20`; exposed outer `(0.43,0.50)` and inner `(0.36,0.35)` cross-sections; `0.07` centre-facing lane anchor |
+| Derived by inverting exact original output through the shared lens | raised shell plane `+0.10`; carved passage plane `+0.20`; exposed outer `(0.50,0.43)` and inner `(0.43,0.33)` cross-sections; exposed reveal `+0.08` |
 | Still inferred | treating the six exposed shade strips as twelve smooth stable facets in the enhanced view; the continuous lens between the eight literal TREKDAT phases; depth-buffer equivalence where the original uses ship-row painter duplication |
 
 ### Raised-tier junction validation

@@ -1227,8 +1227,11 @@ def test_tunnel_mesh_has_distinct_shell_rim_and_passage_surfaces() -> None:
     # Exercise the constructive primitives directly so this test detects a
     # regression back to one zero-thickness arch or box+arch overlap.
     from skyroads.presentation.renderer import (
+        EXPOSED_INNER_HEIGHT,
         EXPOSED_INNER_HALF_WIDTH,
+        EXPOSED_OUTER_HEIGHT,
         EXPOSED_OUTER_HALF_WIDTH,
+        EXPOSED_RIM_DEPTH,
         _MeshBuilder,
     )
     exposed_builder = _MeshBuilder(scene, "final")
@@ -1251,12 +1254,26 @@ def test_tunnel_mesh_has_distinct_shell_rim_and_passage_surfaces() -> None:
 
     # Outer and inner radii plus the recessed inner start prove non-zero wall
     # and entrance-rim thickness in all three dimensions.
-    exposed_center += 0.5 - EXPOSED_OUTER_HALF_WIDTH
     assert any(abs(x - (exposed_center - EXPOSED_OUTER_HALF_WIDTH)) < 1e-6
                for x, _y, _z in exposed_positions)
     assert any(abs(x - (exposed_center - EXPOSED_INNER_HALF_WIDTH)) < 1e-6
                for x, _y, _z in exposed_positions)
-    for depth in (exposed.row + 0.1, exposed.row + 0.2):
+    assert any(
+        abs(x - exposed_center) < 1e-6
+        and abs(y - EXPOSED_OUTER_HEIGHT) < 1e-6
+        and abs(z - (exposed.row + 0.1)) < 1e-6
+        for x, y, z in exposed_positions
+    )
+    assert any(
+        abs(x - exposed_center) < 1e-6
+        and abs(y - EXPOSED_INNER_HEIGHT) < 1e-6
+        and abs(z - (exposed.row + 0.1 + EXPOSED_RIM_DEPTH)) < 1e-6
+        for x, y, z in exposed_positions
+    )
+    for depth in (
+        exposed.row + 0.1,
+        exposed.row + 0.1 + EXPOSED_RIM_DEPTH,
+    ):
         assert any(abs(z - depth) < 1e-6
                    for _x, _y, z in exposed_positions)
 
@@ -1455,9 +1472,10 @@ def test_full_wall_uses_two_neighbor_gated_tiers_on_fixed_depth_planes() -> None
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
-def test_exposed_tube_uses_mirrored_roles_and_inward_lane_anchor() -> None:
+def test_exposed_tube_uses_mirrored_roles_and_full_lane_anchor() -> None:
     from skyroads.presentation.renderer import (
         EXPOSED_OUTER_HALF_WIDTH,
+        ROAD_CELL_DEPTH_OFFSET,
         _MeshBuilder,
     )
 
@@ -1480,8 +1498,10 @@ def test_exposed_tube_uses_mirrored_roles_and_inward_lane_anchor() -> None:
     )
     left_vertices = tuple(zip(*(iter(left_builder.vertices),) * 6))
     right_vertices = tuple(zip(*(iter(right_builder.vertices),) * 6))
-    left_center = left.lane - 2.5 - EXPOSED_OUTER_HALF_WIDTH
-    right_center = right.lane - 3.5 + EXPOSED_OUTER_HALF_WIDTH
+    left_center = left.lane - 3.0
+    right_center = right.lane - 3.0
+    front = row.ordinal + ROAD_CELL_DEPTH_OFFSET
+    far = row.ordinal + 1 + ROAD_CELL_DEPTH_OFFSET
 
     def selector_rgb(selector: int, *, backward: bool):
         table = (
@@ -1498,12 +1518,12 @@ def test_exposed_tube_uses_mirrored_roles_and_inward_lane_anchor() -> None:
     expected = (
         (
             left_vertices,
-            (left_center - EXPOSED_OUTER_HALF_WIDTH, 0.0, float(left.row)),
+            (left_center - EXPOSED_OUTER_HALF_WIDTH, 0.0, front),
             selector_rgb(68, backward=False),
         ),
         (
             right_vertices,
-            (right_center + EXPOSED_OUTER_HALF_WIDTH, 0.0, float(right.row)),
+            (right_center + EXPOSED_OUTER_HALF_WIDTH, 0.0, front),
             selector_rgb(68, backward=True),
         ),
     )
@@ -1513,6 +1533,11 @@ def test_exposed_tube_uses_mirrored_roles_and_inward_lane_anchor() -> None:
             and vertex[3:] == pytest.approx(color, abs=1e-6)
             for vertex in vertices
         )
+    assert left_center - EXPOSED_OUTER_HALF_WIDTH == left.lane - 3.5
+    assert right_center + EXPOSED_OUTER_HALF_WIDTH == right.lane - 2.5
+    assert any(vertex[2] == pytest.approx(far) for vertex in left_vertices)
+    assert not any(vertex[2] == pytest.approx(float(row.ordinal))
+                   for vertex in left_vertices)
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
