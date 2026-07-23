@@ -46,6 +46,32 @@ def _percentile(values: list[float], fraction: float) -> float:
     return ordered[round((len(ordered) - 1) * fraction)]
 
 
+def _palette_fit_diagnostic(basis, current):
+    """Explain why a live DAC did not qualify for the scalar fade fast path."""
+    weighted = [
+        ((int(source) & 0xFF) >> 2, (int(target) & 0xFF) >> 2, index, channel)
+        for index, (before, after) in enumerate(
+            zip(basis, current, strict=True)
+        )
+        for channel, (source, target) in enumerate(
+            zip(before, after, strict=True)
+        )
+        if ((int(source) & 0xFF) >> 2) >= 2
+    ]
+    denominator = sum(source * source for source, _, _, _ in weighted)
+    if not denominator:
+        return None
+    gain = sum(source * target for source, target, _, _ in weighted) / denominator
+    source, target, index, channel = max(
+        weighted,
+        key=lambda item: abs(item[1] - item[0] * gain),
+    )
+    return (
+        round(gain, 6), index, channel, source, target,
+        round(abs(target - source * gain), 3),
+    )
+
+
 def _arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("replay", type=Path)
@@ -253,6 +279,10 @@ def main(argv=None) -> int:
                     for left, right in ((0, 72), (72, 142), (142, 256))
                 )
             ),
+            "palette_fit": (
+                None if packet is None
+                else _palette_fit_diagnostic(source_palette, palette)
+            ),
             "opl_writes": opl - last_opl,
         }
         if recording:
@@ -292,6 +322,7 @@ def main(argv=None) -> int:
             f"palette={'new' if item['palette_changed'] else 'same'} "
             f"gain={item['palette_gain'] if item['palette_gain'] is not None else '-'} "
             f"banks={item['palette_ranges']} "
+            f"fit6={item['palette_fit']} "
             f"at={item['machine']} boundary={item['boundary']}"
         )
 

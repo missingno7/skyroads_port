@@ -64,6 +64,7 @@ from skyroads.product_features import (
     PRACTICE_LEVEL_FEATURE_ID,
     SkyroadsFeatureState,
 )
+from skyroads.presentation.features import NATIVE_3D_RENDERER_FEATURE_ID
 from skyroads.launch_inputs import (
     DIRECT_LEVEL_ADAPTER_ID,
     LEVEL_SELECTION_IP,
@@ -241,6 +242,25 @@ def test_provider_diagnostics_expose_product_roles_and_true_seams(
     assert report.selected_interpreted_fallbacks == 0
     assert not report.exe_dependency
     assert report.dos_re_runtime_dependency
+
+
+def test_provider_diagnostics_name_selected_presentation_owner(
+    original_exe,
+) -> None:
+    plan = plan_execution(
+        configuration(
+            "development",
+            "faithful-product",
+            enabled_features=(NATIVE_3D_RENDERER_FEATURE_ID,),
+        ),
+        coverage(),
+        catalog(),
+        services(),
+        features(),
+    )
+
+    assert provider_diagnostics(plan).renderer_provider == \
+        NATIVE_3D_RENDERER_FEATURE_ID
 
 
 def test_direct_level_is_a_one_shot_generated_menu_selection() -> None:

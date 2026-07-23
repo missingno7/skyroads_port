@@ -870,11 +870,17 @@ def provider_diagnostics(plan, runtime=None) -> SkyroadsProviderDiagnostics:
         active_region = dispatcher.active_region_id
     capabilities = set(plan.report.required_capabilities)
     region_provider = gameplay.implementation_id if gameplay else root
+    selected_features = {item.feature_id for item in plan.features}
+    renderer_provider = (
+        NATIVE_3D_RENDERER_FEATURE_ID
+        if NATIVE_3D_RENDERER_FEATURE_ID in selected_features
+        else region_provider
+    )
     return SkyroadsProviderDiagnostics(
         frontend_provider=root,
         level_selection_provider=root,
         gameplay_provider=region_provider,
-        renderer_provider=region_provider,
+        renderer_provider=renderer_provider,
         covered_original_identities=tuple(sorted(covered)),
         collapsed_internal_boundaries=(
             len(gameplay.suppressed_bindings) if gameplay else 0

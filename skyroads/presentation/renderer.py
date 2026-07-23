@@ -380,10 +380,14 @@ def _uniform_palette_gain(
     channels = []
     for before, after in zip(basis, current, strict=True):
         for source, target in zip(before, after, strict=True):
-            source = int(source)
-            target = int(target)
+            # Both values passed through the real VGA 6-bit DAC.  Fit in the
+            # domain in which 4331 actually performs its integer
+            # interpolation, rather than treating the nonlinear replicated
+            # high bits of the 8-bit display expansion as source data.
+            source = (int(source) & 0xFF) >> 2
+            target = (int(target) & 0xFF) >> 2
             channels.append((source, target))
-            if source >= 8:
+            if source >= 2:
                 numerator += source * target
                 denominator += source * source
     if not denominator:
@@ -394,8 +398,22 @@ def _uniform_palette_gain(
     if not -0.01 <= gain <= 1.01:
         return None
     for source, target in channels:
+        # Zero and near-black entries in the assembled source palette include
+        # deliberately unused DAC slots.  The original fade interpolates the
+        # complete *live* DAC, so those slots can retain unrelated menu/audio
+        # colours even though no native gameplay asset references them.
+        # Treating an unreferenced zero slot as geometry authority caused a
+        # full world-mesh rebuild at several fade steps.  Low-valued channels
+        # are also dominated by the original integer division's quantization.
+        # They contribute neither useful gain evidence nor a visible error
+        # large enough to justify invalidating immutable geometry.
+        if source < 2:
+            continue
         expected = source * gain
-        if abs(target - expected) > 5.0:
+        # IDIV truncation plus the final VGA DAC quantization can each move a
+        # component by one 6-bit unit.  Anything beyond that is a real
+        # non-uniform palette mutation and retains the exact rebuild path.
+        if abs(target - expected) > 2.0:
             return None
     return max(0.0, min(1.0, gain))
 

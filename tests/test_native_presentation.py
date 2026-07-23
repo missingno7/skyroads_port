@@ -15,6 +15,7 @@ from skyroads.native.state import NativeGameState
 from skyroads.presentation.renderer import (
     CALIBRATION,
     RecoveredPolygonRenderer,
+    _uniform_palette_gain,
     build_polygon_mesh,
     project_world_vertex,
     projection_scale,
@@ -1100,6 +1101,35 @@ def test_scalar_gameplay_fade_reuses_geometry_and_indexed_assets() -> None:
     # The packet continues to expose the authoritative live DAC; only its
     # immutable render payload is based on the cached bright palette.
     assert faded.scene.palette == half_palette
+
+
+def test_scalar_fade_ignores_unreferenced_live_dac_slots() -> None:
+    """Unowned DAC entries cannot make immutable world geometry transient."""
+    basis = (
+        (0, 0, 0),
+        (4, 2, 1),
+        (16, 32, 48),
+        (40, 24, 8),
+    )
+    live = (
+        # The gameplay source palette deliberately leaves this DAC slot
+        # unowned, while the original machine can retain another scene's
+        # colour there.
+        (63, 21, 9),
+        # Integer fade quantization is intentionally ignored below 8.
+        (0, 0, 0),
+        (8, 16, 24),
+        (20, 12, 4),
+    )
+
+    assert _uniform_palette_gain(basis, live) == pytest.approx(0.5)
+
+
+def test_palette_gain_rejects_nonuniform_changes_to_owned_colours() -> None:
+    basis = ((16, 32, 48), (40, 24, 8))
+    changed = ((8, 16, 24), (40, 24, 8))
+
+    assert _uniform_palette_gain(basis, changed) is None
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
