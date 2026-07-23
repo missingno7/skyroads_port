@@ -198,6 +198,91 @@ Evidence classification:
 | Derived from original behavior | normalization by `0x1700`; the continuous projection of tier boundaries; `0.10` front/reveal depths and `0.43` opening width obtained by inverting the recovered lens against the exact spans |
 | Remaining approximation | the normal view's rational continuous lens and twelve-facet arch interpretation; both intentionally remove low-resolution stair steps. `exact-projection` retains the literal TREKDAT raster when byte/pixel identity is required |
 
+### Multi-capture tunnel validation
+
+The five manual continuation snapshots captured on 2026-07-23 broaden the
+evidence beyond the original level-7 type-5 entrance:
+
+| Capture | Recovered state | Tunnel evidence |
+|---|---|---|
+| `140212` | level 4, row 28, phase 5 | distant, contiguous type-3 (`carved-half`) passage at rows 30--31 |
+| `140305` | level 6, row 37, phase 6 | long type-1 (`exposed-tube`) runs in lanes 1/5, centre-lane tubes, the twice-painted ship row, and near clipping |
+| `140337` | level 22, row 20, phase 0 | one wall alternating type-3 passages and type-2 solids across all seven lanes |
+| `140428` | level 22, row 59, phase 0 | type-1 and type-3 structures in the same view, including a contiguous type-3 run |
+| `140435` | level 22, row 67, phase 7 | a near type-3 entrance followed by contiguous type-5 (`carved-full`) cells |
+
+These establish three structural families rather than one interchangeable
+"tunnel":
+
+1. Type 1 is an exposed open-bottom tube. `3059` emits six immutable shell
+   strips (`68..73`), front rim `67`, and inner rim/underside `66`. The
+   backward pass mirrors the strip order *and* resolves it through the
+   backward palette table. Its outer section has recovered radii
+   `(x=0.43, y=0.50)` in the internal square-pixel coordinate grid. The 6:5
+   output pixel aspect makes that shell physically round. Its opening uses
+   `(x=0.36, y=0.35)`.
+2. Type 3 is a passage through the single `0x3200` half-height block family.
+   `2EFD` uses top `61`, optional side `63`, front rim `65`, and inner
+   side/underside `62`. It must join type-2 solid blocks without a depth or
+   shade seam.
+3. Type 5 is a passage through the `0x3C00` full-height family. `2FCC` first
+   emits the type-3-height lower side/opening, then the equal second tier's
+   top/side/far edge. It is not a scaled-up type-3 silhouette.
+
+The road deck remains the passage floor for all three. There is no separately
+guessed tunnel-floor plane. Entrance and passage surfaces share vertices with
+that deck, and the depth buffer provides in-volume player occlusion.
+
+Two previously hidden mismatches became obvious only across this set:
+
+* The raised solid primitive started at the raw road-row plane while carved
+  cells started at `row + 0.10`. Capture `140337` therefore showed vertical
+  seams between alternating solid and hollow cells. Exact phase-0 spans put
+  both `block/far-cap` and `block/inner-side` on the `+0.10` plane. The
+  `above_type < 2` gates in `2EBB`/`2F58` further prove that the cap belongs
+  only to the first cell of a raised run. Continuation cells now start at the
+  shared integer row and do not emit internal caps.
+* The exposed shell was modelled lane-wide and its backward palette was
+  applied without mirroring shell roles. Across phase-6 scanlines its color
+  bands had nearly correct widths but lay 4--6 pixels too far outboard.
+  Inverting the spans gives the `0.43` horizontal radius. The pass geometry
+  anchors an off-centre tube to the lane boundary facing road centre, shifting
+  its centre inward by `0.07`. At capture `140428`, projecting the outer base
+  on `row + 0.10` gives `(x=89.59, y=75.97)`, matching the exact rim boundary
+  `(89,76)`; the raw row gives `(86.47,77.89)`. The opening begins on the next
+  `+0.10` plane. A centre-lane tube is the overlap between both original
+  passes: only shell roles 1/2 survive on each half, so the native section
+  mirrors that exact pair instead of exposing all six off-centre bands.
+
+The final normal-view comparisons use the untouched VGA framebuffer restored
+from each snapshot as oracle:
+
+| Capture | Road differing pixels, before → after | Tunnel-span differing pixels, before → after |
+|---|---:|---:|
+| `140212` | 377 → 224 | 43 → 19 |
+| `140305` | 5,908 → 2,787 | 5,425 → 2,689 |
+| `140337` | 1,886 → 1,749 | 568 → 476 |
+| `140428` | 1,136 → 1,053 | 588 → 537 |
+| `140435` | 1,240 → 1,240 | 666 → 666 |
+
+`140435` is deliberately unchanged: it exercises the previously recovered
+full-height type-5 geometry and proves that correcting type-1 tubes and
+type-2/type-3 adjacency did not perturb that family.
+
+Evidence classification for the multi-capture corrections:
+
+| Classification | Values/rules |
+|---|---|
+| Directly recovered | handler/type association; `above_type` and `side_type` gates; shell/rim/inner display-list order; selectors `61..73`; forward/backward raster direction and palette tables; exact VGA spans and painter order |
+| Derived by inverting exact original output through the shared lens | raised shell plane `+0.10`; passage plane `+0.20`; exposed outer `(0.43,0.50)` and inner `(0.36,0.35)` cross-sections; `0.07` centre-facing lane anchor |
+| Still inferred | treating the six exposed shade strips as twelve smooth stable facets in the enhanced view; the continuous lens between the eight literal TREKDAT phases; depth-buffer equivalence where the original uses ship-row painter duplication |
+
+The remaining normal-view differences concentrate on one-pixel phase
+quantization, near-plane clipping, and the original ship-row overdraw. They
+are not unresolved material selectors, tier dimensions, or independent face
+coordinates. `exact-projection` remains the authority when those literal
+integer raster artifacts are the desired comparison.
+
 ## Recovering the higher-level projection
 
 An earlier experiment joined consecutive RLE span endpoints into trapezoids.

@@ -97,11 +97,28 @@ CALIBRATION = ProjectionCalibration()
 # offsets, a 0.43-lane aperture half-width, and the already recovered
 # 0.08+0.30 mouse-hole height.  These are world dimensions shared by every
 # carved-half/full cell, not snapshot-specific screen coordinates.
-CARVED_FRONT_SETBACK = 0.10
+# All raised families start at the same recovered display-list plane.  The
+# phase-0 level-22 wall in snapshot 20260723_140337 alternates type-2 solids
+# and type-3 carved cells: both project their front/far-cap roles from
+# ``row + 0.10``. Starting ordinary blocks at the raw row boundary created a
+# false depth step at every solid/tunnel boundary.
+RAISED_FRONT_SETBACK = 0.10
+CARVED_FRONT_SETBACK = RAISED_FRONT_SETBACK
 CARVED_REVEAL_DEPTH = 0.10
 CARVED_OPENING_HALF_WIDTH = 0.43
 CARVED_OPENING_SPRING = 0.08
 CARVED_OPENING_ARCH_HEIGHT = 0.30
+
+# Selector-1's outer tube is elliptical only in the game's square 320x200
+# coordinate grid. The phase-0/6 RLE spans in snapshots 140305 and 140428
+# invert to a 0.43-lane horizontal radius and 0.50-lane vertical rise. After
+# the original 6:5 pixel aspect is applied this is the intended round shell.
+# Its independently recovered passage and reveal remain smaller/deeper.
+EXPOSED_OUTER_HALF_WIDTH = 0.43
+EXPOSED_OUTER_HEIGHT = 0.50
+EXPOSED_INNER_HALF_WIDTH = 0.36
+EXPOSED_INNER_HEIGHT = 0.35
+EXPOSED_RIM_DEPTH = 0.10
 
 # Direct selector constants from the original 1010:2FCC type-5 handler:
 # 3023 supplies 0x3D when the road word has no explicit raised-top material;
@@ -555,11 +572,16 @@ class _MeshBuilder:
     def box(self, cell: RoadCell, x0: float, x1: float,
             z0: float, z1: float, y0: float, y1: float,
             *, raised: bool = False,
+            entrance: bool = True,
             depth_splits: tuple[float, ...] = ()) -> None:
+        front_z = (
+            z0 + min(RAISED_FRONT_SETBACK, (z1 - z0) * 0.2)
+            if raised and entrance else z0
+        )
         depths = (
-            z0,
+            front_z,
             *(value for value in sorted(set(depth_splits))
-              if z0 < value < z1),
+              if front_z < value < z1),
             z1,
         )
         top_color = self.color(cell, "top", raised=raised)
@@ -581,8 +603,11 @@ class _MeshBuilder:
                  (x1, y1, far), (x1, y1, near)),
                 right_color,
             )
-        self.quad(((x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)),
-                  self.color(cell, "front", raised=raised))
+        if not raised or entrance:
+            self.quad((
+                (x0, y0, front_z), (x1, y0, front_z),
+                (x1, y1, front_z), (x0, y1, front_z),
+            ), self.color(cell, "front", raised=raised))
 
     def exposed_tunnel(
         self, cell: RoadCell, x0: float, x1: float, z0: float, z1: float,
@@ -596,24 +621,69 @@ class _MeshBuilder:
         recovered shade bands but samples a stable twelve-facet cross-section
         so the intended rounded tube does not inherit 320x200 stair steps.
         """
-        center = (x0 + x1) * 0.5
+        nominal_center = (x0 + x1) * 0.5
+        # The original forward/backward strips anchor an edge tube to the
+        # lane boundary facing the road centre. With the recovered 0.43
+        # half-width this shifts the whole section inward by 0.07 lane units,
+        # matching the invariant 4--6 pixel displacement across the phase-6
+        # scanlines. A centre-lane tube remains symmetric.
+        if cell.lane < 3:
+            center = x1 - EXPOSED_OUTER_HALF_WIDTH
+        elif cell.lane > 3:
+            center = x0 + EXPOSED_OUTER_HALF_WIDTH
+        else:
+            center = nominal_center
         segments = 12
-        outer = self._arch_points(center, 0.0, 0.5, 0.5, segments)
-        inner = self._arch_points(center, 0.0, 0.36, 0.35, segments)
-        rim_depth = min(0.10, (z1 - z0) * 0.2)
-        inner_z0 = z0 + rim_depth if entrance else z0
+        outer = self._arch_points(
+            center, 0.0,
+            EXPOSED_OUTER_HALF_WIDTH, EXPOSED_OUTER_HEIGHT,
+            segments,
+        )
+        inner = self._arch_points(
+            center, 0.0,
+            EXPOSED_INNER_HALF_WIDTH, EXPOSED_INNER_HEIGHT,
+            segments,
+        )
+        rim_depth = min(EXPOSED_RIM_DEPTH, (z1 - z0) * 0.2)
+        front_z = (
+            z0 + min(RAISED_FRONT_SETBACK, (z1 - z0) * 0.2)
+            if entrance else z0
+        )
+        inner_z0 = (
+            front_z + min(rim_depth, (z1 - front_z) * 0.2)
+            if entrance else z0
+        )
         backward = cell.lane > 3
         inner_color = self.selector_color(cell, 66, backward=backward)
         rim_color = self.selector_color(cell, 67, backward=backward)
 
         for step in range(segments):
-            shade = 68 + min(5, step * 6 // segments)
+            # The backward rasterizer mirrors the display-list geometry, not
+            # merely its palette lookup. Preserve the original shell-0..5
+            # ordering on both physical sides of the road.
+            facet_backward = backward
+            if cell.lane == 3:
+                # The centre cell is the one overlap between 2D1F's passes.
+                # Its phase traces retain shell-1/2 on each half: 69 then 70
+                # toward the apex in the forward half, mirrored through the
+                # backward table on the other half.
+                facet_backward = step >= segments // 2
+                half_step = (
+                    step if not facet_backward
+                    else segments - 1 - step
+                )
+                shade = 69 + int(half_step >= segments // 4)
+            else:
+                shade_step = segments - 1 - step if backward else step
+                shade = 68 + min(5, shade_step * 6 // segments)
             oa, ob = outer[step], outer[step + 1]
             ia, ib = inner[step], inner[step + 1]
             self.quad(
-                ((oa[0], oa[1], z0), (ob[0], ob[1], z0),
+                ((oa[0], oa[1], front_z), (ob[0], ob[1], front_z),
                  (ob[0], ob[1], z1), (oa[0], oa[1], z1)),
-                self.selector_color(cell, shade, backward=backward),
+                self.selector_color(
+                    cell, shade, backward=facet_backward,
+                ),
             )
             # Inward-facing passage surface. The renderer uses a depth buffer
             # without face culling, so winding documents topology rather than
@@ -625,8 +695,10 @@ class _MeshBuilder:
             )
             if entrance:
                 self.quad(
-                    ((oa[0], oa[1], z0), (ia[0], ia[1], inner_z0),
-                     (ib[0], ib[1], inner_z0), (ob[0], ob[1], z0)),
+                    ((oa[0], oa[1], front_z),
+                     (ia[0], ia[1], inner_z0),
+                     (ib[0], ib[1], inner_z0),
+                     (ob[0], ob[1], front_z)),
                     rim_color,
                 )
             if exit:
@@ -638,10 +710,14 @@ class _MeshBuilder:
 
         # The two exposed base ledges are the recovered underside material.
         # They close the shell thickness without closing the passage floor.
-        for outer_x, inner_x in ((x0, center - 0.36),
-                                 (center + 0.36, x1)):
+        for outer_x, inner_x in (
+            (center - EXPOSED_OUTER_HALF_WIDTH,
+             center - EXPOSED_INNER_HALF_WIDTH),
+            (center + EXPOSED_INNER_HALF_WIDTH,
+             center + EXPOSED_OUTER_HALF_WIDTH),
+        ):
             self.quad(
-                ((outer_x, 0.0, z0), (inner_x, 0.0, inner_z0),
+                ((outer_x, 0.0, front_z), (inner_x, 0.0, inner_z0),
                  (inner_x, 0.0, z1), (outer_x, 0.0, z1)),
                 inner_color,
             )
@@ -886,7 +962,14 @@ class _MeshBuilder:
             original_top = (FULL_BLOCK_HEIGHT if cell.raised is RaisedShape.FULL
                             else HALF_BLOCK_HEIGHT)
             y1 = (original_top - ROAD_DECK_HEIGHT) / LANE_UNITS
-            self.box(cell, x0, x1, z0, z1, 0.0, y1, raised=True)
+            raised_entrance = (
+                previous is None
+                or previous.raised is RaisedShape.NONE
+            )
+            self.box(
+                cell, x0, x1, z0, z1, 0.0, y1,
+                raised=True, entrance=raised_entrance,
+            )
         if cell.tunnel_shape is TunnelShape.EXPOSED_TUBE:
             self.exposed_tunnel(
                 cell, x0, x1, z0, z1,

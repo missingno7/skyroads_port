@@ -1226,7 +1226,11 @@ def test_tunnel_mesh_has_distinct_shell_rim_and_passage_surfaces() -> None:
 
     # Exercise the constructive primitives directly so this test detects a
     # regression back to one zero-thickness arch or box+arch overlap.
-    from skyroads.presentation.renderer import _MeshBuilder
+    from skyroads.presentation.renderer import (
+        EXPOSED_INNER_HALF_WIDTH,
+        EXPOSED_OUTER_HALF_WIDTH,
+        _MeshBuilder,
+    )
     exposed_builder = _MeshBuilder(scene, "final")
     exposed_builder.cell(exposed)
     carved_builder = _MeshBuilder(scene, "final")
@@ -1247,12 +1251,14 @@ def test_tunnel_mesh_has_distinct_shell_rim_and_passage_surfaces() -> None:
 
     # Outer and inner radii plus the recessed inner start prove non-zero wall
     # and entrance-rim thickness in all three dimensions.
-    assert any(abs(x - (exposed_center - 0.5)) < 1e-6
+    exposed_center += 0.5 - EXPOSED_OUTER_HALF_WIDTH
+    assert any(abs(x - (exposed_center - EXPOSED_OUTER_HALF_WIDTH)) < 1e-6
                for x, _y, _z in exposed_positions)
-    assert any(abs(x - (exposed_center - 0.36)) < 1e-6
+    assert any(abs(x - (exposed_center - EXPOSED_INNER_HALF_WIDTH)) < 1e-6
                for x, _y, _z in exposed_positions)
-    assert any(abs(z - (exposed.row + 0.1)) < 1e-6
-               for _x, _y, z in exposed_positions)
+    for depth in (exposed.row + 0.1, exposed.row + 0.2):
+        assert any(abs(z - depth) < 1e-6
+                   for _x, _y, z in exposed_positions)
 
     # The carved family owns a mouse-hole profile and a separate rectangular
     # exterior; it is not the exposed tube laid over a closed block.
@@ -1285,6 +1291,129 @@ def test_tunnel_mesh_has_distinct_shell_rim_and_passage_surfaces() -> None:
         for _x, y, _z in carved_positions
     )
     assert len(carved_builder.indices) // 3 > 40
+
+
+@pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
+def test_raised_wall_front_plane_and_continuation_follow_original_gate() -> None:
+    from skyroads.presentation.renderer import (
+        RAISED_FRONT_SETBACK,
+        _MeshBuilder,
+    )
+
+    state = NativeGameState()
+    native_level_load(state, road_archive_index(22), game_root=ASSETS)
+    scene = build_gameplay_scene(GameView(state), level=22, game_root=ASSETS)
+    row = scene.geometry.rows[21]
+    previous = scene.geometry.rows[20]
+    solid = row.cells[1]
+    carved = row.cells[2]
+    assert solid.raised is RaisedShape.HALF and not solid.tunnel
+    assert carved.tunnel_shape is TunnelShape.CARVED_HALF
+
+    solid_builder = _MeshBuilder(scene, "final")
+    solid_builder.cell(solid, previous=previous.cells[1])
+    carved_builder = _MeshBuilder(scene, "final")
+    carved_builder.cell(carved, previous=previous.cells[2])
+    solid_positions = set(zip(
+        solid_builder.vertices[0::6],
+        solid_builder.vertices[1::6],
+        solid_builder.vertices[2::6],
+    ))
+    carved_positions = set(zip(
+        carved_builder.vertices[0::6],
+        carved_builder.vertices[1::6],
+        carved_builder.vertices[2::6],
+    ))
+    front = row.ordinal + RAISED_FRONT_SETBACK
+    half_height = (HALF_BLOCK_HEIGHT - ROAD_DECK_HEIGHT) / LANE_UNITS
+    assert any(
+        position == pytest.approx((solid.lane - 3.5, half_height, front))
+        for position in solid_positions
+    )
+    assert any(
+        position == pytest.approx((carved.lane - 3.5, half_height, front))
+        for position in carved_positions
+    )
+
+    # 2EBB/2F58 gate the cap on above_type < 2. A continued raised run keeps
+    # the shared row plane and emits no redundant internal front quad.
+    continued_pair = next(
+        (scene.geometry.rows[index - 1].cells[lane],
+         scene.geometry.rows[index].cells[lane])
+        for index in range(1, len(scene.geometry.rows))
+        for lane in range(7)
+        if (scene.geometry.rows[index - 1].cells[lane].raised
+            is not RaisedShape.NONE
+            and scene.geometry.rows[index].cells[lane].raised
+            is not RaisedShape.NONE
+            and not scene.geometry.rows[index].cells[lane].tunnel)
+    )
+    continued = _MeshBuilder(scene, "final")
+    continued.cell(continued_pair[1], previous=continued_pair[0])
+    isolated = _MeshBuilder(scene, "final")
+    isolated.cell(continued_pair[1])
+    assert len(continued.indices) + 6 == len(isolated.indices)
+
+
+@pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
+def test_exposed_tube_uses_mirrored_roles_and_inward_lane_anchor() -> None:
+    from skyroads.presentation.renderer import (
+        EXPOSED_OUTER_HALF_WIDTH,
+        _MeshBuilder,
+    )
+
+    state = NativeGameState()
+    native_level_load(state, road_archive_index(6), game_root=ASSETS)
+    scene = build_gameplay_scene(GameView(state), level=6, game_root=ASSETS)
+    row = scene.geometry.rows[38]
+    previous = scene.geometry.rows[37]
+    following = scene.geometry.rows[39]
+    left, right = row.cells[1], row.cells[5]
+    assert left.tunnel_shape is right.tunnel_shape is TunnelShape.EXPOSED_TUBE
+
+    left_builder = _MeshBuilder(scene, "final")
+    left_builder.cell(
+        left, previous=previous.cells[1], following=following.cells[1],
+    )
+    right_builder = _MeshBuilder(scene, "final")
+    right_builder.cell(
+        right, previous=previous.cells[5], following=following.cells[5],
+    )
+    left_vertices = tuple(zip(*(iter(left_builder.vertices),) * 6))
+    right_vertices = tuple(zip(*(iter(right_builder.vertices),) * 6))
+    left_center = left.lane - 2.5 - EXPOSED_OUTER_HALF_WIDTH
+    right_center = right.lane - 3.5 + EXPOSED_OUTER_HALF_WIDTH
+
+    def selector_rgb(selector: int, *, backward: bool):
+        table = (
+            scene.face_palette_backward if backward
+            else scene.face_palette_forward
+        )
+        return tuple(
+            channel / 255.0
+            for channel in scene.palette[table[selector]]
+        )
+
+    # shell-0 is the outermost physical band on both sides, but the backward
+    # pass reaches it by reversing the spatial shell order.
+    expected = (
+        (
+            left_vertices,
+            (left_center - EXPOSED_OUTER_HALF_WIDTH, 0.0, float(left.row)),
+            selector_rgb(68, backward=False),
+        ),
+        (
+            right_vertices,
+            (right_center + EXPOSED_OUTER_HALF_WIDTH, 0.0, float(right.row)),
+            selector_rgb(68, backward=True),
+        ),
+    )
+    for vertices, position, color in expected:
+        assert any(
+            vertex[:3] == pytest.approx(position)
+            and vertex[3:] == pytest.approx(color, abs=1e-6)
+            for vertex in vertices
+        )
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
