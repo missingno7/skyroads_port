@@ -1474,7 +1474,6 @@ def test_full_wall_uses_two_neighbor_gated_tiers_on_fixed_depth_planes() -> None
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
 def test_exposed_tube_uses_mirrored_roles_and_full_lane_anchor() -> None:
     from skyroads.presentation.renderer import (
-        EXPOSED_FRONT_OUTER_SHARE,
         EXPOSED_INNER_HALF_WIDTH,
         EXPOSED_OUTER_HALF_WIDTH,
         EXPOSED_RIM_DEPTH,
@@ -1544,13 +1543,12 @@ def test_exposed_tube_uses_mirrored_roles_and_full_lane_anchor() -> None:
     assert not any(vertex[2] == pytest.approx(float(row.ordinal))
                    for vertex in left_vertices)
 
-    # Original 3059 paint ownership leaves selector 67 only on the inner part
-    # of the road-outward half. Selector 66 owns the outer part and the whole
-    # inward half. The split is a world-space reveal vertex, not a fitted
-    # screen-space line, and mirrors with the backward road pass.
+    # Original 3059 emits two complementary post-shell streams with the same
+    # selector 66. They are one uniformly shaded front annulus. Selector 67 is
+    # the separate recessed throat between that annulus and the passage.
     reveal = front + EXPOSED_RIM_DEPTH
-    split_depth = (
-        front + EXPOSED_RIM_DEPTH * EXPOSED_FRONT_OUTER_SHARE
+    assert selector_rgb(66, backward=False) == pytest.approx(
+        selector_rgb(66, backward=True),
     )
     for vertices, center, outward_sign, backward in (
         (left_vertices, left_center, -1.0, False),
@@ -1558,19 +1556,20 @@ def test_exposed_tube_uses_mirrored_roles_and_full_lane_anchor() -> None:
     ):
         outer_x = center + outward_sign * EXPOSED_OUTER_HALF_WIDTH
         inner_x = center + outward_sign * EXPOSED_INNER_HALF_WIDTH
-        split_x = (
-            outer_x
-            + (inner_x - outer_x) * EXPOSED_FRONT_OUTER_SHARE
-        )
         inner_rgb = selector_rgb(66, backward=backward)
         rim_rgb = selector_rgb(67, backward=backward)
         assert any(
-            vertex[:3] == pytest.approx((split_x, 0.0, split_depth))
+            vertex[:3] == pytest.approx((outer_x, 0.0, front))
             and vertex[3:] == pytest.approx(inner_rgb, abs=1e-6)
             for vertex in vertices
         )
         assert any(
-            vertex[:3] == pytest.approx((split_x, 0.0, split_depth))
+            vertex[:3] == pytest.approx((inner_x, 0.0, front))
+            and vertex[3:] == pytest.approx(inner_rgb, abs=1e-6)
+            for vertex in vertices
+        )
+        assert any(
+            vertex[:3] == pytest.approx((inner_x, 0.0, front))
             and vertex[3:] == pytest.approx(rim_rgb, abs=1e-6)
             for vertex in vertices
         )
@@ -1579,16 +1578,9 @@ def test_exposed_tube_uses_mirrored_roles_and_full_lane_anchor() -> None:
             and vertex[3:] == pytest.approx(rim_rgb, abs=1e-6)
             for vertex in vertices
         )
-
-        inward_x = center - outward_sign * EXPOSED_INNER_HALF_WIDTH
         assert any(
-            vertex[:3] == pytest.approx((inward_x, 0.0, reveal))
+            vertex[:3] == pytest.approx((inner_x, 0.0, reveal))
             and vertex[3:] == pytest.approx(inner_rgb, abs=1e-6)
-            for vertex in vertices
-        )
-        assert not any(
-            vertex[:3] == pytest.approx((inward_x, 0.0, reveal))
-            and vertex[3:] == pytest.approx(rim_rgb, abs=1e-6)
             for vertex in vertices
         )
 

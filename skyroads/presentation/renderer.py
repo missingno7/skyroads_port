@@ -124,14 +124,6 @@ EXPOSED_OUTER_HEIGHT = 0.43
 EXPOSED_INNER_HALF_WIDTH = 0.43
 EXPOSED_INNER_HEIGHT = 0.33
 EXPOSED_RIM_DEPTH = 0.08
-# The type-1 entrance is not one selector-67 annulus. 3059 paints selector 67
-# first, then the selector-66 inner-rim and underside streams overwrite it
-# from opposite halves. At snapshot 185622's unobscured row-31 entrance, the
-# surviving boundary is x=65 at the floor and x=87 near the spring. Inverting
-# those spans through the shared lens puts the boundary 45% of the way from
-# the outer cross-section to the recessed opening. Selector 67 survives only
-# on the remaining inner 55% of the road-outward half.
-EXPOSED_FRONT_OUTER_SHARE = 0.45
 
 # Direct selector constants from the original 1010:2FCC type-5 handler:
 # 3023 supplies 0x3D when the road word has no explicit raised-top material;
@@ -790,48 +782,25 @@ class _MeshBuilder:
                 inner_color,
             )
             if entrance:
-                # 3059's final paint ownership is asymmetric. ``inner-rim``
-                # owns the outward half's outer band, ``underside`` owns the
-                # complete inward half, and only the inner part of the
-                # outward half retains the earlier ``front-rim`` selector.
-                # The backward road pass mirrors these roles physically.
-                outward_half = (
-                    cell.lane == 3
-                    or (cell.lane < 3 and step < segments // 2)
-                    or (cell.lane > 3 and step >= segments // 2)
+                # The two post-shell streams at 3059 are complementary halves
+                # of one entrance annulus. Both carry selector 66, so this
+                # whole front face has one shade. The earlier selector-67
+                # stream is the recessed throat exposed behind that annulus,
+                # not an alternate material for one half of the face.
+                front_ia = (ia[0], ia[1], front_z)
+                front_ib = (ib[0], ib[1], front_z)
+                self.quad(
+                    ((oa[0], oa[1], front_z), front_ia, front_ib,
+                     (ob[0], ob[1], front_z)),
+                    inner_color,
                 )
-                if outward_half:
-                    share = EXPOSED_FRONT_OUTER_SHARE
-                    split_a = (
-                        oa[0] + (ia[0] - oa[0]) * share,
-                        oa[1] + (ia[1] - oa[1]) * share,
-                        front_z + (inner_z0 - front_z) * share,
-                    )
-                    split_b = (
-                        ob[0] + (ib[0] - ob[0]) * share,
-                        ob[1] + (ib[1] - ob[1]) * share,
-                        front_z + (inner_z0 - front_z) * share,
-                    )
-                    self.quad(
-                        ((oa[0], oa[1], front_z), split_a, split_b,
-                         (ob[0], ob[1], front_z)),
-                        inner_color,
-                    )
-                    self.quad(
-                        (split_a, (ia[0], ia[1], inner_z0),
-                         (ib[0], ib[1], inner_z0), split_b),
-                        self.selector_color(
-                            cell, 67, backward=facet_backward,
-                        ),
-                    )
-                else:
-                    self.quad(
-                        ((oa[0], oa[1], front_z),
-                         (ia[0], ia[1], inner_z0),
-                         (ib[0], ib[1], inner_z0),
-                         (ob[0], ob[1], front_z)),
-                        inner_color,
-                    )
+                self.quad(
+                    (front_ia, (ia[0], ia[1], inner_z0),
+                     (ib[0], ib[1], inner_z0), front_ib),
+                    self.selector_color(
+                        cell, 67, backward=facet_backward,
+                    ),
+                )
         # The two exposed base ledges are the recovered underside material.
         # They close the shell thickness without closing the passage floor.
         for outer_x, inner_x, ledge_backward in (
