@@ -102,6 +102,8 @@ class SkyroadsPresentation:
         self._ownership_phase = "outside-gameplay"
         self._scene_source_key = None
         self._source_scene: GameplayScene | None = None
+        self._prepared_visual_key = None
+        self._prepared_frame: PolygonFrame | None = None
         self._native_placeholder = None
         self._prewarmed_levels: set[int] = set()
         if self._renderer is not None:
@@ -226,6 +228,8 @@ class SkyroadsPresentation:
         self.previous = self.current = None
         self._scene_source_key = None
         self._source_scene = None
+        self._prepared_visual_key = None
+        self._prepared_frame = None
         # Clear the GPU packet at the state seam itself, not one caller later.
         # A menu palette must never be applied to a retained gameplay packet.
         self.polygon_frame = None
@@ -358,7 +362,13 @@ class SkyroadsPresentation:
         cpu = self.runtime.cpu
         view = GameView(cpu.mem.data, base=(cpu.s.ds & 0xFFFF) << 4)
         if not self._observe_ownership(view):
-            self._prewarm_selected_level(view)
+            # The selector fade publishes the next selected-level word before
+            # it finishes. Building a complete resident mesh at that point
+            # creates a deterministic transition stall. 5FED is the recovered
+            # stable selector-input boundary and gives this disposable work a
+            # deadline-free menu phase.
+            if self._ownership_phase == "level-selector-input":
+                self._prewarm_selected_level(view)
             self.polygon_frame = None
             return fallback()
         # A host presentation frame can run several times between fixed
@@ -380,7 +390,11 @@ class SkyroadsPresentation:
         visual = self.current
         if self.tweening and self.previous is not None:
             visual = interpolate_scene(self.previous, self.current, interpolation)
-        self.polygon_frame = self._renderer.prepare(visual)
+        visual_key = _scene_state_key(visual)
+        if visual_key != self._prepared_visual_key or self._prepared_frame is None:
+            self._prepared_frame = self._renderer.prepare(visual)
+            self._prepared_visual_key = visual_key
+        self.polygon_frame = self._prepared_frame
         self._last_mesh = self.polygon_frame.mesh
         self._last_projection = self.polygon_frame.projection_trace
         # The explicitly selected oracle diagnostic is the one permitted

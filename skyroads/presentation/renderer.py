@@ -10,6 +10,7 @@ simulation.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from functools import lru_cache
 import colorsys
 from hashlib import sha256
 import math
@@ -210,6 +211,35 @@ def _id_color(source_id: int) -> tuple[float, float, float]:
     return colorsys.hsv_to_rgb(hue, 0.72, 0.95)
 
 
+@lru_cache(maxsize=8)
+def _dashboard_base_alpha(indices: bytes) -> bytes:
+    """Cache the immutable DASHBRD colour-key mask."""
+    width = 320
+    return bytes(
+        255 if index // width >= 9 or value else 0
+        for index, value in enumerate(indices)
+    )
+
+
+@lru_cache(maxsize=512)
+def _dashboard_widget(
+    bank: bytes, record_at: int, enabled: bool,
+) -> tuple[int, int, int, bytes]:
+    """Decode each immutable DAT stencil once for its on/off state."""
+    if record_at + 4 > len(bank):
+        raise ValueError("HUD widget points outside its DAT bank")
+    destination, width, height = struct.unpack_from("<HBB", bank, record_at)
+    end = record_at + 4 + width * height
+    if end > len(bank):
+        raise ValueError("HUD widget has a truncated stencil")
+    stencil = stencil_blit(
+        bank[record_at + 4:end],
+        0x5E if enabled else 0x5C,
+        0x5F if enabled else 0x5D,
+    )
+    return destination, width, height, stencil
+
+
 def _compose_dashboard_rgba(scene: GameplayScene):
     """Rebuild ``DASHBRD`` and HUD widgets without reading VGA pixels.
 
@@ -226,23 +256,12 @@ def _compose_dashboard_rgba(scene: GameplayScene):
     # Zero-key pixels there reveal the road. Below that seam the destination
     # plane is the cockpit's black backing, so make index zero opaque instead
     # of allowing the native world mesh to leak behind the instruments.
-    alpha = bytearray(
-        255 if index // width >= 9 or value else 0
-        for index, value in enumerate(indices)
-    )
+    alpha = bytearray(_dashboard_base_alpha(scene.assets.dashboard_indices))
 
     def paint_widgets(offsets, bank: bytes, count: int) -> None:
         for cell, record_at in enumerate(offsets):
-            if record_at + 4 > len(bank):
-                raise ValueError(f"HUD widget {cell} points outside its DAT bank")
-            destination, w, h = struct.unpack_from("<HBB", bank, record_at)
-            end = record_at + 4 + w * h
-            if end > len(bank):
-                raise ValueError(f"HUD widget {cell} has a truncated stencil")
-            stencil = stencil_blit(
-                bank[record_at + 4:end],
-                0x5E if cell < count else 0x5C,
-                0x5F if cell < count else 0x5D,
+            destination, w, h, stencil = _dashboard_widget(
+                bank, record_at, cell < count,
             )
             for row in range(h):
                 y = destination // 320 + row - DASHBOARD_TOP

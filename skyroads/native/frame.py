@@ -54,8 +54,13 @@ def post_frame(img: NativeGameImage, dg: int) -> None:
     img.ww(dg, 0x0E6A, img.rw(dg, 0x0E2A))
     img.ww(dg, 0x0E6E, img.rw(dg, 0x0E6C))
     img.ww(dg, 0x0E72, img.rw(dg, 0x0E70))
-    for i in range(0x3BC):                       # rep movsw cx=0x1DE
-        img.wb(dg, (0x1243 + i) & 0xFFFF, img.rb(dg, (0x0E86 + i) & 0xFFFF))
+    # The original is ``rep movsw cx=0x1DE`` over two non-wrapping DGROUP
+    # ranges. A bytearray slice has exactly the same eager-copy/overlap
+    # semantics and avoids 1,912 Python method calls per rendered frame.
+    base = (dg & 0xFFFF) << 4
+    img.data[base + 0x1243:base + 0x1243 + 0x3BC] = (
+        img.data[base + 0x0E86:base + 0x0E86 + 0x3BC]
+    )
 
 
 def compose_frame(img: NativeGameImage, dg: int, params, *, rebuild: bool = False) -> None:

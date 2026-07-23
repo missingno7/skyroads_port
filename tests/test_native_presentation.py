@@ -292,6 +292,50 @@ def test_black_level_selector_handoff_atomically_drops_native_gpu_packet() -> No
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
+def test_next_level_mesh_prewarm_waits_for_selector_input(monkeypatch) -> None:
+    """A newly published selection must not build its mesh inside the fade."""
+    state = NativeGameState()
+    level = 3
+    native_level_load(state, road_archive_index(level), game_root=ASSETS)
+    state.ww(0x9332, level)
+    memory = Memory()
+    ds = 0x1686
+    base = ds << 4
+    memory.data[base:base + len(state.data)] = state.data
+    runtime = SimpleNamespace(
+        cpu=SimpleNamespace(
+            s=SimpleNamespace(cs=0x1010, ip=0x434A, ds=ds),
+            mem=memory,
+        ),
+        dos=SimpleNamespace(vga_palette=((0, 0, 0),) * 256),
+        execution_regions=None,
+    )
+    args = SimpleNamespace(
+        renderer="native-3d",
+        widescreen=False,
+        tweening=False,
+        render_debug="final",
+        game_root=str(ASSETS),
+        simulation_hz=30,
+        present_hz=60,
+    )
+    presentation = SkyroadsPresentation(runtime, args)
+    calls = []
+    monkeypatch.setattr(
+        presentation, "_prewarm_selected_level",
+        lambda view=None: calls.append(view),
+    )
+
+    _set_fade_callsite(runtime, 0x5295)
+    assert presentation.frame(lambda: "selector", interpolation=1.0) == "selector"
+    assert calls == []
+
+    runtime.cpu.s.ip = 0x5FED
+    assert presentation.frame(lambda: "selector", interpolation=1.0) == "selector"
+    assert len(calls) == 1
+
+
+@pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
 def test_region_exit_drops_same_level_gameplay_packet_before_menu_handoff() -> None:
     """An aborted level returns through generated code before DS:9332 changes."""
     state = NativeGameState()

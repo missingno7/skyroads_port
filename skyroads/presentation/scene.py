@@ -462,6 +462,22 @@ def _palette(
     return assets.source_palette
 
 
+def _view_bytes(view: GameView, offset: int, length: int) -> bytes:
+    """Read a non-wrapping DGROUP span without per-byte Python dispatch."""
+    backend = view._backend
+    data = getattr(backend, "data", None)
+    base = getattr(backend, "base", None)
+    if data is not None and base is not None and offset + length <= 0x10000:
+        return bytes(data[base + offset:base + offset + length])
+    return bytes(int(backend.rb(offset + index)) for index in range(length))
+
+
+@lru_cache(maxsize=16)
+def _resolved_game_root(game_root: str) -> str:
+    """Canonicalize an immutable asset root once per process."""
+    return str(Path(game_root).resolve())
+
+
 def build_gameplay_scene(
     view: GameView,
     *,
@@ -471,7 +487,7 @@ def build_gameplay_scene(
     device_palette=None,
 ) -> GameplayScene:
     """Project authoritative state without writes or simulated CPU state."""
-    root = str(Path(game_root).resolve())
+    root = _resolved_game_root(str(game_root))
     level = validate_playable_level(level)
     af1c = int(view.af1c)
     af2c = int(view.af2c)
@@ -508,9 +524,7 @@ def build_gameplay_scene(
             int(view.lateral) & 0xFFFFFFFF, rd(0x41C0),
         ),
         gravity=rd(GRAV_GRAVITY),
-        digit_font=bytes(
-            int(view._backend.rb(GRAV_FONT + index)) for index in range(200)
-        ),
+        digit_font=_view_bytes(view, GRAV_FONT, 200),
     )
     height_clip = rd(0x0E34)
     shadow_band = height_clip // 5
@@ -521,8 +535,7 @@ def build_gameplay_scene(
         screen_x=shadow_offset % 320,
         screen_y=shadow_offset // 320,
         mask=(
-            bytes(int(view._backend.rb(0x068E + shadow_band * 0x105 + index))
-                  for index in range(29 * 9))
+            _view_bytes(view, 0x068E + shadow_band * 0x105, 29 * 9)
             if shadow_band < 5 else b""
         ),
         # 33FD does not stamp its pattern blindly.  It shades only texels
@@ -530,8 +543,7 @@ def build_gameplay_scene(
         # that second input is what preserves original occlusion in a native
         # renderer; the pattern alone paints through tunnel rims and gaps.
         coverage=(
-            bytes(int(view._backend.rb(0x113E + index))
-                  for index in range(29 * 9))
+            _view_bytes(view, 0x113E, 29 * 9)
             if shadow_band < 5 else b""
         ),
     )
