@@ -84,6 +84,25 @@ class ProjectionCalibration:
 
 CALIBRATION = ProjectionCalibration()
 
+# Recovered carved-passage dimensions.  At snapshot
+# ``snapshot_skyroads_20260723_132043`` the nearest 0x0504 cell begins at road
+# row 42 while the camera is at 41.9999847.  TREKDAT's composite establishes:
+#
+# * deck near edge: x=90..137, y=102;
+# * solid/front aperture plane: x=94..138, floor y=99;
+# * aperture floor: x=97..135, apex y=82;
+# * rear of the entrance reveal: apex y=80.
+#
+# Inverting the recovered continuous lens gives two successive 0.10-row
+# offsets, a 0.43-lane aperture half-width, and the already recovered
+# 0.08+0.30 mouse-hole height.  These are world dimensions shared by every
+# carved-half/full cell, not snapshot-specific screen coordinates.
+CARVED_FRONT_SETBACK = 0.10
+CARVED_REVEAL_DEPTH = 0.10
+CARVED_OPENING_HALF_WIDTH = 0.43
+CARVED_OPENING_SPRING = 0.08
+CARVED_OPENING_ARCH_HEIGHT = 0.30
+
 
 def projection_scale(
     relative_depth: float,
@@ -517,15 +536,35 @@ class _MeshBuilder:
 
     def box(self, cell: RoadCell, x0: float, x1: float,
             z0: float, z1: float, y0: float, y1: float,
-            *, raised: bool = False) -> None:
-        self.quad(((x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)),
-                  self.color(cell, "top", raised=raised))
+            *, raised: bool = False,
+            depth_splits: tuple[float, ...] = ()) -> None:
+        depths = (
+            z0,
+            *(value for value in sorted(set(depth_splits))
+              if z0 < value < z1),
+            z1,
+        )
+        top_color = self.color(cell, "top", raised=raised)
+        left_color = self.color(cell, "left", raised=raised)
+        right_color = self.color(cell, "right", raised=raised)
+        for near, far in zip(depths, depths[1:]):
+            self.quad(
+                ((x0, y1, near), (x1, y1, near),
+                 (x1, y1, far), (x0, y1, far)),
+                top_color,
+            )
+            self.quad(
+                ((x0, y0, far), (x0, y0, near),
+                 (x0, y1, near), (x0, y1, far)),
+                left_color,
+            )
+            self.quad(
+                ((x1, y0, near), (x1, y0, far),
+                 (x1, y1, far), (x1, y1, near)),
+                right_color,
+            )
         self.quad(((x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)),
                   self.color(cell, "front", raised=raised))
-        self.quad(((x0, y0, z1), (x0, y0, z0), (x0, y1, z0), (x0, y1, z1)),
-                  self.color(cell, "left", raised=raised))
-        self.quad(((x1, y0, z0), (x1, y0, z1), (x1, y1, z1), (x1, y1, z0)),
-                  self.color(cell, "right", raised=raised))
 
     def exposed_tunnel(
         self, cell: RoadCell, x0: float, x1: float, z0: float, z1: float,
@@ -591,13 +630,16 @@ class _MeshBuilder:
 
     def _carved_face(
         self, cell: RoadCell, x0: float, x1: float, height: float, z: float,
-        color: tuple[float, float, float], *, reverse: bool = False,
+        color: tuple[float, float, float], *,
+        half_width: float = CARVED_OPENING_HALF_WIDTH,
+        spring: float = CARVED_OPENING_SPRING,
+        reverse: bool = False,
     ) -> None:
         """Tessellate a box end while leaving one real arched aperture."""
         center = (x0 + x1) * 0.5
-        half_width = 0.38
-        spring = 0.08
-        arch = self._arch_points(center, spring, half_width, 0.30, 12)
+        arch = self._arch_points(
+            center, spring, half_width, CARVED_OPENING_ARCH_HEIGHT, 12,
+        )
         left, right = center - half_width, center + half_width
         self.quad(
             ((x0, 0.0, z), (left, 0.0, z),
@@ -614,6 +656,40 @@ class _MeshBuilder:
                  (right_point[0], height, z),
                  (left_point[0], height, z)),
                 color, reverse=reverse,
+            )
+
+    def _carved_reveal(
+        self, center: float, front_z: float, passage_z: float,
+        color: tuple[float, float, float],
+    ) -> None:
+        """Join the front aperture to the passage with one watertight reveal.
+
+        The original ``raised/front-rim`` RLE role is the narrow visible band
+        between the front opening and the deeper ``inner-side``/``underside``
+        shapes.  The two cross-sections share the same world coordinates;
+        perspective alone produces the asymmetric 1--3 pixel band.
+        """
+        half_width = CARVED_OPENING_HALF_WIDTH
+        spring = CARVED_OPENING_SPRING
+        arch = self._arch_points(
+            center, spring, half_width, CARVED_OPENING_ARCH_HEIGHT, 12,
+        )
+        left, right = center - half_width, center + half_width
+        self.quad(
+            ((left, 0.0, front_z), (left, 0.0, passage_z),
+             (left, spring, passage_z), (left, spring, front_z)),
+            color,
+        )
+        self.quad(
+            ((right, spring, front_z), (right, spring, passage_z),
+             (right, 0.0, passage_z), (right, 0.0, front_z)),
+            color,
+        )
+        for a, b in zip(arch, arch[1:]):
+            self.quad(
+                ((a[0], a[1], front_z), (a[0], a[1], passage_z),
+                 (b[0], b[1], passage_z), (b[0], b[1], front_z)),
+                color,
             )
 
     def carved_tunnel(
@@ -633,28 +709,41 @@ class _MeshBuilder:
         side_color = self.selector_color(cell, 63, backward=backward)
         rim_color = self.selector_color(cell, 65, backward=backward)
         center = (x0 + x1) * 0.5
-        half_width = 0.38
-        spring = 0.08
-        arch = self._arch_points(center, spring, half_width, 0.30, 12)
-        rim_depth = min(0.10, (z1 - z0) * 0.2)
-        passage_z0 = z0 + rim_depth if entrance else z0
+        half_width = CARVED_OPENING_HALF_WIDTH
+        spring = CARVED_OPENING_SPRING
+        arch = self._arch_points(
+            center, spring, half_width, CARVED_OPENING_ARCH_HEIGHT, 12,
+        )
+        front_z = (
+            z0 + min(CARVED_FRONT_SETBACK, (z1 - z0) * 0.2)
+            if entrance else z0
+        )
+        passage_z0 = (
+            front_z + min(CARVED_REVEAL_DEPTH, (z1 - front_z) * 0.2)
+            if entrance else z0
+        )
 
         # Exterior surfaces belong to the same constructive solid as the
-        # opening. There is deliberately no closed box hidden behind an arch.
+        # opening. At a structural entrance the solid is set behind the deck's
+        # near edge exactly as TREKDAT shows; the uncovered deck is the
+        # passage's floor/threshold, not an overlapping second tunnel object.
         self.quad(
-            ((x0, height, z0), (x1, height, z0),
+            ((x0, height, front_z), (x1, height, front_z),
              (x1, height, z1), (x0, height, z1)), top_color,
         )
         self.quad(
-            ((x0, 0.0, z1), (x0, 0.0, z0),
-             (x0, height, z0), (x0, height, z1)), side_color,
+            ((x0, 0.0, z1), (x0, 0.0, front_z),
+             (x0, height, front_z), (x0, height, z1)), side_color,
         )
         self.quad(
-            ((x1, 0.0, z0), (x1, 0.0, z1),
-             (x1, height, z1), (x1, height, z0)), side_color,
+            ((x1, 0.0, front_z), (x1, 0.0, z1),
+             (x1, height, z1), (x1, height, front_z)), side_color,
         )
         if entrance:
-            self._carved_face(cell, x0, x1, height, z0, rim_color)
+            # Selector 62 owns the main solid face. Selector 65 is only the
+            # narrow aperture reveal (the original raised/front-rim role).
+            self._carved_face(cell, x0, x1, height, front_z, inner_color)
+            self._carved_reveal(center, front_z, passage_z0, rim_color)
         if exit:
             self._carved_face(
                 cell, x0, x1, height, z1, inner_color, reverse=True,
@@ -703,9 +792,29 @@ class _MeshBuilder:
         # mesh.  Every source cell remains exactly one lane by one row.
         z0 = float(cell.row)
         z1 = z0 + 1.0
+        entrance = not self._same_tunnel_family(previous, cell)
+        exit = not self._same_tunnel_family(following, cell)
 
         if cell.deck_material:
-            self.box(cell, x0, x1, z0, z1, -0.07, 0.0)
+            if entrance and cell.tunnel_shape is TunnelShape.EXPOSED_TUBE:
+                deck_splits = (z0 + 0.1,)
+            elif entrance and cell.tunnel_shape in (
+                TunnelShape.CARVED_HALF, TunnelShape.CARVED_FULL,
+            ):
+                deck_splits = (
+                    z0 + CARVED_FRONT_SETBACK,
+                    z0 + CARVED_FRONT_SETBACK + CARVED_REVEAL_DEPTH,
+                )
+            else:
+                deck_splits = ()
+            # Splitting the otherwise planar deck at the tunnel depth planes
+            # makes its floor vertices identical to the face/reveal/passage
+            # vertices. This avoids a geometric T-junction while preserving
+            # the original continuous deck material.
+            self.box(
+                cell, x0, x1, z0, z1, -0.07, 0.0,
+                depth_splits=deck_splits,
+            )
         if cell.raised is not RaisedShape.NONE and not cell.tunnel:
             original_top = (FULL_BLOCK_HEIGHT if cell.raised is RaisedShape.FULL
                             else HALF_BLOCK_HEIGHT)
@@ -714,8 +823,8 @@ class _MeshBuilder:
         if cell.tunnel_shape is TunnelShape.EXPOSED_TUBE:
             self.exposed_tunnel(
                 cell, x0, x1, z0, z1,
-                entrance=not self._same_tunnel_family(previous, cell),
-                exit=not self._same_tunnel_family(following, cell),
+                entrance=entrance,
+                exit=exit,
             )
         elif cell.tunnel_shape in (
             TunnelShape.CARVED_HALF, TunnelShape.CARVED_FULL,
@@ -726,8 +835,8 @@ class _MeshBuilder:
             self.carved_tunnel(
                 cell, x0, x1, z0, z1,
                 (original_top - ROAD_DECK_HEIGHT) / LANE_UNITS,
-                entrance=not self._same_tunnel_family(previous, cell),
-                exit=not self._same_tunnel_family(following, cell),
+                entrance=entrance,
+                exit=exit,
             )
         self.source_ids.append(cell.object_id)
 

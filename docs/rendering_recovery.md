@@ -87,6 +87,54 @@ rows 96..110 contain carved half-height passages. Cached points 0, 12, 24 and
 interior, exterior and occlusion comparison. Full-height carved passages use
 the same recovered aperture contract and occur in 17 shipped levels.
 
+The full-height `0x0504` pair in
+`snapshot_skyroads_20260723_132043` provides a nearer, unambiguous entrance
+calibration. The camera is at row `41.9999847`; the structures begin at row
+42 in lanes 2 and 4. Decoding the original RLE stream establishes this
+composition:
+
+1. `deck/top` remains the passage floor and extends to the cell's near edge.
+2. The raised solid begins `0.10` row behind that edge. Its main aperture face
+   uses selector 62; it is not the selector-65 rim color.
+3. The mouse-hole opening has half-width `0.43` lane, a `0.08` straight jamb,
+   and a `0.30` arched rise.
+4. The longitudinal passage begins another `0.10` row deeper. Shared aperture
+   vertices at those two depth planes are joined by explicit jamb and ceiling
+   reveal surfaces using selector 65.
+5. The passage walls and ceiling then continue to the cell's far plane.
+   Consecutive cells share that plane, so they do not emit internal rims.
+
+At the snapshot coordinate, the recovered lens projects the solid plane to
+`x=94..138`, floor `y=99`; the front aperture to `x=97..135`, apex `y=82`;
+and the rear reveal apex to `y=80`. Those are the original composite's exact
+integer boundaries. This also explains the apparently asymmetric 1--3 pixel
+`raised/front-rim` strip: it is perspective across a real `0.10`-row reveal,
+not an independently fitted screen-space outline.
+
+The earlier native mesh put the entire face at the deck edge (`x=90..137`,
+`y=102`), began the passage at the correct first setback but left the interval
+between them open, and colored the complete face as a rim. That disconnected
+the floor, jambs, ceiling and interior and produced the visible overlap/gap.
+The corrected mesh uses one shared aperture topology and applies screen
+rounding only after projection.
+
+The exact snapshot comparison uses ROI `x=80..239`, `y=32..106`, covering
+both carved-full structures and their passages:
+
+| Native mesh | Pixels differing from oracle | Normalized mean error |
+|---|---:|---:|
+| disconnected face/passage | 3,317 | 0.033858 |
+| shared face/reveal/passage | 337 | 0.004254 |
+
+The remaining differences are confined primarily to one-pixel polygon edges:
+the oracle retains TREKDAT's phase-specific integer stair steps, whereas the
+normal native view projects the recovered world vertices continuously. The
+`exact-projection` mode remains the authority when those original raster
+artifacts themselves must be reproduced. This snapshot covers carved-full
+passages and in-volume ship occlusion. Carved-half uses the same recovered
+aperture/reveal topology and is covered by the level-wide mesh tests; exposed
+tubes remain a separate structural family and were intentionally unchanged.
+
 ## Recovering the higher-level projection
 
 An earlier experiment joined consecutive RLE span endpoints into trapezoids.

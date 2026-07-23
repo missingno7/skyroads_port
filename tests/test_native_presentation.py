@@ -1252,11 +1252,78 @@ def test_tunnel_mesh_has_distinct_shell_rim_and_passage_surfaces() -> None:
 
     # The carved family owns a mouse-hole profile and a separate rectangular
     # exterior; it is not the exposed tube laid over a closed block.
-    assert any(abs(x - (carved_center - 0.38)) < 1e-6 and abs(y - 0.08) < 1e-6
+    assert any(abs(x - (carved_center - 0.43)) < 1e-6 and abs(y - 0.08) < 1e-6
                for x, y, _z in carved_positions)
     assert any(abs(y - 0.38) < 1e-6
                for _x, y, _z in carved_positions)
+    # The solid front, then the passage, occupy two evidence-backed depth
+    # planes. Shared aperture vertices and the reveal quads leave no hole
+    # between the front face and the longitudinal interior.
+    assert any(abs(z - (carved.row + 0.1)) < 1e-6
+               for _x, _y, z in carved_positions)
+    assert any(abs(z - (carved.row + 0.2)) < 1e-6
+               for _x, _y, z in carved_positions)
+    deck_rgb = tuple(channel / 255.0 for channel in scene.palette[
+        carved.deck_material
+    ])
+    carved_vertices = tuple(zip(*(iter(carved_builder.vertices),) * 6))
+    for depth in (carved.row + 0.1, carved.row + 0.2):
+        assert any(
+            vertex[:3] == pytest.approx((
+                carved.lane - 3.5, 0.0, depth,
+            ))
+            and vertex[3:] == pytest.approx(deck_rgb)
+            for vertex in carved_vertices
+        )
     assert len(carved_builder.indices) // 3 > 40
+
+
+def test_carved_tunnel_geometry_matches_snapshot_rle_boundaries() -> None:
+    """Invert the exact 20260723_132043 portal spans through the shared lens."""
+    from skyroads.presentation.renderer import (
+        CARVED_FRONT_SETBACK,
+        CARVED_OPENING_ARCH_HEIGHT,
+        CARVED_OPENING_HALF_WIDTH,
+        CARVED_OPENING_SPRING,
+        CARVED_REVEAL_DEPTH,
+    )
+
+    camera = 0x29FFFF / 0x10000
+    row = 42.0
+    center = -1.0  # lane 2
+    front = row + CARVED_FRONT_SETBACK
+    passage = front + CARVED_REVEAL_DEPTH
+    outer_left = project_world_vertex(-1.5, 0.0, front, camera)
+    outer_right = project_world_vertex(-0.5, 0.0, front, camera)
+    opening_left = project_world_vertex(
+        center - CARVED_OPENING_HALF_WIDTH, 0.0, front, camera,
+    )
+    opening_right = project_world_vertex(
+        center + CARVED_OPENING_HALF_WIDTH, 0.0, front, camera,
+    )
+    front_apex = project_world_vertex(
+        center,
+        CARVED_OPENING_SPRING + CARVED_OPENING_ARCH_HEIGHT,
+        front,
+        camera,
+    )
+    passage_apex = project_world_vertex(
+        center,
+        CARVED_OPENING_SPRING + CARVED_OPENING_ARCH_HEIGHT,
+        passage,
+        camera,
+    )
+
+    # Exact original composite: outer front x=94..138; aperture floor
+    # x=97..135; its first open scanline is y=82. The deeper reveal surface
+    # occupies y=80..81 before meeting the longitudinal passage.
+    assert outer_left[0] == pytest.approx(94, abs=0.5)
+    assert outer_right[0] == pytest.approx(138, abs=0.5)
+    assert outer_left[1] == pytest.approx(99, abs=0.5)
+    assert opening_left[0] == pytest.approx(97, abs=0.5)
+    assert opening_right[0] == pytest.approx(135, abs=0.5)
+    assert front_apex[1] == pytest.approx(82, abs=0.5)
+    assert passage_apex[1] == pytest.approx(80, abs=0.5)
 
 
 @pytest.mark.skipif(not (ASSETS / "ROADS.LZS").exists(), reason="needs game assets")
